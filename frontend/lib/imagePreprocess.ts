@@ -6,7 +6,7 @@ export interface PreprocessedImage {
 
 /**
  * Preprocess image for Hindi OCR.
- * Key: upscale to 3000px height, strong binarization, preserve Devanagari matras.
+ * Key: upscale to high resolution, grayscale + contrast, NO binarization.
  */
 export function preprocessImage(
   imageSource: HTMLImageElement | HTMLCanvasElement
@@ -17,14 +17,14 @@ export function preprocessImage(
   let w = imageSource instanceof HTMLImageElement ? imageSource.naturalWidth : imageSource.width
   let h = imageSource instanceof HTMLImageElement ? imageSource.naturalHeight : imageSource.height
 
-  // Upscale to at least 3000px height for Devanagari OCR accuracy
-  const minDim = 3000
-  if (h < minDim) {
-    const scale = minDim / h
+  // Upscale to at least 2500px height for Devanagari OCR accuracy
+  const minH = 2500
+  if (h < minH) {
+    const scale = minH / h
     w = Math.round(w * scale)
     h = Math.round(h * scale)
   }
-  // Also cap at 4000 to avoid memory issues
+  // Cap at 4000 to avoid memory issues
   const maxDim = 4000
   if (Math.max(w, h) > maxDim) {
     const scale = maxDim / Math.max(w, h)
@@ -35,70 +35,52 @@ export function preprocessImage(
   canvas.width = w
   canvas.height = h
 
-  // Use high-quality scaling
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(imageSource, 0, 0, w, h)
 
+  // Grayscale + contrast enhancement (no binarization - Tesseract works better with grayscale)
   const imageData = ctx.getImageData(0, 0, w, h)
   const data = imageData.data
 
-  // Step 1: Convert to grayscale
-  const gray = new Float32Array(w * h)
+  // Calculate histogram for adaptive contrast
+  const histogram = new Uint32Array(256)
   for (let i = 0; i < data.length; i += 4) {
-    gray[i / 4] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
+    const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114)
+    histogram[gray]++
   }
 
-  // Step 2: Otsu's thresholding for clean binarization
-  const threshold = otsuThreshold(gray)
+  // Find histogram bounds (ignore top/bottom 1%)
+  const totalPixels = w * h
+  const clip = Math.floor(totalPixels * 0.01)
+  let low = 0, high = 255
+  let accum = 0
+  for (let i = 0; i < 256; i++) {
+    accum += histogram[i]
+    if (accum > clip) { low = i; break }
+  }
+  accum = 0
+  for (let i = 255; i >= 0; i--) {
+    accum += histogram[i]
+    if (accum > clip) { high = i; break }
+  }
+
+  // Stretch contrast
+  const range = Math.max(high - low, 1)
   for (let i = 0; i < data.length; i += 4) {
-    const val = gray[i / 4] < threshold ? 0 : 255
-    data[i] = val
-    data[i + 1] = val
-    data[i + 2] = val
+    const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
+    const stretched = Math.min(255, Math.max(0, ((gray - low) / range) * 255))
+    // Slight sharpening: boost contrast around midpoint
+    const enhanced = stretched > 128
+      ? Math.min(255, stretched * 1.1)
+      : Math.max(0, stretched * 0.9)
+    data[i] = enhanced
+    data[i + 1] = enhanced
+    data[i + 2] = enhanced
   }
 
   ctx.putImageData(imageData, 0, 0)
   return { canvas, width: w, height: h }
-}
-
-/**
- * Otsu's method for finding optimal binarization threshold
- */
-function otsuThreshold(gray: Float32Array): number {
-  const histogram = new Uint32Array(256)
-  for (let i = 0; i < gray.length; i++) {
-    const val = Math.min(255, Math.max(0, Math.round(gray[i])))
-    histogram[val]++
-  }
-
-  const total = gray.length
-  let sum = 0
-  for (let i = 0; i < 256; i++) sum += i * histogram[i]
-
-  let sumB = 0
-  let wB = 0
-  let maxVariance = 0
-  let threshold = 128
-
-  for (let i = 0; i < 256; i++) {
-    wB += histogram[i]
-    if (wB === 0) continue
-    const wF = total - wB
-    if (wF === 0) break
-
-    sumB += i * histogram[i]
-    const mB = sumB / wB
-    const mF = (sum - sumB) / wF
-    const variance = wB * wF * (mB - mF) * (mB - mF)
-
-    if (variance > maxVariance) {
-      maxVariance = variance
-      threshold = i
-    }
-  }
-
-  return threshold
 }
 
 /**
@@ -118,11 +100,10 @@ export function detectTextRegions(
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4
-      if (data[idx] < 128) hProj[y]++
+      if (data[idx] < 160) hProj[y]++
     }
   }
 
-  // Find text lines
   const threshold = w * 0.02
   const regions: { x: number; y: number; w: number; h: number }[] = []
   let inLine = false
@@ -140,7 +121,7 @@ export function detectTextRegions(
         for (let ly = lineStart; ly < y; ly++) {
           for (let x = 0; x < w; x++) {
             const idx = (ly * w + x) * 4
-            if (data[idx] < 128) {
+            if (data[idx] < 160) {
               minX = Math.min(minX, x)
               maxX = Math.max(maxX, x)
             }
@@ -158,7 +139,6 @@ export function detectTextRegions(
     }
   }
 
-  // Merge nearby regions (within 20px)
   const merged: typeof regions = []
   for (const r of regions) {
     const last = merged[merged.length - 1]
