@@ -4,6 +4,9 @@ const nextConfig = {
   images: {
     formats: ['image/avif', 'image/webp'],
   },
+  env: {
+    NEXT_PUBLIC_API_URL: 'https://paperai-backend.onrender.com',
+  },
   async headers() {
     return [
       {
