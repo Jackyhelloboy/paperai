@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+venv/
+.env
+*.log
+uploads/
+exports/
+training_data/
+test_*.py
+*.md
+.vercel
