@@ -70,15 +70,10 @@ export default function ProcessingStatus({ job, onComplete, onError }: Processin
 
   const steps = [
     { label: 'Uploaded', threshold: 0, icon: 'upload' },
-    { label: 'Preprocessing', threshold: 10, icon: 'search' },
-    { label: 'Quality', threshold: 20, icon: 'chart' },
-    { label: 'Layout', threshold: 30, icon: 'grid' },
-    { label: 'Script', threshold: 40, icon: 'language' },
-    { label: 'OCR', threshold: 50, icon: 'text' },
-    { label: 'Math', threshold: 70, icon: 'math' },
-    { label: 'Validate', threshold: 80, icon: 'check' },
-    { label: 'Scoring', threshold: 90, icon: 'score' },
-    { label: 'Done', threshold: 100, icon: 'done' },
+    { label: 'Loading', threshold: 5, icon: 'search' },
+    { label: 'Regions', threshold: 15, icon: 'grid' },
+    { label: 'OCR', threshold: 30, icon: 'text' },
+    { label: 'Done', threshold: 95, icon: 'done' },
   ]
 
   const getStepIcon = (icon: string) => {
