@@ -186,84 +186,101 @@ async def delete_job(job_id: str):
     return {"status": "deleted", "message": "Job and file deleted."}
 
 async def _process_file_task(job_id: str):
+    import gc
+    import logging
+    logger = logging.getLogger(__name__)
     job = processing_jobs[job_id]
     
     try:
         job["progress"] = 5
-        job["message"] = "Loading and preprocessing image..."
+        job["message"] = "Loading image..."
+        gc.collect()
         
-        preprocessed = preprocessor.preprocess(job["file_path"])
+        import cv2
+        import numpy as np
         
-        job["progress"] = 15
-        job["message"] = "Analyzing image quality..."
+        ext = os.path.splitext(job["file_path"])[1].lower()
+        if ext == ".pdf":
+            preprocessed = preprocessor.preprocess(job["file_path"])
+        else:
+            image = cv2.imread(job["file_path"])
+            if image is None:
+                raise ValueError("Could not read image")
+            h, w = image.shape[:2]
+            max_dim = 2000
+            if max(h, w) > max_dim:
+                scale = max_dim / max(h, w)
+                image = cv2.resize(image, None, fx=scale, fy=scale)
+            preprocessed = image
+        
+        gc.collect()
+        job["progress"] = 20
+        job["message"] = "Analyzing quality..."
         
         quality_report = preprocessor.analyze_quality(preprocessed)
         
-        job["progress"] = 25
-        job["message"] = "Detecting layout and regions..."
+        job["progress"] = 35
+        job["message"] = "Detecting layout..."
         
         regions = preprocessor.detect_layout(preprocessed)
+        if not regions:
+            regions = [{"bbox": [0, 0, preprocessed.shape[1], preprocessed.shape[0]], "type": "block"}]
         
-        job["progress"] = 35
-        job["message"] = f"Detected {len(regions)} regions. Classifying scripts..."
+        gc.collect()
+        job["progress"] = 50
+        job["message"] = f"Running OCR on {len(regions)} regions..."
         
-        classified_regions = script_classifier.classify_regions(regions)
-        
-        job["progress"] = 45
-        job["message"] = "Running OCR with multi-resolution voting..."
-        
-        ocr_results = ocr_engine.process_regions(
-            image=preprocessed,
-            regions=classified_regions,
-            quality_report=quality_report
-        )
-        
-        job["progress"] = 65
-        job["message"] = "Protecting mathematical expressions..."
-        
-        protected_results = math_protector.protect(ocr_results)
-        
-        job["progress"] = 75
-        job["message"] = "Validating question paper structure..."
-        
-        validated = validator.validate(protected_results, preprocessed)
-        
-        job["progress"] = 85
-        job["message"] = "Comparing with source image..."
-        
-        source_comparison = source_comparator.compare_source_output(
-            preprocessed, 
-            [r for page in validated for r in page.get("regions", [])]
-        )
+        ocr_results = []
+        for i, region in enumerate(regions):
+            bbox = region.get("bbox", [0, 0, preprocessed.shape[1], preprocessed.shape[0]])
+            x1, y1, x2, y2 = [int(b) for b in bbox]
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(preprocessed.shape[1], x2), min(preprocessed.shape[0], y2)
+            crop = preprocessed[y1:y2, x1:x2]
+            
+            if crop.size == 0 or crop.shape[0] < 10 or crop.shape[1] < 10:
+                continue
+            
+            try:
+                result = ocr_engine.run_ocr_direct(crop, "en")
+                if result and result.get("text", "").strip():
+                    result["region_index"] = i
+                    result["bbox"] = bbox
+                    result["detected_language"] = "en"
+                    result["region_type"] = region.get("type", "block")
+                    ocr_results.append(result)
+            except Exception as ex:
+                logger.warning(f"OCR failed for region {i}: {ex}")
+                continue
+            
+            job["progress"] = min(85, 50 + int(35 * (i + 1) / len(regions)))
+            job["message"] = f"OCR: region {i+1}/{len(regions)}..."
+            gc.collect()
         
         job["progress"] = 90
-        job["message"] = "Computing consensus scores..."
+        job["message"] = "Finalizing..."
         
-        scored = scorer.score(validated)
-        
-        job["progress"] = 95
-        job["message"] = "Finalizing output..."
+        full_text = "\n\n".join(r.get("text", "") for r in ocr_results if r.get("text", "").strip())
+        avg_conf = sum(r.get("confidence", 0) for r in ocr_results) / max(len(ocr_results), 1)
         
         final_result = {
-            "pages": scored,
+            "pages": [{
+                "regions": ocr_results,
+                "full_text": full_text,
+                "confidence": avg_conf
+            }],
             "metadata": {
                 "filename": job["filename"],
                 "processed_at": datetime.now().isoformat(),
                 "quality_report": quality_report,
-                "total_regions": len(regions),
-                "languages_detected": list(set(
-                    region.get("language", "unknown")
-                    for page in scored
-                    for region in page.get("regions", [])
-                )),
-                "source_comparison": {
-                    "overall_similarity": source_comparison.get("overall_similarity", 0),
-                    "missing_elements": len(source_comparison.get("missing_elements", [])),
-                    "silent_changes": len(source_comparison.get("silent_changes", [])),
-                    "needs_review": source_comparison.get("needs_review", False)
-                }
+                "total_regions": len(ocr_results),
+                "languages_detected": list(set(r.get("detected_language", "en") for r in ocr_results))
             },
-            "confidence_summary": scorer.get_summary(scored)
+            "confidence_summary": {
+                "average_confidence": avg_conf,
+                "total_regions": len(ocr_results),
+                "total_characters": len(full_text)
+            }
         }
         
         job["result"] = final_result
@@ -273,9 +290,12 @@ async def _process_file_task(job_id: str):
         job["message"] = "Processing complete!"
         
     except Exception as e:
+        logger.error(f"Processing failed for {job_id}: {e}")
         job["status"] = "failed"
         job["error"] = str(e)
         job["message"] = f"Processing failed: {str(e)}"
+    finally:
+        gc.collect()
 
 @router.get("/jobs")
 async def list_jobs():
