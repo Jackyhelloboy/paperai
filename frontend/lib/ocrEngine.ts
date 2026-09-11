@@ -13,7 +13,6 @@ async function getScheduler(): Promise<Tesseract.Scheduler> {
 
   scheduler = Tesseract.createScheduler()
 
-  // Create 2 workers for parallel processing
   for (let i = 0; i < 2; i++) {
     const worker = await Tesseract.createWorker('eng+hin+tel', 1, {
       logger: () => {},
@@ -32,16 +31,16 @@ export async function recognizeText(
 
   onProgress?.(50, 'Running OCR...')
 
-  const result = await sched.addJob('recognize', image)
+  const result: any = await sched.addJob('recognize', image)
 
   onProgress?.(90, 'Processing results...')
 
-  const words = result.data.words
-    .filter(w => w.confidence > 20)
-    .map(w => ({ text: w.text, confidence: w.confidence / 100 }))
+  const words = (result.data.words || [])
+    .filter((w: any) => w.confidence > 20)
+    .map((w: any) => ({ text: w.text, confidence: w.confidence / 100 }))
 
-  const text = result.data.text.trim()
-  const confidence = result.data.confidence / 100
+  const text = (result.data.text || '').trim()
+  const confidence = (result.data.confidence || 0) / 100
 
   return { text, confidence, words }
 }
