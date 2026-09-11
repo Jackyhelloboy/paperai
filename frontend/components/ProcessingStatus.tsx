@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import axios from 'axios'
 
 interface Job {
@@ -21,50 +21,58 @@ interface ProcessingStatusProps {
 export default function ProcessingStatus({ job, onComplete, onError }: ProcessingStatusProps) {
   const [currentJob, setCurrentJob] = useState(job)
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const processingRef = useRef(false)
+  const pollCountRef = useRef(0)
 
   useEffect(() => {
-    if (currentJob.status === 'uploaded') {
+    if (currentJob.status === 'uploaded' && !processingRef.current) {
+      processingRef.current = true
       startProcessing()
     }
   }, [])
 
   useEffect(() => {
     if (currentJob.status === 'processing') {
-      const interval = setInterval(checkStatus, 1000)
+      const interval = setInterval(checkStatus, 2000)
       return () => clearInterval(interval)
     }
   }, [currentJob.status])
 
   const startProcessing = async () => {
     try {
-      await axios.post(`${API_BASE_URL}/api/process/${currentJob.job_id}`)
-      setCurrentJob(prev => ({ ...prev, status: 'processing', message: 'Starting processing...' }))
+      const res = await axios.post(`${API_BASE_URL}/api/process/${currentJob.job_id}`)
+      setCurrentJob(prev => ({ ...prev, status: 'processing', message: 'Processing started...' }))
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Failed to start processing'
-      onError(errorMessage)
+      const msg = error.response?.data?.detail || error.message || 'Failed to start processing'
+      onError(msg)
+      processingRef.current = false
     }
   }
 
   const checkStatus = async () => {
+    pollCountRef.current += 1
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/status/${currentJob.job_id}`)
+      const response = await axios.get(`${API_BASE_URL}/api/status/${currentJob.job_id}`, { timeout: 10000 })
       const data = response.data
 
       setCurrentJob(prev => ({
         ...prev,
         status: data.status,
-        progress: data.progress || 0,
-        message: data.message || ''
+        progress: data.progress ?? prev.progress,
+        message: data.message || prev.message
       }))
 
       if (data.status === 'completed') {
         const resultResponse = await axios.get(`${API_BASE_URL}/api/result/${currentJob.job_id}`)
         onComplete(resultResponse.data)
       } else if (data.status === 'failed') {
-        onError(data.error || 'Processing failed')
+        onError(data.error || data.message || 'Processing failed')
       }
-    } catch (error) {
-      console.error('Status check failed:', error)
+    } catch (error: any) {
+      if (pollCountRef.current > 5) {
+        onError('Lost connection to server. The server may have restarted.')
+        processingRef.current = false
+      }
     }
   }
 
