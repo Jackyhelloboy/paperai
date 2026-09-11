@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import KeepAliveIndicator from '../components/KeepAliveIndicator'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -37,6 +38,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-gray-50 font-sans antialiased">
         {children}
+        <KeepAliveIndicator />
       </body>
     </html>
   )
