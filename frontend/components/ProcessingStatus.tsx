@@ -25,9 +25,8 @@ export default function ProcessingStatus({ job, onComplete, onError }: Processin
   const pollCountRef = useRef(0)
 
   useEffect(() => {
-    if (currentJob.status === 'uploaded' && !processingRef.current) {
-      processingRef.current = true
-      startProcessing()
+    if (currentJob.status === 'uploaded') {
+      setCurrentJob(prev => ({ ...prev, status: 'processing', message: 'Processing started...' }))
     }
   }, [])
 
@@ -37,17 +36,6 @@ export default function ProcessingStatus({ job, onComplete, onError }: Processin
       return () => clearInterval(interval)
     }
   }, [currentJob.status])
-
-  const startProcessing = async () => {
-    try {
-      const res = await axios.post(`${API_BASE_URL}/api/process/${currentJob.job_id}`)
-      setCurrentJob(prev => ({ ...prev, status: 'processing', message: 'Processing started...' }))
-    } catch (error: any) {
-      const msg = error.response?.data?.detail || error.message || 'Failed to start processing'
-      onError(msg)
-      processingRef.current = false
-    }
-  }
 
   const checkStatus = async () => {
     pollCountRef.current += 1

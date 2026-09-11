@@ -14,10 +14,24 @@ router = APIRouter()
 ocr_engine = OCREngine()
 export_manager = ExportManager()
 
-processing_jobs = {}
+JOBS_DIR = os.path.join(os.path.dirname(__file__), "..", "jobs_data")
+os.makedirs(JOBS_DIR, exist_ok=True)
+
+def _save_job(job_id: str, job_data: dict):
+    path = os.path.join(JOBS_DIR, f"{job_id}.json")
+    save_data = {k: v for k, v in job_data.items() if k != "result"}
+    with open(path, "w") as f:
+        json.dump(save_data, f)
+
+def _load_job(job_id: str) -> dict:
+    path = os.path.join(JOBS_DIR, f"{job_id}.json")
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return None
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
     
@@ -40,44 +54,51 @@ async def upload_file(file: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         f.write(content)
     
-    processing_jobs[job_id] = {
+    job = {
         "id": job_id,
         "filename": file.filename,
         "file_path": file_path,
-        "status": "uploaded",
+        "status": "processing",
+        "progress": 0,
+        "message": "Starting...",
         "created_at": datetime.now().isoformat(),
         "result": None
     }
+    _save_job(job_id, job)
+    
+    if background_tasks:
+        background_tasks.add_task(_process_file_task, job_id)
     
     return {
         "job_id": job_id,
         "filename": file.filename,
-        "status": "uploaded",
-        "message": "File uploaded successfully. Call /api/process/{job_id} to start OCR."
+        "status": "processing",
+        "message": "File uploaded and processing started."
     }
 
 @router.post("/process/{job_id}")
 async def process_file(job_id: str, background_tasks: BackgroundTasks):
-    if job_id not in processing_jobs:
+    job = _load_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    job = processing_jobs[job_id]
     job["status"] = "processing"
+    _save_job(job_id, job)
     
     background_tasks.add_task(_process_file_task, job_id)
     
     return {
         "job_id": job_id,
         "status": "processing",
-        "message": "Processing started. Check /api/status/{job_id} for progress."
+        "message": "Processing started."
     }
 
 @router.get("/status/{job_id}")
 async def get_status(job_id: str):
-    if job_id not in processing_jobs:
+    job = _load_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    job = processing_jobs[job_id]
     return {
         "job_id": job_id,
         "status": job["status"],
@@ -88,28 +109,32 @@ async def get_status(job_id: str):
 
 @router.get("/result/{job_id}")
 async def get_result(job_id: str):
-    if job_id not in processing_jobs:
+    job = _load_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    job = processing_jobs[job_id]
     
     if job["status"] != "completed":
         raise HTTPException(status_code=400, detail=f"Job status: {job['status']}")
     
+    result_path = os.path.join(JOBS_DIR, f"{job_id}_result.json")
+    result = None
+    if os.path.exists(result_path):
+        with open(result_path, "r") as f:
+            result = json.load(f)
+    
     return {
         "job_id": job_id,
         "filename": job["filename"],
-        "result": job["result"],
+        "result": result,
         "created_at": job["created_at"],
         "completed_at": job.get("completed_at")
     }
 
 @router.post("/correct/{job_id}")
 async def submit_correction(job_id: str, corrections: dict):
-    if job_id not in processing_jobs:
+    job = _load_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    job = processing_jobs[job_id]
     
     correction_data = {
         "job_id": job_id,
@@ -125,17 +150,13 @@ async def submit_correction(job_id: str, corrections: dict):
     with open(correction_file, "w", encoding="utf-8") as f:
         json.dump(correction_data, f, ensure_ascii=False, indent=2)
     
-    return {
-        "status": "saved",
-        "message": "Correction saved for future model fine-tuning."
-    }
+    return {"status": "saved", "message": "Correction saved for future model fine-tuning."}
 
 @router.get("/export/{job_id}/{format_type}")
 async def export_result(job_id: str, format_type: str):
-    if job_id not in processing_jobs:
+    job = _load_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    job = processing_jobs[job_id]
     
     if job["status"] != "completed":
         raise HTTPException(status_code=400, detail="Job not completed yet")
@@ -143,9 +164,15 @@ async def export_result(job_id: str, format_type: str):
     if format_type not in ["txt", "docx", "pdf"]:
         raise HTTPException(status_code=400, detail="Format must be txt, docx, or pdf")
     
+    result_path = os.path.join(JOBS_DIR, f"{job_id}_result.json")
+    result = None
+    if os.path.exists(result_path):
+        with open(result_path, "r") as f:
+            result = json.load(f)
+    
     try:
         export_path = export_manager.export(
-            result=job["result"],
+            result=result,
             format_type=format_type,
             job_id=job_id,
             filename=job["filename"]
@@ -161,27 +188,35 @@ async def export_result(job_id: str, format_type: str):
 
 @router.delete("/job/{job_id}")
 async def delete_job(job_id: str):
-    if job_id not in processing_jobs:
+    job = _load_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    job = processing_jobs[job_id]
-    
-    if os.path.exists(job["file_path"]):
+    if os.path.exists(job.get("file_path", "")):
         os.remove(job["file_path"])
     
-    del processing_jobs[job_id]
+    job_path = os.path.join(JOBS_DIR, f"{job_id}.json")
+    result_path = os.path.join(JOBS_DIR, f"{job_id}_result.json")
+    for p in [job_path, result_path]:
+        if os.path.exists(p):
+            os.remove(p)
     
     return {"status": "deleted", "message": "Job and file deleted."}
 
+def _update_job(job_id: str, **kwargs):
+    job = _load_job(job_id)
+    if job:
+        job.update(kwargs)
+        _save_job(job_id, job)
+
 async def _process_file_task(job_id: str):
     import gc
-    import logging
-    logger = logging.getLogger(__name__)
-    job = processing_jobs[job_id]
+    job = _load_job(job_id)
+    if not job:
+        return
     
     try:
-        job["progress"] = 5
-        job["message"] = "Loading image..."
+        _update_job(job_id, progress=5, message="Loading image...")
         gc.collect()
         
         import cv2
@@ -213,8 +248,7 @@ async def _process_file_task(job_id: str):
             preprocessed = image
         
         gc.collect()
-        job["progress"] = 15
-        job["message"] = "Detecting text regions..."
+        _update_job(job_id, progress=15, message="Detecting text regions...")
         
         gray = cv2.cvtColor(preprocessed, cv2.COLOR_BGR2GRAY) if len(preprocessed.shape) == 3 else preprocessed
         binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 4)
@@ -235,8 +269,7 @@ async def _process_file_task(job_id: str):
         if not regions:
             regions = [{"bbox": [0, 0, w, h]}]
         
-        job["progress"] = 30
-        job["message"] = f"OCR: 0/{len(regions)} regions..."
+        _update_job(job_id, progress=30, message=f"OCR: 0/{len(regions)} regions...")
         
         ocr_results = []
         for i, region in enumerate(regions):
@@ -255,15 +288,14 @@ async def _process_file_task(job_id: str):
                     result["detected_language"] = "en"
                     result["region_type"] = "block"
                     ocr_results.append(result)
-            except Exception as ex:
+            except Exception:
                 continue
             
-            job["progress"] = min(90, 30 + int(60 * (i + 1) / len(regions)))
-            job["message"] = f"OCR: {i+1}/{len(regions)} regions..."
+            progress = min(90, 30 + int(60 * (i + 1) / len(regions)))
+            _update_job(job_id, progress=progress, message=f"OCR: {i+1}/{len(regions)} regions...")
             gc.collect()
         
-        job["progress"] = 95
-        job["message"] = "Finalizing..."
+        _update_job(job_id, progress=95, message="Finalizing...")
         
         full_text = "\n\n".join(r.get("text", "") for r in ocr_results if r.get("text", "").strip())
         avg_conf = sum(r.get("confidence", 0) for r in ocr_results) / max(len(ocr_results), 1)
@@ -287,29 +319,29 @@ async def _process_file_task(job_id: str):
             }
         }
         
-        job["result"] = final_result
-        job["status"] = "completed"
-        job["completed_at"] = datetime.now().isoformat()
-        job["progress"] = 100
-        job["message"] = "Processing complete!"
+        result_path = os.path.join(JOBS_DIR, f"{job_id}_result.json")
+        with open(result_path, "w") as f:
+            json.dump(final_result, f, ensure_ascii=False)
+        
+        _update_job(job_id, progress=100, message="Processing complete!",
+                     status="completed", completed_at=datetime.now().isoformat())
         
     except Exception as e:
-        job["status"] = "failed"
-        job["error"] = str(e)
-        job["message"] = f"Processing failed: {str(e)}"
+        _update_job(job_id, status="failed", error=str(e), message=f"Processing failed: {str(e)}")
     finally:
         gc.collect()
 
 @router.get("/jobs")
 async def list_jobs():
-    return {
-        "jobs": [
-            {
-                "id": job["id"],
-                "filename": job["filename"],
-                "status": job["status"],
-                "created_at": job["created_at"]
-            }
-            for job in processing_jobs.values()
-        ]
-    }
+    jobs = []
+    for fname in os.listdir(JOBS_DIR):
+        if fname.endswith(".json") and not fname.endswith("_result.json"):
+            job = _load_job(fname.replace(".json", ""))
+            if job:
+                jobs.append({
+                    "id": job["id"],
+                    "filename": job["filename"],
+                    "status": job["status"],
+                    "created_at": job["created_at"]
+                })
+    return {"jobs": jobs}

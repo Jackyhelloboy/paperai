@@ -43,8 +43,8 @@ export default function UploadZone({ onUploadSuccess, onError }: UploadZoneProps
         },
       })
 
-      const { job_id, filename } = response.data
-      toast.success('File uploaded successfully!')
+      const { job_id, filename, status } = response.data
+      toast.success('File uploaded! Processing started...')
       onUploadSuccess(job_id, filename)
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || 'Upload failed. Please try again.'
