@@ -34,5 +34,10 @@ async def root():
 async def health():
     return {"status": "healthy", "version": "1.0.0"}
 
+@app.get("/wake")
+async def wake():
+    """Keep-alive endpoint - forces server to stay active"""
+    return {"status": "awake", "timestamp": __import__('datetime').datetime.now().isoformat()}
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

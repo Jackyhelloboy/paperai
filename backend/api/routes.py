@@ -209,6 +209,13 @@ def _update_job(job_id: str, **kwargs):
         job.update(kwargs)
         _save_job(job_id, job)
 
+def _load_result(job_id: str) -> dict:
+    result_path = os.path.join(JOBS_DIR, f"{job_id}_result.json")
+    if os.path.exists(result_path):
+        with open(result_path, "r") as f:
+            return json.load(f)
+    return None
+
 async def _process_file_task(job_id: str):
     import gc
     job = _load_job(job_id)
@@ -227,7 +234,7 @@ async def _process_file_task(job_id: str):
             import fitz
             doc = fitz.open(job["file_path"])
             page = doc[0]
-            mat = fitz.Matrix(2, 2)
+            mat = fitz.Matrix(1.5, 1.5)
             pix = page.get_pixmap(matrix=mat)
             img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
             if pix.n == 4:
@@ -241,20 +248,26 @@ async def _process_file_task(job_id: str):
             if image is None:
                 raise ValueError("Could not read image")
             h, w = image.shape[:2]
-            max_dim = 2000
+            max_dim = 1500
             if max(h, w) > max_dim:
                 scale = max_dim / max(h, w)
                 image = cv2.resize(image, None, fx=scale, fy=scale)
             preprocessed = image
         
+        del image if ext != ".pdf" else None
         gc.collect()
-        _update_job(job_id, progress=15, message="Detecting text regions...")
+        _update_job(job_id, progress=20, message="Detecting text regions...")
         
         gray = cv2.cvtColor(preprocessed, cv2.COLOR_BGR2GRAY) if len(preprocessed.shape) == 3 else preprocessed
         binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 4)
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 5))
         dilated = cv2.dilate(binary, kernel, iterations=1)
+        del gray, binary, kernel
+        gc.collect()
+        
         contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        del dilated
+        gc.collect()
         
         regions = []
         h, w = preprocessed.shape[:2]
@@ -268,6 +281,10 @@ async def _process_file_task(job_id: str):
         
         if not regions:
             regions = [{"bbox": [0, 0, w, h]}]
+        
+        # Limit to 20 regions max to prevent memory issues
+        if len(regions) > 20:
+            regions = sorted(regions, key=lambda r: (r["bbox"][1], r["bbox"][0]))[:20]
         
         _update_job(job_id, progress=30, message=f"OCR: 0/{len(regions)} regions...")
         
@@ -291,9 +308,15 @@ async def _process_file_task(job_id: str):
             except Exception:
                 continue
             
+            # Free memory after each region
+            del crop
+            gc.collect()
+            
             progress = min(90, 30 + int(60 * (i + 1) / len(regions)))
             _update_job(job_id, progress=progress, message=f"OCR: {i+1}/{len(regions)} regions...")
-            gc.collect()
+        
+        del preprocessed
+        gc.collect()
         
         _update_job(job_id, progress=95, message="Finalizing...")
         
@@ -322,6 +345,9 @@ async def _process_file_task(job_id: str):
         result_path = os.path.join(JOBS_DIR, f"{job_id}_result.json")
         with open(result_path, "w") as f:
             json.dump(final_result, f, ensure_ascii=False)
+        
+        del final_result, ocr_results
+        gc.collect()
         
         _update_job(job_id, progress=100, message="Processing complete!",
                      status="completed", completed_at=datetime.now().isoformat())

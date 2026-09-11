@@ -40,7 +40,10 @@ export default function ProcessingStatus({ job, onComplete, onError }: Processin
   const checkStatus = async () => {
     pollCountRef.current += 1
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/status/${currentJob.job_id}`, { timeout: 10000 })
+      const response = await axios.get(`${API_BASE_URL}/api/status/${currentJob.job_id}`, { 
+        timeout: 30000,
+        headers: { 'Cache-Control': 'no-cache' }
+      })
       const data = response.data
 
       setCurrentJob(prev => ({
@@ -57,8 +60,9 @@ export default function ProcessingStatus({ job, onComplete, onError }: Processin
         onError(data.error || data.message || 'Processing failed')
       }
     } catch (error: any) {
-      if (pollCountRef.current > 5) {
-        onError('Lost connection to server. The server may have restarted.')
+      // Server may be waking up from sleep - keep retrying
+      if (pollCountRef.current > 15) {
+        onError('Server is taking too long to respond. Please try again in 30 seconds.')
         processingRef.current = false
       }
     }

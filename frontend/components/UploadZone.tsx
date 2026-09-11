@@ -30,6 +30,9 @@ export default function UploadZone({ onUploadSuccess, onError }: UploadZoneProps
     setUploading(true)
     setUploadProgress(0)
 
+    // Wake up server first (Render free tier may be sleeping)
+    try { await fetch(`${API_BASE_URL}/wake`, { cache: 'no-store' }) } catch {}
+
     const formData = new FormData()
     formData.append('file', file)
 
