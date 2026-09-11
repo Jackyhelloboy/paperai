@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import KeepAliveIndicator from '../components/KeepAliveIndicator'
+import SWRegister from '../components/SWRegister'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -11,14 +12,15 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: 'PaperAI - Smart Question Paper OCR',
-  description: 'Extract text from question papers with AI-powered OCR. Supports Hindi, Telugu, English and Mathematics with high accuracy.',
-  keywords: ['OCR', 'question paper', 'text extraction', 'Hindi', 'Telugu', 'Mathematics', 'AI'],
+  description: 'Extract text from question papers with AI-powered OCR. Supports Hindi, Telugu, English and Mathematics with high accuracy. Works offline.',
+  keywords: ['OCR', 'question paper', 'text extraction', 'Hindi', 'Telugu', 'Mathematics', 'AI', 'offline'],
   metadataBase: new URL('https://paperai-ocr.vercel.app'),
   openGraph: {
     title: 'PaperAI - Smart Question Paper OCR',
-    description: 'Extract text from question papers with AI-powered OCR. Multi-language support for Hindi, Telugu, English and Mathematics.',
+    description: 'Extract text from question papers. Works offline. Hindi, Telugu, English.',
     type: 'website',
   },
+  manifest: '/manifest.json',
 }
 
 export default function RootLayout({
@@ -37,6 +39,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-gray-50 font-sans antialiased">
+        <SWRegister />
         {children}
         <KeepAliveIndicator />
       </body>
