@@ -10,6 +10,8 @@ import { useOCRProcessing } from '../hooks/useOCRProcessing'
 export default function Home() {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
+  const [editedText, setEditedText] = useState<string>('')
+  const [isEditing, setIsEditing] = useState(false)
   const { status, progress, message, result, error, processingTime, process, reset } = useOCRProcessing()
   const alive = useKeepAlive()
 
@@ -33,6 +35,8 @@ export default function Home() {
   const handleReset = () => {
     setFile(null)
     setPreview(null)
+    setEditedText('')
+    setIsEditing(false)
     reset()
   }
 
@@ -155,19 +159,61 @@ export default function Home() {
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-gray-900">Extracted Text</h3>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(result.pages[0].fullText)
-                        toast.success('Copied to clipboard!')
-                      }}
-                      className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-sm font-medium hover:bg-primary-100 transition-colors"
-                    >
-                      Copy
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {!isEditing ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditedText(result.pages[0].fullText || '')
+                              setIsEditing(true)
+                            }}
+                            className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-100 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(result.pages[0].fullText)
+                              toast.success('Copied to clipboard!')
+                            }}
+                            className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-sm font-medium hover:bg-primary-100 transition-colors"
+                          >
+                            Copy
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setIsEditing(false)
+                              toast.success('Changes saved!')
+                            }}
+                            className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setIsEditing(false)}
+                            className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                    {result.pages[0].fullText || 'No text detected'}
-                  </pre>
+                  {isEditing ? (
+                    <textarea
+                      value={editedText}
+                      onChange={(e) => setEditedText(e.target.value)}
+                      className="w-full h-64 text-sm text-gray-700 font-mono bg-gray-50 rounded-lg p-4 border border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-200 outline-none resize-y"
+                      dir="auto"
+                    />
+                  ) : (
+                    <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto" dir="auto">
+                      {result.pages[0].fullText || 'No text detected'}
+                    </pre>
+                  )}
                 </div>
 
                 {/* Region details */}

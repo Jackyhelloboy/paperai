@@ -1,5 +1,6 @@
 import { preprocessImage, detectTextRegions, cropRegion } from './imagePreprocess'
 import { recognizeText, OCRResult } from './ocrEngine'
+import { postProcessHindi, detectLanguage } from './hindiPostProcess'
 
 export interface ProcessResult {
   pages: {
@@ -8,6 +9,7 @@ export interface ProcessResult {
       confidence: number
       bbox: { x: number; y: number; w: number; h: number }
       words: { text: string; confidence: number }[]
+      language: string
     }[]
     fullText: string
     averageConfidence: number
@@ -35,7 +37,6 @@ export async function processImage(
 
   onProgress?.(5, 'Loading image...')
 
-  // Load image into canvas
   const img = new Image()
   const url = URL.createObjectURL(file)
 
@@ -47,17 +48,14 @@ export async function processImage(
 
   onProgress?.(15, 'Preprocessing image...')
 
-  // Preprocess
   const { canvas } = preprocessImage(img)
   URL.revokeObjectURL(url)
 
   onProgress?.(25, 'Detecting text regions...')
 
-  // Detect regions
   const regions = detectTextRegions(canvas)
   onProgress?.(30, `Found ${regions.length} text regions`)
 
-  // OCR each region
   const ocrRegions: ProcessResult['pages'][0]['regions'] = []
 
   for (let i = 0; i < regions.length; i++) {
@@ -72,11 +70,18 @@ export async function processImage(
       const result = await recognizeText(cropCanvas)
 
       if (result.text.trim()) {
+        // Post-process Hindi text
+        const lang = detectLanguage(result.text)
+        const cleanedText = lang === 'hindi' || lang === 'mixed'
+          ? postProcessHindi(result.text)
+          : result.text
+
         ocrRegions.push({
-          text: result.text,
+          text: cleanedText,
           confidence: result.confidence,
           bbox: region,
           words: result.words,
+          language: lang,
         })
       }
     } catch (e) {
@@ -96,6 +101,8 @@ export async function processImage(
 
   onProgress?.(100, 'Done!')
 
+  const detectedLangs = Array.from(new Set(ocrRegions.map(r => r.language)))
+
   return {
     pages: [{
       regions: ocrRegions,
@@ -106,7 +113,7 @@ export async function processImage(
       filename: file.name,
       processedAt: new Date().toISOString(),
       totalRegions: ocrRegions.length,
-      languagesDetected: ['eng', 'hin', 'tel'],
+      languagesDetected: detectedLangs,
       processingTime: elapsed,
     },
     summary: {
