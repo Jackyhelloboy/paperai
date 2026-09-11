@@ -1,5 +1,5 @@
-const CACHE_NAME = 'paperai-v2'
-const WASM_CACHE = 'paperai-wasm-v2'
+const CACHE_NAME = 'paperai-v3'
+const WASM_CACHE = 'paperai-wasm-v3'
 
 // Tesseract CDN URLs for offline caching
 const TESSERACT_URLS = [

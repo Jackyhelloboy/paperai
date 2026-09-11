@@ -1,6 +1,6 @@
-import { preprocessImage, detectTextRegions, cropRegion } from './imagePreprocess'
-import { recognizeText, OCRResult } from './ocrEngine'
-import { postProcessHindi, detectLanguage } from './hindiPostProcess'
+import { preprocessImage } from './imagePreprocess'
+import { recognizeText } from './ocrEngine'
+import { postProcessHindi } from './hindiPostProcess'
 
 export interface ProcessResult {
   pages: {
@@ -46,79 +46,53 @@ export async function processImage(
     img.src = url
   })
 
-  onProgress?.(10, 'Preprocessing image (upscaling + binarization)...')
+  onProgress?.(15, 'Preprocessing image...')
 
   const { canvas } = preprocessImage(img)
   URL.revokeObjectURL(url)
 
-  onProgress?.(30, 'Detecting text lines...')
+  onProgress?.(40, 'Running OCR on full image...')
 
-  const regions = detectTextRegions(canvas)
-  onProgress?.(35, `Found ${regions.length} text lines`)
+  // Send the ENTIRE image to OCR - no region splitting
+  // This avoids cutting off matras and gives Tesseract better context
+  const result = await recognizeText(canvas)
 
-  const ocrRegions: ProcessResult['pages'][0]['regions'] = []
+  onProgress?.(80, 'Post-processing Hindi text...')
 
-  for (let i = 0; i < regions.length; i++) {
-    const region = regions[i]
-    onProgress?.(
-      35 + Math.round(55 * (i / regions.length)),
-      `OCR: line ${i + 1}/${regions.length}...`
-    )
+  const cleanedText = postProcessHindi(result.text)
 
-    try {
-      const cropCanvas = cropRegion(canvas, region)
-      const result = await recognizeText(cropCanvas)
-
-      if (result.text.trim().length > 1) {
-        const cleanedText = postProcessHindi(result.text)
-        if (cleanedText.trim().length > 1) {
-          const lang = detectLanguage(cleanedText)
-          ocrRegions.push({
-            text: cleanedText,
-            confidence: result.confidence,
-            bbox: region,
-            words: result.words,
-            language: lang,
-          })
-        }
-      }
-    } catch (e) {
-      // Skip failed regions
-    }
-  }
+  const lang = (cleanedText.match(/[\u0900-\u097F]/g) || []).length > 0 ? 'hin' : 'eng'
 
   onProgress?.(95, 'Finalizing...')
-
-  const fullText = ocrRegions.map(r => r.text).join('\n\n')
-  const avgConf = ocrRegions.length > 0
-    ? ocrRegions.reduce((s, r) => s + r.confidence, 0) / ocrRegions.length
-    : 0
-  const totalWords = ocrRegions.reduce((s, r) => s + r.words.length, 0)
 
   const elapsed = Date.now() - startTime
 
   onProgress?.(100, 'Done!')
 
-  const detectedLangs = Array.from(new Set(ocrRegions.map(r => r.language)))
-
   return {
     pages: [{
-      regions: ocrRegions,
-      fullText,
-      averageConfidence: avgConf,
+      regions: [{
+        text: cleanedText,
+        confidence: result.confidence,
+        bbox: { x: 0, y: 0, w: canvas.width, h: canvas.height },
+        words: result.words,
+        language: lang,
+      }],
+      fullText: cleanedText,
+      averageConfidence: result.confidence,
     }],
     metadata: {
       filename: file.name,
       processedAt: new Date().toISOString(),
-      totalRegions: ocrRegions.length,
-      languagesDetected: detectedLangs,
+      totalRegions: 1,
+      languagesDetected: [lang],
       processingTime: elapsed,
     },
     summary: {
-      averageConfidence: avgConf,
-      totalRegions: ocrRegions.length,
-      totalCharacters: fullText.length,
-      totalWords,
+      averageConfidence: result.confidence,
+      totalRegions: 1,
+      totalCharacters: cleanedText.length,
+      totalWords: result.words.length,
     },
   }
 }
