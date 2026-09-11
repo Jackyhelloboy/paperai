@@ -2,13 +2,13 @@ name: Keep Backend Alive
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/14 * * * *'
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping backend health endpoint
+      - name: Wake up backend
         run: |
-          curl -f https://paperai-backend.onrender.com/health || echo "Ping failed"
+          curl -f https://paperai-backend.onrender.com/health || echo "Ping failed - backend may be starting"
