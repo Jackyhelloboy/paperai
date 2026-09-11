@@ -255,4 +255,19 @@ class OCREngine:
     def run_ocr_direct(self, image, language="en"):
         if self.use_tesseract:
             return self._tesseract_ocr(image, language)
-        return self._ocr_with_voting(image, language, "block", {})
+        reader = self._get_reader(language)
+        if reader is None:
+            return {"text": "", "confidence": 0.0, "alternatives": [], "needs_review": True}
+        try:
+            if len(image.shape) == 2:
+                image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            results = reader.readtext(image)
+            if results:
+                texts = [t for _, t, _ in results]
+                confidences = [c for _, _, c in results]
+                combined_text = " ".join(texts)
+                avg_conf = sum(confidences) / len(confidences)
+                return {"text": combined_text, "confidence": float(avg_conf), "alternatives": [], "needs_review": avg_conf < 0.75}
+        except Exception:
+            pass
+        return {"text": "", "confidence": 0.0, "alternatives": [], "needs_review": True}

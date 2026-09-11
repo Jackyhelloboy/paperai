@@ -6,24 +6,12 @@ import uuid
 import json
 from datetime import datetime
 from utils.config import settings
-from ocr_engine.image_preprocessor import ImagePreprocessor
-from ocr_engine.script_classifier import ScriptClassifier
 from ocr_engine.ocr_engine import OCREngine
-from ocr_engine.question_paper_validator import QuestionPaperValidator
-from ocr_engine.consensus_scorer import ConsensusScorer
-from ocr_engine.math_protector import MathProtector
-from ocr_engine.source_comparator import SourceComparator
 from exports.export_manager import ExportManager
 
 router = APIRouter()
 
-preprocessor = ImagePreprocessor()
-script_classifier = ScriptClassifier()
 ocr_engine = OCREngine()
-validator = QuestionPaperValidator()
-scorer = ConsensusScorer()
-math_protector = MathProtector()
-source_comparator = SourceComparator()
 export_manager = ExportManager()
 
 processing_jobs = {}
@@ -201,7 +189,18 @@ async def _process_file_task(job_id: str):
         
         ext = os.path.splitext(job["file_path"])[1].lower()
         if ext == ".pdf":
-            preprocessed = preprocessor.preprocess(job["file_path"])
+            import fitz
+            doc = fitz.open(job["file_path"])
+            page = doc[0]
+            mat = fitz.Matrix(2, 2)
+            pix = page.get_pixmap(matrix=mat)
+            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
+            if pix.n == 4:
+                img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+            elif pix.n == 1:
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            doc.close()
+            preprocessed = img
         else:
             image = cv2.imread(job["file_path"])
             if image is None:
@@ -214,28 +213,35 @@ async def _process_file_task(job_id: str):
             preprocessed = image
         
         gc.collect()
-        job["progress"] = 20
-        job["message"] = "Analyzing quality..."
+        job["progress"] = 15
+        job["message"] = "Detecting text regions..."
         
-        quality_report = preprocessor.analyze_quality(preprocessed)
+        gray = cv2.cvtColor(preprocessed, cv2.COLOR_BGR2GRAY) if len(preprocessed.shape) == 3 else preprocessed
+        binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 4)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 5))
+        dilated = cv2.dilate(binary, kernel, iterations=1)
+        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        job["progress"] = 35
-        job["message"] = "Detecting layout..."
+        regions = []
+        h, w = preprocessed.shape[:2]
+        for contour in contours:
+            x, y, bw, bh = cv2.boundingRect(contour)
+            if bw > 40 and bh > 12:
+                padding = 5
+                regions.append({
+                    "bbox": [max(0, x-padding), max(0, y-padding), min(w, x+bw+padding), min(h, y+bh+padding)]
+                })
         
-        regions = preprocessor.detect_layout(preprocessed)
         if not regions:
-            regions = [{"bbox": [0, 0, preprocessed.shape[1], preprocessed.shape[0]], "type": "block"}]
+            regions = [{"bbox": [0, 0, w, h]}]
         
-        gc.collect()
-        job["progress"] = 50
-        job["message"] = f"Running OCR on {len(regions)} regions..."
+        job["progress"] = 30
+        job["message"] = f"OCR: 0/{len(regions)} regions..."
         
         ocr_results = []
         for i, region in enumerate(regions):
-            bbox = region.get("bbox", [0, 0, preprocessed.shape[1], preprocessed.shape[0]])
+            bbox = region["bbox"]
             x1, y1, x2, y2 = [int(b) for b in bbox]
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(preprocessed.shape[1], x2), min(preprocessed.shape[0], y2)
             crop = preprocessed[y1:y2, x1:x2]
             
             if crop.size == 0 or crop.shape[0] < 10 or crop.shape[1] < 10:
@@ -247,17 +253,16 @@ async def _process_file_task(job_id: str):
                     result["region_index"] = i
                     result["bbox"] = bbox
                     result["detected_language"] = "en"
-                    result["region_type"] = region.get("type", "block")
+                    result["region_type"] = "block"
                     ocr_results.append(result)
             except Exception as ex:
-                logger.warning(f"OCR failed for region {i}: {ex}")
                 continue
             
-            job["progress"] = min(85, 50 + int(35 * (i + 1) / len(regions)))
-            job["message"] = f"OCR: region {i+1}/{len(regions)}..."
+            job["progress"] = min(90, 30 + int(60 * (i + 1) / len(regions)))
+            job["message"] = f"OCR: {i+1}/{len(regions)} regions..."
             gc.collect()
         
-        job["progress"] = 90
+        job["progress"] = 95
         job["message"] = "Finalizing..."
         
         full_text = "\n\n".join(r.get("text", "") for r in ocr_results if r.get("text", "").strip())
@@ -272,9 +277,8 @@ async def _process_file_task(job_id: str):
             "metadata": {
                 "filename": job["filename"],
                 "processed_at": datetime.now().isoformat(),
-                "quality_report": quality_report,
                 "total_regions": len(ocr_results),
-                "languages_detected": list(set(r.get("detected_language", "en") for r in ocr_results))
+                "languages_detected": ["en"]
             },
             "confidence_summary": {
                 "average_confidence": avg_conf,
@@ -290,7 +294,6 @@ async def _process_file_task(job_id: str):
         job["message"] = "Processing complete!"
         
     except Exception as e:
-        logger.error(f"Processing failed for {job_id}: {e}")
         job["status"] = "failed"
         job["error"] = str(e)
         job["message"] = f"Processing failed: {str(e)}"
