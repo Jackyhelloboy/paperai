@@ -4,16 +4,28 @@ export interface PreprocessedImage {
   height: number
 }
 
+/**
+ * Preprocess image for Hindi OCR.
+ * Key: upscale to 3000px height, strong binarization, preserve Devanagari matras.
+ */
 export function preprocessImage(
   imageSource: HTMLImageElement | HTMLCanvasElement
 ): PreprocessedImage {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')!
 
-  const maxDim = 2000
   let w = imageSource instanceof HTMLImageElement ? imageSource.naturalWidth : imageSource.width
   let h = imageSource instanceof HTMLImageElement ? imageSource.naturalHeight : imageSource.height
 
+  // Upscale to at least 3000px height for Devanagari OCR accuracy
+  const minDim = 3000
+  if (h < minDim) {
+    const scale = minDim / h
+    w = Math.round(w * scale)
+    h = Math.round(h * scale)
+  }
+  // Also cap at 4000 to avoid memory issues
+  const maxDim = 4000
   if (Math.max(w, h) > maxDim) {
     const scale = maxDim / Math.max(w, h)
     w = Math.round(w * scale)
@@ -22,97 +34,76 @@ export function preprocessImage(
 
   canvas.width = w
   canvas.height = h
+
+  // Use high-quality scaling
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(imageSource, 0, 0, w, h)
 
   const imageData = ctx.getImageData(0, 0, w, h)
   const data = imageData.data
 
-  // Step 1: Grayscale
+  // Step 1: Convert to grayscale
   const gray = new Float32Array(w * h)
   for (let i = 0; i < data.length; i += 4) {
     gray[i / 4] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
   }
 
-  // Step 2: Adaptive thresholding (better for mixed fonts in Hindi)
-  const binary = adaptiveThreshold(gray, w, h)
-
-  // Step 3: Enhance contrast specifically for Devanagari
+  // Step 2: Otsu's thresholding for clean binarization
+  const threshold = otsuThreshold(gray)
   for (let i = 0; i < data.length; i += 4) {
-    const idx = i / 4
-    const val = binary[idx] * 255
+    const val = gray[i / 4] < threshold ? 0 : 255
     data[i] = val
     data[i + 1] = val
     data[i + 2] = val
   }
 
   ctx.putImageData(imageData, 0, 0)
-
-  // Step 4: Slight sharpening to preserve matras (horizontal connecting lines)
-  applySharpen(ctx, w, h)
-
   return { canvas, width: w, height: h }
 }
 
-function adaptiveThreshold(gray: Float32Array, w: number, h: number): Uint8Array {
-  const binary = new Uint8Array(w * h)
-  const blockSize = 15
-  const c = 10
+/**
+ * Otsu's method for finding optimal binarization threshold
+ */
+function otsuThreshold(gray: Float32Array): number {
+  const histogram = new Uint32Array(256)
+  for (let i = 0; i < gray.length; i++) {
+    const val = Math.min(255, Math.max(0, Math.round(gray[i])))
+    histogram[val]++
+  }
 
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let sum = 0
-      let count = 0
+  const total = gray.length
+  let sum = 0
+  for (let i = 0; i < 256; i++) sum += i * histogram[i]
 
-      const x0 = Math.max(0, x - blockSize)
-      const y0 = Math.max(0, y - blockSize)
-      const x1 = Math.min(w - 1, x + blockSize)
-      const y1 = Math.min(h - 1, y + blockSize)
+  let sumB = 0
+  let wB = 0
+  let maxVariance = 0
+  let threshold = 128
 
-      for (let ky = y0; ky <= y1; ky++) {
-        for (let kx = x0; kx <= x1; kx++) {
-          sum += gray[ky * w + kx]
-          count++
-        }
-      }
+  for (let i = 0; i < 256; i++) {
+    wB += histogram[i]
+    if (wB === 0) continue
+    const wF = total - wB
+    if (wF === 0) break
 
-      const mean = sum / count
-      binary[y * w + x] = gray[y * w + x] > mean - c ? 0 : 1
+    sumB += i * histogram[i]
+    const mB = sumB / wB
+    const mF = (sum - sumB) / wF
+    const variance = wB * wF * (mB - mF) * (mB - mF)
+
+    if (variance > maxVariance) {
+      maxVariance = variance
+      threshold = i
     }
   }
 
-  return binary
+  return threshold
 }
 
-function applySharpen(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const imageData = ctx.getImageData(0, 0, w, h)
-  const data = imageData.data
-
-  // Simple unsharp mask - strengthens edges (helps preserve Devanagari matras)
-  const kernel = [
-    0, -0.5, 0,
-    -0.5, 3, -0.5,
-    0, -0.5, 0
-  ]
-
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      let val = 0
-      for (let ky = -1; ky <= 1; ky++) {
-        for (let kx = -1; kx <= 1; kx++) {
-          const idx = ((y + ky) * w + (x + kx)) * 4
-          val += data[idx] * kernel[(ky + 1) * 3 + (kx + 1)]
-        }
-      }
-      const idx = (y * w + x) * 4
-      data[idx] = Math.min(255, Math.max(0, val))
-      data[idx + 1] = data[idx]
-      data[idx + 2] = data[idx]
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0)
-}
-
+/**
+ * Detect text lines using horizontal projection
+ */
 export function detectTextRegions(
   canvas: HTMLCanvasElement
 ): { x: number; y: number; w: number; h: number }[] {
@@ -122,20 +113,17 @@ export function detectTextRegions(
   const w = canvas.width
   const h = canvas.height
 
-  const binary = new Uint8Array(w * h)
-  for (let i = 0; i < data.length; i += 4) {
-    binary[i / 4] = data[i] < 128 ? 1 : 0
-  }
-
-  // Horizontal projection for line detection (important for Hindi with matras)
-  const hProj = new Uint16Array(h)
+  // Horizontal projection
+  const hProj = new Uint32Array(h)
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      hProj[y] += binary[y * w + x]
+      const idx = (y * w + x) * 4
+      if (data[idx] < 128) hProj[y]++
     }
   }
 
-  const threshold = w * 0.015
+  // Find text lines
+  const threshold = w * 0.02
   const regions: { x: number; y: number; w: number; h: number }[] = []
   let inLine = false
   let lineStart = 0
@@ -147,11 +135,12 @@ export function detectTextRegions(
     } else if ((hProj[y] <= threshold || y === h - 1) && inLine) {
       inLine = false
       const lineH = y - lineStart
-      if (lineH > 6) {
+      if (lineH > 10) {
         let minX = w, maxX = 0
         for (let ly = lineStart; ly < y; ly++) {
           for (let x = 0; x < w; x++) {
-            if (binary[ly * w + x]) {
+            const idx = (ly * w + x) * 4
+            if (data[idx] < 128) {
               minX = Math.min(minX, x)
               maxX = Math.max(maxX, x)
             }
@@ -159,20 +148,21 @@ export function detectTextRegions(
         }
         if (maxX > minX) {
           regions.push({
-            x: Math.max(0, minX - 5),
-            y: Math.max(0, lineStart - 10),
-            w: Math.min(w, maxX - minX + 10),
-            h: Math.min(h - lineStart, lineH + 20)
+            x: Math.max(0, minX - 10),
+            y: Math.max(0, lineStart - 15),
+            w: Math.min(w, maxX - minX + 20),
+            h: Math.min(h - lineStart, lineH + 30),
           })
         }
       }
     }
   }
 
+  // Merge nearby regions (within 20px)
   const merged: typeof regions = []
   for (const r of regions) {
     const last = merged[merged.length - 1]
-    if (last && r.y - (last.y + last.h) < 15) {
+    if (last && r.y - (last.y + last.h) < 20) {
       last.h = r.y + r.h - last.y
       last.w = Math.max(last.w, r.x + r.w - last.x)
       last.x = Math.min(last.x, r.x)

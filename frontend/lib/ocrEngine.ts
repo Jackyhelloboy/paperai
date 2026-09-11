@@ -4,72 +4,99 @@ export interface OCRResult {
   text: string
   confidence: number
   words: { text: string; confidence: number }[]
+  language: string
 }
 
-let scheduler: Tesseract.Scheduler | null = null
+// Separate workers for Hindi and English to avoid script confusion
+let hindiWorker: Tesseract.Worker | null = null
+let englishWorker: Tesseract.Worker | null = null
 let initializing = false
 
-async function getScheduler(
+async function initWorkers(
   onProgress?: (progress: number, stage: string) => void
-): Promise<Tesseract.Scheduler> {
-  if (scheduler) return scheduler
+): Promise<void> {
+  if (hindiWorker && englishWorker) return
   if (initializing) {
     await new Promise(resolve => setTimeout(resolve, 500))
-    return getScheduler(onProgress)
+    return
   }
 
   initializing = true
-  scheduler = Tesseract.createScheduler()
 
-  // Use Hindi + English for question papers
-  const langs = 'hin+eng'
+  onProgress?.(5, 'Loading Hindi OCR model...')
+  hindiWorker = await Tesseract.createWorker('hin', Tesseract.OEM.DEFAULT, {
+    logger: () => {},
+  })
+  await hindiWorker.setParameters({
+    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+    preserve_interword_spaces: '1',
+  })
 
-  for (let i = 0; i < 3; i++) {
-    onProgress?.(10 + i * 5, `Loading OCR worker ${i + 1}/3 (${langs})...`)
-    const worker = await Tesseract.createWorker(langs, Tesseract.OEM.LSTM_ONLY, {
-      logger: () => {},
-      cachePath: '/tesseract-cache',
-    })
-
-    // Hindi-specific: PSM 6 = Uniform block of text, assumes a single uniform block of text
-    await worker.setParameters({
-      tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-      tessedit_char_whitelist: '',
-      preserve_interword_spaces: '1',
-    })
-
-    scheduler.addWorker(worker)
-  }
+  onProgress?.(25, 'Loading English OCR model...')
+  englishWorker = await Tesseract.createWorker('eng', Tesseract.OEM.DEFAULT, {
+    logger: () => {},
+  })
+  await englishWorker.setParameters({
+    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+    preserve_interword_spaces: '1',
+  })
 
   initializing = false
-  return scheduler
 }
 
+/**
+ * Run OCR with both Hindi and English, pick the best result
+ * by checking how many Devanagari characters each produces
+ */
 export async function recognizeText(
   image: HTMLCanvasElement | string,
-  onProgress?: (progress: number, stage: string) => void,
-  langHint?: string
+  onProgress?: (progress: number, stage: string) => void
 ): Promise<OCRResult> {
-  const sched = await getScheduler(onProgress)
+  await initWorkers(onProgress)
   onProgress?.(50, 'Running OCR...')
 
-  const result: any = await sched.addJob('recognize', image)
+  // Run both engines in parallel
+  const [hinResult, engResult] = await Promise.all([
+    hindiWorker!.recognize(image),
+    englishWorker!.recognize(image),
+  ])
 
-  onProgress?.(90, 'Processing results...')
+  onProgress?.(85, 'Selecting best result...')
 
-  const words = (result.data.words || [])
-    .filter((w: any) => w.confidence > 30)
+  const hinText = (hinResult as any).data.text || ''
+  const engText = (engResult as any).data.text || ''
+
+  // Count Devanagari characters in each result
+  const hinDevCount = (hinText.match(/[\u0900-\u097F]/g) || []).length
+  const engDevCount = (engText.match(/[\u0900-\u097F]/g) || []).length
+
+  // Pick the result with more Devanagari characters (likely Hindi text)
+  const bestResult = hinDevCount >= engDevCount ? hinResult : engResult
+  const bestText = (bestResult as any).data.text || ''
+  const bestConfidence = ((bestResult as any).data.confidence || 0) / 100
+  const bestWords = ((bestResult as any).data.words || [])
+    .filter((w: any) => w.confidence > 20)
     .map((w: any) => ({ text: w.text, confidence: w.confidence / 100 }))
 
-  const text = (result.data.text || '').trim()
-  const confidence = (result.data.confidence || 0) / 100
+  const detectedLang = hinDevCount >= engDevCount ? 'hin' : 'eng'
 
-  return { text, confidence, words }
+  onProgress?.(95, 'Done')
+
+  return {
+    text: bestText.trim(),
+    confidence: bestConfidence,
+    words: bestWords,
+    language: detectedLang,
+  }
 }
 
 export async function terminateOCR() {
-  if (scheduler) {
-    await scheduler.terminate()
-    scheduler = null
+  if (hindiWorker) {
+    await hindiWorker.terminate()
+    hindiWorker = null
+  }
+  if (englishWorker) {
+    await englishWorker.terminate()
+    englishWorker = null
   }
 }

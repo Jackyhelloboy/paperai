@@ -46,43 +46,41 @@ export async function processImage(
     img.src = url
   })
 
-  onProgress?.(15, 'Preprocessing image...')
+  onProgress?.(10, 'Preprocessing image (upscaling + binarization)...')
 
   const { canvas } = preprocessImage(img)
   URL.revokeObjectURL(url)
 
-  onProgress?.(25, 'Detecting text regions...')
+  onProgress?.(30, 'Detecting text lines...')
 
   const regions = detectTextRegions(canvas)
-  onProgress?.(30, `Found ${regions.length} text regions`)
+  onProgress?.(35, `Found ${regions.length} text lines`)
 
   const ocrRegions: ProcessResult['pages'][0]['regions'] = []
 
   for (let i = 0; i < regions.length; i++) {
     const region = regions[i]
     onProgress?.(
-      30 + Math.round(60 * (i / regions.length)),
-      `OCR: region ${i + 1}/${regions.length}...`
+      35 + Math.round(55 * (i / regions.length)),
+      `OCR: line ${i + 1}/${regions.length}...`
     )
 
     try {
       const cropCanvas = cropRegion(canvas, region)
       const result = await recognizeText(cropCanvas)
 
-      if (result.text.trim()) {
-        // Post-process Hindi text
-        const lang = detectLanguage(result.text)
-        const cleanedText = lang === 'hindi' || lang === 'mixed'
-          ? postProcessHindi(result.text)
-          : result.text
-
-        ocrRegions.push({
-          text: cleanedText,
-          confidence: result.confidence,
-          bbox: region,
-          words: result.words,
-          language: lang,
-        })
+      if (result.text.trim().length > 1) {
+        const cleanedText = postProcessHindi(result.text)
+        if (cleanedText.trim().length > 1) {
+          const lang = detectLanguage(cleanedText)
+          ocrRegions.push({
+            text: cleanedText,
+            confidence: result.confidence,
+            bbox: region,
+            words: result.words,
+            language: lang,
+          })
+        }
       }
     } catch (e) {
       // Skip failed regions

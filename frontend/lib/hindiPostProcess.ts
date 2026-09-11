@@ -1,35 +1,5 @@
 // Hindi OCR Post-Processing Module
-// Fixes common Tesseract errors for Devanagari script
-
-// Common Hindi words that OCR often misreads
-const HINDI_COMMON_WORDS: Record<string, string> = {
-  // Question paper keywords
-  'प्रश': 'प्रश्न',
-  'प्रश्': 'प्रश्न',
-  'श्': 'श्न',
-  'उत्': 'उत्तर',
-  'विद्': 'विद्यार्थी',
-  'परी': 'परीक्षा',
-  'परीक': 'परीक्षा',
-  'अंक': 'अंक',
-  'अं': 'अंक',
-  'समय': 'समय',
-  'नंबर': 'नंबर',
-  'कक्षा': 'कक्षा',
-  'श्रेणी': 'श्रेणी',
-  'विषय': 'विषय',
-  'भाग': 'भाग',
-  'पूर्ण': 'पूर्ण',
-  // Common question words
-  'लिखिए': 'लिखिए',
-  'दीजिए': 'दीजिए',
-  'बताइए': 'बताइए',
-  'समझाइए': 'समझाइए',
-  'चुनिए': 'चुनिए',
-  'सही': 'सही',
-  'गलत': 'गलत',
-  'नहीं': 'नहीं',
-}
+// Aggressively fixes Tesseract errors for Devanagari script
 
 /**
  * Post-process Hindi OCR text to fix common errors
@@ -39,53 +9,46 @@ export function postProcessHindi(text: string): string {
 
   let result = text
 
-  // Step 1: Fix common word-level errors
-  for (const [wrong, correct] of Object.entries(HINDI_COMMON_WORDS)) {
-    if (wrong !== correct) {
-      result = result.replace(new RegExp(escapeRegex(wrong), 'g'), correct)
+  // Step 1: Remove Telugu characters that Tesseract confuses with Hindi
+  result = result.replace(/[\u0C00-\u0C7F]/g, '')
+
+  // Step 2: Remove stray Latin letters that are OCR artifacts
+  // (keep only if they form actual words of 3+ chars, like abbreviations)
+  result = result.replace(/(?<=[\u0900-\u097F\s])\s*[a-zA-Z]\s*(?=[\u0900-\u097F\s])/g, ' ')
+  result = result.replace(/\b[a-zA-Z]\b\s*/g, (match) => {
+    // Keep 3+ letter English words that might be legitimate
+    return match.trim().length > 2 ? match : ' '
+  })
+
+  // Step 3: Fix broken Devanagari sequences (matra disconnection)
+  // A matra (vowel sign) should not be isolated
+  result = result.replace(/\s+([\u093E-\u094C\u0962\u0963])\s+/g, '$1')
+
+  // Step 4: Merge split Hindi words
+  // If two Devanagari tokens are separated by a single space and both are short,
+  // they're likely one split word
+  result = result.replace(
+    /([\u0900-\u097F]{2,15})\s+([\u0900-\u097F]{2,15})/g,
+    (match, w1, w2) => {
+      // Merge if combined length is reasonable for a Hindi word
+      if ((w1 + w2).length <= 20) return w1 + w2
+      return match
     }
-  }
-
-  // Step 2: Fix spacing issues (Hindi words often get split)
-  result = fixHindiSpacing(result)
-
-  // Step 3: Remove isolated English characters that are OCR artifacts
-  result = removeArtifacts(result)
-
-  // Step 4: Fix Devanagari punctuation
-  result = fixDevanagariPunctuation(result)
+  )
 
   // Step 5: Normalize whitespace
-  result = result.replace(/\s+/g, ' ').trim()
+  result = result.replace(/[ \t]+/g, ' ')
+  result = result.replace(/\n\s*\n/g, '\n\n')
+  result = result.trim()
 
   return result
-}
-
-function fixHindiSpacing(text: string): string {
-  return text.replace(/([\u0900-\u097F])\s+([\u0900-\u097F])/g, '$1$2')
-}
-
-function removeArtifacts(text: string): string {
-  return text.replace(/([\u0900-\u097F])\s+[a-zA-Z]\s+([\u0900-\u097F])/g, '$1 $2')
-}
-
-function fixDevanagariPunctuation(text: string): string {
-  let result = text
-  result = result.replace(/[?？]/g, '?')
-  result = result.replace(/\.\s*$/g, '।')
-  return result
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
  * Check if text contains Hindi (Devanagari) characters
  */
 export function isHindiText(text: string): boolean {
-  const hindiRegex = /[\u0900-\u097F]/
-  return hindiRegex.test(text)
+  return /[\u0900-\u097F]/.test(text)
 }
 
 /**
@@ -100,10 +63,8 @@ export function detectLanguage(text: string): 'hindi' | 'telugu' | 'english' | '
   if (total === 0) return 'english'
 
   const hindiRatio = hindiCount / total
-  const teluguRatio = teluguCount / total
-  const englishRatio = englishCount / total
 
   if (hindiRatio > 0.5) return hindiRatio > 0.8 ? 'hindi' : 'mixed'
-  if (teluguRatio > 0.5) return teluguRatio > 0.8 ? 'telugu' : 'mixed'
-  return englishRatio > 0.7 ? 'english' : 'mixed'
+  if (teluguCount > hindiCount) return 'telugu'
+  return englishCount > hindiCount ? 'english' : 'mixed'
 }
