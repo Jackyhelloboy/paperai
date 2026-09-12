@@ -75,46 +75,41 @@ function detectScript(text: string): OCRResult['script'] {
 }
 
 /**
- * Aggressively remove horizontal notebook ruled lines.
- * These cause Tesseract to produce garbage like Sar, wrk, Tieer, etc.
- * Enhanced: also removes vertical margin lines and handles thin colored lines.
+ * Remove horizontal ruled lines and vertical margin lines.
  */
-function removeHorizontalLines(canvas: HTMLCanvasElement): HTMLCanvasElement {
+function removeLines(canvas: HTMLCanvasElement): HTMLCanvasElement {
   const ctx = canvas.getContext('2d')!
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
   const data = imageData.data
   const w = canvas.width
   const h = canvas.height
 
-  // Count dark pixels per row AND per column
   const rowDark = new Uint32Array(h)
   const colDark = new Uint32Array(w)
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4
-      const gray = Math.round(data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114)
+      const gray = (data[idx] * 77 + data[idx + 1] * 150 + data[idx + 2] * 29) >> 8
       if (gray < 160) {
         rowDark[y]++
-        colDark[x]++
+        colDark[x]
       }
     }
   }
 
-  // Find horizontal ruled rows (>50% width span)
   const ruledRows = new Set<number>()
-  const hThreshold = Math.floor(w * 0.5)
+  const hThreshold = (w * 0.5) | 0
   for (let y = 0; y < h; y++) {
     if (rowDark[y] > hThreshold) ruledRows.add(y)
   }
 
-  // Find vertical margin lines (>40% height span, in left 15% or right 15%)
   const ruledCols = new Set<number>()
-  const vThreshold = Math.floor(h * 0.4)
-  const leftMargin = Math.floor(w * 0.15)
-  const rightMargin = Math.floor(w * 0.85)
+  const vThreshold = (h * 0.4) | 0
+  const leftMargin = (w * 0.15) | 0
+  const rightMargin = (w * 0.85) | 0
   for (let x = 0; x < w; x++) {
-    if (colDark[x] > vThreshold) {
-      if (x < leftMargin || x > rightMargin) ruledCols.add(x)
+    if (colDark[x] > vThreshold && (x < leftMargin || x > rightMargin)) {
+      ruledCols.add(x)
     }
   }
 
@@ -125,10 +120,9 @@ function removeHorizontalLines(canvas: HTMLCanvasElement): HTMLCanvasElement {
   out.height = h
   const octx = out.getContext('2d')!
   octx.putImageData(imageData, 0, 0)
-  const outData = octx.getImageData(0, 0, w, h)
-  const outPixels = outData.data
+  const outPixels = octx.getImageData(0, 0, w, h).data
 
-  // Remove horizontal lines (thin ones only, 1-6px)
+  // Remove horizontal lines (1-6px thick)
   const hRows = Array.from(ruledRows).sort((a, b) => a - b)
   for (const y of hRows) {
     let thickness = 0
@@ -137,16 +131,15 @@ function removeHorizontalLines(canvas: HTMLCanvasElement): HTMLCanvasElement {
       else break
     }
     if (thickness <= 6) {
+      const rowIdx = y * w * 4
       for (let x = 0; x < w; x++) {
-        const idx = (y * w + x) * 4
-        outPixels[idx] = 255
-        outPixels[idx + 1] = 255
-        outPixels[idx + 2] = 255
+        const idx = rowIdx + x * 4
+        outPixels[idx] = outPixels[idx + 1] = outPixels[idx + 2] = 255
       }
     }
   }
 
-  // Remove vertical margin lines (thin ones only, 1-4px)
+  // Remove vertical margin lines (1-4px thick)
   const vCols = Array.from(ruledCols).sort((a, b) => a - b)
   for (const x of vCols) {
     let thickness = 0
@@ -157,99 +150,64 @@ function removeHorizontalLines(canvas: HTMLCanvasElement): HTMLCanvasElement {
     if (thickness <= 4) {
       for (let y = 0; y < h; y++) {
         const idx = (y * w + x) * 4
-        outPixels[idx] = 255
-        outPixels[idx + 1] = 255
-        outPixels[idx + 2] = 255
+        outPixels[idx] = outPixels[idx + 1] = outPixels[idx + 2] = 255
       }
     }
   }
 
-  octx.putImageData(outData, 0, 0)
+  octx.putImageData(new ImageData(outPixels, w, h), 0, 0)
   return out
 }
 
 /**
- * Create a high-contrast version for better text separation.
- * Uses proper Otsu thresholding + adaptive local thresholding.
+ * High contrast with adaptive local thresholding via integral image.
  */
-function createHighContrast(canvas: HTMLCanvasElement): HTMLCanvasElement {
+function highContrast(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const w = canvas.width
+  const h = canvas.height
   const out = document.createElement('canvas')
-  out.width = canvas.width
-  out.height = canvas.height
+  out.width = w
+  out.height = h
   const ctx = out.getContext('2d')!
   ctx.drawImage(canvas, 0, 0)
 
-  const imageData = ctx.getImageData(0, 0, out.width, out.height)
+  const imageData = ctx.getImageData(0, 0, w, h)
   const data = imageData.data
-  const w = out.width
-  const h = out.height
 
-  // Convert to grayscale first
-  const gray = new Uint8Array(w * h)
-  for (let i = 0; i < data.length; i += 4) {
-    gray[i / 4] = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114)
+  // Grayscale
+  const gray = new Float64Array(w * h)
+  for (let i = 0; i < gray.length; i++) {
+    gray[i] = (data[i * 4] * 77 + data[i * 4 + 1] * 150 + data[i * 4 + 2] * 29) >> 8
   }
 
-  // Otsu thresholding
-  const histogram = new Uint32Array(256)
-  for (let i = 0; i < gray.length; i++) histogram[gray[i]]++
-
-  const totalPixels = gray.length
-  let sum = 0
-  for (let i = 0; i < 256; i++) sum += i * histogram[i]
-
-  let sumB = 0, wB = 0, maxVariance = 0, threshold = 128
-  for (let i = 0; i < 256; i++) {
-    wB += histogram[i]
-    if (wB === 0) continue
-    const wF = totalPixels - wB
-    if (wF === 0) break
-    sumB += i * histogram[i]
-    const mB = sumB / wB
-    const mF = (sum - sumB) / wF
-    const variance = wB * wF * (mB - mF) * (mB - mF)
-    if (variance > maxVariance) {
-      maxVariance = variance
-      threshold = i
-    }
-  }
-
-  // Apply adaptive local thresholding (better for uneven lighting)
-  const blockSize = 31
-  const C = 10 // constant subtracted from mean
+  // Integral image for O(1) local mean
   const integral = new Float64Array(w * h)
-  const integralSq = new Float64Array(w * h)
-
-  // Build integral image for fast local mean
   for (let y = 0; y < h; y++) {
     let rowSum = 0
-    let rowSumSq = 0
     for (let x = 0; x < w; x++) {
       const idx = y * w + x
       rowSum += gray[idx]
-      rowSumSq += gray[idx] * gray[idx]
       integral[idx] = rowSum + (y > 0 ? integral[(y - 1) * w + x] : 0)
-      integralSq[idx] = rowSumSq + (y > 0 ? integralSq[(y - 1) * w + x] : 0)
     }
   }
 
-  // Apply threshold using local mean
+  // Adaptive threshold
+  const blockSize = 31
+  const C = 10
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const x1 = Math.max(0, x - blockSize)
-      const y1 = Math.max(0, y - blockSize)
-      const x2 = Math.min(w - 1, x + blockSize)
-      const y2 = Math.min(h - 1, y + blockSize)
+      const x1 = Math.max(0, x - blockSize) | 0
+      const y1 = Math.max(0, y - blockSize) | 0
+      const x2 = Math.min(w - 1, x + blockSize) | 0
+      const y2 = Math.min(h - 1, y + blockSize) | 0
       const count = (x2 - x1 + 1) * (y2 - y1 + 1)
 
       const sumRegion = integral[y2 * w + x2] - integral[y1 * w + x2] - integral[y2 * w + x1] + integral[y1 * w + x1]
       const localMean = sumRegion / count
 
-      const idx = (y * w + x) * 4
       const val = gray[y * w + x] > (localMean - C) ? 255 : 0
-      data[idx] = val
-      data[idx + 1] = val
-      data[idx + 2] = val
+      const idx = (y * w + x) * 4
+      data[idx] = data[idx + 1] = data[idx + 2] = val
     }
   }
 
@@ -258,96 +216,46 @@ function createHighContrast(canvas: HTMLCanvasElement): HTMLCanvasElement {
 }
 
 /**
- * 2x upscale with contrast boost + sharpening.
+ * Morphological: dilate+erode to connect broken strokes.
  */
-function enhanceCrop(canvas: HTMLCanvasElement): HTMLCanvasElement {
-  const enhanced = document.createElement('canvas')
-  enhanced.width = canvas.width * 2
-  enhanced.height = canvas.height * 2
-
-  const ctx = enhanced.getContext('2d')!
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(canvas, 0, 0, enhanced.width, enhanced.height)
-
-  const imageData = ctx.getImageData(0, 0, enhanced.width, enhanced.height)
-  const data = imageData.data
-
-  // Contrast stretch + sharpen
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = Math.min(255, Math.max(0, (data[i] - 128) * 1.8 + 128))
-    data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * 1.8 + 128))
-    data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * 1.8 + 128))
-  }
-
-  // Simple unsharp mask for sharper text edges
-  const w = enhanced.width
-  const h = enhanced.height
-  const original = new Uint8ClampedArray(data)
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const idx = (y * w + x) * 4
-      for (let c = 0; c < 3; c++) {
-        const center = original[idx + c]
-        const blur = (
-          original[((y - 1) * w + x) * 4 + c] +
-          original[((y + 1) * w + x) * 4 + c] +
-          original[(y * w + (x - 1)) * 4 + c] +
-          original[(y * w + (x + 1)) * 4 + c]
-        ) / 4
-        data[idx + c] = Math.min(255, Math.max(0, Math.round(center + (center - blur) * 0.5)))
-      }
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0)
-  return enhanced
-}
-
-/**
- * Morphological variant: dilate then erode to connect broken strokes.
- * Helps with faded handwriting where strokes are disconnected.
- */
-function createMorphological(canvas: HTMLCanvasElement): HTMLCanvasElement {
+function morphological(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const w = canvas.width
+  const h = canvas.height
   const out = document.createElement('canvas')
-  out.width = canvas.width
-  out.height = canvas.height
+  out.width = w
+  out.height = h
   const ctx = out.getContext('2d')!
   ctx.drawImage(canvas, 0, 0)
 
-  const imageData = ctx.getImageData(0, 0, out.width, out.height)
+  const imageData = ctx.getImageData(0, 0, w, h)
   const data = imageData.data
-  const w = out.width
-  const h = out.height
 
-  // Convert to grayscale
+  // Grayscale + Otsu binarize
   const gray = new Uint8Array(w * h)
-  for (let i = 0; i < data.length; i += 4) {
-    gray[i / 4] = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114)
+  for (let i = 0; i < gray.length; i++) {
+    gray[i] = (data[i * 4] * 77 + data[i * 4 + 1] * 150 + data[i * 4 + 2] * 29) >> 8
   }
 
-  // Binarize with Otsu
-  const histogram = new Uint32Array(256)
-  for (let i = 0; i < gray.length; i++) histogram[gray[i]]++
-  const totalPixels = gray.length
+  const hist = new Uint32Array(256)
+  for (let i = 0; i < gray.length; i++) hist[gray[i]]++
+  const total = gray.length
   let sum = 0
-  for (let i = 0; i < 256; i++) sum += i * histogram[i]
+  for (let i = 0; i < 256; i++) sum += i * hist[i]
   let sumB = 0, wB = 0, maxV = 0, thresh = 128
   for (let i = 0; i < 256; i++) {
-    wB += histogram[i]
+    wB += hist[i]
     if (wB === 0) continue
-    const wF = totalPixels - wB
+    const wF = total - wB
     if (wF === 0) break
-    sumB += i * histogram[i]
+    sumB += i * hist[i]
     const variance = wB * wF * ((sumB / wB) - ((sum - sumB) / wF)) ** 2
     if (variance > maxV) { maxV = variance; thresh = i }
   }
 
-  // Binary image: ink=1, background=0
   const bin = new Uint8Array(w * h)
   for (let i = 0; i < gray.length; i++) bin[i] = gray[i] < thresh ? 1 : 0
 
-  // Dilate (3x3 cross) — connects broken strokes
+  // Dilate
   const dilated = new Uint8Array(w * h)
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
@@ -358,7 +266,7 @@ function createMorphological(canvas: HTMLCanvasElement): HTMLCanvasElement {
     }
   }
 
-  // Erode (3x3 cross) — restore original size but with connected strokes
+  // Erode
   const eroded = new Uint8Array(w * h)
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
@@ -369,16 +277,75 @@ function createMorphological(canvas: HTMLCanvasElement): HTMLCanvasElement {
     }
   }
 
-  // Write back
   for (let i = 0; i < gray.length; i++) {
     const val = eroded[i] ? 0 : 255
-    data[i * 4] = val
-    data[i * 4 + 1] = val
-    data[i * 4 + 2] = val
+    data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = val
   }
 
   ctx.putImageData(imageData, 0, 0)
   return out
+}
+
+/**
+ * Score an OCR result. Higher = better.
+ */
+function scoreResult(text: string, confidence: number, workerLang: string, variantName: string): number {
+  if (!text || text.length === 0) return -1000
+
+  const script = detectScript(text)
+  let score = confidence
+
+  // Garbage penalties
+  const garbageChars = (text.match(/[|\\\/\[\]{}<>~`^=_!@#$%^&*]/g) || []).length
+  score -= garbageChars * 10
+
+  const garbageRuns = (text.match(/[|\\\/]{3,}/g) || []).length
+  score -= garbageRuns * 20
+
+  const multiDashes = (text.match(/[-=_]{2,}/g) || []).length
+  score -= multiDashes * 20
+
+  // Script coherence
+  const totalChars = text.replace(/\s/g, '').length
+  if (totalChars > 0) {
+    const hindiChars = (text.match(/[\u0900-\u097F]/g) || []).length
+    const latinChars = (text.match(/[a-zA-Z]/g) || []).length
+    const digitChars = (text.match(/[0-9]/g) || []).length
+    const hindiRatio = hindiChars / totalChars
+    const latinRatio = latinChars / totalChars
+
+    if (hindiRatio > 0.3) {
+      score += 20
+      score -= latinChars * 6
+    } else if (latinRatio > 0.5) {
+      score += 12
+    }
+
+    const validRatio = (hindiChars + latinChars + digitChars) / totalChars
+    score += (validRatio * 15) | 0
+  }
+
+  // Word count bonus
+  const words = text.split(/\s+/).filter(w => w.length > 0)
+  score += Math.min(words.length * 2, 20)
+
+  // Worker match bonus
+  if (script === 'hindi' && workerLang === 'hin') score += 12
+  if (script === 'english' && workerLang === 'eng') score += 12
+
+  // Variant bonus
+  if (variantName === 'de-ruled') score += 5
+  else if (variantName === 'high-contrast') score += 3
+  else if (variantName === 'morphological') score += 3
+
+  // Short garbage penalty
+  const cleanText = text.replace(/[\s|\\\/\[\]{}<>~`^=_!@#$%^&*-]/g, '')
+  if (cleanText.length < 2 && text.length > 0) score -= 50
+
+  // Word separation bonus
+  if (words.length > 2 && totalChars > 10) score += 5
+
+  return score
 }
 
 /**
@@ -414,97 +381,13 @@ async function runOCR(
 }
 
 /**
- * Score an OCR result. Higher = better.
+ * Core OCR function. Smart variant selection: only runs 2-6 passes instead of 15.
  *
- * Scoring rules (v2 - enhanced):
- * - Base: Tesseract confidence (0-100)
- * - Hindi text on Hindi line: +20
- * - English text on English line: +12
- * - Garbage chars (|, [, ], =, etc.): -10 each
- * - Latin chars on Hindi line: -6 each
- * - Short garbage-only text: -50
- * - De-ruled variant bonus: +5
- * - Morphological variant bonus: +3 (helps faded text)
- * - Word count bonus: +2 per word (rewards readable text)
- * - Hindi word dictionary match: +5 per known word
- * - Consecutive garbage penalty: -20 per run
- */
-function scoreResult(
-  text: string,
-  confidence: number,
-  workerLang: string,
-  variantName: string
-): number {
-  if (!text || text.length === 0) return -1000
-
-  const script = detectScript(text)
-  let score = confidence
-
-  // Garbage character penalty (these come from ruled lines)
-  const garbageChars = (text.match(/[|\\\/\[\]{}<>~`^=_!@#$%^&*]/g) || []).length
-  score -= garbageChars * 10
-
-  // Multiple dash penalty
-  const multiDashes = (text.match(/[-=_]{2,}/g) || []).length
-  score -= multiDashes * 20
-
-  // Consecutive garbage runs (e.g., "| | | |")
-  const garbageRuns = (text.match(/[|\\\/]{3,}/g) || []).length
-  score -= garbageRuns * 20
-
-  // Script coherence
-  const totalChars = text.replace(/\s/g, '').length
-  if (totalChars > 0) {
-    const hindiChars = (text.match(/[\u0900-\u097F]/g) || []).length
-    const latinChars = (text.match(/[a-zA-Z]/g) || []).length
-    const digitChars = (text.match(/[0-9]/g) || []).length
-    const hindiRatio = hindiChars / totalChars
-    const latinRatio = latinChars / totalChars
-
-    if (hindiRatio > 0.3) {
-      // This is Hindi content
-      score += 20  // Hindi bonus
-      // Heavy penalty for Latin noise on Hindi content
-      score -= latinChars * 6
-    } else if (latinRatio > 0.5) {
-      // This is English content
-      score += 12
-    }
-
-    // Valid content ratio (Hindi + Latin + digits)
-    const validRatio = (hindiChars + latinChars + digitChars) / totalChars
-    score += Math.round(validRatio * 15)  // Up to +15 for clean text
-  }
-
-  // Word count bonus (rewards readable text)
-  const words = text.split(/\s+/).filter(w => w.length > 0)
-  score += Math.min(words.length * 2, 20)  // Cap at +20
-
-  // Worker match bonus
-  if (script === 'hindi' && workerLang === 'hin') score += 12
-  if (script === 'english' && workerLang === 'eng') score += 12
-
-  // Variant bonus
-  if (variantName === 'de-ruled') score += 5
-  if (variantName === 'high-contrast') score += 3
-  if (variantName === 'morphological') score += 3
-
-  // Penalty for very short garbage-only text
-  const cleanText = text.replace(/[\s|\\\/\[\]{}<>~`^=_!@#$%^&*-]/g, '')
-  if (cleanText.length < 2 && text.length > 0) score -= 50
-
-  // Bonus for text with spaces (indicates word separation)
-  if (text.split(/\s+/).length > 2 && totalChars > 10) score += 5
-
-  return score
-}
-
-/**
- * Core OCR function. Tests multiple variants x multiple workers and returns the best.
- *
- * Variants: original, enhanced, de-ruled, high-contrast
- * Workers: Hindi, English, Mixed
- * Total combinations: up to 12 per line
+ * Strategy:
+ * 1. Run original + mixed worker first (fast path)
+ * 2. If confidence >= 70, return immediately
+ * 3. Otherwise try de-ruled + high-contrast variants
+ * 4. Only try Hindi/English workers if mixed fails
  */
 export async function recognizeText(
   image: HTMLCanvasElement,
@@ -515,35 +398,49 @@ export async function recognizeText(
   onProgress?.(50, 'Running OCR...')
 
   const psm = options?.psmMode ?? Tesseract.PSM.SINGLE_LINE
-
-  // Create all preprocessing variants
-  const variants: { name: string; canvas: HTMLCanvasElement }[] = [
-    { name: 'original', canvas: image },
-    { name: 'enhanced', canvas: enhanceCrop(image) },
-    { name: 'de-ruled', canvas: removeHorizontalLines(image) },
-    { name: 'high-contrast', canvas: createHighContrast(image) },
-    { name: 'morphological', canvas: createMorphological(image) },
-  ]
-
-  // Choose workers based on script hint
-  const hint = options?.scriptHint ?? 'mixed'
   const langPreference = options?.language
 
+  // Choose workers
   let workersToTry: { name: string; worker: Tesseract.Worker; lang: string }[] = []
-
-  if (langPreference === 'hin') {
-    workersToTry = hindiWorker ? [{ name: 'hin', worker: hindiWorker, lang: 'hin' }] : []
-  } else if (langPreference === 'eng') {
-    workersToTry = englishWorker ? [{ name: 'eng', worker: englishWorker, lang: 'eng' }] : []
+  if (langPreference === 'hin' && hindiWorker) {
+    workersToTry = [{ name: 'hin', worker: hindiWorker, lang: 'hin' }]
+  } else if (langPreference === 'eng' && englishWorker) {
+    workersToTry = [{ name: 'eng', worker: englishWorker, lang: 'eng' }]
   } else {
-    // Try all three workers
+    if (mixedWorker) workersToTry.push({ name: 'hin+eng', worker: mixedWorker, lang: 'hin+eng' })
     if (hindiWorker) workersToTry.push({ name: 'hin', worker: hindiWorker, lang: 'hin' })
     if (englishWorker) workersToTry.push({ name: 'eng', worker: englishWorker, lang: 'eng' })
-    if (mixedWorker) workersToTry.push({ name: 'hin+eng', worker: mixedWorker, lang: 'hin+eng' })
   }
 
   let bestResult: OCRResult | null = null
   let bestScore = -Infinity
+
+  // Fast path: try original first with mixed worker
+  const primaryWorker = workersToTry[0]
+  if (primaryWorker) {
+    try {
+      const { text, confidence, words } = await runOCR(image, primaryWorker.worker, primaryWorker.lang, psm)
+      if (text && text.length > 0) {
+        const score = scoreResult(text, confidence, primaryWorker.lang, 'original')
+        if (score > bestScore) {
+          bestScore = score
+          bestResult = { text, confidence, words, language: primaryWorker.lang, script: detectScript(text) }
+        }
+        // Early exit if confidence is high
+        if (confidence >= 70 && bestResult) {
+          onProgress?.(95, 'Done')
+          return bestResult
+        }
+      }
+    } catch {}
+  }
+
+  // Slow path: try de-ruled and high-contrast variants
+  const variants: { name: string; canvas: HTMLCanvasElement }[] = [
+    { name: 'de-ruled', canvas: removeLines(image) },
+    { name: 'high-contrast', canvas: highContrast(image) },
+    { name: 'morphological', canvas: morphological(image) },
+  ]
 
   for (const variant of variants) {
     for (const { name, worker, lang } of workersToTry) {
@@ -552,20 +449,15 @@ export async function recognizeText(
         if (!text || text.length === 0) continue
 
         const score = scoreResult(text, confidence, lang, variant.name)
-
         if (score > bestScore) {
           bestScore = score
-          const script = detectScript(text)
-          bestResult = { text, confidence, words, language: lang, script }
+          bestResult = { text, confidence, words, language: lang, script: detectScript(text) }
         }
-      } catch {
-        // Skip failed attempts
-      }
+      } catch {}
     }
   }
 
   onProgress?.(95, 'Done')
-
   return bestResult || { text: '', confidence: 0, words: [], language: 'hin', script: 'unknown' }
 }
 
@@ -578,12 +470,9 @@ export async function recognizeWithRetry(
   options?: RecognizeOptions
 ): Promise<OCRResult> {
   const result = await recognizeText(image, onProgress, options)
-
   if (result.confidence >= 50) return result
 
   onProgress?.(60, 'Low confidence - retrying...')
-
-  // Try different PSM modes
   for (const psm of [Tesseract.PSM.SINGLE_BLOCK, Tesseract.PSM.AUTO]) {
     const retry = await recognizeText(image, undefined, { ...options, psmMode: psm })
     if (retry.confidence > result.confidence) return retry

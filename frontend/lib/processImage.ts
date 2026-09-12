@@ -1,6 +1,7 @@
 import { preprocessImage } from './imagePreprocess'
 import { recognizeText } from './ocrEngine'
-import { postProcessHindi } from './hindiPostProcess'
+import { pdfToImages } from './pdfProcess'
+import { processDocument, DocumentResult } from './documentProcessor'
 
 export interface ProcessResult {
   pages: {
@@ -27,6 +28,11 @@ export interface ProcessResult {
     totalCharacters: number
     totalWords: number
   }
+  documentAnalysis?: DocumentResult
+}
+
+function isPdfFile(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
 }
 
 export async function processImage(
@@ -35,64 +41,109 @@ export async function processImage(
 ): Promise<ProcessResult> {
   const startTime = Date.now()
 
-  onProgress?.(5, 'Loading image...')
+  onProgress?.(5, 'Loading file...')
 
-  const img = new Image()
-  const url = URL.createObjectURL(file)
+  // For images, use the document processor with script-aware routing
+  if (!isPdfFile(file)) {
+    try {
+      const docResult = await processDocument(file, onProgress)
+      const elapsed = Date.now() - startTime
 
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve()
-    img.onerror = () => reject(new Error('Failed to load image'))
-    img.src = url
-  })
+      return {
+        pages: [{
+          regions: docResult.regions.map(r => ({
+            text: r.correctedText,
+            confidence: r.confidence,
+            bbox: r.bbox,
+            words: r.wordConfidences.map(wc => ({
+              text: wc.word,
+              confidence: wc.confidence,
+            })),
+            language: r.script === 'hindi' ? 'hin' : r.script === 'english' ? 'eng' : 'mixed',
+          })),
+          fullText: docResult.fullText,
+          averageConfidence: docResult.metadata.overallConfidence,
+        }],
+        metadata: {
+          filename: file.name,
+          processedAt: new Date().toISOString(),
+          totalRegions: docResult.regions.length,
+          languagesDetected: Array.from(new Set(docResult.regions.map(r =>
+            r.script === 'hindi' ? 'hin' : r.script === 'english' ? 'eng' : 'mixed'
+          ))),
+          processingTime: elapsed,
+        },
+        summary: {
+          averageConfidence: docResult.metadata.overallConfidence,
+          totalRegions: docResult.regions.length,
+          totalCharacters: docResult.fullText.length,
+          totalWords: docResult.fullText.split(/\s+/).length,
+        },
+        documentAnalysis: docResult,
+      }
+    } catch (err) {
+      console.error('Document processor failed, falling back to simple OCR:', err)
+    }
+  }
 
-  onProgress?.(15, 'Preprocessing image...')
+  // PDF processing (simple OCR)
+  const pages: ProcessResult['pages'] = []
+  const allLanguages = new Set<string>()
 
-  const { canvas } = preprocessImage(img)
-  URL.revokeObjectURL(url)
+  if (isPdfFile(file)) {
+    const canvases = await pdfToImages(file, onProgress)
 
-  onProgress?.(40, 'Running OCR on full image...')
+    for (let i = 0; i < canvases.length; i++) {
+      onProgress?.(
+        30 + ((i / canvases.length) * 60) | 0,
+        `OCR page ${i + 1}/${canvases.length}...`
+      )
 
-  // Send the ENTIRE image to OCR - no region splitting
-  // This avoids cutting off matras and gives Tesseract better context
-  const result = await recognizeText(canvas)
+      const { canvas } = preprocessImage(canvases[i])
+      const result = await recognizeText(canvas)
 
-  onProgress?.(80, 'Post-processing Hindi text...')
+      const lang = (result.text.match(/[\u0900-\u097F]/g) || []).length > 0 ? 'hin' :
+                   (result.text.match(/[\u0C00-\u0C7F]/g) || []).length > 0 ? 'tel' : 'eng'
+      allLanguages.add(lang)
 
-  const cleanedText = postProcessHindi(result.text)
-
-  const lang = (cleanedText.match(/[\u0900-\u097F]/g) || []).length > 0 ? 'hin' : 'eng'
+      pages.push({
+        regions: [{
+          text: result.text,
+          confidence: result.confidence,
+          bbox: { x: 0, y: 0, w: canvas.width, h: canvas.height },
+          words: result.words,
+          language: lang,
+        }],
+        fullText: result.text,
+        averageConfidence: result.confidence,
+      })
+    }
+  }
 
   onProgress?.(95, 'Finalizing...')
 
   const elapsed = Date.now() - startTime
+  const totalRegions = pages.reduce((sum, p) => sum + p.regions.length, 0)
+  const totalWords = pages.reduce((sum, p) => sum + p.regions.reduce((s, r) => s + r.words.length, 0), 0)
+  const totalCharacters = pages.reduce((sum, p) => sum + p.fullText.length, 0)
+  const avgConfidence = pages.reduce((sum, p) => sum + p.averageConfidence, 0) / Math.max(pages.length, 1)
 
   onProgress?.(100, 'Done!')
 
   return {
-    pages: [{
-      regions: [{
-        text: cleanedText,
-        confidence: result.confidence,
-        bbox: { x: 0, y: 0, w: canvas.width, h: canvas.height },
-        words: result.words,
-        language: lang,
-      }],
-      fullText: cleanedText,
-      averageConfidence: result.confidence,
-    }],
+    pages,
     metadata: {
       filename: file.name,
       processedAt: new Date().toISOString(),
-      totalRegions: 1,
-      languagesDetected: [lang],
+      totalRegions,
+      languagesDetected: Array.from(allLanguages),
       processingTime: elapsed,
     },
     summary: {
-      averageConfidence: result.confidence,
-      totalRegions: 1,
-      totalCharacters: cleanedText.length,
-      totalWords: result.words.length,
+      averageConfidence: avgConfidence,
+      totalRegions,
+      totalCharacters,
+      totalWords,
     },
   }
 }
