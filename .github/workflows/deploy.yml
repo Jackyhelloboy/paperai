@@ -28,16 +28,14 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build for Cloudflare Pages
+      - name: Build
         working-directory: frontend
-        run: npx @cloudflare/next-on-pages
-        env:
-          NEXT_PUBLIC_BUILD_VERSION: ${{ github.sha }}
+        run: npm run build
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .vercel/output/static --project-name=paperai
+          command: pages deploy out --project-name=paperai
           workingDirectory: frontend

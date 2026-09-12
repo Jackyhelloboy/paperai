@@ -3,18 +3,15 @@ const crypto = require('crypto')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'export',
   images: {
     formats: ['image/avif', 'image/webp'],
-    minimumCacheTTL: 60 * 60 * 24 * 30,
-  },
-  experimental: {
-    optimizePackageImports: ['react-icons', 'react-toastify'],
+    unoptimized: true,
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   async headers() {
-    const buildId = crypto.createHash('sha256').update(nextConfig.buildId || 'dev').digest('hex').slice(0, 8)
     return [
       {
         source: '/sw.js',
@@ -24,7 +21,7 @@ const nextConfig = {
         ],
       },
       {
-        source: '/_next/static/:path*',
+        source: '/_next/static/(.*)',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
@@ -33,7 +30,6 @@ const nextConfig = {
         source: '/manifest.json',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=86400' },
-          { key: 'Content-Type', value: 'application/manifest+json' },
         ],
       },
       {
