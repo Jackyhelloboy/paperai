@@ -1,63 +1,72 @@
 # PaperAI
 
-Extract text from question papers using advanced OCR (PaddleOCR / EasyOCR).
+Extract text from question papers using advanced OCR (PaddleOCR + EasyOCR).
 
-## Structure
+## Architecture
 
 ```
 paperai/
-├── frontend/          # Static HTML/CSS/JS frontend (deployed to Cloudflare Pages)
-│   └── index.html
-├── backend/           # Python FastAPI backend with OCR
+├── frontend/          # Static HTML → Vercel
+│   ├── index.html
+│   └── vercel.json
+├── backend/           # Python FastAPI → Render
 │   ├── main.py
-│   ├── api/
-│   ├── ocr_engine/
-│   └── utils/
+│   ├── ocr_engine.py
+│   ├── preprocessor.py
+│   ├── trainer.py
+│   └── requirements.txt
 └── .github/workflows/
-    └── deploy.yml     # Cloudflare Pages deployment
+    ├── deploy-frontend.yml  # Vercel auto-deploy
+    └── deploy-backend.yml   # Render auto-deploy
 ```
 
-## Frontend (Cloudflare Pages)
+## Frontend (Vercel)
 
-The frontend is a static HTML site deployed automatically to Cloudflare Pages.
+- Auto-deploys on push to `main`
+- Connects to Python backend API
+- Supports: PDF, JPG, PNG, BMP, TIFF
 
-- **URL**: https://paperai-5up.pages.dev
-- **Auto-deploys**: On push to `main` branch
+## Backend (Render)
 
-## Backend
-
-The Python backend uses FastAPI with PaddleOCR/EasyOCR for text extraction.
+Python server with:
+- **PaddleOCR** — Best for Devanagari/Hindi
+- **EasyOCR** — Multi-language support
+- **Image preprocessing** — Auto contrast, denoise, deskew, shadow removal
+- **Multi-engine voting** — Consensus scoring for accuracy
+- **Training pipeline** — Corrections saved for model improvement
 
 ### Run locally
 
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate      # Windows
+venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
 ```
 
-The backend runs on `http://localhost:8000`.
-
-### Supported Languages
-
-- English
-- Hindi (Devanagari)
-- Telugu
+Backend runs on `http://localhost:8000`
 
 ## Deployment
 
-### Cloudflare Pages (Frontend)
+### Frontend (Vercel)
+1. Connect repo to Vercel
+2. Set root directory to `frontend`
+3. Deploy
 
-Automatic via GitHub Actions. Push to `main` to deploy.
+### Backend (Render)
+1. Connect repo to Render
+2. Set root directory to `backend`
+3. Runtime: Python 3.11
+4. Build: `pip install -r requirements.txt`
+5. Start: `python main.py`
 
-### Backend
+## API
 
-The backend needs a separate host (Render, Railway, Fly.io, etc.).
-
-Update `API_BASE` in `frontend/index.html` to point to your backend URL.
-
-## License
-
-MIT
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/ocr` | POST | Upload file for OCR |
+| `/api/result/{job_id}` | GET | Get OCR result |
+| `/api/correct` | POST | Submit correction |
+| `/api/eval` | POST | Evaluate accuracy |
+| `/api/stats` | GET | Get training stats |

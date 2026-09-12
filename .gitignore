@@ -9,9 +9,10 @@ venv/
 backend/uploads/
 backend/exports/
 backend/jobs_data/
+backend/training_data/
 backend/*.log
 
-# Frontend (keep static files, ignore anything else)
+# Frontend
 frontend/node_modules/
 
 # Misc
@@ -19,3 +20,4 @@ frontend/node_modules/
 .DS_Store
 Thumbs.db
 .wrangler/
+.vercel/
