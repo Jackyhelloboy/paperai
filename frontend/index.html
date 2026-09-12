@@ -152,27 +152,32 @@
         <div class="text-out" id="textOut"></div>
     </div>
 
-    <footer>PaperAI — Client-side OCR • No data leaves your device</footer>
+    <footer>PaperAI — Client-side OCR — No data leaves your device</footer>
 </div>
 
 <script>
-const $ = id => document.getElementById(id);
-const dropZone = $('dropZone'), fileInput = $('fileInput'), goBtn = $('goBtn');
-const fileBar = $('fileBar'), fName = $('fName'), fSize = $('fSize'), clearBtn = $('clearBtn');
-const prog = $('prog'), pFill = $('pFill'), pPct = $('pPct'), pStep = $('pStep'), pMsg = $('pMsg');
-const errBox = $('errBox'), resBox = $('resBox'), textOut = $('textOut');
-const cancelBtn = $('cancelBtn');
+const $=id=>document.getElementById(id);
+const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn');
+const fileBar=$('fileBar'),fName=$('fName'),fSize=$('fSize'),clearBtn=$('clearBtn');
+const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pStep=$('pStep'),pMsg=$('pMsg');
+const errBox=$('errBox'),resBox=$('resBox'),textOut=$('textOut');
+const cancelBtn=$('cancelBtn');
 
-let file = null, cancelled = false, worker = null;
+let file=null,cancelled=false;
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB'}
-
 function showErr(m){errBox.textContent=m;errBox.classList.add('show')}
 function hideErr(){errBox.classList.remove('show')}
 function showRes(){resBox.classList.add('show')}
 function hideRes(){resBox.classList.remove('show')}
+
+function setProg(pct,msg,step){
+    pFill.style.width=pct+'%';pPct.textContent=pct+'%';
+    if(msg)pMsg.textContent=msg;
+    if(step!==undefined)pStep.textContent=step;
+}
 
 function setFile(f){
     const ext=f.name.split('.').pop().toLowerCase();
@@ -191,35 +196,31 @@ dropZone.ondragleave=()=>dropZone.classList.remove('over');
 dropZone.ondrop=e=>{e.preventDefault();dropZone.classList.remove('over');if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])};
 clearBtn.onclick=clearFile;
 
-function preprocessCanvas(canvas, mode){
+function preprocessCanvas(canvas,mode){
     const ctx=canvas.getContext('2d');
-    const w=canvas.width, h=canvas.height;
+    const w=canvas.width,h=canvas.height;
     const img=ctx.getImageData(0,0,w,h);
     const d=img.data;
 
-    // Grayscale
     for(let i=0;i<d.length;i+=4){
         const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
         d[i]=d[i+1]=d[i+2]=g;
     }
-
     if(mode==='none')return canvas;
 
-    // Adaptive threshold (simplified)
-    const blockSize=15, C=10;
     const gray=new Uint8ClampedArray(w*h);
     for(let i=0;i<d.length;i+=4)gray[i/4]=d[i];
 
     if(mode==='aggressive'){
-        // Sharpen + contrast
         for(let i=0;i<d.length;i+=4){
             let v=gray[i/4];
             v=Math.min(255,Math.max(0,(v-128)*1.5+128));
             d[i]=d[i+1]=d[i+2]=v;
+            gray[i/4]=v;
         }
     }
 
-    // Simple adaptive threshold
+    const blockSize=15,C=10;
     const out=new Uint8ClampedArray(d.length);
     for(let y=0;y<h;y++){
         for(let x=0;x<w;x++){
@@ -236,8 +237,7 @@ function preprocessCanvas(canvas, mode){
             out[idx]=out[idx+1]=out[idx+2]=v;out[idx+3]=255;
         }
     }
-    const outImg=new ImageData(out,w,h);
-    ctx.putImageData(outImg,0,0);
+    ctx.putImageData(new ImageData(out,w,h),0,0);
     return canvas;
 }
 
@@ -258,8 +258,7 @@ async function pdfToImages(pdfBlob){
 }
 
 async function imgToCanvas(img){
-    // Upscale small images
-    let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+    let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
     const minDim=Math.max(w,h);
     let scale=1;
     if(minDim<1500)scale=1500/minDim;
@@ -281,7 +280,7 @@ goBtn.onclick=async()=>{
     goBtn.disabled=true;cancelBtn.style.display='block';
     hideErr();hideRes();
     prog.classList.add('show');
-    pFill.style.width='0%';pPct.textContent='0%';
+    setProg(0,'Starting...','');
 
     try{
         let canvases=[];
@@ -290,35 +289,29 @@ goBtn.onclick=async()=>{
         const ppMode=$('ppi').value;
 
         if(ext==='pdf'){
-            pStep.textContent='Converting PDF';
-            pMsg.textContent='Rendering pages...';
+            setProg(2,'Rendering PDF pages...','PDF');
             canvases=await pdfToImages(file);
         }else{
-            pStep.textContent='Loading image';
-            pMsg.textContent='Reading file...';
+            setProg(2,'Loading image...','Image');
             const url=URL.createObjectURL(file);
             const img=new Image();
-            await new Promise((ok,err)=>{img.onload=ok;img.onerror=()=>err(new Error('Cannot load image'))});
+            img.crossOrigin='anonymous';
+            await new Promise((ok,err)=>{img.onload=ok;img.onerror=()=>err(new Error('Cannot load image — file may be corrupted'))});
             img.src=url;
             canvases=[await imgToCanvas(img)];
             URL.revokeObjectURL(url);
         }
 
-        if(!canvases.length)throw new Error('No pages found');
+        if(!canvases.length)throw new Error('No pages found in file');
         if(cancelled)throw new Error('Cancelled');
 
-        // Preprocess
-        pStep.textContent='Preprocessing';
-        pMsg.textContent='Enhancing image quality...';
-        pFill.style.width='10%';pPct.textContent='10%';
+        setProg(8,'Preprocessing image...','Preprocess');
         const processed=canvases.map(c=>preprocessCanvas(c,ppMode));
 
         if(cancelled)throw new Error('Cancelled');
 
-        // OCR
-        pStep.textContent='OCR';
-        pMsg.textContent='Initializing Tesseract.js...';
-        pFill.style.width='15%';pPct.textContent='15%';
+        // OCR — handle model download progress
+        setProg(12,'Downloading OCR model (first time only)...','OCR');
 
         const results=[];
         const total=processed.length;
@@ -327,15 +320,25 @@ goBtn.onclick=async()=>{
             if(cancelled)throw new Error('Cancelled');
 
             const pctBase=15+Math.round(75*(i/total));
-            pFill.style.width=pctBase+'%';
-            pPct.textContent=pctBase+'%';
-            pMsg.textContent=`Processing page ${i+1} of ${total}...`;
+            setProg(pctBase,`Page ${i+1} of ${total}...`,'OCR');
 
             const r=await Tesseract.recognize(processed[i], lang, {
                 logger:m=>{
-                    if(m.status==='recognizing text'){
-                        const inner=Math.round(m.progress*100);
-                        pMsg.textContent=`Page ${i+1}/${total}: ${inner}% recognized`;
+                    if(cancelled)return;
+                    const s=m.status||'';
+                    const p=Math.round((m.progress||0)*100);
+
+                    if(s==='loading tesseract core'){
+                        setProg(12,`Loading engine... ${p}%`,'OCR');
+                    }else if(s==='initializing tesseract'){
+                        setProg(16,`Initializing... ${p}%`,'OCR');
+                    }else if(s==='loading language traineddata'){
+                        setProg(20+Math.round(p*0.3),`Downloading language data... ${p}%`,'OCR');
+                    }else if(s==='initializing api'){
+                        setProg(35,`Preparing OCR... ${p}%`,'OCR');
+                    }else if(s==='recognizing text'){
+                        const inner=Math.round(p);
+                        setProg(40+Math.round(inner*0.55),`Page ${i+1}/${total}: ${inner}% recognized`,'OCR');
                     }
                 }
             });
@@ -345,29 +348,21 @@ goBtn.onclick=async()=>{
 
         if(cancelled)throw new Error('Cancelled');
 
-        // Combine
-        pStep.textContent='Finalizing';
-        pPct.textContent='95%';
-        pFill.style.width='95%';
+        setProg(96,'Finalizing...','Done');
 
         const allText=results.map(r=>r.text).filter(t=>t.trim()).join('\n\n--- Page Break ---\n\n');
         const avgConf=results.reduce((s,r)=>s+(r.confidence||0),0)/results.length;
         const totalChars=allText.length;
         const totalLines=allText.split('\n').filter(l=>l.trim()).length;
 
-        // Confidence badge
         const confCls=avgConf>=80?'high':avgConf>=50?'med':'low';
-
-        $('sConf').innerHTML=`${avgConf.toFixed(1)}% <span class="conf-badge conf-${confCls}">${confCls==='high'?'Good':confCls==='med'?'Fair':'Low'}</span>`;
+        $('sConf').innerHTML=avgConf.toFixed(1)+'% <span class="conf-badge conf-'+confCls+'">'+(confCls==='high'?'Good':confCls==='med'?'Fair':'Low')+'</span>';
         $('sChars').textContent=totalChars;
         $('sLines').textContent=totalLines;
         textOut.textContent=allText||'(No text detected)';
         showRes();
 
-        pFill.style.width='100%';pPct.textContent='100%';
-        pMsg.textContent='Done!';
-        pStep.textContent='Complete';
-
+        setProg(100,'Complete!','');
         window._lastResult={text:allText,conf:avgConf};
 
     }catch(e){
@@ -378,37 +373,253 @@ goBtn.onclick=async()=>{
     }
 };
 
+/* ── Export: TXT ── */
 function dlTxt(){
     const r=window._lastResult;if(!r)return;
-    const b=new Blob([r.text],{type:'text/plain'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(b);
-    a.download='paperai_output.txt';a.click();URL.revokeObjectURL(a.href)
+    const b=new Blob([r.text],{type:'text/plain;charset=utf-8'});
+    dl(b,'paperai_output.txt');
 }
+
+/* ── Export: DOCX (A4, portrait, narrow margins) ── */
 function dlDocx(){
     const r=window._lastResult;if(!r)return;
-    // Simple HTML-based doc
-    const html=`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'></head><body style='font-family:Arial'>${r.text.split('\n').map(l=>`<p>${l||'&nbsp;'}</p>`).join('')}</body></html>`;
-    const b=new Blob([html],{type:'application/msword'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(b);
-    a.download='paperai_output.doc';a.click();URL.revokeObjectURL(a.href)
+    const lines=r.text.split('\n');
+
+    // A4 in twips: 1 inch = 1440 twips, A4 = 210mm x 297mm
+    // Narrow margins: 1.27cm = ~720 twips (0.5 inch)
+    const pageW=11906; // 210mm
+    const pageH=16838; // 297mm
+    const margin=720;  // 0.5 inch narrow margin
+
+    let paras='';
+    for(const line of lines){
+        const safe=line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        paras+=`<w:p><w:r><w:t xml:space="preserve">${safe||' '}</w:t></w:r></w:p>`;
+    }
+
+    const docx=`
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+            xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"
+            xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+            xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+            xmlns:v="urn:schemas-microsoft-com:vml"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:w10="urn:schemas-microsoft-com:office:word"
+            xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
+            mc:Ignorable="w14 wp14">
+  <w:body>
+    <w:sectPr>
+      <w:pgSz w:w="${pageW}" w:h="${pageH}" w:orient="portrait"/>
+      <w:pgMar w:top="${margin}" w:right="${margin}" w:bottom="${margin}" w:left="${margin}" w:header="0" w:footer="0" w:gutter="0"/>
+      <w:cols w:space="708"/>
+    </w:sectPr>
+    ${paras}
+  </w:body>
+</w:document>`;
+
+    const contentTypes=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+    const rels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+    const wordRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>`;
+
+    // Build ZIP using raw bytes
+    const encoder=new TextEncoder();
+    const files=[
+        {name:'[Content_Types].xml',data:encoder.encode(contentTypes)},
+        {name:'_rels/.rels',data:encoder.encode(rels)},
+        {name:'word/_rels/document.xml.rels',data:encoder.encode(wordRels)},
+        {name:'word/document.xml',data:encoder.encode(docx)}
+    ];
+
+    const zip=buildZip(files);
+    const b=new Blob([zip],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    dl(b,'paperai_output.docx');
 }
+
+function buildZip(files){
+    // Minimal ZIP builder
+    const encoder=new TextEncoder();
+    const parts=[];
+    const centralDir=[];
+    let offset=0;
+
+    for(const f of files){
+        const nameBytes=encoder.encode(f.name);
+        const crc=crc32(f.data);
+
+        // Local file header
+        const header=new Uint8Array(30+nameBytes.length);
+        const hv=new DataView(header.buffer);
+        hv.setUint32(0,0x04034b50,true); // signature
+        hv.setUint16(4,20,true); // version needed
+        hv.setUint16(6,0,true);  // flags
+        hv.setUint16(8,0,true);  // compression: stored
+        hv.setUint16(10,0,true); // mod time
+        hv.setUint16(12,0,true); // mod date
+        hv.setUint32(14,crc,true);
+        hv.setUint32(18,f.data.length,true); // compressed size
+        hv.setUint32(22,f.data.length,true); // uncompressed size
+        hv.setUint16(26,nameBytes.length,true);
+        hv.setUint16(28,0,true); // extra field length
+        header.set(nameBytes,30);
+
+        parts.push(header,f.data);
+
+        // Central directory entry
+        const cd=new Uint8Array(46+nameBytes.length);
+        const cdv=new DataView(cd.buffer);
+        cdv.setUint32(0,0x02014b50,true); // signature
+        cdv.setUint16(4,20,true); // version made by
+        cdv.setUint16(6,20,true); // version needed
+        cdv.setUint16(8,0,true);  // flags
+        cdv.setUint16(10,0,true); // compression
+        cdv.setUint16(12,0,true); // mod time
+        cdv.setUint16(14,0,true); // mod date
+        cdv.setUint32(16,crc,true);
+        cdv.setUint32(20,f.data.length,true);
+        cdv.setUint32(24,f.data.length,true);
+        cdv.setUint16(28,nameBytes.length,true);
+        cdv.setUint16(30,0,true); // extra
+        cdv.setUint16(32,0,true); // comment
+        cdv.setUint16(34,0,true); // disk
+        cdv.setUint16(36,0,true); // internal attr
+        cdv.setUint32(38,0,true); // external attr
+        cdv.setUint32(42,offset,true); // offset
+        cd.set(nameBytes,46);
+
+        centralDir.push(cd);
+        offset+=header.length+f.data.length;
+    }
+
+    const cdOffset=offset;
+    let cdSize=0;
+    for(const cd of centralDir){parts.push(cd);cdSize+=cd.length}
+
+    // End of central directory
+    const eocd=new Uint8Array(22);
+    const ev=new DataView(eocd.buffer);
+    ev.setUint32(0,0x06054b50,true);
+    ev.setUint16(4,0,true);
+    ev.setUint16(6,0,true);
+    ev.setUint16(8,files.length,true);
+    ev.setUint16(10,files.length,true);
+    ev.setUint32(12,cdSize,true);
+    ev.setUint32(16,cdOffset,true);
+    ev.setUint16(20,0,true);
+    parts.push(eocd);
+
+    // Combine
+    let totalLen=0;
+    for(const p of parts)totalLen+=p.length;
+    const result=new Uint8Array(totalLen);
+    let pos=0;
+    for(const p of parts){result.set(p,pos);pos+=p.length}
+    return result;
+}
+
+function crc32(data){
+    let crc=0xFFFFFFFF;
+    const table=new Uint32Array(256);
+    for(let i=0;i<256;i++){
+        let c=i;
+        for(let j=0;j<8;j++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);
+        table[i]=c;
+    }
+    for(let i=0;i<data.length;i++)crc=table[(crc^data[i])&0xFF]^(crc>>>8);
+    return(crc^0xFFFFFFFF)>>>0;
+}
+
+function dl(blob,name){
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+/* ── Export: PDF ── */
 function dlPdf(){
     const r=window._lastResult;if(!r)return;
-    // Use jsPDF-like approach with raw PDF
     const lines=r.text.split('\n');
-    const pageH=842,margin=50,lineH=14;
-    let content='';
+    // A4: 595 x 842 pt, narrow margins 40pt
+    const pageW=595,pageH=842,margin=40,lineH=13;
+    const usableW=pageW-2*margin;
+
+    let objects=[];
+    let objNums={};
+    let currentObj=1;
+
+    function addObj(content){
+        objects.push(content);
+        return currentObj++;
+    }
+
+    // Catalog
+    const catalogId=addObj('<< /Type /Catalog /Pages 2 0 R >>');
+    // Pages
+    const pagesId=addObj('<< /Type /Pages /Kids [] /Count 0 >>');
+
+    // Font
+    const fontId=addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+
+    // Build page content streams
+    let pageIds=[];
+    let pageContent='';
     let y=margin;
+
     for(const line of lines){
-        if(y>pageH-margin){content+='endstream\nendobj\n';y=margin}
-        content+=`BT /F1 11 Tf ${margin} ${pageH-y} Td (${line.replace(/[()\\]/g,'\\$&')}) Tj ET\n`;
+        if(y>pageH-margin){
+            if(pageContent){
+                const streamId=addObj(`<< /Length ${pageContent.length} >>\nstream\n${pageContent}\nendstream`);
+                pageIds.push(addObj(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Contents ${streamId} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`));
+            }
+            pageContent='';y=margin;
+        }
+        const safe=line.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+        pageContent+=`BT /F1 10 Tf ${margin} ${pageH-y} Td (${safe}) Tj ET\n`;
         y+=lineH;
     }
-    // Minimal PDF
-    const pdf=`%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 595 842]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length ${content.length}>>\nstream\n${content}endstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000266 00000 n \n0000000000 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n0\n%%EOF`;
+
+    if(pageContent){
+        const streamId=addObj(`<< /Length ${pageContent.length} >>\nstream\n${pageContent}\nendstream`);
+        pageIds.push(addObj(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Contents ${streamId} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`));
+    }
+
+    // Update Pages kids
+    objects[1]=`<< /Type /Pages /Kids [${pageIds.map(n=>n+' 0 R').join(' ')}] /Count ${pageIds.length} >>`;
+
+    // Build PDF
+    let pdf='%PDF-1.4\n';
+    const offsets=[];
+    for(let i=0;i<objects.length;i++){
+        offsets.push(pdf.length);
+        pdf+=`${i+1} 0 obj\n${objects[i]}\nendobj\n\n`;
+    }
+
+    const xrefOffset=pdf.length;
+    pdf+=`xref\n0 ${objects.length+1}\n`;
+    pdf+='0000000000 65535 f \n';
+    for(const off of offsets)pdf+=String(off).padStart(10,'0')+' 00000 n \n';
+
+    pdf+=`trailer\n<< /Size ${objects.length+1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
     const b=new Blob([pdf],{type:'application/pdf'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(b);
-    a.download='paperai_output.pdf';a.click();URL.revokeObjectURL(a.href)
+    dl(b,'paperai_output.pdf');
 }
 </script>
 </body>
