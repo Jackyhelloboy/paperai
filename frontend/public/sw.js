@@ -1,15 +1,5 @@
-const CACHE_NAME = 'paperai-v3'
-const WASM_CACHE = 'paperai-wasm-v3'
-
-// Tesseract CDN URLs for offline caching
-const TESSERACT_URLS = [
-  'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd.wasm',
-  'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd-lstm.wasm',
-  'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd-lstm-eng.wasm',
-  'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd-lstm-hin.wasm',
-  'https://tessdata.projectnaptha.com/4.0.0/hin.traineddata.gz',
-  'https://tessdata.projectnaptha.com/4.0.0/eng.traineddata.gz',
-]
+const CACHE_NAME = 'paperai-v4'
+const OCR_CACHE = 'paperai-ocr-v4'
 
 const PRECACHE_URLS = [
   '/',
@@ -22,18 +12,6 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
   )
-  // Also start caching Tesseract assets
-  event.waitUntil(
-    caches.open(WASM_CACHE).then((cache) =>
-      Promise.allSettled(
-        TESSERACT_URLS.map((url) =>
-          cache.add(url).catch(() => {
-            // Some URLs may not exist, that's OK
-          })
-        )
-      )
-    )
-  )
   self.skipWaiting()
 })
 
@@ -42,7 +20,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((names) =>
       Promise.all(
         names
-          .filter((name) => name !== CACHE_NAME && name !== WASM_CACHE)
+          .filter((name) => name !== CACHE_NAME && name !== OCR_CACHE)
           .map((name) => caches.delete(name))
       )
     )
@@ -54,54 +32,77 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = request.url
 
-  // Cache-first for Tesseract WASM and language data
+  // Cache OCR model/runtime assets aggressively. We no longer pre-cache a
+  // hard-coded tesseract.js-core version because the npm package may request a
+  // different WASM build. Whatever the current app requests is cached here.
   if (
     url.includes('tesseract') ||
-    url.includes('wasm') ||
     url.includes('traineddata') ||
-    url.includes('tessdata')
+    url.includes('tessdata') ||
+    url.endsWith('.wasm') ||
+    url.endsWith('.wasm.js')
   ) {
     event.respondWith(
-      caches.open(WASM_CACHE).then((cache) =>
-        cache.match(request).then((cached) => {
-          if (cached) return cached
-          return fetch(request).then((response) => {
-            if (response.ok) {
-              cache.put(request, response.clone())
-            }
-            return response
-          }).catch(() => new Response('', { status: 503 }))
-        })
-      )
-    )
-    return
-  }
+      caches.open(OCR_CACHE).then(async (cache) => {
+        const cached = await cache.match(request)
+        if (cached) return cached
 
-  // Network-first for navigation
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).then((response) => {
-        const clone = response.clone()
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
-        return response
-      }).catch(() =>
-        caches.match(request).then((r) => r || caches.match('/'))
-      )
-    )
-    return
-  }
-
-  // Cache-first for static assets
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached
-      return fetch(request).then((response) => {
-        if (response.ok && request.url.startsWith(self.location.origin)) {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+        try {
+          const response = await fetch(request)
+          if (response.ok) cache.put(request, response.clone())
+          return response
+        } catch {
+          return new Response('', { status: 503 })
         }
-        return response
-      }).catch(() => new Response('', { status: 503 }))
+      })
+    )
+    return
+  }
+
+  // Network-first for navigations and same-origin JS/CSS/static files. This
+  // prevents an old service-worker cache from keeping a previous OCR bundle
+  // alive after a new GitHub/Vercel deployment.
+  if (
+    request.mode === 'navigate' ||
+    (request.url.startsWith(self.location.origin) &&
+      ['script', 'style', 'document'].includes(request.destination))
+  ) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+          }
+          return response
+        })
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match('/'))
+        )
+    )
+    return
+  }
+
+  // Other same-origin assets: stale-while-revalidate.
+  event.respondWith(
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(request)
+      const networkPromise = fetch(request)
+        .then((response) => {
+          if (response.ok && request.url.startsWith(self.location.origin)) {
+            cache.put(request, response.clone())
+          }
+          return response
+        })
+        .catch(() => null)
+
+      if (cached) {
+        networkPromise.catch(() => null)
+        return cached
+      }
+
+      const network = await networkPromise
+      return network || new Response('', { status: 503 })
     })
   )
 })
