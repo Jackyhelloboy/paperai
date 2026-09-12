@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaperAI — Hindi OCR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .drop-zone { transition: all 0.3s; }
+        .drop-zone.dragover { border-color: #3b82f6; background: #eff6ff; }
+        .result-area { white-space: pre-wrap; font-family: 'Noto Sans Devanagari', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">PaperAI</h1>
+            <p class="text-gray-600 mt-2">Hindi/English OCR — PaddleOCR Engine</p>
+            <div class="inline-flex items-center gap-2 mt-3 bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm">
+                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Python Backend (PaddleOCR)
+            </div>
+        </div>
+
+        <!-- Upload Area -->
+        <div id="dropZone" class="drop-zone border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center bg-white mb-6 cursor-pointer hover:border-blue-400">
+            <svg class="w-12 h-12 mx-auto text-blue-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p class="text-lg font-medium text-gray-700">Drag & drop an image</p>
+            <p class="text-sm text-gray-500 mt-1">or click to select — JPG, PNG, BMP, TIFF</p>
+            <input type="file" id="fileInput" class="hidden" accept="image/*">
+        </div>
+
+        <!-- Preview -->
+        <div id="previewSection" class="hidden bg-white rounded-xl border border-gray-200 p-4 mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-gray-900">Uploaded Image</h3>
+                <button onclick="resetAll()" class="text-sm text-gray-500 hover:text-gray-700">Clear</button>
+            </div>
+            <img id="previewImg" class="max-h-64 mx-auto rounded-lg shadow-sm" alt="Preview">
+        </div>
+
+        <!-- Progress -->
+        <div id="progressSection" class="hidden bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-gray-900">Processing</h3>
+                <span id="progressText" class="text-sm font-medium text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">0%</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden mb-3">
+                <div id="progressBar" class="bg-gradient-to-r from-blue-500 to-green-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <p id="progressMessage" class="text-sm text-gray-500">Starting...</p>
+        </div>
+
+        <!-- Results -->
+        <div id="resultSection" class="hidden space-y-4">
+            <!-- Stats -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 class="font-semibold text-gray-900 mb-4">OCR Results</h3>
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div class="text-center">
+                        <div id="confidenceValue" class="text-2xl font-bold text-green-600">0%</div>
+                        <div class="text-xs text-gray-500">Confidence</div>
+                    </div>
+                    <div class="text-center">
+                        <div id="timeValue" class="text-2xl font-bold text-blue-600">0s</div>
+                        <div class="text-xs text-gray-500">Processing Time</div>
+                    </div>
+                    <div class="text-center">
+                        <div id="variantValue" class="text-2xl font-bold text-purple-600">—</div>
+                        <div class="text-xs text-gray-500">Best Variant</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Raw Text -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-gray-900">Raw OCR Text</h3>
+                    <button onclick="copyText('rawText')" class="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100">Copy</button>
+                </div>
+                <pre id="rawText" class="result-area bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto text-sm"></pre>
+            </div>
+
+            <!-- Corrected Text -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-gray-900">Corrected Text</h3>
+                    <div class="flex gap-2">
+                        <button onclick="copyText('correctedText')" class="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100">Copy</button>
+                        <button onclick="downloadText('txt')" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Download .txt</button>
+                        <button onclick="downloadText('html')" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Download .html</button>
+                    </div>
+                </div>
+                <pre id="correctedText" class="result-area bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto text-sm"></pre>
+            </div>
+
+            <!-- Words -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 class="font-semibold text-gray-900 mb-4">Detected Words</h3>
+                <div id="wordsList" class="flex flex-wrap gap-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000'
+            : 'https://paperai-ocr.onrender.com';
+
+        let currentFile = null;
+
+        // Drag & drop
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFile(files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            currentFile = file;
+            document.getElementById('previewSection').classList.remove('hidden');
+            document.getElementById('previewImg').src = URL.createObjectURL(file);
+            document.getElementById('resultSection').classList.add('hidden');
+            processFile(file);
+        }
+
+        async function processFile(file) {
+            const progressSection = document.getElementById('progressSection');
+            progressSection.classList.remove('hidden');
+
+            updateProgress(10, 'Uploading image...');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                updateProgress(30, 'Running PaddleOCR...');
+
+                const response = await fetch(`${API_URL}/ocr`, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'OCR failed');
+                }
+
+                updateProgress(90, 'Post-processing...');
+                const result = await response.json();
+
+                updateProgress(100, 'Done!');
+                setTimeout(() => showResults(result), 500);
+
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+                console.error('OCR Error:', error);
+            }
+        }
+
+        function updateProgress(percent, message) {
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('progressText').textContent = percent + '%';
+            document.getElementById('progressMessage').textContent = message;
+        }
+
+        function showResults(result) {
+            document.getElementById('progressSection').classList.add('hidden');
+            document.getElementById('resultSection').classList.remove('hidden');
+
+            document.getElementById('confidenceValue').textContent = Math.round(result.confidence * 100) + '%';
+            document.getElementById('timeValue').textContent = result.processing_time + 's';
+            document.getElementById('variantValue').textContent = result.variant || '—';
+
+            document.getElementById('rawText').textContent = result.text || 'No text detected';
+            document.getElementById('correctedText').textContent = result.post_processed || result.text || 'No text detected';
+
+            const wordsList = document.getElementById('wordsList');
+            wordsList.innerHTML = '';
+            (result.words || []).forEach(w => {
+                const span = document.createElement('span');
+                span.className = `px-2 py-1 rounded text-sm ${
+                    w.confidence >= 0.8 ? 'bg-green-100 text-green-800' :
+                    w.confidence >= 0.5 ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                }`;
+                span.textContent = `${w.text} (${Math.round(w.confidence * 100)}%)`;
+                wordsList.appendChild(span);
+            });
+        }
+
+        function copyText(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => alert('Copied!'));
+        }
+
+        function downloadText(format) {
+            const text = document.getElementById('correctedText').textContent;
+            let content, mimeType, ext;
+
+            if (format === 'html') {
+                content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PaperAI OCR</title></head><body><h1>Extracted Text</h1><pre>${text}</pre></body></html>`;
+                mimeType = 'text/html';
+                ext = '.html';
+            } else {
+                content = text;
+                mimeType = 'text/plain';
+                ext = '.txt';
+            }
+
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'paperai_ocr' + ext;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function resetAll() {
+            currentFile = null;
+            fileInput.value = '';
+            document.getElementById('previewSection').classList.add('hidden');
+            document.getElementById('progressSection').classList.add('hidden');
+            document.getElementById('resultSection').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
