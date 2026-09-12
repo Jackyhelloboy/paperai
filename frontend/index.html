@@ -4,589 +4,412 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PaperAI - Question Paper OCR</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        :root {
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --bg-card: #1e293b;
-            --bg-input: #334155;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --error: #ef4444;
-            --border: #334155;
-            --shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg:#0f172a;--bg2:#1e293b;--bg3:#334155;
+            --text:#f1f5f9;--text2:#94a3b8;
+            --accent:#3b82f6;--accent2:#2563eb;
+            --success:#10b981;--error:#ef4444;--warn:#f59e0b;
+            --border:#334155;--radius:12px;
         }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-        }
-        
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        
-        header {
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-        
-        header h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-        }
-        
-        header p {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-        }
-        
-        .upload-zone {
-            border: 2px dashed var(--border);
-            border-radius: 16px;
-            padding: 3rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            background: var(--bg-card);
-        }
-        
-        .upload-zone:hover, .upload-zone.dragover {
-            border-color: var(--accent);
-            background: rgba(59, 130, 246, 0.1);
-        }
-        
-        .upload-zone svg {
-            width: 64px;
-            height: 64px;
-            margin-bottom: 1rem;
-            color: var(--text-secondary);
-        }
-        
-        .upload-zone h3 {
-            font-size: 1.25rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .upload-zone p {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-        
-        .upload-zone input {
-            display: none;
-        }
-        
-        .settings {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 1.5rem 0;
-        }
-        
-        .setting-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .setting-group label {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--text-secondary);
-        }
-        
-        .setting-group select, .setting-group input {
-            padding: 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--bg-input);
-            color: var(--text-primary);
-            font-size: 0.9rem;
-        }
-        
-        .setting-group select:focus, .setting-group input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-        
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.875rem 2rem;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-        }
-        
-        .btn-primary {
-            background: var(--accent);
-            color: white;
-        }
-        
-        .btn-primary:hover:not(:disabled) {
-            background: var(--accent-hover);
-            transform: translateY(-1px);
-        }
-        
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .progress-container {
-            display: none;
-            margin: 2rem 0;
-        }
-        
-        .progress-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.75rem;
-        }
-        
-        .progress-bar {
-            height: 8px;
-            background: var(--bg-input);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent), var(--success));
-            border-radius: 4px;
-            transition: width 0.3s ease;
-            width: 0%;
-        }
-        
-        .progress-message {
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-            margin-top: 0.5rem;
-        }
-        
-        .result-container {
-            display: none;
-            margin-top: 2rem;
-        }
-        
-        .result-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        
-        .result-stats {
-            display: flex;
-            gap: 1.5rem;
-        }
-        
-        .stat {
-            text-align: center;
-        }
-        
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--accent);
-        }
-        
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        
-        .result-text {
-            background: var(--bg-input);
-            border-radius: 12px;
-            padding: 1.5rem;
-            white-space: pre-wrap;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 0.9rem;
-            line-height: 1.6;
-            max-height: 500px;
-            overflow-y: auto;
-            border: 1px solid var(--border);
-        }
-        
-        .export-buttons {
-            display: flex;
-            gap: 0.75rem;
-            margin-top: 1.5rem;
-        }
-        
-        .btn-export {
-            padding: 0.625rem 1.25rem;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--bg-card);
-            color: var(--text-primary);
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .btn-export:hover {
-            border-color: var(--accent);
-            background: rgba(59, 130, 246, 0.1);
-        }
-        
-        .file-info {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 1rem;
-            background: var(--bg-card);
-            border-radius: 8px;
-            margin-top: 1rem;
-            border: 1px solid var(--border);
-        }
-        
-        .file-info .name {
-            font-weight: 500;
-            flex: 1;
-        }
-        
-        .file-info .size {
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-        }
-        
-        .error-message {
-            display: none;
-            padding: 1rem;
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid var(--error);
-            border-radius: 8px;
-            color: var(--error);
-            margin-top: 1rem;
-        }
-        
-        footer {
-            text-align: center;
-            margin-top: 3rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid var(--border);
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-        }
-        
-        @media (max-width: 640px) {
-            .container { padding: 1rem; }
-            header h1 { font-size: 1.75rem; }
-            .upload-zone { padding: 2rem; }
-            .settings { grid-template-columns: 1fr; }
-            .result-stats { flex-wrap: wrap; gap: 1rem; }
-            .export-buttons { flex-wrap: wrap; }
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+        .wrap{max-width:860px;margin:0 auto;padding:1.5rem}
+        header{text-align:center;margin-bottom:2rem}
+        header h1{font-size:2.2rem;font-weight:700;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        header p{color:var(--text2);margin-top:.35rem}
+
+        .drop{border:2px dashed var(--border);border-radius:var(--radius);padding:2.5rem;text-align:center;cursor:pointer;transition:.2s;background:var(--bg2)}
+        .drop:hover,.drop.over{border-color:var(--accent);background:rgba(59,130,246,.08)}
+        .drop svg{width:56px;height:56px;color:var(--text2);margin-bottom:.75rem}
+        .drop h3{font-size:1.1rem;margin-bottom:.3rem}
+        .drop small{color:var(--text2)}
+        .drop input{display:none}
+
+        .file-bar{display:none;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-top:1rem}
+        .file-bar.show{display:flex}
+        .file-bar .name{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .file-bar .size{color:var(--text2);font-size:.85rem}
+        .file-bar .clear{background:none;border:none;color:var(--error);cursor:pointer;font-size:1.1rem;padding:0 .25rem}
+
+        .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin:1.25rem 0}
+        .field label{display:block;font-size:.8rem;color:var(--text2);margin-bottom:.35rem;font-weight:500}
+        .field select{width:100%;padding:.65rem;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text);font-size:.9rem}
+        .field select:focus{outline:none;border-color:var(--accent)}
+
+        .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.8rem 2rem;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:.15s;width:100%}
+        .btn:disabled{opacity:.45;cursor:not-allowed}
+        .btn-main{background:var(--accent);color:#fff}
+        .btn-main:hover:not(:disabled){background:var(--accent2);transform:translateY(-1px)}
+        .btn-cancel{background:var(--error);color:#fff;margin-top:.5rem}
+
+        .prog{display:none;margin:1.5rem 0}
+        .prog.show{display:block}
+        .prog-bar{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+        .prog-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--success));width:0%;transition:width .3s}
+        .prog-top{display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:.4rem}
+        .prog-msg{color:var(--text2);font-size:.8rem;margin-top:.35rem}
+
+        .err{display:none;padding:.85rem 1rem;background:rgba(239,68,68,.1);border:1px solid var(--error);border-radius:8px;color:var(--error);margin-top:1rem;font-size:.9rem}
+        .err.show{display:block}
+
+        .res{display:none;margin-top:1.5rem}
+        .res.show{display:block}
+        .res-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1rem}
+        .stats{display:flex;gap:1.25rem}
+        .stat-v{font-size:1.4rem;font-weight:700;color:var(--accent)}
+        .stat-l{font-size:.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
+        .exports{display:flex;gap:.5rem;flex-wrap:wrap}
+        .btn-exp{padding:.5rem 1rem;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:.8rem;cursor:pointer;transition:.15s}
+        .btn-exp:hover{border-color:var(--accent);background:rgba(59,130,246,.1)}
+
+        .text-out{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;white-space:pre-wrap;font-family:'Menlo','Monaco',monospace;font-size:.85rem;line-height:1.65;max-height:480px;overflow-y:auto}
+        .text-out::-webkit-scrollbar{width:6px}
+        .text-out::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+        .conf-badge{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.75rem;font-weight:600}
+        .conf-high{background:rgba(16,185,129,.15);color:var(--success)}
+        .conf-med{background:rgba(245,158,11,.15);color:var(--warn)}
+        .conf-low{background:rgba(239,68,68,.15);color:var(--error)}
+
+        footer{text-align:center;margin-top:2.5rem;padding-top:1.25rem;border-top:1px solid var(--border);color:var(--text2);font-size:.8rem}
+
+        @media(max-width:600px){
+            .wrap{padding:1rem}
+            header h1{font-size:1.6rem}
+            .stats{flex-wrap:wrap;gap:.75rem}
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>PaperAI</h1>
-            <p>Extract text from question papers using advanced OCR</p>
-        </header>
-        
-        <div class="upload-zone" id="dropZone">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-            </svg>
-            <h3>Upload your paper</h3>
-            <p>PDF, JPG, PNG, or TIFF • Max 50MB</p>
-            <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff,.webp">
-        </div>
-        
-        <div id="fileInfo" class="file-info" style="display: none;">
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <span class="name" id="fileName"></span>
-            <span class="size" id="fileSize"></span>
-        </div>
-        
-        <div class="settings">
-            <div class="setting-group">
-                <label for="language">Language</label>
-                <select id="language">
-                    <option value="en">English</option>
-                    <option value="hi">Hindi</option>
-                    <option value="te">Telugu</option>
-                </select>
-            </div>
-            <div class="setting-group">
-                <label for="engine">OCR Engine</label>
-                <select id="engine">
-                    <option value="auto">Auto (Best)</option>
-                    <option value="paddle">PaddleOCR</option>
-                    <option value="easy">EasyOCR</option>
-                </select>
-            </div>
-        </div>
-        
-        <button class="btn btn-primary" id="processBtn" disabled>
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            Process Paper
-        </button>
-        
-        <div class="progress-container" id="progressContainer">
-            <div class="progress-header">
-                <span id="progressPercent">0%</span>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressFill"></div>
-            </div>
-            <div class="progress-message" id="progressMessage">Initializing...</div>
-        </div>
-        
-        <div class="error-message" id="errorMessage"></div>
-        
-        <div class="result-container" id="resultContainer">
-            <div class="result-header">
-                <div class="result-stats">
-                    <div class="stat">
-                        <div class="stat-value" id="statConfidence">-</div>
-                        <div class="stat-label">Confidence</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value" id="statCharacters">-</div>
-                        <div class="stat-label">Characters</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value" id="statRegions">-</div>
-                        <div class="stat-label">Regions</div>
-                    </div>
-                </div>
-                <div class="export-buttons">
-                    <button class="btn-export" onclick="exportResult('txt')">Download TXT</button>
-                    <button class="btn-export" onclick="exportResult('docx')">Download DOCX</button>
-                </div>
-            </div>
-            <div class="result-text" id="resultText"></div>
-        </div>
-        
-        <footer>
-            <p>PaperAI - Advanced OCR for Question Papers</p>
-        </footer>
+<div class="wrap">
+    <header>
+        <h1>PaperAI</h1>
+        <p>Extract text from question papers — runs entirely in your browser</p>
+    </header>
+
+    <div class="drop" id="dropZone">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        <h3>Drop your paper here</h3>
+        <small>PDF, JPG, PNG, BMP, TIFF — Max 50 MB</small>
+        <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp">
     </div>
-    
-    <script>
-        const API_BASE = 'http://localhost:8000';
-        
-        let currentFile = null;
-        let currentJobId = null;
-        
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const fileInfo = document.getElementById('fileInfo');
-        const fileName = document.getElementById('fileName');
-        const fileSize = document.getElementById('fileSize');
-        const processBtn = document.getElementById('processBtn');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressFill = document.getElementById('progressFill');
-        const progressPercent = document.getElementById('progressPercent');
-        const progressMessage = document.getElementById('progressMessage');
-        const errorMessage = document.getElementById('errorMessage');
-        const resultContainer = document.getElementById('resultContainer');
-        const resultText = document.getElementById('resultText');
-        
-        dropZone.addEventListener('click', () => fileInput.click());
-        
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-        
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                handleFile(e.dataTransfer.files[0]);
-            }
-        });
-        
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                handleFile(e.target.files[0]);
-            }
-        });
-        
-        function handleFile(file) {
-            const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp'];
-            const ext = '.' + file.name.split('.').pop().toLowerCase();
-            
-            if (!allowed.includes(ext)) {
-                showError('File type not supported. Please upload PDF, JPG, PNG, or TIFF.');
-                return;
-            }
-            
-            if (file.size > 50 * 1024 * 1024) {
-                showError('File too large. Maximum size is 50MB.');
-                return;
-            }
-            
-            currentFile = file;
-            fileName.textContent = file.name;
-            fileSize.textContent = formatSize(file.size);
-            fileInfo.style.display = 'flex';
-            processBtn.disabled = false;
-            hideError();
-            hideResult();
+
+    <div class="file-bar" id="fileBar">
+        <span class="name" id="fName"></span>
+        <span class="size" id="fSize"></span>
+        <button class="clear" id="clearBtn" title="Remove">&times;</button>
+    </div>
+
+    <div class="opts">
+        <div class="field">
+            <label for="lang">Language</label>
+            <select id="lang">
+                <option value="eng">English</option>
+                <option value="hin">Hindi</option>
+                <option value="tel">Telugu</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="ppi">Preprocessing</label>
+            <select id="ppi">
+                <option value="auto">Auto (Recommended)</option>
+                <option value="none">None</option>
+                <option value="aggressive">Aggressive</option>
+            </select>
+        </div>
+    </div>
+
+    <button class="btn btn-main" id="goBtn" disabled>Extract Text</button>
+    <button class="btn btn-cancel" id="cancelBtn" style="display:none">Cancel</button>
+
+    <div class="prog" id="prog">
+        <div class="prog-top">
+            <span id="pPct">0%</span>
+            <span id="pStep"></span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill" id="pFill"></div></div>
+        <div class="prog-msg" id="pMsg"></div>
+    </div>
+
+    <div class="err" id="errBox"></div>
+
+    <div class="res" id="resBox">
+        <div class="res-head">
+            <div class="stats">
+                <div><div class="stat-v" id="sConf">-</div><div class="stat-l">Confidence</div></div>
+                <div><div class="stat-v" id="sChars">-</div><div class="stat-l">Characters</div></div>
+                <div><div class="stat-v" id="sLines">-</div><div class="stat-l">Lines</div></div>
+            </div>
+            <div class="exports">
+                <button class="btn-exp" onclick="dlTxt()">TXT</button>
+                <button class="btn-exp" onclick="dlDocx()">DOCX</button>
+                <button class="btn-exp" onclick="dlPdf()">PDF</button>
+            </div>
+        </div>
+        <div class="text-out" id="textOut"></div>
+    </div>
+
+    <footer>PaperAI — Client-side OCR • No data leaves your device</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const dropZone = $('dropZone'), fileInput = $('fileInput'), goBtn = $('goBtn');
+const fileBar = $('fileBar'), fName = $('fName'), fSize = $('fSize'), clearBtn = $('clearBtn');
+const prog = $('prog'), pFill = $('pFill'), pPct = $('pPct'), pStep = $('pStep'), pMsg = $('pMsg');
+const errBox = $('errBox'), resBox = $('resBox'), textOut = $('textOut');
+const cancelBtn = $('cancelBtn');
+
+let file = null, cancelled = false, worker = null;
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB'}
+
+function showErr(m){errBox.textContent=m;errBox.classList.add('show')}
+function hideErr(){errBox.classList.remove('show')}
+function showRes(){resBox.classList.add('show')}
+function hideRes(){resBox.classList.remove('show')}
+
+function setFile(f){
+    const ext=f.name.split('.').pop().toLowerCase();
+    const ok=['pdf','jpg','jpeg','png','bmp','tiff','tif','webp'];
+    if(!ok.includes(ext)){showErr('Unsupported file type: .'+ext);return}
+    if(f.size>52428800){showErr('File too large (max 50 MB)');return}
+    file=f;fName.textContent=f.name;fSize.textContent=fmtSize(f.size);
+    fileBar.classList.add('show');goBtn.disabled=false;hideErr();hideRes()
+}
+function clearFile(){file=null;fileBar.classList.remove('show');goBtn.disabled=true;hideErr();hideRes();fileInput.value=''}
+
+dropZone.onclick=()=>fileInput.click();
+fileInput.onchange=e=>{if(e.target.files[0])setFile(e.target.files[0])};
+dropZone.ondragover=e=>{e.preventDefault();dropZone.classList.add('over')};
+dropZone.ondragleave=()=>dropZone.classList.remove('over');
+dropZone.ondrop=e=>{e.preventDefault();dropZone.classList.remove('over');if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])};
+clearBtn.onclick=clearFile;
+
+function preprocessCanvas(canvas, mode){
+    const ctx=canvas.getContext('2d');
+    const w=canvas.width, h=canvas.height;
+    const img=ctx.getImageData(0,0,w,h);
+    const d=img.data;
+
+    // Grayscale
+    for(let i=0;i<d.length;i+=4){
+        const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+        d[i]=d[i+1]=d[i+2]=g;
+    }
+
+    if(mode==='none')return canvas;
+
+    // Adaptive threshold (simplified)
+    const blockSize=15, C=10;
+    const gray=new Uint8ClampedArray(w*h);
+    for(let i=0;i<d.length;i+=4)gray[i/4]=d[i];
+
+    if(mode==='aggressive'){
+        // Sharpen + contrast
+        for(let i=0;i<d.length;i+=4){
+            let v=gray[i/4];
+            v=Math.min(255,Math.max(0,(v-128)*1.5+128));
+            d[i]=d[i+1]=d[i+2]=v;
         }
-        
-        function formatSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-        }
-        
-        processBtn.addEventListener('click', async () => {
-            if (!currentFile) return;
-            
-            processBtn.disabled = true;
-            progressContainer.style.display = 'block';
-            hideError();
-            hideResult();
-            
-            try {
-                const formData = new FormData();
-                formData.append('file', currentFile);
-                
-                const uploadRes = await fetch(`${API_BASE}/api/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!uploadRes.ok) {
-                    const err = await uploadRes.json();
-                    throw new Error(err.detail || 'Upload failed');
+    }
+
+    // Simple adaptive threshold
+    const out=new Uint8ClampedArray(d.length);
+    for(let y=0;y<h;y++){
+        for(let x=0;x<w;x++){
+            let sum=0,count=0;
+            for(let dy=-blockSize;dy<=blockSize;dy+=3){
+                for(let dx=-blockSize;dx<=blockSize;dx+=3){
+                    const ny=y+dy,nx=x+dx;
+                    if(ny>=0&&ny<h&&nx>=0&&nx<w){sum+=gray[ny*w+nx];count++}
                 }
-                
-                const uploadData = await uploadRes.json();
-                currentJobId = uploadData.job_id;
-                
-                pollStatus();
-                
-            } catch (err) {
-                showError(err.message);
-                processBtn.disabled = false;
-                progressContainer.style.display = 'none';
             }
-        });
-        
-        async function pollStatus() {
-            if (!currentJobId) return;
-            
-            try {
-                const res = await fetch(`${API_BASE}/api/status/${currentJobId}`);
-                const data = await res.json();
-                
-                progressFill.style.width = data.progress + '%';
-                progressPercent.textContent = data.progress + '%';
-                progressMessage.textContent = data.message;
-                
-                if (data.status === 'completed') {
-                    fetchResult();
-                } else if (data.status === 'failed') {
-                    showError(data.error || 'Processing failed');
-                    processBtn.disabled = false;
-                    progressContainer.style.display = 'none';
-                } else {
-                    setTimeout(pollStatus, 500);
+            const mean=sum/count;
+            const idx=(y*w+x)*4;
+            const v=gray[y*w+x]>(mean-C)?255:0;
+            out[idx]=out[idx+1]=out[idx+2]=v;out[idx+3]=255;
+        }
+    }
+    const outImg=new ImageData(out,w,h);
+    ctx.putImageData(outImg,0,0);
+    return canvas;
+}
+
+async function pdfToImages(pdfBlob){
+    const data=new Uint8Array(await pdfBlob.arrayBuffer());
+    const pdf=await pdfjsLib.getDocument({data}).promise;
+    const imgs=[];
+    const scale=2;
+    for(let i=1;i<=pdf.numPages;i++){
+        const page=await pdf.getPage(i);
+        const vp=page.getViewport({scale});
+        const c=document.createElement('canvas');
+        c.width=vp.width;c.height=vp.height;
+        await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+        imgs.push(c);
+    }
+    return imgs;
+}
+
+async function imgToCanvas(img){
+    // Upscale small images
+    let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+    const minDim=Math.max(w,h);
+    let scale=1;
+    if(minDim<1500)scale=1500/minDim;
+    else if(minDim>4000)scale=4000/minDim;
+    w=Math.round(w*scale);h=Math.round(h*scale);
+    const c=document.createElement('canvas');
+    c.width=w;c.height=h;
+    const ctx=c.getContext('2d');
+    ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(img,0,0,w,h);
+    return c;
+}
+
+cancelBtn.onclick=()=>{cancelled=true};
+
+goBtn.onclick=async()=>{
+    if(!file)return;
+    cancelled=false;
+    goBtn.disabled=true;cancelBtn.style.display='block';
+    hideErr();hideRes();
+    prog.classList.add('show');
+    pFill.style.width='0%';pPct.textContent='0%';
+
+    try{
+        let canvases=[];
+        const ext=file.name.split('.').pop().toLowerCase();
+        const lang=$('lang').value;
+        const ppMode=$('ppi').value;
+
+        if(ext==='pdf'){
+            pStep.textContent='Converting PDF';
+            pMsg.textContent='Rendering pages...';
+            canvases=await pdfToImages(file);
+        }else{
+            pStep.textContent='Loading image';
+            pMsg.textContent='Reading file...';
+            const url=URL.createObjectURL(file);
+            const img=new Image();
+            await new Promise((ok,err)=>{img.onload=ok;img.onerror=()=>err(new Error('Cannot load image'))});
+            img.src=url;
+            canvases=[await imgToCanvas(img)];
+            URL.revokeObjectURL(url);
+        }
+
+        if(!canvases.length)throw new Error('No pages found');
+        if(cancelled)throw new Error('Cancelled');
+
+        // Preprocess
+        pStep.textContent='Preprocessing';
+        pMsg.textContent='Enhancing image quality...';
+        pFill.style.width='10%';pPct.textContent='10%';
+        const processed=canvases.map(c=>preprocessCanvas(c,ppMode));
+
+        if(cancelled)throw new Error('Cancelled');
+
+        // OCR
+        pStep.textContent='OCR';
+        pMsg.textContent='Initializing Tesseract.js...';
+        pFill.style.width='15%';pPct.textContent='15%';
+
+        const results=[];
+        const total=processed.length;
+
+        for(let i=0;i<total;i++){
+            if(cancelled)throw new Error('Cancelled');
+
+            const pctBase=15+Math.round(75*(i/total));
+            pFill.style.width=pctBase+'%';
+            pPct.textContent=pctBase+'%';
+            pMsg.textContent=`Processing page ${i+1} of ${total}...`;
+
+            const r=await Tesseract.recognize(processed[i], lang, {
+                logger:m=>{
+                    if(m.status==='recognizing text'){
+                        const inner=Math.round(m.progress*100);
+                        pMsg.textContent=`Page ${i+1}/${total}: ${inner}% recognized`;
+                    }
                 }
-            } catch (err) {
-                setTimeout(pollStatus, 1000);
-            }
+            });
+
+            results.push(r.data);
         }
-        
-        async function fetchResult() {
-            try {
-                const res = await fetch(`${API_BASE}/api/result/${currentJobId}`);
-                const data = await res.json();
-                
-                if (data.result) {
-                    const page = data.result.pages?.[0];
-                    const text = page?.full_text || 'No text detected';
-                    const conf = page?.confidence || 0;
-                    const regions = data.result.metadata?.total_regions || 0;
-                    
-                    document.getElementById('statConfidence').textContent = (conf * 100).toFixed(1) + '%';
-                    document.getElementById('statCharacters').textContent = text.length;
-                    document.getElementById('statRegions').textContent = regions;
-                    resultText.textContent = text;
-                    resultContainer.style.display = 'block';
-                }
-                
-                progressContainer.style.display = 'none';
-                processBtn.disabled = false;
-                
-            } catch (err) {
-                showError('Failed to fetch result');
-                processBtn.disabled = false;
-                progressContainer.style.display = 'none';
-            }
-        }
-        
-        async function exportResult(format) {
-            if (!currentJobId) return;
-            
-            try {
-                const res = await fetch(`${API_BASE}/api/export/${currentJobId}/${format}`);
-                if (!res.ok) throw new Error('Export failed');
-                
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `paperai_result.${format}`;
-                a.click();
-                URL.revokeObjectURL(url);
-            } catch (err) {
-                showError('Export failed: ' + err.message);
-            }
-        }
-        
-        function showError(msg) {
-            errorMessage.textContent = msg;
-            errorMessage.style.display = 'block';
-        }
-        
-        function hideError() {
-            errorMessage.style.display = 'none';
-        }
-        
-        function hideResult() {
-            resultContainer.style.display = 'none';
-        }
-    </script>
+
+        if(cancelled)throw new Error('Cancelled');
+
+        // Combine
+        pStep.textContent='Finalizing';
+        pPct.textContent='95%';
+        pFill.style.width='95%';
+
+        const allText=results.map(r=>r.text).filter(t=>t.trim()).join('\n\n--- Page Break ---\n\n');
+        const avgConf=results.reduce((s,r)=>s+(r.confidence||0),0)/results.length;
+        const totalChars=allText.length;
+        const totalLines=allText.split('\n').filter(l=>l.trim()).length;
+
+        // Confidence badge
+        const confCls=avgConf>=80?'high':avgConf>=50?'med':'low';
+
+        $('sConf').innerHTML=`${avgConf.toFixed(1)}% <span class="conf-badge conf-${confCls}">${confCls==='high'?'Good':confCls==='med'?'Fair':'Low'}</span>`;
+        $('sChars').textContent=totalChars;
+        $('sLines').textContent=totalLines;
+        textOut.textContent=allText||'(No text detected)';
+        showRes();
+
+        pFill.style.width='100%';pPct.textContent='100%';
+        pMsg.textContent='Done!';
+        pStep.textContent='Complete';
+
+        window._lastResult={text:allText,conf:avgConf};
+
+    }catch(e){
+        if(e.message!=='Cancelled')showErr('Error: '+e.message);
+        pMsg.textContent=e.message==='Cancelled'?'Cancelled':'Failed';
+    }finally{
+        goBtn.disabled=false;cancelBtn.style.display='none';
+    }
+};
+
+function dlTxt(){
+    const r=window._lastResult;if(!r)return;
+    const b=new Blob([r.text],{type:'text/plain'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);
+    a.download='paperai_output.txt';a.click();URL.revokeObjectURL(a.href)
+}
+function dlDocx(){
+    const r=window._lastResult;if(!r)return;
+    // Simple HTML-based doc
+    const html=`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'></head><body style='font-family:Arial'>${r.text.split('\n').map(l=>`<p>${l||'&nbsp;'}</p>`).join('')}</body></html>`;
+    const b=new Blob([html],{type:'application/msword'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);
+    a.download='paperai_output.doc';a.click();URL.revokeObjectURL(a.href)
+}
+function dlPdf(){
+    const r=window._lastResult;if(!r)return;
+    // Use jsPDF-like approach with raw PDF
+    const lines=r.text.split('\n');
+    const pageH=842,margin=50,lineH=14;
+    let content='';
+    let y=margin;
+    for(const line of lines){
+        if(y>pageH-margin){content+='endstream\nendobj\n';y=margin}
+        content+=`BT /F1 11 Tf ${margin} ${pageH-y} Td (${line.replace(/[()\\]/g,'\\$&')}) Tj ET\n`;
+        y+=lineH;
+    }
+    // Minimal PDF
+    const pdf=`%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 595 842]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length ${content.length}>>\nstream\n${content}endstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000266 00000 n \n0000000000 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n0\n%%EOF`;
+    const b=new Blob([pdf],{type:'application/pdf'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);
+    a.download='paperai_output.pdf';a.click();URL.revokeObjectURL(a.href)
+}
+</script>
 </body>
 </html>
