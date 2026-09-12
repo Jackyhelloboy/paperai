@@ -381,13 +381,13 @@ async function runOCR(
 }
 
 /**
- * Core OCR function. Smart variant selection: only runs 2-6 passes instead of 15.
+ * Core OCR function - SPEED OPTIMIZED.
  *
- * Strategy:
- * 1. Run original + mixed worker first (fast path)
- * 2. If confidence >= 70, return immediately
- * 3. Otherwise try de-ruled + high-contrast variants
- * 4. Only try Hindi/English workers if mixed fails
+ * Strategy (fast):
+ * 1. Run mixed worker only (fastest path)
+ * 2. If confidence >= 50, return immediately
+ * 3. Only try de-ruled variant if confidence < 30
+ * 4. Skip morphological/high-contrast entirely (too slow)
  */
 export async function recognizeText(
   image: HTMLCanvasElement,
@@ -400,85 +400,55 @@ export async function recognizeText(
   const psm = options?.psmMode ?? Tesseract.PSM.SINGLE_LINE
   const langPreference = options?.language
 
-  // Choose workers
-  let workersToTry: { name: string; worker: Tesseract.Worker; lang: string }[] = []
+  // Choose worker - prefer mixed for speed
+  let worker: Tesseract.Worker
+  let lang: string
   if (langPreference === 'hin' && hindiWorker) {
-    workersToTry = [{ name: 'hin', worker: hindiWorker, lang: 'hin' }]
+    worker = hindiWorker; lang = 'hin'
   } else if (langPreference === 'eng' && englishWorker) {
-    workersToTry = [{ name: 'eng', worker: englishWorker, lang: 'eng' }]
+    worker = englishWorker; lang = 'eng'
   } else {
-    if (mixedWorker) workersToTry.push({ name: 'hin+eng', worker: mixedWorker, lang: 'hin+eng' })
-    if (hindiWorker) workersToTry.push({ name: 'hin', worker: hindiWorker, lang: 'hin' })
-    if (englishWorker) workersToTry.push({ name: 'eng', worker: englishWorker, lang: 'eng' })
+    worker = mixedWorker!; lang = 'hin+eng'
   }
 
-  let bestResult: OCRResult | null = null
-  let bestScore = -Infinity
-
-  // Fast path: try original first with mixed worker
-  const primaryWorker = workersToTry[0]
-  if (primaryWorker) {
-    try {
-      const { text, confidence, words } = await runOCR(image, primaryWorker.worker, primaryWorker.lang, psm)
-      if (text && text.length > 0) {
-        const score = scoreResult(text, confidence, primaryWorker.lang, 'original')
-        if (score > bestScore) {
-          bestScore = score
-          bestResult = { text, confidence, words, language: primaryWorker.lang, script: detectScript(text) }
-        }
-        // Early exit if confidence is high
-        if (confidence >= 70 && bestResult) {
-          onProgress?.(95, 'Done')
-          return bestResult
-        }
+  // Fast path: single pass with mixed worker
+  try {
+    const { text, confidence, words } = await runOCR(image, worker, lang, psm)
+    if (text && text.length > 0) {
+      const score = scoreResult(text, confidence, lang, 'original')
+      if (confidence >= 50) {
+        onProgress?.(95, 'Done')
+        return { text, confidence, words, language: lang, script: detectScript(text) }
       }
-    } catch {}
-  }
-
-  // Slow path: try de-ruled and high-contrast variants
-  const variants: { name: string; canvas: HTMLCanvasElement }[] = [
-    { name: 'de-ruled', canvas: removeLines(image) },
-    { name: 'high-contrast', canvas: highContrast(image) },
-    { name: 'morphological', canvas: morphological(image) },
-  ]
-
-  for (const variant of variants) {
-    for (const { name, worker, lang } of workersToTry) {
-      try {
-        const { text, confidence, words } = await runOCR(variant.canvas, worker, lang, psm)
-        if (!text || text.length === 0) continue
-
-        const score = scoreResult(text, confidence, lang, variant.name)
-        if (score > bestScore) {
-          bestScore = score
-          bestResult = { text, confidence, words, language: lang, script: detectScript(text) }
-        }
-      } catch {}
+      // Try de-ruled only if very low confidence
+      if (confidence < 30) {
+        try {
+          const deRuled = removeLines(image)
+          const retry = await runOCR(deRuled, worker, lang, psm)
+          if (retry.confidence > confidence) {
+            onProgress?.(95, 'Done')
+            return { text: retry.text, confidence: retry.confidence, words: retry.words, language: lang, script: detectScript(retry.text) }
+          }
+        } catch {}
+      }
+      onProgress?.(95, 'Done')
+      return { text, confidence, words, language: lang, script: detectScript(text) }
     }
-  }
+  } catch {}
 
   onProgress?.(95, 'Done')
-  return bestResult || { text: '', confidence: 0, words: [], language: 'hin', script: 'unknown' }
+  return { text: '', confidence: 0, words: [], language: lang, script: 'unknown' }
 }
 
 /**
- * Recognize with retry for low confidence.
+ * Recognize with retry - SKIPPED for speed (use recognizeText directly).
  */
 export async function recognizeWithRetry(
   image: HTMLCanvasElement,
   onProgress?: (progress: number, stage: string) => void,
   options?: RecognizeOptions
 ): Promise<OCRResult> {
-  const result = await recognizeText(image, onProgress, options)
-  if (result.confidence >= 50) return result
-
-  onProgress?.(60, 'Low confidence - retrying...')
-  for (const psm of [Tesseract.PSM.SINGLE_BLOCK, Tesseract.PSM.AUTO]) {
-    const retry = await recognizeText(image, undefined, { ...options, psmMode: psm })
-    if (retry.confidence > result.confidence) return retry
-  }
-
-  return result
+  return recognizeText(image, onProgress, options)
 }
 
 export async function terminateOCR() {

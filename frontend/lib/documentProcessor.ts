@@ -230,16 +230,7 @@ export async function processDocument(
 
     const crop = cropRegion(processedCanvas, region)
 
-    let ocrResult = await recognizeText(crop, undefined)
-    let retryCount = 0
-
-    if (ocrResult.confidence < 50) {
-      retryCount++
-      const retry = await recognizeWithRetry(crop, undefined)
-      if (retry.confidence > ocrResult.confidence) {
-        ocrResult = retry
-      }
-    }
+    const ocrResult = await recognizeText(crop, undefined)
 
     const regionType = classifyRegionType(ocrResult.text, region)
     const { corrected, corrections } = applyCorrections(ocrResult.text)
@@ -264,7 +255,7 @@ export async function processDocument(
       script: ocrResult.script,
       wordConfidences,
       needsVerification: ocrResult.confidence < 70,
-      retryCount,
+      retryCount: 0,
     })
   }
 
