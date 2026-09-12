@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaperAI - Question Paper OCR</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --border: #334155;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+        
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--bg-card);
+        }
+        
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .upload-zone svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+        
+        .upload-zone h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .upload-zone p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .upload-zone input {
+            display: none;
+        }
+        
+        .settings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .setting-group label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        
+        .setting-group select, .setting-group input {
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+        
+        .setting-group select:focus, .setting-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem 2rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .progress-container {
+            display: none;
+            margin: 2rem 0;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: var(--bg-input);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--success));
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
+        .progress-message {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+        
+        .result-container {
+            display: none;
+            margin-top: 2rem;
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .result-stats {
+            display: flex;
+            gap: 1.5rem;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .result-text {
+            background: var(--bg-input);
+            border-radius: 12px;
+            padding: 1.5rem;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+        
+        .export-buttons {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+        }
+        
+        .btn-export {
+            padding: 0.625rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-export:hover {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--bg-card);
+            border-radius: 8px;
+            margin-top: 1rem;
+            border: 1px solid var(--border);
+        }
+        
+        .file-info .name {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .file-info .size {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        
+        .error-message {
+            display: none;
+            padding: 1rem;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            border-radius: 8px;
+            color: var(--error);
+            margin-top: 1rem;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        
+        @media (max-width: 640px) {
+            .container { padding: 1rem; }
+            header h1 { font-size: 1.75rem; }
+            .upload-zone { padding: 2rem; }
+            .settings { grid-template-columns: 1fr; }
+            .result-stats { flex-wrap: wrap; gap: 1rem; }
+            .export-buttons { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PaperAI</h1>
+            <p>Extract text from question papers using advanced OCR</p>
+        </header>
+        
+        <div class="upload-zone" id="dropZone">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            <h3>Upload your paper</h3>
+            <p>PDF, JPG, PNG, or TIFF • Max 50MB</p>
+            <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff,.webp">
+        </div>
+        
+        <div id="fileInfo" class="file-info" style="display: none;">
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <span class="name" id="fileName"></span>
+            <span class="size" id="fileSize"></span>
+        </div>
+        
+        <div class="settings">
+            <div class="setting-group">
+                <label for="language">Language</label>
+                <select id="language">
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="te">Telugu</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label for="engine">OCR Engine</label>
+                <select id="engine">
+                    <option value="auto">Auto (Best)</option>
+                    <option value="paddle">PaddleOCR</option>
+                    <option value="easy">EasyOCR</option>
+                </select>
+            </div>
+        </div>
+        
+        <button class="btn btn-primary" id="processBtn" disabled>
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Process Paper
+        </button>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-header">
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-message" id="progressMessage">Initializing...</div>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <div class="result-container" id="resultContainer">
+            <div class="result-header">
+                <div class="result-stats">
+                    <div class="stat">
+                        <div class="stat-value" id="statConfidence">-</div>
+                        <div class="stat-label">Confidence</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="statCharacters">-</div>
+                        <div class="stat-label">Characters</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="statRegions">-</div>
+                        <div class="stat-label">Regions</div>
+                    </div>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportResult('txt')">Download TXT</button>
+                    <button class="btn-export" onclick="exportResult('docx')">Download DOCX</button>
+                </div>
+            </div>
+            <div class="result-text" id="resultText"></div>
+        </div>
+        
+        <footer>
+            <p>PaperAI - Advanced OCR for Question Papers</p>
+        </footer>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        let currentFile = null;
+        let currentJobId = null;
+        
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const processBtn = document.getElementById('processBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressMessage = document.getElementById('progressMessage');
+        const errorMessage = document.getElementById('errorMessage');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultText = document.getElementById('resultText');
+        
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp'];
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!allowed.includes(ext)) {
+                showError('File type not supported. Please upload PDF, JPG, PNG, or TIFF.');
+                return;
+            }
+            
+            if (file.size > 50 * 1024 * 1024) {
+                showError('File too large. Maximum size is 50MB.');
+                return;
+            }
+            
+            currentFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatSize(file.size);
+            fileInfo.style.display = 'flex';
+            processBtn.disabled = false;
+            hideError();
+            hideResult();
+        }
+        
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+        
+        processBtn.addEventListener('click', async () => {
+            if (!currentFile) return;
+            
+            processBtn.disabled = true;
+            progressContainer.style.display = 'block';
+            hideError();
+            hideResult();
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', currentFile);
+                
+                const uploadRes = await fetch(`${API_BASE}/api/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!uploadRes.ok) {
+                    const err = await uploadRes.json();
+                    throw new Error(err.detail || 'Upload failed');
+                }
+                
+                const uploadData = await uploadRes.json();
+                currentJobId = uploadData.job_id;
+                
+                pollStatus();
+                
+            } catch (err) {
+                showError(err.message);
+                processBtn.disabled = false;
+                progressContainer.style.display = 'none';
+            }
+        });
+        
+        async function pollStatus() {
+            if (!currentJobId) return;
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/status/${currentJobId}`);
+                const data = await res.json();
+                
+                progressFill.style.width = data.progress + '%';
+                progressPercent.textContent = data.progress + '%';
+                progressMessage.textContent = data.message;
+                
+                if (data.status === 'completed') {
+                    fetchResult();
+                } else if (data.status === 'failed') {
+                    showError(data.error || 'Processing failed');
+                    processBtn.disabled = false;
+                    progressContainer.style.display = 'none';
+                } else {
+                    setTimeout(pollStatus, 500);
+                }
+            } catch (err) {
+                setTimeout(pollStatus, 1000);
+            }
+        }
+        
+        async function fetchResult() {
+            try {
+                const res = await fetch(`${API_BASE}/api/result/${currentJobId}`);
+                const data = await res.json();
+                
+                if (data.result) {
+                    const page = data.result.pages?.[0];
+                    const text = page?.full_text || 'No text detected';
+                    const conf = page?.confidence || 0;
+                    const regions = data.result.metadata?.total_regions || 0;
+                    
+                    document.getElementById('statConfidence').textContent = (conf * 100).toFixed(1) + '%';
+                    document.getElementById('statCharacters').textContent = text.length;
+                    document.getElementById('statRegions').textContent = regions;
+                    resultText.textContent = text;
+                    resultContainer.style.display = 'block';
+                }
+                
+                progressContainer.style.display = 'none';
+                processBtn.disabled = false;
+                
+            } catch (err) {
+                showError('Failed to fetch result');
+                processBtn.disabled = false;
+                progressContainer.style.display = 'none';
+            }
+        }
+        
+        async function exportResult(format) {
+            if (!currentJobId) return;
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/export/${currentJobId}/${format}`);
+                if (!res.ok) throw new Error('Export failed');
+                
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `paperai_result.${format}`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                showError('Export failed: ' + err.message);
+            }
+        }
+        
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.style.display = 'block';
+        }
+        
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+        
+        function hideResult() {
+            resultContainer.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
