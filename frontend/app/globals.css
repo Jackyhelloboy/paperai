@@ -4,11 +4,15 @@
 
 @layer base {
   body {
-    @apply antialiased;
+    @apply antialiased transition-colors duration-200;
   }
 
   * {
     @apply selection:bg-primary-200 selection:text-primary-900;
+  }
+
+  .dark * {
+    @apply selection:bg-primary-800 selection:text-primary-100;
   }
 }
 
@@ -17,8 +21,16 @@
     @apply inline-flex items-center justify-center bg-primary-600 hover:bg-primary-700 text-white font-medium py-2.5 px-5 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg active:scale-[0.98];
   }
 
+  .dark .btn-primary {
+    @apply bg-primary-500 hover:bg-primary-600 shadow-glow;
+  }
+
   .btn-secondary {
     @apply inline-flex items-center justify-center bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 px-5 rounded-xl border border-gray-200 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98];
+  }
+
+  .dark .btn-secondary {
+    @apply bg-gray-800 hover:bg-gray-700 text-gray-200 border-gray-700;
   }
 
   .btn-accent {
@@ -29,12 +41,24 @@
     @apply bg-white rounded-2xl shadow-card p-6 border border-gray-100/80 transition-all duration-300;
   }
 
+  .dark .card {
+    @apply bg-gray-900 border-gray-800 shadow-card-dark;
+  }
+
   .card-hover {
     @apply card hover:shadow-card-hover hover:-translate-y-0.5;
   }
 
+  .dark .card-hover {
+    @apply hover:shadow-card-hover-dark;
+  }
+
   .input-field {
     @apply w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all duration-200 bg-gray-50 focus:bg-white;
+  }
+
+  .dark .input-field {
+    @apply bg-gray-800 border-gray-700 text-white focus:bg-gray-700;
   }
 
   .gradient-text {
@@ -43,6 +67,18 @@
 
   .glass {
     @apply bg-white/70 backdrop-blur-xl border border-white/20;
+  }
+
+  .dark .glass {
+    @apply bg-gray-900/70 border-gray-700/20;
+  }
+
+  .skeleton {
+    @apply bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-shimmer rounded;
+  }
+
+  .dark .skeleton {
+    @apply from-gray-700 via-gray-600 to-gray-700;
   }
 }
 
@@ -56,20 +92,40 @@
   @apply border-primary-500 bg-primary-50/50 scale-[1.02];
 }
 
+.dark .drag-active {
+  @apply border-primary-400 bg-primary-900/30;
+}
+
 .drag-reject {
   @apply border-red-500 bg-red-50/50;
+}
+
+.dark .drag-reject {
+  @apply border-red-400 bg-red-900/30;
 }
 
 .confidence-high {
   @apply bg-emerald-50 text-emerald-800 border-emerald-200;
 }
 
+.dark .confidence-high {
+  @apply bg-emerald-900/30 text-emerald-300 border-emerald-800;
+}
+
 .confidence-medium {
   @apply bg-amber-50 text-amber-800 border-amber-200;
 }
 
+.dark .confidence-medium {
+  @apply bg-amber-900/30 text-amber-300 border-amber-800;
+}
+
 .confidence-low {
   @apply bg-red-50 text-red-800 border-red-200;
+}
+
+.dark .confidence-low {
+  @apply bg-red-900/30 text-red-300 border-red-800;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -81,8 +137,16 @@
   @apply bg-gray-100 rounded-full;
 }
 
+.dark .scrollbar-thin::-webkit-scrollbar-track {
+  @apply bg-gray-800;
+}
+
 .scrollbar-thin::-webkit-scrollbar-thumb {
   @apply bg-gray-300 rounded-full hover:bg-gray-400;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  @apply bg-gray-600 hover:bg-gray-500;
 }
 
 .animate-in {
@@ -123,4 +187,31 @@
   .mobile-stack {
     @apply flex flex-col;
   }
+}
+
+/* Keyboard shortcut indicator */
+.kbd {
+  @apply inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-mono font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded;
+}
+
+.dark .kbd {
+  @apply bg-gray-800 border-gray-700 text-gray-400;
+}
+
+/* Focus ring for accessibility */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+}
+
+.dark .focus-ring {
+  @apply focus:ring-offset-gray-900;
+}
+
+/* Toast overrides for dark mode */
+.dark .Toastify__toast {
+  @apply bg-gray-800 text-white border-gray-700;
+}
+
+.dark .Toastify__progress-bar {
+  @apply bg-primary-500;
 }

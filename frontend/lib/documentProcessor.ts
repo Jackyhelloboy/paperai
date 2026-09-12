@@ -200,7 +200,8 @@ export async function processDocument(
 
   const { preprocessImage, detectTextRegions, cropRegion } = await import('./imagePreprocess')
   const { recognizeText, recognizeWithRetry } = await import('./ocrEngine')
-  const { postProcessHindi } = await import('./hindiPostProcess')
+  const { postProcessHindi, detectLanguage } = await import('./hindiPostProcess')
+  const { postProcessTelugu, isTeluguText } = await import('./teluguPostProcess')
 
   const canvas = document.createElement('canvas')
   canvas.width = img.naturalWidth
@@ -245,7 +246,12 @@ export async function processDocument(
     allCorrections.push(...corrections.map(c => ({ field: regionType, ...c })))
 
     const wordConfs = ocrResult.words.map(w => ({ word: w.text, confidence: w.confidence }))
-    const finalText = postProcessHindi(corrected, wordConfs)
+    let finalText = corrected
+    if (isTeluguText(corrected)) {
+      finalText = postProcessTelugu(corrected, wordConfs)
+    } else {
+      finalText = postProcessHindi(corrected, wordConfs)
+    }
     const wordConfidences = analyzeWordConfidence(finalText, ocrResult.words)
 
     regions.push({

@@ -1,7 +1,6 @@
-const CACHE_NAME = 'paperai-v3'
-const WASM_CACHE = 'paperai-wasm-v3'
+const CACHE_VERSION = 'paperai-build-' + new URL(self.location.href).searchParams.get('v') || 'dev'
+const WASM_CACHE = 'paperai-wasm-v1'
 
-// Tesseract CDN URLs for offline caching
 const TESSERACT_URLS = [
   'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd.wasm',
   'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd-lstm.wasm',
@@ -11,25 +10,12 @@ const TESSERACT_URLS = [
   'https://tessdata.projectnaptha.com/4.0.0/eng.traineddata.gz',
 ]
 
-const PRECACHE_URLS = [
-  '/',
-  '/about',
-  '/features',
-  '/manifest.json',
-]
-
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
-  )
-  // Also start caching Tesseract assets
   event.waitUntil(
     caches.open(WASM_CACHE).then((cache) =>
       Promise.allSettled(
         TESSERACT_URLS.map((url) =>
-          cache.add(url).catch(() => {
-            // Some URLs may not exist, that's OK
-          })
+          cache.add(url).catch(() => {})
         )
       )
     )
@@ -42,7 +28,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((names) =>
       Promise.all(
         names
-          .filter((name) => name !== CACHE_NAME && name !== WASM_CACHE)
+          .filter((name) => name !== WASM_CACHE && name !== CACHE_VERSION)
           .map((name) => caches.delete(name))
       )
     )
@@ -54,7 +40,7 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = request.url
 
-  // Cache-first for Tesseract WASM and language data
+  // Cache-first ONLY for Tesseract WASM and language data (immutable resources)
   if (
     url.includes('tesseract') ||
     url.includes('wasm') ||
@@ -77,31 +63,19 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Network-first for navigation
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).then((response) => {
-        const clone = response.clone()
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
-        return response
-      }).catch(() =>
-        caches.match(request).then((r) => r || caches.match('/'))
-      )
-    )
-    return
-  }
-
-  // Cache-first for static assets
+  // Network-first for ALL other requests (HTML, JS, CSS, images)
+  // This ensures the latest build is always served
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached
-      return fetch(request).then((response) => {
-        if (response.ok && request.url.startsWith(self.location.origin)) {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
-        }
-        return response
-      }).catch(() => new Response('', { status: 503 }))
+    fetch(request).then((response) => {
+      // Cache the fresh response for offline fallback
+      if (response.ok && request.url.startsWith(self.location.origin)) {
+        const clone = response.clone()
+        caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone))
+      }
+      return response
+    }).catch(() => {
+      // Offline fallback: serve from cache
+      return caches.match(request).then((r) => r || caches.match('/'))
     })
   )
 })
