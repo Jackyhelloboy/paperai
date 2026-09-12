@@ -1,7 +1,4 @@
 name = "paperai-ocr"
-main = "src/entrypoint.py"
+main = "src/index.js"
 compatibility_date = "2026-09-08"
-compatibility_flags = ["python_workers"]
-
-[vars]
-ENVIRONMENT = "production"
+account_id = "9195bc9144b0e1c8811dfae71e58c7e4"
