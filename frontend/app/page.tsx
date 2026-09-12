@@ -749,7 +749,7 @@ export default function Home() {
                               r.confidence >= 0.7 ? 'text-emerald-600 dark:text-emerald-400' :
                               r.confidence >= 0.5 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
                             }`}>
-                              {Math.round(r.confidence * 100)}% confidence
+                              {Math.round(r.confidence)}% confidence
                             </span>
                             {r.confidence < 0.5 && (
                               <span className="text-xs text-red-500 dark:text-red-400 font-medium">Needs verification</span>

@@ -5,8 +5,8 @@ export interface PreprocessedImage {
 }
 
 /**
- * Preprocess image for OCR - keep full resolution, Devanagari-aware.
- * Optimized for handwritten text on ruled notebook pages.
+ * Preprocess image for OCR - optimized for handwritten Hindi text.
+ * Less aggressive than before to preserve handwriting details.
  */
 export function preprocessImage(
   imageSource: HTMLImageElement | HTMLCanvasElement
@@ -17,35 +17,38 @@ export function preprocessImage(
   const w = imageSource instanceof HTMLImageElement ? imageSource.naturalWidth : imageSource.width
   const h = imageSource instanceof HTMLImageElement ? imageSource.naturalHeight : imageSource.height
 
-  canvas.width = w
-  canvas.height = h
+  // Upscale small images for better OCR
+  const scale = w < 1000 ? 2 : 1
+  canvas.width = w * scale
+  canvas.height = h * scale
 
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(imageSource, 0, 0, w, h)
+  ctx.drawImage(imageSource, 0, 0, canvas.width, canvas.height)
 
-  const imageData = ctx.getImageData(0, 0, w, h)
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
   const data = imageData.data
 
-  // Step 1: Convert to grayscale
-  const gray = new Uint8Array(w * h)
+  // Convert to grayscale
+  const gray = new Uint8Array(canvas.width * canvas.height)
   for (let i = 0; i < data.length; i += 4) {
     gray[i / 4] = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8
   }
 
-  // Step 2: Adaptive background removal
-  const bg = estimateBackground(gray, w, h)
+  // Gentle contrast enhancement (less aggressive for handwriting)
+  let minVal = 255
+  let maxVal = 0
   for (let i = 0; i < gray.length; i++) {
-    const normalized = ((gray[i] / bg[i]) * 220) | 0
-    gray[i] = Math.min(255, Math.max(0, normalized))
+    if (gray[i] > 10 && gray[i] < minVal) minVal = gray[i]
+    if (gray[i] < 245 && gray[i] > maxVal) maxVal = gray[i]
   }
 
-  // Step 3: Contrast stretch for handwritten text
-  for (let i = 0; i < gray.length; i++) {
-    if (gray[i] < 128) {
-      gray[i] = Math.max(0, (gray[i] * 0.7) | 0)
-    } else {
-      gray[i] = Math.min(255, ((gray[i] - 128) * 1.4 + 128) | 0)
+  // Simple contrast stretch
+  const range = maxVal - minVal
+  if (range > 50) {
+    for (let i = 0; i < gray.length; i++) {
+      const normalized = ((gray[i] - minVal) / range * 255) | 0
+      gray[i] = Math.min(255, Math.max(0, normalized))
     }
   }
 
@@ -57,7 +60,7 @@ export function preprocessImage(
   }
 
   ctx.putImageData(imageData, 0, 0)
-  return { canvas, width: w, height: h }
+  return { canvas, width: canvas.width, height: canvas.height }
 }
 
 function estimateBackground(gray: Uint8Array, w: number, h: number): Uint8Array {
@@ -89,7 +92,7 @@ function estimateBackground(gray: Uint8Array, w: number, h: number): Uint8Array 
 
 /**
  * Detect individual text lines using horizontal projection.
- * Returns SEPARATE line crops - no vertical merging.
+ * Optimized for handwritten Hindi text on lined paper.
  */
 export function detectTextRegions(
   canvas: HTMLCanvasElement
@@ -110,17 +113,17 @@ export function detectTextRegions(
   for (let y = 0; y < h; y++) {
     let count = 0
     for (let x = 0; x < w; x++) {
-      if (gray[y * w + x] < 160) count++
+      if (gray[y * w + x] < 140) count++
     }
     hProj[y] = count
   }
 
-  // Adaptive threshold - find max safely (avoid stack overflow on large arrays)
+  // Adaptive threshold - HIGHER to avoid noise detection
   let maxProj = 0
   for (let y = 0; y < h; y++) {
     if (hProj[y] > maxProj) maxProj = hProj[y]
   }
-  const threshold = Math.max(maxProj * 0.03, w * 0.002)
+  const threshold = Math.max(maxProj * 0.08, w * 0.01)
 
   const lines: { start: number; end: number }[] = []
   let inLine = false
@@ -133,20 +136,30 @@ export function detectTextRegions(
     } else if ((hProj[y] <= threshold || y === h - 1) && inLine) {
       inLine = false
       const lineH = y - lineStart
-      if (lineH > 3) {
+      if (lineH > 15) {  // Only lines taller than 15px (skip noise)
         lines.push({ start: lineStart, end: y })
       }
     }
   }
 
+  // Merge lines that are very close together (< 5px gap)
+  const merged: { start: number; end: number }[] = []
+  for (const line of lines) {
+    if (merged.length > 0 && line.start - merged[merged.length - 1].end < 5) {
+      merged[merged.length - 1].end = line.end
+    } else {
+      merged.push({ ...line })
+    }
+  }
+
   const regions: { x: number; y: number; w: number; h: number }[] = []
 
-  for (const line of lines) {
+  for (const line of merged) {
     let minX = w, maxX = 0
 
     for (let y = line.start; y < line.end; y++) {
       for (let x = 0; x < w; x++) {
-        if (gray[y * w + x] < 160) {
+        if (gray[y * w + x] < 140) {
           if (x < minX) minX = x
           if (x > maxX) maxX = x
         }
@@ -156,8 +169,8 @@ export function detectTextRegions(
     if (maxX <= minX) continue
 
     const lineH = line.end - line.start
-    const padY = Math.max(lineH * 0.4, 15)
-    const padX = 15
+    const padY = Math.max(lineH * 0.5, 20)  // More padding for Devanagari
+    const padX = 20
 
     regions.push({
       x: Math.max(0, minX - padX),
