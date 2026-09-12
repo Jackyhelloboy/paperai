@@ -1,50 +1,87 @@
-// Hindi OCR Post-Processing Module
-// Aggressively cleans Tesseract output for Devanagari text
+// Conservative OCR post-processing for Hindi/English mixed documents.
+// The previous implementation deleted every non-Devanagari character, which
+// damaged valid English headings, abbreviations, question labels and numbers.
+
+function devanagariRatio(text: string): number {
+  const letters = (text.match(/[A-Za-z\u0900-\u097F]/g) || []).length
+  if (!letters) return 0
+  return (text.match(/[\u0900-\u097F]/g) || []).length / letters
+}
+
+const COMMON_VALID_ACRONYMS = new Set([
+  'UPSC', 'PSC', 'SSC', 'PET', 'IAS', 'IPS', 'CBSE', 'ICSE', 'NCERT',
+  'MCQ', 'EM', 'PM', 'AM', 'GST', 'RBI', 'NITI', 'UDISE',
+])
+
+function cleanHindiDominantLine(line: string): string {
+  if (devanagariRatio(line) < 0.55) return line
+
+  // Remove isolated all-caps Latin artifacts only on clearly Hindi-dominant
+  // lines. This targets common OCR noise such as FE/TU/WER without deleting
+  // legitimate mixed-language sentences or MCQ option labels A/B/C/D.
+  return line
+    .split(/(\s+)/)
+    .filter(token => {
+      const stripped = token.replace(/[^A-Za-z]/g, '')
+      if (!stripped) return true
+      if (/^[A-D]$/.test(stripped)) return true
+      if (COMMON_VALID_ACRONYMS.has(stripped.toUpperCase())) return true
+      if (/^[A-Z]{2,4}$/.test(stripped)) return false
+      return true
+    })
+    .join('')
+}
 
 /**
- * Post-process Hindi OCR text - strip everything that isn't Devanagari
+ * Clean OCR text without inventing words or destroying mixed-script content.
+ * Semantic spelling correction belongs in a later confidence-aware stage.
  */
 export function postProcessHindi(text: string): string {
   if (!text) return text
 
-  let result = text
+  let result = text.normalize('NFC')
 
-  // Step 1: Remove ALL non-Devanagari characters except digits, spaces, newlines, and basic punctuation
-  // Keep: Devanagari (0900-097F), digits (0030-0039), spaces, newlines, basic punctuation
-  result = result.replace(/[^\u0900-\u097F0-9\s.,;:!?\-'"()।॥०-९]/g, ' ')
+  // Remove control characters but retain normal tabs/newlines.
+  result = result.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
 
-  // Step 2: Remove isolated single characters that are likely artifacts
-  result = result.replace(/\b[a-zA-Z]\b/g, ' ')
+  // Normalize common Unicode punctuation variants while preserving meaning.
+  result = result
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/…/g, '...')
 
-  // Step 3: Remove lines that are mostly non-Hindi
-  const lines = result.split('\n')
-  const cleanLines = lines.map(line => {
-    const hindiCount = (line.match(/[\u0900-\u097F]/g) || []).length
-    const totalChars = line.replace(/\s/g, '').length
-    // If less than 30% Hindi characters, the line is mostly garbage
-    if (totalChars > 0 && hindiCount / totalChars < 0.3) return ''
+  const cleanedLines = result.split('\n').map(rawLine => {
+    let line = rawLine
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\s+([,.;:!?।॥])/g, '$1')
+      .replace(/([([{])\s+/g, '$1')
+      .replace(/\s+([)\]}])/g, '$1')
+      .trim()
+
+    line = cleanHindiDominantLine(line)
+
+    // Trim obvious border/rule debris only at line edges. Do not strip symbols
+    // from the middle because arrows/options/math may be legitimate content.
+    line = line
+      .replace(/^[|_~`^<>\\]+\s*/, '')
+      .replace(/\s*[|_~`^<>\\]+$/, '')
+      .trim()
+
     return line
   })
-  result = cleanLines.join('\n')
 
-  // Step 4: Normalize whitespace
-  result = result.replace(/[ \t]+/g, ' ')
-  result = result.replace(/\n\s*\n/g, '\n\n')
-  result = result.trim()
+  result = cleanedLines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 
   return result
 }
 
-/**
- * Check if text contains Hindi (Devanagari) characters
- */
 export function isHindiText(text: string): boolean {
   return /[\u0900-\u097F]/.test(text)
 }
 
-/**
- * Detect dominant language in text
- */
 export function detectLanguage(text: string): 'hindi' | 'telugu' | 'english' | 'mixed' {
   const hindiCount = (text.match(/[\u0900-\u097F]/g) || []).length
   const teluguCount = (text.match(/[\u0C00-\u0C7F]/g) || []).length
@@ -54,8 +91,11 @@ export function detectLanguage(text: string): 'hindi' | 'telugu' | 'english' | '
   if (total === 0) return 'english'
 
   const hindiRatio = hindiCount / total
+  const teluguRatio = teluguCount / total
+  const englishRatio = englishCount / total
 
-  if (hindiRatio > 0.5) return hindiRatio > 0.8 ? 'hindi' : 'mixed'
-  if (teluguCount > hindiCount) return 'telugu'
-  return englishCount > hindiCount ? 'english' : 'mixed'
+  if (hindiRatio >= 0.75) return 'hindi'
+  if (teluguRatio >= 0.75) return 'telugu'
+  if (englishRatio >= 0.75) return 'english'
+  return 'mixed'
 }
