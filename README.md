@@ -1,72 +1,87 @@
 # PaperAI
 
-Extract text from question papers using advanced OCR (PaddleOCR + EasyOCR).
+Extract text from question papers — Python OCR on Cloudflare Workers.
 
 ## Architecture
 
 ```
 paperai/
-├── frontend/          # Static HTML → Vercel
+├── frontend/              # Static HTML → Cloudflare Pages
 │   ├── index.html
 │   └── vercel.json
-├── backend/           # Python FastAPI → Render
+├── worker/                # Python Worker → Cloudflare Workers
+│   ├── src/entrypoint.py  # FastAPI + OpenCV OCR
+│   ├── pyproject.toml
+│   └── wrangler.toml
+├── backend/               # Standalone Python server (alternative)
 │   ├── main.py
 │   ├── ocr_engine.py
 │   ├── preprocessor.py
 │   ├── trainer.py
 │   └── requirements.txt
 └── .github/workflows/
-    ├── deploy-frontend.yml  # Vercel auto-deploy
-    └── deploy-backend.yml   # Render auto-deploy
+    ├── deploy.yml            # Frontend → Cloudflare Pages
+    ├── deploy-worker.yml     # Worker → Cloudflare Workers
+    ├── deploy-frontend.yml   # Frontend → Vercel (alt)
+    └── deploy-backend.yml    # Backend → Render (alt)
 ```
 
-## Frontend (Vercel)
+## Cloudflare Stack (Primary)
 
-- Auto-deploys on push to `main`
-- Connects to Python backend API
-- Supports: PDF, JPG, PNG, BMP, TIFF
+| Component | Platform | Tech |
+|-----------|----------|------|
+| Frontend | Cloudflare Pages | Static HTML |
+| Backend | Cloudflare Workers | Python + FastAPI + OpenCV |
 
-## Backend (Render)
+### Worker Features
+- **OpenCV** preprocessing (deskew, shadow removal, contrast)
+- **Adaptive binarization** for text detection
+- **Region detection** with contour analysis
+- **Multi-variant processing** for accuracy
+- Runs on Cloudflare's edge (330+ locations)
 
-Python server with:
-- **PaddleOCR** — Best for Devanagari/Hindi
-- **EasyOCR** — Multi-language support
-- **Image preprocessing** — Auto contrast, denoise, deskew, shadow removal
-- **Multi-engine voting** — Consensus scoring for accuracy
-- **Training pipeline** — Corrections saved for model improvement
+## Deploy
 
-### Run locally
+### Frontend (Cloudflare Pages)
+```bash
+npx wrangler pages deploy frontend --project-name=paperai
+```
 
+### Worker (Cloudflare Workers)
+```bash
+cd worker
+pip install pywrangler
+pywrangler deploy
+```
+
+## Local Development
+
+### Worker
+```bash
+cd worker
+pip install pywrangler
+pywrangler dev
+# Worker runs at http://localhost:8787
+```
+
+### Backend (Alternative)
 ```bash
 cd backend
-python -m venv venv
-venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
+# Server runs at http://localhost:8000
 ```
-
-Backend runs on `http://localhost:8000`
-
-## Deployment
-
-### Frontend (Vercel)
-1. Connect repo to Vercel
-2. Set root directory to `frontend`
-3. Deploy
-
-### Backend (Render)
-1. Connect repo to Render
-2. Set root directory to `backend`
-3. Runtime: Python 3.11
-4. Build: `pip install -r requirements.txt`
-5. Start: `python main.py`
 
 ## API
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/ocr` | POST | Upload file for OCR |
-| `/api/result/{job_id}` | GET | Get OCR result |
-| `/api/correct` | POST | Submit correction |
 | `/api/eval` | POST | Evaluate accuracy |
-| `/api/stats` | GET | Get training stats |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
