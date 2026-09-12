@@ -9,6 +9,7 @@ export interface OCRResult {
 }
 
 type OCRLanguage = 'hin' | 'hin+eng'
+type PageSegMode = (typeof Tesseract.PSM)[keyof typeof Tesseract.PSM]
 
 const workers = new Map<OCRLanguage, Promise<Tesseract.Worker>>()
 
@@ -52,7 +53,7 @@ function inferLanguage(text: string): 'hin' | 'eng' | 'mixed' {
 async function runOCR(
   image: HTMLCanvasElement | string,
   language: OCRLanguage,
-  psm: Tesseract.PSM = Tesseract.PSM.SINGLE_LINE
+  psm: PageSegMode = Tesseract.PSM.SINGLE_LINE
 ): Promise<OCRResult> {
   const worker = await getWorker(language)
 
@@ -106,7 +107,7 @@ function candidateScore(result: OCRResult, preferHindi: boolean): number {
 
 export interface RecognizeOptions {
   preferHindi?: boolean
-  pageSegMode?: Tesseract.PSM
+  pageSegMode?: PageSegMode
   onProgress?: (progress: number, stage: string) => void
 }
 
