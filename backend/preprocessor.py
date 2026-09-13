@@ -122,10 +122,10 @@ class ImagePreprocessor:
 
         if len(image.shape) == 3:
             b, g, r = cv2.split(image)
-            shift = (normalized - gray).astype(np.int16)
-            b = cv2.add(b, shift)
-            g = cv2.add(g, shift)
-            r = cv2.add(r, shift)
+            shift = (normalized.astype(np.int16) - gray.astype(np.int16))
+            b = np.clip(b.astype(np.int16) + shift, 0, 255).astype(np.uint8)
+            g = np.clip(g.astype(np.int16) + shift, 0, 255).astype(np.uint8)
+            r = np.clip(r.astype(np.int16) + shift, 0, 255).astype(np.uint8)
             return cv2.merge([b, g, r])
 
         return normalized

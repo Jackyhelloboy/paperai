@@ -2,365 +2,997 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PaperAI - Question Paper OCR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>PaperAI — Exam Paper Scanner</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        :root{
-            --bg:#0f172a;--bg2:#1e293b;--bg3:#334155;
-            --text:#f1f5f9;--text2:#94a3b8;
-            --accent:#3b82f6;--accent2:#2563eb;
-            --success:#10b981;--error:#ef4444;--warn:#f59e0b;
-            --border:#334155;--radius:12px;
+        :root {
+            --bg: #ffffff;
+            --surface: #ffffff;
+            --surface2: #f9fafb;
+            --surface3: #f3f4f6;
+            --text: #111827;
+            --text2: #4b5563;
+            --text3: #9ca3af;
+            --primary: #111827;
+            --primary-hover: #374151;
+            --accent: #2563eb;
+            --accent-soft: rgba(37, 99, 235, 0.06);
+            --accent-hover: #1d4ed8;
+            --green: #16a34a;
+            --green-soft: rgba(22, 163, 74, 0.06);
+            --amber: #d97706;
+            --amber-soft: rgba(217, 119, 6, 0.06);
+            --red: #dc2626;
+            --red-soft: rgba(220, 38, 38, 0.06);
+            --border: #e5e7eb;
+            --border2: #d1d5db;
+            --radius: 16px;
+            --radius-sm: 12px;
+            --radius-xs: 8px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+            --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+            --shadow-md: 0 4px 6px rgba(0,0,0,.05), 0 2px 4px rgba(0,0,0,.04);
+            --transition: all 0.15s ease;
         }
-        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-        .wrap{max-width:860px;margin:0 auto;padding:1.5rem}
-        header{text-align:center;margin-bottom:2rem}
-        header h1{font-size:2.2rem;font-weight:700;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-        header p{color:var(--text2);margin-top:.35rem}
 
-        .drop{border:2px dashed var(--border);border-radius:var(--radius);padding:2.5rem;text-align:center;cursor:pointer;transition:.2s;background:var(--bg2)}
-        .drop:hover,.drop.over{border-color:var(--accent);background:rgba(59,130,246,.08)}
-        .drop svg{width:56px;height:56px;color:var(--text2);margin-bottom:.75rem}
-        .drop h3{font-size:1.1rem;margin-bottom:.3rem}
-        .drop small{color:var(--text2)}
-        .drop input{display:none}
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-        .file-bar{display:none;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-top:1rem}
-        .file-bar.show{display:flex}
-        .file-bar .name{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .file-bar .size{color:var(--text2);font-size:.85rem}
-        .file-bar .clear{background:none;border:none;color:var(--error);cursor:pointer;font-size:1.1rem;padding:0 .25rem}
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--surface2);
+            color: var(--text);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
 
-        .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin:1.25rem 0}
-        .field label{display:block;font-size:.8rem;color:var(--text2);margin-bottom:.35rem;font-weight:500}
-        .field select{width:100%;padding:.65rem;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text);font-size:.9rem}
-        .field select:focus{outline:none;border-color:var(--accent)}
+        /* ── Header ────────────────────────────────────────── */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            border-bottom: 1px solid var(--border);
+            padding: 0 1.25rem;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
 
-        .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.8rem 2rem;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:.15s;width:100%}
-        .btn:disabled{opacity:.45;cursor:not-allowed}
-        .btn-main{background:var(--accent);color:#fff}
-        .btn-main:hover:not(:disabled){background:var(--accent2);transform:translateY(-1px)}
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+        }
 
-        .prog{display:none;margin:1.5rem 0}
-        .prog.show{display:block}
-        .prog-bar{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
-        .prog-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--success));width:0%;transition:width .3s}
-        .prog-top{display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:.4rem}
-        .prog-msg{color:var(--text2);font-size:.8rem;margin-top:.35rem}
+        .header-logo {
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: white;
+        }
 
-        .err{display:none;padding:.85rem 1rem;background:rgba(239,68,68,.1);border:1px solid var(--error);border-radius:8px;color:var(--error);margin-top:1rem;font-size:.9rem}
-        .err.show{display:block}
+        .header-title {
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: var(--text);
+        }
 
-        .res{display:none;margin-top:1.5rem}
-        .res.show{display:block}
-        .res-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1rem}
-        .stats{display:flex;gap:1.25rem;flex-wrap:wrap}
-        .stat-v{font-size:1.4rem;font-weight:700;color:var(--accent)}
-        .stat-l{font-size:.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
-        .exports{display:flex;gap:.5rem;flex-wrap:wrap}
-        .btn-exp{padding:.5rem 1rem;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:.8rem;cursor:pointer;transition:.15s}
-        .btn-exp:hover{border-color:var(--accent);background:rgba(59,130,246,.1)}
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            font-size: 0.72rem;
+            color: var(--green);
+            font-weight: 500;
+            padding: 0.25rem 0.625rem;
+            background: var(--green-soft);
+            border-radius: 100px;
+        }
 
-        .text-out{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;white-space:pre-wrap;font-family:'Menlo','Monaco',monospace;font-size:.85rem;line-height:1.65;max-height:480px;overflow-y:auto}
-        .text-out::-webkit-scrollbar{width:6px}
-        .text-out::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+        .header-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
 
-        .conf-badge{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.75rem;font-weight:600;margin-left:.5rem}
-        .conf-high{background:rgba(16,185,129,.15);color:var(--success)}
-        .conf-med{background:rgba(245,158,11,.15);color:var(--warn)}
-        .conf-low{background:rgba(239,68,68,.15);color:var(--error)}
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
 
-        .engine-badge{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.7rem;background:rgba(139,92,246,.15);color:#a78bfa;margin-left:.5rem}
+        /* ── Main ──────────────────────────────────────────── */
+        .main {
+            padding: 2rem 1.25rem 3rem;
+            max-width: 520px;
+            width: 100%;
+            margin: 0 auto;
+        }
 
-        footer{text-align:center;margin-top:2.5rem;padding-top:1.25rem;border-top:1px solid var(--border);color:var(--text2);font-size:.8rem}
+        /* ── Hero ──────────────────────────────────────────── */
+        .hero {
+            text-align: center;
+            margin-bottom: 2rem;
+            animation: fadeUp 0.4s ease-out;
+        }
 
-        @media(max-width:600px){
-            .wrap{padding:1rem}
-            header h1{font-size:1.6rem}
-            .stats{gap:.75rem}
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .hero h1 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            line-height: 1.2;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        .hero p {
+            font-size: 0.9rem;
+            color: var(--text2);
+            max-width: 360px;
+            margin: 0 auto;
+        }
+
+        /* ── Upload Card ───────────────────────────────────── */
+        .upload-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            animation: fadeUp 0.4s ease-out 0.05s both;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--border2);
+            border-radius: var(--radius-sm);
+            padding: 2.5rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--surface2);
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .upload-zone:active {
+            transform: scale(0.99);
+        }
+
+        .upload-zone.over {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .upload-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+        }
+
+        .upload-zone:hover .upload-icon {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+
+        .upload-icon svg {
+            width: 24px;
+            height: 24px;
+            color: var(--text2);
+        }
+
+        .upload-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: var(--text);
+        }
+
+        .upload-sub {
+            font-size: 0.8rem;
+            color: var(--text3);
+        }
+
+        .upload-sub strong {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* ── File Preview ──────────────────────────────────── */
+        .file-preview {
+            display: none;
+            align-items: center;
+            gap: 0.875rem;
+            padding: 0.875rem;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .file-preview.show {
+            display: flex;
+        }
+
+        .file-thumb {
+            width: 56px;
+            height: 56px;
+            border-radius: var(--radius-xs);
+            object-fit: cover;
+            border: 1px solid var(--border);
+            background: var(--surface3);
+            flex-shrink: 0;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.125rem;
+        }
+
+        .file-meta {
+            font-size: 0.72rem;
+            color: var(--text3);
+        }
+
+        .file-remove {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-xs);
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
+
+        .file-remove:active {
+            border-color: var(--red);
+            color: var(--red);
+            background: var(--red-soft);
+        }
+
+        /* ── Extract Button ────────────────────────────────── */
+        .btn-extract {
+            display: none;
+            width: 100%;
+            height: 48px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-top: 1rem;
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-extract.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-extract:active {
+            transform: scale(0.98);
+            background: var(--primary-hover);
+        }
+
+        .btn-extract:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-extract svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* ── Progress ──────────────────────────────────────── */
+        .progress-wrap {
+            display: none;
+            margin-top: 1rem;
+        }
+
+        .progress-wrap.show {
+            display: block;
+            animation: fadeUp 0.3s ease-out;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-label {
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--text2);
+        }
+
+        .progress-pct {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text3);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--surface3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0;
+            border-radius: 2px;
+            transition: width 0.4s ease;
+        }
+
+        /* ── Error ─────────────────────────────────────────── */
+        .error-toast {
+            display: none;
+            padding: 0.75rem 1rem;
+            background: var(--red-soft);
+            border: 1px solid rgba(220, 38, 38, 0.15);
+            border-radius: var(--radius-sm);
+            color: var(--red);
+            font-size: 0.82rem;
+            font-weight: 500;
+            margin-top: 1rem;
+            animation: shake 0.3s ease;
+        }
+
+        .error-toast.show {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        /* ── Results ───────────────────────────────────────── */
+        .results {
+            display: none;
+            margin-top: 1.5rem;
+        }
+
+        .results.show {
+            display: block;
+            animation: fadeUp 0.4s ease-out;
+        }
+
+        .results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .results-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .results-badges {
+            display: flex;
+            gap: 0.375rem;
+        }
+
+        .badge {
+            padding: 0.2rem 0.625rem;
+            border-radius: 100px;
+            font-size: 0.68rem;
+            font-weight: 600;
+        }
+
+        .badge-green {
+            background: var(--green-soft);
+            color: var(--green);
+        }
+
+        .badge-gray {
+            background: var(--surface3);
+            color: var(--text2);
+        }
+
+        .results-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .action-btn {
+            flex: 1;
+            height: 40px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            background: var(--surface);
+            color: var(--text2);
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.375rem;
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .action-btn:active {
+            transform: scale(0.97);
+            background: var(--surface2);
+        }
+
+        .action-btn svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        /* ── Output Tabs ───────────────────────────────────── */
+        .output-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .output-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface2);
+        }
+
+        .output-tab {
+            flex: 1;
+            padding: 0.75rem;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-family: inherit;
+            color: var(--text3);
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .output-tab.active {
+            color: var(--text);
+            background: var(--surface);
+        }
+
+        .output-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 25%;
+            right: 25%;
+            height: 2px;
+            background: var(--accent);
+            border-radius: 1px 1px 0 0;
+        }
+
+        .output-body {
+            padding: 1.25rem;
+            max-height: 420px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            line-height: 1.7;
+            color: var(--text);
+            -webkit-overflow-scrolling: touch;
+            word-wrap: break-word;
+        }
+
+        .output-body::-webkit-scrollbar { width: 4px; }
+        .output-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+        .output-raw {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            white-space: pre-wrap;
+            font-size: 0.78rem;
+            line-height: 1.7;
+        }
+
+        /* ── Formatted Output ──────────────────────────────── */
+        .fmt-section {
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--text);
+            margin: 1.25rem 0 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .fmt-section:first-child { margin-top: 0; }
+
+        .fmt-marks {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--accent);
+            white-space: nowrap;
+            background: var(--accent-soft);
+            padding: 0.125rem 0.5rem;
+            border-radius: 100px;
+        }
+
+        .fmt-question {
+            margin: 0.375rem 0;
+            padding: 0.375rem 0;
+        }
+
+        .fmt-num {
+            font-weight: 700;
+            color: var(--accent);
+            margin-right: 0.25rem;
+        }
+
+        .fmt-blank {
+            display: inline-block;
+            min-width: 80px;
+            border-bottom: 1.5px solid var(--border2);
+            margin: 0 0.125rem;
+        }
+
+        .fmt-options {
+            color: var(--green);
+            font-weight: 600;
+            font-size: 0.82rem;
+        }
+
+        .fmt-tf {
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        .fmt-matching {
+            margin: 0.375rem 0;
+            padding: 0.5rem 0.75rem;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            font-size: 0.82rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .fmt-matching .arrow {
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .fmt-matching .en {
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        /* ── Flagged Words ─────────────────────────────────── */
+        .flagged-card {
+            display: none;
+            margin-top: 0.75rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .flagged-card.show {
+            display: block;
+            animation: fadeUp 0.3s ease-out;
+        }
+
+        .flagged-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--amber-soft);
+        }
+
+        .flagged-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--amber);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .flagged-list {
+            padding: 0.5rem;
+        }
+
+        .flagged-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 0.75rem;
+            border-radius: var(--radius-xs);
+            font-size: 0.82rem;
+            transition: var(--transition);
+        }
+
+        .flagged-item:active {
+            background: var(--surface2);
+        }
+
+        .flagged-word {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .flagged-arrow {
+            color: var(--text3);
+            font-size: 0.75rem;
+        }
+
+        .flagged-suggest {
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        .flagged-reason {
+            margin-left: auto;
+            font-size: 0.68rem;
+            color: var(--text3);
+            font-style: italic;
+        }
+
+        /* ── Footer ────────────────────────────────────────── */
+        .footer {
+            text-align: center;
+            padding: 2rem 1.25rem;
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .footer-text {
+            font-size: 0.72rem;
+            color: var(--text3);
+        }
+
+        /* ── Mobile ────────────────────────────────────────── */
+        @media (max-width: 380px) {
+            .main { padding: 1.5rem 1rem 2rem; }
+            .hero h1 { font-size: 1.5rem; }
+            .upload-zone { padding: 2rem 0.75rem; }
+        }
+
+        @media (min-width: 480px) {
+            .main { padding: 2.5rem 1.5rem 3rem; }
+            .hero h1 { font-size: 2rem; }
+        }
+
+        @supports (padding-top: env(safe-area-inset-top)) {
+            .header { padding-top: env(safe-area-inset-top); height: calc(56px + env(safe-area-inset-top)); }
+            .footer { padding-bottom: calc(2rem + env(safe-area-inset-bottom)); }
         }
     </style>
 </head>
 <body>
-<div class="wrap">
-    <header>
-        <h1>PaperAI</h1>
-        <p>Extract text from question papers — powered by Python OCR server</p>
+    <header class="header">
+        <div class="header-brand">
+            <div class="header-logo">P</div>
+            <span class="header-title">PaperAI</span>
+        </div>
+        <div class="header-status">
+            <span class="header-dot"></span>
+            <span>Online</span>
+        </div>
     </header>
 
-    <div class="drop" id="dropZone">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-        <h3>Drop your paper here</h3>
-        <small>PDF, JPG, PNG, BMP, TIFF — Max 50 MB</small>
-        <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp">
-    </div>
-
-    <div class="file-bar" id="fileBar">
-        <span class="name" id="fName"></span>
-        <span class="size" id="fSize"></span>
-        <button class="clear" id="clearBtn" title="Remove">&times;</button>
-    </div>
-
-    <div class="opts">
-        <div class="field">
-            <label for="lang">Language</label>
-            <select id="lang">
-                <option value="en">English</option>
-                <option value="hi">Hindi</option>
-                <option value="te">Telugu</option>
-            </select>
+    <main class="main">
+        <div class="hero">
+            <h1>Scan exam papers</h1>
+            <p>Upload a photo of any handwritten question paper — text extracted exactly as written</p>
         </div>
-        <div class="field">
-            <label for="ppi">Preprocessing</label>
-            <select id="ppi">
-                <option value="auto">Auto (Recommended)</option>
-                <option value="none">None</option>
-                <option value="aggressive">Aggressive</option>
-            </select>
-        </div>
-        <div class="field">
-            <label for="engine">OCR Engine</label>
-            <select id="engine">
-                <option value="auto">Auto (Best)</option>
-                <option value="paddle">PaddleOCR</option>
-                <option value="easyocr">EasyOCR</option>
-            </select>
-        </div>
-    </div>
 
-    <button class="btn btn-main" id="goBtn" disabled>Extract Text</button>
-
-    <div class="prog" id="prog">
-        <div class="prog-top">
-            <span id="pPct">0%</span>
-            <span id="pStep"></span>
-        </div>
-        <div class="prog-bar"><div class="prog-fill" id="pFill"></div></div>
-        <div class="prog-msg" id="pMsg"></div>
-    </div>
-
-    <div class="err" id="errBox"></div>
-
-    <div class="res" id="resBox">
-        <div class="res-head">
-            <div class="stats">
-                <div><div class="stat-v" id="sConf">-</div><div class="stat-l">Confidence</div></div>
-                <div><div class="stat-v" id="sChars">-</div><div class="stat-l">Characters</div></div>
-                <div><div class="stat-v" id="sPages">-</div><div class="stat-l">Pages</div></div>
-                <div><div class="stat-v" id="sEngine">-</div><div class="stat-l">Engine</div></div>
+        <div class="upload-card">
+            <div class="upload-zone" id="dropZone">
+                <div class="upload-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                </div>
+                <div class="upload-title">Drop a photo here</div>
+                <div class="upload-sub">or tap to browse · <strong>JPG, PNG</strong> · 50 MB max</div>
+                <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.bmp,.webp">
             </div>
-            <div class="exports">
-                <button class="btn-exp" onclick="dlTxt()">TXT</button>
-                <button class="btn-exp" onclick="dlDocx()">DOCX</button>
-                <button class="btn-exp" onclick="dlPdf()">PDF</button>
+
+            <div class="file-preview" id="filePreview">
+                <img class="file-thumb" id="fileThumb" src="" alt="">
+                <div class="file-info">
+                    <div class="file-name" id="fileName"></div>
+                    <div class="file-meta" id="fileMeta"></div>
+                </div>
+                <button class="file-remove" id="clearBtn" title="Remove">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <button class="btn-extract" id="goBtn" disabled>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Extract Text
+            </button>
+
+            <div class="progress-wrap" id="prog">
+                <div class="progress-info">
+                    <span class="progress-label" id="pMsg">Processing...</span>
+                    <span class="progress-pct" id="pPct">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="pFill"></div>
+                </div>
+            </div>
+
+            <div class="error-toast" id="errBox">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span id="errText"></span>
             </div>
         </div>
-        <div class="text-out" id="textOut"></div>
-    </div>
 
-    <footer>PaperAI — Python PaddleOCR + EasyOCR Server</footer>
-</div>
+        <div class="results" id="resBox">
+            <div class="results-header">
+                <span class="results-title">Extracted Text</span>
+                <div class="results-badges" id="statsBar"></div>
+            </div>
+
+            <div class="results-actions">
+                <button class="action-btn" onclick="copyText(this)">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                    Copy
+                </button>
+                <button class="action-btn" onclick="dlTxt()">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Download
+                </button>
+            </div>
+
+            <div class="output-card">
+                <div class="output-tabs">
+                    <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
+                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Raw OCR</button>
+                </div>
+                <div class="output-body" id="textOut"></div>
+            </div>
+
+            <div class="flagged-card" id="flaggedBox">
+                <div class="flagged-header">
+                    <div class="flagged-title">Words to review</div>
+                </div>
+                <div class="flagged-list" id="flaggedList"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-text">PaperAI — Extract text from handwritten exam papers</div>
+    </footer>
 
 <script>
-const API = window.location.hostname === 'localhost' ? 'http://localhost:8787' : 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
-
-const $=id=>document.getElementById(id);
+const API = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
+const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn');
-const fileBar=$('fileBar'),fName=$('fName'),fSize=$('fSize'),clearBtn=$('clearBtn');
-const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pStep=$('pStep'),pMsg=$('pMsg');
-const errBox=$('errBox'),resBox=$('resBox'),textOut=$('textOut');
+const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
+const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
+const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 
-let file=null;
+let file=null, lastResult=null, showingRaw=false;
 
-function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB'}
-function showErr(m){errBox.textContent=m;errBox.classList.add('show')}
-function hideErr(){errBox.classList.remove('show')}
-function showRes(){resBox.classList.add('show')}
-function hideRes(){resBox.classList.remove('show')}
-function setProg(pct,msg,step){pFill.style.width=pct+'%';pPct.textContent=pct+'%';if(msg)pMsg.textContent=msg;if(step!==undefined)pStep.textContent=step}
+const fmtSize = b => b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
+const showErr = m => { errText.textContent=m; errBox.classList.add('show'); };
+const hideErr = () => errBox.classList.remove('show');
+const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'%'; if(msg)pMsg.textContent=msg; };
 
-function setFile(f){
-    const ext=f.name.split('.').pop().toLowerCase();
-    const ok=['pdf','jpg','jpeg','png','bmp','tiff','tif','webp'];
-    if(!ok.includes(ext)){showErr('Unsupported file type: .'+ext);return}
-    if(f.size>52428800){showErr('File too large (max 50 MB)');return}
-    file=f;fName.textContent=f.name;fSize.textContent=fmtSize(f.size);
-    fileBar.classList.add('show');goBtn.disabled=false;hideErr();hideRes()
+function setFile(f) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (!['jpg','jpeg','png','bmp','webp'].includes(ext)) { showErr('Unsupported file type: .'+ext); return; }
+    if (f.size > 52428800) { showErr('File too large (max 50 MB)'); return; }
+    file = f;
+    fileName.textContent = f.name;
+    fileMeta.textContent = fmtSize(f.size) + ' · ' + f.type.split('/')[1].toUpperCase();
+    const r = new FileReader();
+    r.onload = e => fileThumb.src = e.target.result;
+    r.readAsDataURL(f);
+    dropZone.style.display = 'none';
+    filePreview.classList.add('show');
+    goBtn.classList.add('show');
+    goBtn.disabled = false;
+    hideErr();
+    resBox.classList.remove('show');
 }
-function clearFile(){file=null;fileBar.classList.remove('show');goBtn.disabled=true;hideErr();hideRes();fileInput.value=''}
 
-dropZone.onclick=()=>fileInput.click();
-fileInput.onchange=e=>{if(e.target.files[0])setFile(e.target.files[0])};
-dropZone.ondragover=e=>{e.preventDefault();dropZone.classList.add('over')};
-dropZone.ondragleave=()=>dropZone.classList.remove('over');
-dropZone.ondrop=e=>{e.preventDefault();dropZone.classList.remove('over');if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])};
-clearBtn.onclick=clearFile;
-
-goBtn.onclick=async()=>{
-    if(!file)return;
+function clearFile() {
+    file=null;
+    dropZone.style.display = '';
+    filePreview.classList.remove('show');
+    goBtn.classList.remove('show');
     goBtn.disabled=true;
-    hideErr();hideRes();
+    hideErr();
+    resBox.classList.remove('show');
+    fileInput.value='';
+}
+
+dropZone.onclick = () => fileInput.click();
+fileInput.onchange = e => { if(e.target.files[0]) setFile(e.target.files[0]); };
+dropZone.ondragover = e => { e.preventDefault(); dropZone.classList.add('over'); };
+dropZone.ondragleave = () => dropZone.classList.remove('over');
+dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
+clearBtn.onclick = clearFile;
+
+function showTab(tab) {
+    showingRaw = tab==='raw';
+    $('tabVerified').classList.toggle('active',!showingRaw);
+    $('tabRaw').classList.toggle('active',showingRaw);
+    if(lastResult) {
+        if(showingRaw) {
+            textOut.textContent = lastResult.raw_text||'';
+            textOut.className = 'output-body output-raw';
+        } else {
+            textOut.innerHTML = formatOutput(lastResult.text||'');
+            textOut.className = 'output-body';
+        }
+    }
+}
+
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function formatOutput(text) {
+    if(!text) return '<span style="color:var(--text3)">No text detected</span>';
+    return esc(text).replace(/\n/g, '<br>');
+}
+
+goBtn.onclick = async () => {
+    if(!file) return;
+    goBtn.disabled=true;
+    hideErr();
+    resBox.classList.remove('show');
     prog.classList.add('show');
-    setProg(5,'Uploading file...','Upload');
+    setProg(5,'Reading file...');
 
-    try{
-        const form=new FormData();
-        form.append('file',file);
-        form.append('language',$('lang').value);
-        form.append('preprocessing',$('ppi').value);
-        form.append('engine',$('engine').value);
+    try {
+        setProg(15,'Uploading...');
 
-        setProg(10,'Sending to OCR server...','Server');
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('language', 'en');
+        formData.append('preprocessing', 'auto');
+        formData.append('engine', 'auto');
 
-        const controller=new AbortController();
-        const timeout=setTimeout(()=>controller.abort(),120000);
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 120000);
 
-        const res=await fetch(API+'/api/ocr',{
+        const res = await fetch(API+'/api/ocr', {
             method:'POST',
-            body:form,
-            signal:controller.signal
+            body: formData,
+            signal: ctrl.signal
         });
-        clearTimeout(timeout);
+        clearTimeout(tid);
 
-        if(!res.ok){
-            const err=await res.json().catch(()=>({detail:'Server error'}));
-            throw new Error(err.detail||`HTTP ${res.status}`);
-        }
+        if(!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error||'HTTP '+res.status); }
 
-        setProg(90,'Processing results...','Done');
-        const data=await res.json();
+        setProg(80,'Processing text...');
+        const data = await res.json();
+        if(data.error) throw new Error(data.error);
+        if(data.status!=='completed'||!data.result) throw new Error('No results');
 
-        if(data.status==='completed'&&data.result){
-            const r=data.result;
-            const meta=r.metadata||{};
-            const conf=meta.average_confidence||0;
+        const r=data.result, corr=r.corrections_summary||{};
+        const flagged = (corr.corrections||[]).filter(c=>c.confidence<0.97&&c.confidence>=0.70);
+        const reasons = {'ocr_char_fix':'OCR misread','similar_words':'similar word'};
 
-            const confPct=Math.round(conf*100);
-            const confCls=confPct>=80?'high':confPct>=50?'med':'low';
-            $('sConf').innerHTML=confPct+'% <span class="conf-badge conf-'+confCls+'">'+(confCls==='high'?'Good':confCls==='med'?'Fair':'Low')+'</span>';
-            $('sChars').textContent=meta.total_characters||r.full_text.length;
-            $('sPages').textContent=meta.total_pages||r.pages?.length||1;
-            $('sEngine').innerHTML=(meta.engine||'auto')+' <span class="engine-badge">'+(r.pages?.[0]?.engine_used||'')+'</span>';
-            textOut.textContent=r.full_text||'(No text detected)';
-            showRes();
+        let badges = '';
+        badges += `<span class="badge badge-green">${r.full_text.length} chars</span>`;
+        if(flagged.length) badges += `<span class="badge badge-gray">${flagged.length} flagged</span>`;
+        $('statsBar').innerHTML = badges;
 
-            window._lastResult={text:r.full_text,conf:conf};
-        }else{
-            throw new Error('OCR returned no results');
-        }
+        lastResult = { text:r.full_text, raw_text:r.raw_text||r.full_text };
+        showingRaw=false;
+        $('tabVerified').classList.add('active');
+        $('tabRaw').classList.remove('active');
+        textOut.innerHTML = formatOutput(lastResult.text || '');
+        textOut.className = 'output-body';
 
-        setProg(100,'Complete!','');
-    }catch(e){
-        if(e.name==='AbortError')showErr('Request timed out (2 min). File may be too large or server busy.');
-        else showErr('Error: '+e.message);
-        pMsg.textContent='Failed';
-    }finally{
+        if(flagged.length) {
+            $('flaggedList').innerHTML = flagged.map(f=>`
+                <div class="flagged-item">
+                    <span class="flagged-word">${f.original}</span>
+                    <span class="flagged-arrow">→</span>
+                    <span class="flagged-suggest">${f.corrected}</span>
+                    <span class="flagged-reason">${reasons[f.source]||f.source||''}</span>
+                </div>
+            `).join('');
+            $('flaggedBox').classList.add('show');
+        } else $('flaggedBox').classList.remove('show');
+
+        resBox.classList.add('show');
+        setProg(100,'Done');
+        setTimeout(() => prog.classList.remove('show'), 800);
+    } catch(e) {
+        showErr(e.name==='AbortError' ? 'Timed out — try a smaller image.' : e.message);
+    } finally {
         goBtn.disabled=false;
     }
 };
 
-function dl(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();URL.revokeObjectURL(a.href)}
-
-function dlTxt(){const r=window._lastResult;if(!r)return;dl(new Blob([r.text],{type:'text/plain;charset=utf-8'}),'paperai_output.txt')}
-
-function dlDocx(){
-    const r=window._lastResult;if(!r)return;
-    const lines=r.text.split('\n');
-    const pageW=11906,pageH=16838,margin=720;
-    let paras='';
-    for(const line of lines){
-        const safe=line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        paras+=`<w:p><w:r><w:t xml:space="preserve">${safe||' '}</w:t></w:r></w:p>`;
-    }
-    const docx=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:body>
-    <w:sectPr>
-      <w:pgSz w:w="${pageW}" w:h="${pageH}" w:orient="portrait"/>
-      <w:pgMar w:top="${margin}" w:right="${margin}" w:bottom="${margin}" w:left="${margin}" w:header="0" w:footer="0" w:gutter="0"/>
-    </w:sectPr>
-    ${paras}
-  </w:body>
-</w:document>`;
-    const ct=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-</Types>`;
-    const rels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
-    const wr=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-</Relationships>`;
-    const enc=new TextEncoder();
-    const files=[{name:'[Content_Types].xml',data:enc.encode(ct)},{name:'_rels/.rels',data:enc.encode(rels)},{name:'word/_rels/document.xml.rels',data:enc.encode(wr)},{name:'word/document.xml',data:enc.encode(docx)}];
-    const zip=buildZip(files);
-    dl(new Blob([zip],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),'paperai_output.docx');
+function fileToBase64(f) {
+    return new Promise((ok,err) => {
+        const r=new FileReader();
+        r.onload=()=>ok(r.result.split(',')[1]);
+        r.onerror=err;
+        r.readAsDataURL(f);
+    });
 }
 
-function buildZip(files){
-    const enc=new TextEncoder();
-    const parts=[],cd=[];let off=0;
-    for(const f of files){
-        const nb=enc.encode(f.name);
-        const crc=crc32(f.data);
-        const h=new Uint8Array(30+nb.length);
-        const hv=new DataView(h.buffer);
-        hv.setUint32(0,0x04034b50,true);hv.setUint16(4,20,true);hv.setUint16(6,0,true);hv.setUint16(8,0,true);
-        hv.setUint16(10,0,true);hv.setUint16(12,0,true);hv.setUint32(14,crc,true);hv.setUint32(18,f.data.length,true);
-        hv.setUint32(22,f.data.length,true);hv.setUint16(26,nb.length,true);hv.setUint16(28,0,true);
-        h.set(nb,30);parts.push(h,f.data);
-        const c=new Uint8Array(46+nb.length);
-        const cv=new DataView(c.buffer);
-        cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0,true);
-        cv.setUint16(10,0,true);cv.setUint16(12,0,true);cv.setUint16(14,0,true);cv.setUint32(16,crc,true);
-        cv.setUint32(20,f.data.length,true);cv.setUint32(24,f.data.length,true);cv.setUint16(28,nb.length,true);
-        cv.setUint16(30,0,true);cv.setUint16(32,0,true);cv.setUint16(34,0,true);cv.setUint16(36,0,true);
-        cv.setUint32(38,0,true);cv.setUint32(42,off,true);c.set(nb,46);cd.push(c);off+=h.length+f.data.length;
-    }
-    const cdo=off;let cs=0;for(const c of cd){parts.push(c);cs+=c.length}
-    const e=new Uint8Array(22);const ev=new DataView(e.buffer);
-    ev.setUint32(0,0x06054b50,true);ev.setUint16(4,0,true);ev.setUint16(6,0,true);ev.setUint16(8,files.length,true);
-    ev.setUint16(10,files.length,true);ev.setUint32(12,cs,true);ev.setUint32(16,cdo,true);ev.setUint16(20,0,true);
-    parts.push(e);let t=0;for(const p of parts)t+=p.length;
-    const r=new Uint8Array(t);let pos=0;for(const p of parts){r.set(p,pos);pos+=p.length}return r;
-}
-
-function crc32(data){let c=0xFFFFFFFF;const t=new Uint32Array(256);
-for(let i=0;i<256;i++){let v=i;for(let j=0;j<8;j++)v=(v&1)?(0xEDB88320^(v>>>1)):(v>>>1);t[i]=v}
-for(let i=0;i<data.length;i++)c=t[(c^data[i])&0xFF]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
-
-function dlPdf(){
-    const r=window._lastResult;if(!r)return;
-    const lines=r.text.split('\n');const pW=595,pH=842,mg=40,lh=13;
-    let objs=[],nm=1;const on=[];
-    const catId=nm++;on.push(catId);objs.push('<< /Type /Catalog /Pages 2 0 R >>');
-    const pagesId=nm++;on.push(pagesId);
-    const fontId=nm++;on.push(fontId);objs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-    let pids=[],pc='',y=mg;
-    for(const line of lines){
-        if(y>pH-mg){
-            if(pc){const sid=nm++;on.push(sid);objs.push(`<< /Length ${pc.length} >>\nstream\n${pc}\nendstream`);
-            const pid=nm++;on.push(pid);pids.push(pid);objs.push(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pW} ${pH}] /Contents ${sid} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`);}
-            pc='';y=mg;
-        }
-        const s=line.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
-        pc+=`BT /F1 10 Tf ${mg} ${pH-y} Td (${s}) Tj ET\n`;y+=lh;
-    }
-    if(pc){const sid=nm++;on.push(sid);objs.push(`<< /Length ${pc.length} >>\nstream\n${pc}\nendstream`);
-    const pid=nm++;on.push(pid);pids.push(pid);objs.push(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pW} ${pH}] /Contents ${sid} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`);}
-    objs[1]=`<< /Type /Pages /Kids [${pids.map(n=>n+' 0 R').join(' ')}] /Count ${pids.length} >>`;
-    let pdf='%PDF-1.4\n';const offs=[];
-    for(let i=0;i<objs.length;i++){offs.push(pdf.length);pdf+=`${i+1} 0 obj\n${objs[i]}\nendobj\n\n`}
-    const xoff=pdf.length;pdf+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`;
-    for(const o of offs)pdf+=String(o).padStart(10,'0')+' 00000 n \n';
-    pdf+=`trailer\n<< /Size ${objs.length+1} /Root 1 0 R >>\nstartxref\n${xoff}\n%%EOF`;
-    dl(new Blob([pdf],{type:'application/pdf'}),'paperai_output.pdf');
-}
+function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();URL.revokeObjectURL(a.href)}
+function dlTxt(){if(!lastResult)return;dlBlob(new Blob([lastResult.text],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
+function copyText(btn){if(!lastResult)return;navigator.clipboard.writeText(lastResult.text).then(()=>{btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)})}
 </script>
 </body>
 </html>
