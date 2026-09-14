@@ -940,8 +940,8 @@
     </footer>
 
 <script>
-const API = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
-const API_FALLBACK = 'https://paperai-backend.onrender.com';
+const API = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+const API_FALLBACK = '';
 const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn');
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
@@ -1035,23 +1035,11 @@ goBtn.onclick = async () => {
 
         let res;
         let data;
-        try {
-            res = await fetch(API+'/api/ocr', { method:'POST', body: formData, signal: ctrl.signal });
-            data = await res.json();
-            if(data.error || data.result?.metadata?.error || data.result?.full_text === '') {
-                throw new Error(data.error || data.result?.metadata?.error || 'Empty result');
-            }
-        } catch(primaryErr) {
-            setProg(30,'Trying backup server...');
-            const ctrl2 = new AbortController();
-            const tid2 = setTimeout(() => ctrl2.abort(), 120000);
-            res = await fetch(API_FALLBACK+'/api/ocr', { method:'POST', body: formData, signal: ctrl2.signal });
-            clearTimeout(tid2);
-            data = await res.json();
-        }
+        res = await fetch('/api/ocr', { method:'POST', body: formData, signal: ctrl.signal });
+        data = await res.json();
         clearTimeout(tid);
 
-        if(!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error||'HTTP '+res.status); }
+        if(!res.ok) throw new Error('HTTP '+res.status);
         if(data.error) throw new Error(data.error);
         if(data.status!=='completed'||!data.result) throw new Error('No results');
 
