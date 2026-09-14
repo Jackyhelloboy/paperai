@@ -250,6 +250,15 @@
             font-weight: 600;
         }
 
+        .file-input-hidden {
+            position: absolute;
+            width: 0;
+            height: 0;
+            opacity: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
         /* ── File Preview ──────────────────────────────────── */
         .file-preview {
             display: none;
@@ -275,6 +284,28 @@
             background: var(--surface2);
             flex-shrink: 0;
         }
+
+        .file-type-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: var(--radius-xs);
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .file-type-icon.pdf { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+        .file-type-icon.doc { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+        .file-type-icon.xls { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
+        .file-type-icon.txt { background: var(--surface2); color: var(--text2); }
+        .file-type-icon.img { background: #fefce8; color: #ca8a04; border-color: #fef08a; }
 
         .file-info {
             flex: 1;
@@ -855,8 +886,8 @@
 
     <main class="main">
         <div class="hero">
-            <h1>Scan exam papers</h1>
-            <p>Upload a photo of any handwritten question paper — text extracted exactly as written</p>
+            <h1>Extract text from anything</h1>
+            <p>Drop any file — images, PDFs, Word, Excel, text — and get the text instantly</p>
         </div>
 
         <div class="upload-card">
@@ -864,13 +895,14 @@
                 <div class="upload-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 </div>
-                <div class="upload-title">Drop a photo here</div>
-                <div class="upload-sub">or tap to browse · <strong>JPG, PNG</strong> · 50 MB max</div>
-                <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.bmp,.webp">
+                <div class="upload-title">Drop any file here</div>
+                <div class="upload-sub">or tap to browse · <strong>All file types</strong> · 50 MB max</div>
+                <input type="file" id="fileInput" class="file-input-hidden">
             </div>
 
             <div class="file-preview" id="filePreview">
-                <img class="file-thumb" id="fileThumb" src="" alt="">
+                <img class="file-thumb" id="fileThumb" src="" alt="" style="display:none">
+                <div class="file-type-icon" id="fileTypeIcon" style="display:none"></div>
                 <div class="file-info">
                     <div class="file-name" id="fileName"></div>
                     <div class="file-meta" id="fileMeta"></div>
@@ -936,7 +968,7 @@
     </main>
 
     <footer class="footer">
-        <div class="footer-text">PaperAI — Extract text from handwritten exam papers</div>
+        <div class="footer-text">PaperAI — Extract text from any file</div>
     </footer>
 
 <script>
@@ -944,7 +976,7 @@ const API = window.location.hostname === 'localhost' ? 'http://localhost:8000' :
 const API_FALLBACK = '';
 const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn');
-const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
+const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 
@@ -955,16 +987,40 @@ const showErr = m => { errText.textContent=m; errBox.classList.add('show'); };
 const hideErr = () => errBox.classList.remove('show');
 const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'%'; if(msg)pMsg.textContent=msg; };
 
+const IMAGE_EXTS = ['jpg','jpeg','png','bmp','webp','gif','tiff','tif'];
+const PDF_EXTS = ['pdf'];
+const DOC_EXTS = ['doc','docx','odt','rtf'];
+const XLS_EXTS = ['xls','xlsx','csv','ods'];
+const TXT_EXTS = ['txt','md','json','xml','html','htm','css','js','py','java','c','cpp','h','log','yaml','yml','toml','ini','cfg'];
+
+function getFileCategory(ext) {
+    if (IMAGE_EXTS.includes(ext)) return 'img';
+    if (PDF_EXTS.includes(ext)) return 'pdf';
+    if (DOC_EXTS.includes(ext)) return 'doc';
+    if (XLS_EXTS.includes(ext)) return 'xls';
+    if (TXT_EXTS.includes(ext)) return 'txt';
+    return 'txt';
+}
+
 function setFile(f) {
     const ext = f.name.split('.').pop().toLowerCase();
-    if (!['jpg','jpeg','png','bmp','webp'].includes(ext)) { showErr('Unsupported file type: .'+ext); return; }
     if (f.size > 52428800) { showErr('File too large (max 50 MB)'); return; }
     file = f;
     fileName.textContent = f.name;
-    fileMeta.textContent = fmtSize(f.size) + ' · ' + f.type.split('/')[1].toUpperCase();
-    const r = new FileReader();
-    r.onload = e => fileThumb.src = e.target.result;
-    r.readAsDataURL(f);
+    const typeLabel = ext.toUpperCase();
+    fileMeta.textContent = fmtSize(f.size) + ' · ' + typeLabel;
+    const cat = getFileCategory(ext);
+    const isImage = IMAGE_EXTS.includes(ext);
+    if (isImage) {
+        const r = new FileReader();
+        r.onload = e => { fileThumb.src = e.target.result; fileThumb.style.display='block'; fileTypeIcon.style.display='none'; };
+        r.readAsDataURL(f);
+    } else {
+        fileThumb.style.display='none';
+        fileTypeIcon.textContent = typeLabel.length > 4 ? typeLabel.substring(0,4) : typeLabel;
+        fileTypeIcon.className = 'file-type-icon ' + cat;
+        fileTypeIcon.style.display='flex';
+    }
     dropZone.style.display = 'none';
     filePreview.classList.add('show');
     goBtn.classList.add('show');
@@ -982,6 +1038,8 @@ function clearFile() {
     hideErr();
     resBox.classList.remove('show');
     fileInput.value='';
+    fileThumb.style.display='none';
+    fileTypeIcon.style.display='none';
 }
 
 dropZone.onclick = () => fileInput.click();
