@@ -896,9 +896,9 @@
                 <div class="upload-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 </div>
-                <div class="upload-title">Drop any file here</div>
-                <div class="upload-sub">or tap to browse · <strong>All file types</strong> · 50 MB max</div>
-                <input type="file" id="fileInput" class="file-input-hidden">
+                <div class="upload-title">Drop a file here</div>
+                <div class="upload-sub">or tap to browse · <strong>PNG, JPG, PDF, Word, Excel, TXT</strong> · 50 MB max</div>
+                <input type="file" id="fileInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.py,.java,.rtf">
             </div>
 
             <div class="file-preview" id="filePreview">
@@ -990,9 +990,10 @@ const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'
 
 const IMAGE_EXTS = ['jpg','jpeg','png','bmp','webp','gif','tiff','tif'];
 const PDF_EXTS = ['pdf'];
-const DOC_EXTS = ['doc','docx','odt','rtf'];
-const XLS_EXTS = ['xls','xlsx','csv','ods'];
-const TXT_EXTS = ['txt','md','json','xml','html','htm','css','js','py','java','c','cpp','h','log','yaml','yml','toml','ini','cfg'];
+const DOC_EXTS = ['doc','docx'];
+const XLS_EXTS = ['xls','xlsx','csv'];
+const TXT_EXTS = ['txt','md','json','xml','html','htm','css','js','py','java','rtf'];
+const ALLOWED_EXTS = [...IMAGE_EXTS, ...PDF_EXTS, ...DOC_EXTS, ...XLS_EXTS, ...TXT_EXTS];
 
 function getFileCategory(ext) {
     if (IMAGE_EXTS.includes(ext)) return 'img';
@@ -1005,6 +1006,7 @@ function getFileCategory(ext) {
 
 function setFile(f) {
     const ext = f.name.split('.').pop().toLowerCase();
+    if (!ALLOWED_EXTS.includes(ext)) { showErr('File type not supported: .' + ext + '. Allowed: PNG, JPG, PDF, Word, Excel, TXT'); return; }
     if (f.size > 52428800) { showErr('File too large (max 50 MB)'); return; }
     file = f;
     fileName.textContent = f.name;
