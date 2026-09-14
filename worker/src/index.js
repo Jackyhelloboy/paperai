@@ -779,19 +779,17 @@ async function runAI(base64Image, mimeType, env, language = 'en') {
 2. Numbers మరియు dates ను ఖచ్చితంగా రాయండి
 3. Reading order పాటించండి - పైనుండి కిందికి
 4. "No text detected" image blank అయితే మాత్రమే రాయండి`
-    : `This is a handwritten Hindi exam paper. Read it carefully and extract ALL text EXACTLY as written.
+    : `Extract ALL text from this image. Read it carefully and transcribe EXACTLY as written.
 
 CRITICAL RULES:
-1. Extract text EXACTLY as it appears in the image - do not correct anything
-2. If the image says "teh", write "teh" - do NOT change to "the"
-3. If the image says "1885", write "1885" - do NOT change to "1858"
+1. Extract text EXACTLY as it appears - do not correct spelling, grammar, or content
+2. Preserve all punctuation, numbers, and formatting exactly as written
+3. Follow reading order: top to bottom, left to right
 4. You are a PRINTER, not an EDITOR - transcribe what you see
-5. Follow reading order: top to bottom, left to right
-6. Preserve all punctuation exactly as written
-7. If uncertain about a word, write what you actually see
-8. Only say "No text detected" if image is completely blank
-9. For two-column questions, write: ① word = answer
-10. For word search grids, write each character on a separate line`;
+5. If uncertain about a word, write what you actually see
+6. Only say "No text detected" if image is completely blank
+7. For tables or columns, preserve the layout
+8. Output ONLY the extracted text - no explanations, no commentary`;
 
   const response = await env.AI.run('@cf/meta/llama-4-scout-17b-16e-instruct', {
     messages: [
@@ -1230,7 +1228,7 @@ Focus on common Telugu OCR errors:
 - Gunintalu (గుణింతాలు)
 - Visually similar letters (త/ద, శ/ష, ల/ళ)`,
 
-    en: `You are an English OCR correction expert. You have the original handwritten image AND the OCR text.
+    en: `You are an English OCR correction expert. You have the original image AND the OCR text.
 
 YOUR TASK: Return ONLY a list of word-level corrections. Do NOT return the full corrected text.
 
