@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -1049,6 +1050,50 @@ dropZone.ondragleave = () => dropZone.classList.remove('over');
 dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
 clearBtn.onclick = clearFile;
 
+// ── PDF to images using pdf.js ──
+async function pdfToImages(pdfFile) {
+    const arrayBuffer = await pdfFile.arrayBuffer();
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const images = [];
+    const totalPages = pdf.numPages;
+    for (let i = 1; i <= totalPages; i++) {
+        setProg(10 + Math.round((i / totalPages) * 40), 'Rendering page ' + i + '/' + totalPages + '...');
+        const page = await pdf.getPage(i);
+        const scale = 2;
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+        images.push(blob);
+    }
+    return images;
+}
+
+// ── Send image to OCR API ──
+async function sendToOCR(imageBlob, signal) {
+    const formData = new FormData();
+    formData.append('file', imageBlob, 'page.jpg');
+    formData.append('language', 'en');
+    formData.append('preprocessing', 'auto');
+    formData.append('engine', 'auto');
+    try {
+        const res = await fetch(API + '/api/ocr', { method: 'POST', body: formData, signal });
+        if (!res.ok) throw new Error('Worker error ' + res.status);
+        return await res.json();
+    } catch (e) {
+        if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+            const res = await fetch(API_FALLBACK + '/api/ocr', { method: 'POST', body: formData, signal });
+            if (!res.ok) throw new Error('Backup error ' + res.status);
+            return await res.json();
+        }
+        throw e;
+    }
+}
+
 function showTab(tab) {
     showingRaw = tab==='raw';
     $('tabVerified').classList.toggle('active',!showingRaw);
@@ -1079,95 +1124,88 @@ goBtn.onclick = async () => {
     prog.classList.add('show');
     setProg(5,'Reading file...');
 
+    const ext = file.name.split('.').pop().toLowerCase();
+
     try {
-        setProg(15,'Uploading...');
+        let allText = '';
+        let allRaw = '';
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('language', 'en');
-        formData.append('preprocessing', 'auto');
-        formData.append('engine', 'auto');
-
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 120000);
-
-        let res;
-        let data;
-        try {
-          res = await fetch(API+'/api/ocr', { method:'POST', body: formData, signal: ctrl.signal });
-          clearTimeout(tid);
-          if(!res.ok) {
-            let errMsg = 'Server error (' + res.status + ')';
-            try { const e = await res.json(); errMsg = e.error || errMsg; } catch(_) {}
-            throw new Error(errMsg);
-          }
-          const text = await res.text();
-          if (!text || text.length === 0) throw new Error('Empty response from server');
-          try { data = JSON.parse(text); } catch(e) { throw new Error('Invalid server response'); }
-        } catch(primaryErr) {
-          if(primaryErr.message.includes('Failed to fetch') || primaryErr.message.includes('NetworkError') || primaryErr.message.includes('CORS')) {
-            setProg(30,'Trying backup...');
-            const ctrl2 = new AbortController();
-            const tid2 = setTimeout(() => ctrl2.abort(), 120000);
-            res = await fetch(API_FALLBACK+'/api/ocr', { method:'POST', body: formData, signal: ctrl2.signal });
-            clearTimeout(tid2);
-            if(!res.ok) throw new Error('Backup server error (' + res.status + ')');
-            const text = await res.text();
-            if (!text || text.length === 0) throw new Error('Empty response from backup');
-            data = JSON.parse(text);
-          } else {
-            throw primaryErr;
-          }
+        if (ext === 'pdf') {
+            // ── PDF: convert pages to images, then OCR each ──
+            setProg(8, 'Loading PDF...');
+            const images = await pdfToImages(file);
+            for (let i = 0; i < images.length; i++) {
+                setProg(50 + Math.round((i / images.length) * 45), 'OCR page ' + (i+1) + '/' + images.length + '...');
+                const ctrl = new AbortController();
+                const tid = setTimeout(() => ctrl.abort(), 120000);
+                const result = await sendToOCR(images[i], ctrl.signal);
+                clearTimeout(tid);
+                if (result.status === 'completed' && result.result) {
+                    allText += (allText ? '\n\n--- Page ' + (i+1) + ' ---\n\n' : '') + (result.result.full_text || '');
+                    allRaw += (allRaw ? '\n\n--- Page ' + (i+1) + ' ---\n\n' : '') + (result.result.raw_text || result.result.full_text || '');
+                }
+            }
+        } else if (IMAGE_EXTS.includes(ext)) {
+            // ── Images: direct OCR ──
+            setProg(15, 'Uploading...');
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 120000);
+            const result = await sendToOCR(file, ctrl.signal);
+            clearTimeout(tid);
+            if (result.status !== 'completed' || !result.result) throw new Error('No results');
+            allText = result.result.full_text || '';
+            allRaw = result.result.raw_text || allText;
+        } else {
+            // ── Other files: send to backend (text/doc/xls) ──
+            setProg(15, 'Uploading...');
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('language', 'en');
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 120000);
+            let result;
+            try {
+                const res = await fetch(API + '/api/ocr', { method: 'POST', body: formData, signal: ctrl.signal });
+                clearTimeout(tid);
+                if (!res.ok) throw new Error('error');
+                const txt = await res.text();
+                result = JSON.parse(txt);
+            } catch(e) {
+                const ctrl2 = new AbortController();
+                const tid2 = setTimeout(() => ctrl2.abort(), 120000);
+                const res = await fetch(API_FALLBACK + '/api/ocr', { method: 'POST', body: formData, signal: ctrl2.signal });
+                clearTimeout(tid2);
+                if (!res.ok) throw new Error('Server error');
+                result = await res.json();
+            }
+            if (result.status !== 'completed' || !result.result) throw new Error('No results');
+            allText = result.result.full_text || '';
+            allRaw = result.result.raw_text || allText;
         }
-        if(data.error) throw new Error(data.error);
-        if(data.status!=='completed'||!data.result) throw new Error('No results');
 
-        const r=data.result, corr=r.corrections_summary||{};
-        const flagged = (corr.corrections||[]).filter(c=>c.confidence<0.97&&c.confidence>=0.70);
-        const reasons = {'ocr_char_fix':'OCR misread','similar_words':'similar word'};
+        if (!allText.trim()) throw new Error('No text found in file');
 
-        let badges = '';
-        badges += `<span class="badge badge-green">${r.full_text.length} chars</span>`;
-        if(flagged.length) badges += `<span class="badge badge-gray">${flagged.length} flagged</span>`;
+        // Show results
+        const charCount = allText.length;
+        let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
         $('statsBar').innerHTML = badges;
 
-        lastResult = { text:r.full_text, raw_text:r.raw_text||r.full_text };
-        showingRaw=false;
+        lastResult = { text: allText, raw_text: allRaw };
+        showingRaw = false;
         $('tabVerified').classList.add('active');
         $('tabRaw').classList.remove('active');
         textOut.innerHTML = formatOutput(lastResult.text || '');
         textOut.className = 'output-body';
-
-        if(flagged.length) {
-            $('flaggedList').innerHTML = flagged.map(f=>`
-                <div class="flagged-item">
-                    <span class="flagged-word">${f.original}</span>
-                    <span class="flagged-arrow">→</span>
-                    <span class="flagged-suggest">${f.corrected}</span>
-                    <span class="flagged-reason">${reasons[f.source]||f.source||''}</span>
-                </div>
-            `).join('');
-            $('flaggedBox').classList.add('show');
-        } else $('flaggedBox').classList.remove('show');
-
+        $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
-        setProg(100,'Done');
+        setProg(100, 'Done');
         setTimeout(() => prog.classList.remove('show'), 800);
     } catch(e) {
-        showErr(e.name==='AbortError' ? 'Timed out — try a smaller image.' : e.message);
+        showErr(e.name==='AbortError' ? 'Timed out — try a smaller file.' : e.message);
     } finally {
         goBtn.disabled=false;
     }
 };
-
-function fileToBase64(f) {
-    return new Promise((ok,err) => {
-        const r=new FileReader();
-        r.onload=()=>ok(r.result.split(',')[1]);
-        r.onerror=err;
-        r.readAsDataURL(f);
-    });
-}
 
 function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();URL.revokeObjectURL(a.href)}
 function dlTxt(){if(!lastResult)return;dlBlob(new Blob([lastResult.text],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
