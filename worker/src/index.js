@@ -1564,45 +1564,134 @@ function countRegions(text) {
   return Math.max(1, text.split('\n').filter(l => l.trim()).length);
 }
 
-// ── PDF text extraction (basic binary parsing) ──
+// ── PDF text extraction (binary parsing with decompression) ──
 async function extractPdfText(buffer) {
   const bytes = new Uint8Array(buffer);
   const decoder = new TextDecoder('latin1');
   const raw = decoder.decode(bytes);
+
+  // Step 1: Find all objects and their streams
+  const objects = [];
+  const objRegex = /(\d+)\s+\d+\s+obj[\s\S]*?endobj/g;
+  let objMatch;
+  while ((objMatch = objRegex.exec(raw)) !== null) {
+    const objContent = objMatch[0];
+    const objNum = objMatch[1];
+    objects.push({ num: objNum, content: objContent, start: objMatch.index });
+  }
+
+  // Step 2: Find content streams (pages with text operators)
   const texts = [];
-  // Extract text between BT and ET markers (PDF text objects)
-  const btEtRegex = /BT[\s\S]*?ET/g;
-  let match;
-  while ((match = btEtRegex.exec(raw)) !== null) {
-    const block = match[0];
-    // Extract text from Tj and TJ operators
-    const tjRegex = /\(([^)]*)\)\s*Tj/g;
-    let tjMatch;
-    while ((tjMatch = tjRegex.exec(block)) !== null) {
-      texts.push(tjMatch[1]);
+  const seen = new Set();
+
+  for (const obj of objects) {
+    const c = obj.content;
+
+    // Skip metadata, fonts, images, color profiles
+    if (/\/Type\s*\/(Font|Metadata|XMP|Catalog|Outlines|Sig)/i.test(c)) continue;
+    if (/\/Subtype\s*\/(Image|Type0|Type1|TrueType|CIDFont)/i.test(c)) continue;
+    if (/dc:format|dc:title|dc:creator|pdf:Producer|xmp:CreatorTool/i.test(c)) continue;
+
+    // Check if this object has a stream
+    const streamIdx = c.indexOf('stream');
+    if (streamIdx === -1) continue;
+
+    const afterStream = c.substring(streamIdx);
+    const streamBodyMatch = afterStream.match(/stream\r?\n([\s\S]*?)\r?\nendstream/);
+    if (!streamBodyMatch) continue;
+
+    let streamData = streamBodyMatch[1];
+
+    // Check if compressed (FlateDecode)
+    const isFlate = /\/FlateDecode/.test(c);
+    if (isFlate) {
+      try {
+        const streamBytes = new Uint8Array([...streamData].map(ch => ch.charCodeAt(0)));
+        const ds = new DecompressionStream('deflate');
+        const writer = ds.writable.getWriter();
+        writer.write(streamBytes);
+        writer.close();
+        const reader = ds.readable.getReader();
+        const chunks = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+        const totalLen = chunks.reduce((a, c) => a + c.length, 0);
+        const decompressed = new Uint8Array(totalLen);
+        let pos = 0;
+        for (const chunk of chunks) {
+          decompressed.set(chunk, pos);
+          pos += chunk.length;
+        }
+        streamData = new TextDecoder('latin1').decode(decompressed);
+      } catch (e) {
+        continue; // Skip streams that can't be decompressed
+      }
     }
-    const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
-    let tjArrayMatch;
-    while ((tjArrayMatch = tjArrayRegex.exec(block)) !== null) {
-      const inner = tjArrayMatch[1];
-      const strRegex = /\(([^)]*)\)/g;
-      let strMatch;
-      while ((strMatch = strRegex.exec(inner)) !== null) {
-        texts.push(strMatch[1]);
+
+    // Only process streams that contain text operators
+    if (!/BT[\s\S]*?ET/.test(streamData)) continue;
+
+    // Extract text from BT...ET blocks
+    const btBlocks = streamData.match(/BT[\s\S]*?ET/g) || [];
+    for (const block of btBlocks) {
+      // Tj operator: (text) Tj
+      const tjMatches = block.match(/\(([^)]*(?:\\.[^)]*)*)\)\s*Tj/g) || [];
+      for (const m of tjMatches) {
+        const inner = m.replace(/\)\s*Tj$/, '').replace(/^\(/, '');
+        const decoded = decodePdfString(inner);
+        if (decoded && /[a-zA-Z0-9]{2,}/.test(decoded) && !seen.has(decoded)) {
+          seen.add(decoded);
+          texts.push(decoded);
+        }
+      }
+
+      // TJ operator: [(text1) 123 (text2)] TJ
+      const tjArrayMatches = block.match(/\[(?:[^\]]*)\]\s*TJ/g) || [];
+      for (const m of tjArrayMatches) {
+        const inner = m.replace(/\]\s*TJ$/, '').replace(/^\[/, '');
+        const strParts = inner.match(/\(([^)]*(?:\\.[^)]*)*)\)/g) || [];
+        let combined = '';
+        for (const part of strParts) {
+          combined += decodePdfString(part.replace(/^\(/, '').replace(/\)$/, ''));
+        }
+        if (combined && /[a-zA-Z0-9]{2,}/.test(combined) && !seen.has(combined)) {
+          seen.add(combined);
+          texts.push(combined);
+        }
       }
     }
   }
-  // Also try to find plain text streams
-  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
-  let streamMatch;
-  while ((streamMatch = streamRegex.exec(raw)) !== null) {
-    const content = streamMatch[1];
-    const printable = content.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
-    if (printable.length > 20 && /[a-zA-Z]{3,}/.test(printable)) {
-      texts.push(printable);
+
+  // Step 3: Fallback — extract readable text from all streams
+  if (texts.length < 10) {
+    const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    let streamMatch;
+    while ((streamMatch = streamRegex.exec(raw)) !== null) {
+      const content = streamMatch[1];
+      const printable = content.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (printable.length > 30 && /[a-zA-Z]{4,}/.test(printable) &&
+          !/xpacket|adobe:|rdf:|dc:|pdf:|xmp:/.test(printable)) {
+        texts.push(printable);
+      }
     }
   }
+
   return texts.join('\n').trim();
+}
+
+// Decode PDF string escapes
+function decodePdfString(s) {
+  return s
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\\\/g, '\\')
+    .replace(/\\\(/g, '(')
+    .replace(/\\\)/g, ')')
+    .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
 }
 
 // ── DOC/DOCX text extraction (basic) ──
