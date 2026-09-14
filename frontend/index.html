@@ -1094,10 +1094,17 @@ goBtn.onclick = async () => {
         let res;
         let data;
         res = await fetch('/api/ocr', { method:'POST', body: formData, signal: ctrl.signal });
-        data = await res.json();
         clearTimeout(tid);
 
-        if(!res.ok) throw new Error('HTTP '+res.status);
+        if(!res.ok) {
+          let errMsg = 'Server error (' + res.status + ')';
+          try { const e = await res.json(); errMsg = e.error || errMsg; } catch(_) {}
+          throw new Error(errMsg);
+        }
+
+        const text = await res.text();
+        if (!text || text.length === 0) throw new Error('Empty response from server');
+        try { data = JSON.parse(text); } catch(e) { throw new Error('Invalid server response'); }
         if(data.error) throw new Error(data.error);
         if(data.status!=='completed'||!data.result) throw new Error('No results');
 
