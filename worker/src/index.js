@@ -312,6 +312,7 @@ export class UsageTracker extends DurableObject {
         requests: 0,
         history: [],
         exhausted: false,
+        tracking_started_at: now.toISOString(),
       };
     }
 
@@ -373,6 +374,7 @@ export class UsageTracker extends DurableObject {
       scope: 'PaperAI OCR requests handled by this Worker',
       accuracy: 'estimate',
       reset_rule: '00:00 UTC daily',
+      tracking_started_at: state.tracking_started_at || null,
     }, {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
     });
