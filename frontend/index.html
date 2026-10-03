@@ -777,6 +777,56 @@
             height: 15px;
         }
 
+        .teach-panel {
+            display: none;
+            margin-bottom: 0.625rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            background: var(--surface);
+            box-shadow: var(--shadow-xs);
+        }
+
+        .teach-panel.show {
+            display: block;
+        }
+
+        .teach-title {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.35rem;
+        }
+
+        .teach-sub {
+            font-size: 0.62rem;
+            color: var(--text3);
+            line-height: 1.4;
+            margin-bottom: 0.5rem;
+        }
+
+        .teach-editor {
+            width: 100%;
+            min-height: 150px;
+            resize: vertical;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            background: var(--bg);
+            color: var(--text);
+            font: 0.78rem/1.55 'Inter', 'Noto Sans Devanagari', 'Noto Sans Telugu', sans-serif;
+            padding: 0.7rem;
+            outline: none;
+        }
+
+        .teach-editor:focus {
+            border-color: var(--accent);
+        }
+
+        .teach-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
 
         .output-card {
             background: var(--surface);
@@ -1457,6 +1507,20 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     Download
                 </button>
+                <button class="action-btn" onclick="openTeachPanel()">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
+                    Teach
+                </button>
+            </div>
+
+            <div class="teach-panel" id="teachPanel">
+                <div class="teach-title">Correct OCR to teach this browser</div>
+                <div class="teach-sub">Edit only mistakes. Saved pairs are used as visual confusion hints on future scans; they never force an automatic correction.</div>
+                <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
+                <div class="teach-actions">
+                    <button class="action-btn" onclick="saveLearning()">Save learning</button>
+                    <button class="action-btn" onclick="closeTeachPanel()">Cancel</button>
+                </div>
             </div>
 
             <div class="output-card">
@@ -1491,6 +1555,7 @@ const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('text
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
 const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
+const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 
 let file=null, lastResult=null, showingRaw=false;
 
@@ -2379,7 +2444,10 @@ function detectTextLineLayout(source, originalWidth, originalHeight) {
         lineFriendly,
         multiColumnRows,
         multiColumnRatio: Math.round(multiColumnRatio * 1000) / 1000,
-        denseOptionRows
+        denseOptionRows,
+        longHorizontalRules,
+        longVerticalRules,
+        branchingLayout: multiColumnRows >= 3 && denseOptionRows >= 2
     };
 }
 
@@ -2519,6 +2587,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
                 multiColumnRows: layout.multiColumnRows || 0,
                 multiColumnRatio: layout.multiColumnRatio || 0,
                 denseOptionRows: layout.denseOptionRows || 0,
+                longHorizontalRules: layout.longHorizontalRules || 0,
+                longVerticalRules: layout.longVerticalRules || 0,
+                branchingLayout: Boolean(layout.branchingLayout),
                 difficulty: hard ? 'hard' : 'easy'
             }
         };
@@ -2576,6 +2647,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
             multiColumnRows: layout.multiColumnRows || 0,
             multiColumnRatio: layout.multiColumnRatio || 0,
             denseOptionRows: layout.denseOptionRows || 0,
+            longHorizontalRules: layout.longHorizontalRules || 0,
+            longVerticalRules: layout.longVerticalRules || 0,
+            branchingLayout: Boolean(layout.branchingLayout),
             difficulty: forceSafe ? 'hard' : analysis.difficulty
         }
     };
@@ -2601,10 +2675,141 @@ async function fetchOcrEndpoint(path, options) {
     throw lastError || new Error('OCR service is unreachable.');
 }
 
+const LEARNING_KEY = 'paperai_visual_confusions_v1';
+
+function loadLearningHints() {
+    try {
+        const rows = JSON.parse(localStorage.getItem(LEARNING_KEY) || '[]');
+        return Array.isArray(rows)
+            ? rows
+                .filter(x => x && typeof x.wrong === 'string' && typeof x.right === 'string' && x.wrong !== x.right)
+                .sort((a,b) => (b.count || 1) - (a.count || 1))
+                .slice(0, 12)
+            : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function saveLearningHints(rows) {
+    try {
+        localStorage.setItem(LEARNING_KEY, JSON.stringify(rows.slice(0, 40)));
+    } catch (_) {}
+}
+
+function tokeniseLearning(text) {
+    return String(text || '')
+        .normalize('NFC')
+        .split(/(\s+|[|()[\]{}.,;:!?/\\])/)
+        .filter(t => t && !/^\s+$/.test(t));
+}
+
+function extractLearningPairs(before, after) {
+    const a = tokeniseLearning(before);
+    const b = tokeniseLearning(after);
+    const pairs = [];
+    let i = 0, j = 0;
+
+    while (i < a.length && j < b.length && pairs.length < 20) {
+        if (a[i] === b[j]) {
+            i++; j++;
+            continue;
+        }
+
+        let matched = false;
+        for (let look = 1; look <= 3; look++) {
+            if (i + look < a.length && a[i + look] === b[j]) {
+                i += look;
+                matched = true;
+                break;
+            }
+            if (j + look < b.length && a[i] === b[j + look]) {
+                j += look;
+                matched = true;
+                break;
+            }
+        }
+        if (matched) continue;
+
+        const wrong = a[i];
+        const right = b[j];
+
+        const useful = s =>
+            s &&
+            s.length <= 40 &&
+            !/^[\s|()[\]{}.,;:!?/\\]+$/.test(s);
+
+        if (useful(wrong) && useful(right) && wrong !== right) {
+            pairs.push({ wrong, right });
+        }
+        i++; j++;
+    }
+
+    return pairs;
+}
+
+function openTeachPanel() {
+    if (!lastResult) return;
+    teachEditor.value = lastResult.plain_text || lastResult.text || '';
+    teachPanel.classList.add('show');
+    teachEditor.focus();
+}
+
+function closeTeachPanel() {
+    teachPanel.classList.remove('show');
+}
+
+function saveLearning() {
+    if (!lastResult) return;
+    const original = lastResult.plain_text || lastResult.text || '';
+    const corrected = teachEditor.value.normalize('NFC').trim();
+    if (!corrected) return;
+
+    const pairs = extractLearningPairs(original, corrected);
+    const existing = loadLearningHints();
+    const map = new Map();
+
+    for (const row of existing) {
+        map.set(row.wrong + '\u0000' + row.right, { ...row, count: Number(row.count) || 1 });
+    }
+
+    for (const pair of pairs) {
+        const key = pair.wrong + '\u0000' + pair.right;
+        const current = map.get(key) || { ...pair, count: 0 };
+        current.count += 1;
+        current.language = languageSelect.value || 'auto';
+        current.updatedAt = Date.now();
+        map.set(key, current);
+    }
+
+    const saved = Array.from(map.values())
+        .sort((a,b) => (b.count || 1) - (a.count || 1))
+        .slice(0, 40);
+
+    saveLearningHints(saved);
+
+    lastResult.plain_text = corrected;
+    lastResult.text = corrected;
+    textOut.textContent = corrected;
+    textOut.className = 'output-body';
+    closeTeachPanel();
+
+    const learned = pairs.length;
+    $('statsBar').innerHTML += '<span class="badge badge-gray">' + learned + ' learned</span>';
+}
+
+function appendLearningHints(formData) {
+    const hints = loadLearningHints();
+    if (hints.length) {
+        formData.append('learning_hints', JSON.stringify(hints));
+    }
+}
+
 async function sendFileToWorker(inputFile, signal) {
     const formData = new FormData();
     formData.append('file', inputFile);
     formData.append('language', languageSelect.value || 'auto');
+    appendLearningHints(formData);
 
     const res = await fetchOcrEndpoint('/api/ocr', {
         method: 'POST',
@@ -2643,6 +2848,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         formData.append('engine', 'free-only');
         formData.append('difficulty', prepared.difficulty);
         formData.append('image_meta', JSON.stringify(prepared.meta || {}));
+        appendLearningHints(formData);
 
         let res;
         try {
@@ -2843,6 +3049,7 @@ goBtn.onclick = async () => {
         $('statsBar').innerHTML = badges;
 
         lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw };
+        teachPanel.classList.remove('show');
         showingRaw = false;
         $('tabVerified').classList.add('active');
         $('tabRaw').classList.remove('active');

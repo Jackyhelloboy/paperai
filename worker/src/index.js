@@ -29,7 +29,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v8',
+        architecture: 'production-literal-ocr-v9',
       }, { headers: corsHeaders });
     }
 
@@ -505,6 +505,7 @@ async function handleOCR(request, env, corsHeaders) {
   let language = 'auto';
   let difficulty = 'auto';
   let imageMeta = {};
+  let learningHints = [];
 
   if (contentType.includes('multipart/form-data')) {
     const formData = await request.formData();
@@ -521,6 +522,12 @@ async function handleOCR(request, env, corsHeaders) {
     } catch (_) {
       imageMeta = {};
     }
+    try {
+      const hints = JSON.parse(formData.get('learning_hints') || '[]');
+      learningHints = sanitizeLearningHints(hints);
+    } catch (_) {
+      learningHints = [];
+    }
     const buffer = await file.arrayBuffer();
     fileBuffer = buffer;
     imageDataBase64 = arrayBufferToBase64(buffer);
@@ -532,6 +539,7 @@ async function handleOCR(request, env, corsHeaders) {
     language = body.language || 'auto';
     difficulty = normalizeDifficulty(body.difficulty);
     imageMeta = body.image_meta || {};
+    learningHints = sanitizeLearningHints(body.learning_hints || []);
     if (!imageDataBase64) {
       return Response.json({ error: 'No image data in JSON body. Send { "image": "base64..." }' }, { status: 400, headers: corsHeaders });
     }
@@ -636,7 +644,7 @@ async function handleOCR(request, env, corsHeaders) {
   try {
     // FREE-ONLY MODE: one primary inference, with a conditional same-model
     // verification pass only when the first result is uncertain. No paid fallback.
-    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta);
+    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints);
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
@@ -727,6 +735,7 @@ async function handleOCR(request, env, corsHeaders) {
         detected_lines: Number(imageMeta?.lineCount) || 0,
         verification_pass_used: Boolean(aiResult.rescued),
         image_profile: imageMeta || {},
+        learning_hints_used: learningHints.length,
         layout: detectExamLayout(plainText),
       },
       consistency_warnings: consistencyWarnings,
@@ -951,6 +960,26 @@ function detectExamLayout(text) {
   return { regions, hasGrid: regions.some(r => r.type === 'grid') };
 }
 
+function sanitizeLearningHints(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+
+  for (const row of value.slice(0, 20)) {
+    const wrong = String(row?.wrong || '').normalize('NFC').trim();
+    const right = String(row?.right || '').normalize('NFC').trim();
+    if (!wrong || !right || wrong === right) continue;
+    if (wrong.length > 40 || right.length > 40) continue;
+    if (/[\r\n<>]/.test(wrong + right)) continue;
+    out.push({
+      wrong,
+      right,
+      count: Math.max(1, Math.min(99, Number(row?.count) || 1)),
+    });
+  }
+
+  return out.slice(0, 12);
+}
+
 function normalizeDifficulty(value) {
   return value === 'easy' || value === 'hard' ? value : 'auto';
 }
@@ -983,7 +1012,7 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}) {
+async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = []) {
   if (!env.AI) {
     throw new Error('Workers AI not available - check if AI binding is configured');
   }
@@ -994,6 +1023,20 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
     ? 'line-by-line'
     : (difficulty === 'easy' ? 'fast-clear' : 'detail-preserving');
   const dataUrl = `data:${mimeType};base64,${base64Image}`;
+  const layoutSection = imageMeta?.structuredLayout
+    ? '\nVISUAL LAYOUT HINT:\nThis page contains structured geometry. Preserve rows, columns, long answer lines and connected relationships. Detected multi-column rows: ' +
+      (Number(imageMeta?.multiColumnRows) || 0) +
+      '; long horizontal rules: ' + (Number(imageMeta?.longHorizontalRules) || 0) +
+      '; long vertical rules: ' + (Number(imageMeta?.longVerticalRules) || 0) +
+      (imageMeta?.branchingLayout ? '; possible branching/diagram layout detected. Preserve arrows and branch relationships.' : '.') + '\n'
+    : '';
+  const learnedConfusions = sanitizeLearningHints(learningHints);
+  const learningSection = learnedConfusions.length
+    ? '\nVISUAL CONFUSION MEMORY (human-corrected examples from this browser):\n' +
+      learnedConfusions.map((h, i) =>
+        (i + 1) + '. Previously confused "' + h.wrong + '" with "' + h.right + '". Re-check these shapes carefully if a visually similar token appears. NEVER force the corrected form unless the current pixels support it.'
+      ).join('\n') + '\n'
+    : '';
   const languageHint = {
     auto: 'Auto-detect all visible languages and scripts. Mixed-language pages are common.',
     en: 'Main language: English. Preserve any Indian-language text exactly where it appears.',
@@ -1013,7 +1056,8 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
 
 LANGUAGE INSTRUCTION:
 ${languageHint}
-
+${learningSection}
+${layoutSection}
 SCAN MODE:
 ${scanMode === 'line-by-line'
   ? 'The image has been locally reorganized into horizontal text strips in original top-to-bottom order. Read ONE strip at a time, left-to-right, and output one corresponding text line per strip. Blank vertical gaps were removed only to reduce wasted vision work. Do not invent strip numbers or separators.'
@@ -1043,7 +1087,7 @@ STRICT TRANSCRIPTION RULES:
 14. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
 15. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
 16. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
-17. For diagrams, shapes, flowcharts, maps, or labelled drawings: transcribe visible labels, numbers, arrows, and symbols in reading order. Do not invent a description of the drawing.
+17. For diagrams, shapes, flowcharts, maps, or labelled drawings: preserve visible labels, numbers, arrows and shape relationships. Use visible symbols such as ○, □, →, ←, ↗, ↘, ↑, ↓ only when the corresponding shape/arrow is actually visible. Keep connected branches on separate lines when needed so the relationship remains readable. Do not invent a description of the drawing.
 18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
 19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
 20. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row, using " | " only as a column separator.
