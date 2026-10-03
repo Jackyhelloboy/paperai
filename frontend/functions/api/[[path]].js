@@ -1,32 +1,28 @@
 const API_BACKEND = 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
-const API_FALLBACK = 'https://paperai-backend.onrender.com';
 
-async function proxyRequest(request, targetBase) {
+async function proxyRequest(request) {
   const url = new URL(request.url);
   const apiPath = url.pathname.replace('/api', '');
-  const targetUrl = targetBase + '/api' + apiPath + url.search;
+  const targetUrl = API_BACKEND + '/api' + apiPath + url.search;
 
   const headers = new Headers();
   request.headers.forEach((value, key) => {
-    if (!['host', 'connection', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
-          'x-forwarded-for', 'x-forwarded-proto', 'x-real-ip', 'cdn-loop'].includes(key.toLowerCase())) {
+    const lower = key.toLowerCase();
+    if (!['host','connection','cf-connecting-ip','cf-ipcountry','cf-ray','cf-visitor',
+          'x-forwarded-for','x-forwarded-proto','x-real-ip','cdn-loop'].includes(lower)) {
       headers.set(key, value);
     }
   });
 
-  const proxyReq = new Request(targetUrl, {
+  return fetch(new Request(targetUrl, {
     method: request.method,
-    headers: headers,
-    body: request.body,
+    headers,
+    body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
     redirect: 'follow',
-  });
-
-  return fetch(proxyReq);
+  }));
 }
 
-export async function onRequest(context) {
-  const { request } = context;
-
+export async function onRequest({ request }) {
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -40,29 +36,28 @@ export async function onRequest(context) {
   }
 
   try {
-    const res = await proxyRequest(request, API_BACKEND);
-    const newHeaders = new Headers(res.headers);
-    newHeaders.set('Access-Control-Allow-Origin', '*');
+    const res = await proxyRequest(request);
+    const headers = new Headers(res.headers);
+    headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Cache-Control', 'no-store');
+
     return new Response(res.body, {
       status: res.status,
       statusText: res.statusText,
-      headers: newHeaders,
+      headers,
     });
   } catch (err) {
-    try {
-      const fallbackRes = await proxyRequest(request, API_FALLBACK);
-      const fallbackHeaders = new Headers(fallbackRes.headers);
-      fallbackHeaders.set('Access-Control-Allow-Origin', '*');
-      return new Response(fallbackRes.body, {
-        status: fallbackRes.status,
-        statusText: fallbackRes.statusText,
-        headers: fallbackHeaders,
-      });
-    } catch (fallbackErr) {
-      return new Response(JSON.stringify({ error: 'Both backends unreachable', detail: err.message }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
-    }
+    return new Response(JSON.stringify({
+      error: 'PaperAI OCR service is temporarily unreachable.',
+      code: 'OCR_PROXY_UNREACHABLE'
+    }), {
+      status: 502,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-store',
+        'X-PaperAI-Proxy-Error': '1',
+      },
+    });
   }
 }

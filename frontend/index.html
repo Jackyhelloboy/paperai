@@ -1387,7 +1387,8 @@
     </footer>
 
 <script>
-const API = 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
+const API_DIRECT = 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
+const API_LOCAL = location.origin;
 const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageSelect=$('languageSelect');
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
@@ -1465,7 +1466,13 @@ function drawQuotaHistory(history, limit, resetAt) {
 
 async function loadUsage() {
     try {
-        const res = await fetch(API + '/api/usage?t=' + Date.now(), { cache: 'no-store' });
+        let res;
+        try {
+            res = await fetch(API_LOCAL + '/api/usage?t=' + Date.now(), { cache: 'no-store' });
+            if (!res.ok && res.status === 404) throw new Error('proxy unavailable');
+        } catch (_) {
+            res = await fetch(API_DIRECT + '/api/usage?t=' + Date.now(), { cache: 'no-store' });
+        }
         if (!res.ok) throw new Error('status ' + res.status);
         const data = await res.json();
 
@@ -1831,38 +1838,252 @@ async function extractPlainTextFile(textFile) {
     return text.trim();
 }
 
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function decodeImageSource(source) {
+    if (typeof createImageBitmap === 'function') {
+        try {
+            return await createImageBitmap(source, { imageOrientation: 'from-image' });
+        } catch (_) {
+            try { return await createImageBitmap(source); } catch (_) {}
+        }
+    }
+
+    return await new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(source);
+        const img = new Image();
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve(img);
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('This image format could not be decoded in your browser.'));
+        };
+        img.src = url;
+    });
+}
+
+function analyzeCanvasDifficulty(canvas, originalWidth, originalHeight) {
+    const size = 280;
+    const ratio = Math.min(1, size / Math.max(canvas.width, canvas.height));
+    const w = Math.max(32, Math.round(canvas.width * ratio));
+    const h = Math.max(32, Math.round(canvas.height * ratio));
+    const probe = document.createElement('canvas');
+    probe.width = w;
+    probe.height = h;
+    const ctx = probe.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(canvas, 0, 0, w, h);
+
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const gray = new Float32Array(w * h);
+    let sum = 0, sumSq = 0, dark = 0, bright = 0;
+
+    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+        const g = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+        gray[p] = g;
+        sum += g;
+        sumSq += g * g;
+        if (g < 55) dark++;
+        if (g > 245) bright++;
+    }
+
+    const n = gray.length || 1;
+    const mean = sum / n;
+    const contrast = Math.sqrt(Math.max(0, sumSq / n - mean * mean));
+
+    let lapSum = 0, lapSq = 0, lapN = 0, edges = 0;
+    for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+            const i = y * w + x;
+            const lap = Math.abs(4 * gray[i] - gray[i - 1] - gray[i + 1] - gray[i - w] - gray[i + w]);
+            lapSum += lap;
+            lapSq += lap * lap;
+            lapN++;
+            if (lap > 42) edges++;
+        }
+    }
+
+    const lapMean = lapN ? lapSum / lapN : 0;
+    const sharpness = lapN ? Math.sqrt(Math.max(0, lapSq / lapN - lapMean * lapMean)) : 0;
+    const edgeRatio = lapN ? edges / lapN : 0;
+    const darkRatio = dark / n;
+    const brightRatio = bright / n;
+
+    let score = 0;
+    if (contrast < 34) score += 2;
+    else if (contrast < 47) score += 1;
+    if (sharpness < 20) score += 2;
+    else if (sharpness < 30) score += 1;
+    if (mean < 60 || mean > 235) score += 1;
+    if (edgeRatio > 0.22) score += 1;
+    if (Math.min(originalWidth, originalHeight) < 900) score += 1;
+    if (Math.max(originalWidth, originalHeight) / Math.max(1, Math.min(originalWidth, originalHeight)) > 2.6) score += 1;
+    if (darkRatio > 0.55 || brightRatio > 0.92) score += 1;
+
+    return {
+        difficulty: score >= 2 ? 'hard' : 'easy',
+        score,
+        contrast: Math.round(contrast * 10) / 10,
+        sharpness: Math.round(sharpness * 10) / 10,
+        edgeRatio: Math.round(edgeRatio * 1000) / 1000,
+        meanBrightness: Math.round(mean),
+    };
+}
+
+async function prepareImageForOCR(source, forceSafe = false) {
+    let decoded;
+    try {
+        decoded = await decodeImageSource(source);
+    } catch (_) {
+        return {
+            blob: source,
+            difficulty: 'hard',
+            meta: { originalBytes: source.size || 0, decodeFallback: true }
+        };
+    }
+
+    const originalWidth = decoded.width || decoded.naturalWidth || 0;
+    const originalHeight = decoded.height || decoded.naturalHeight || 0;
+
+    const analysis = analyzeCanvasDifficulty(decoded, originalWidth, originalHeight);
+    const hard = analysis.difficulty === 'hard';
+
+    const maxLongEdge = forceSafe ? 2000 : (hard ? 3000 : 2300);
+    const quality = forceSafe ? 0.84 : (hard ? 0.94 : 0.89);
+    const longEdge = Math.max(originalWidth, originalHeight);
+    const scale = Math.min(1, maxLongEdge / Math.max(1, longEdge));
+    const targetWidth = Math.max(1, Math.round(originalWidth * scale));
+    const targetHeight = Math.max(1, Math.round(originalHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(decoded, 0, 0, targetWidth, targetHeight);
+
+    if (decoded.close) decoded.close();
+
+    let blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not optimize image')), 'image/jpeg', quality);
+    });
+
+    if (blob.size > 6 * 1024 * 1024 && !forceSafe) {
+        return prepareImageForOCR(source, true);
+    }
+
+    return {
+        blob,
+        difficulty: forceSafe ? 'hard' : analysis.difficulty,
+        meta: {
+            originalWidth,
+            originalHeight,
+            width: targetWidth,
+            height: targetHeight,
+            originalBytes: source.size || 0,
+            bytes: blob.size,
+            ...analysis,
+            safeRetry: forceSafe
+        }
+    };
+}
+
+async function fetchOcrEndpoint(path, options) {
+    const targets = [API_LOCAL + path, API_DIRECT + path];
+    let lastError = null;
+
+    for (let i = 0; i < targets.length; i++) {
+        try {
+            const res = await fetch(targets[i], options);
+            if (i === 0 && (res.status === 404 || res.headers.get('X-PaperAI-Proxy-Error') === '1')) continue;
+            return res;
+        } catch (e) {
+            lastError = e;
+            if (options.signal?.aborted) throw e;
+        }
+    }
+
+    throw lastError || new Error('OCR service is unreachable.');
+}
+
 async function sendFileToWorker(inputFile, signal) {
     const formData = new FormData();
     formData.append('file', inputFile);
     formData.append('language', languageSelect.value || 'auto');
-    const res = await fetch(API + '/api/ocr', { method: 'POST', body: formData, signal });
+
+    const res = await fetchOcrEndpoint('/api/ocr', {
+        method: 'POST',
+        body: formData,
+        signal
+    });
+
     let body = null;
     try { body = await res.json(); } catch (_) {}
+
     if (!res.ok) {
-        const msg = body?.error || ('Worker error ' + res.status);
-        throw new Error(msg);
+        throw new Error(body?.error || ('OCR service error ' + res.status));
     }
     return body;
 }
 
-async function sendToOCR(imageBlob, signal) {
-    const formData = new FormData();
-    formData.append('file', imageBlob, 'page.jpg');
-    formData.append('language', languageSelect.value || 'auto');
-    formData.append('preprocessing', 'auto');
-    formData.append('engine', 'free-only');
+async function sendToOCR(sourceBlob, signal, progressText = '') {
+    let prepared = await prepareImageForOCR(sourceBlob, false);
 
-    const res = await fetch(API + '/api/ocr', { method: 'POST', body: formData, signal });
-    let body = null;
-    try { body = await res.json(); } catch (_) {}
+    if (progressText) {
+        setProg(18, progressText + (prepared.difficulty === 'hard' ? ' · detailed scan' : ' · fast clear scan'));
+    }
 
-    if (!res.ok) {
-        if (res.status === 429 || body?.code === 'FREE_AI_LIMIT_REACHED') {
-            throw new Error('Daily free AI OCR limit reached. PaperAI stopped; no paid fallback was used. Try again after the daily reset.');
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const formData = new FormData();
+        formData.append('file', prepared.blob, 'page.jpg');
+        formData.append('language', languageSelect.value || 'auto');
+        formData.append('preprocessing', 'smart');
+        formData.append('engine', 'free-only');
+        formData.append('difficulty', prepared.difficulty);
+        formData.append('image_meta', JSON.stringify(prepared.meta || {}));
+
+        let res;
+        try {
+            res = await fetchOcrEndpoint('/api/ocr', {
+                method: 'POST',
+                body: formData,
+                signal
+            });
+        } catch (e) {
+            if (signal?.aborted) throw e;
+            if (attempt === 0) {
+                await wait(600);
+                prepared = await prepareImageForOCR(sourceBlob, true);
+                continue;
+            }
+            throw new Error('Could not reach PaperAI OCR. Check your internet and try again.');
         }
+
+        let body = null;
+        try { body = await res.json(); } catch (_) {}
+
+        if (res.ok) return body;
+
+        if (res.status === 429 || body?.code === 'FREE_AI_LIMIT_REACHED') {
+            throw new Error('Daily free AI OCR limit reached. Try again after the daily reset.');
+        }
+
+        if (res.status === 413 && attempt === 0) {
+            await wait(300);
+            prepared = await prepareImageForOCR(sourceBlob, true);
+            continue;
+        }
+
         throw new Error(body?.error || ('OCR service error ' + res.status));
     }
-    return body;
+
+    throw new Error('OCR failed after an automatic retry.');
 }
 
 function showTab(tab) {
@@ -1916,7 +2137,7 @@ goBtn.onclick = async () => {
                 setProg(48 + Math.round((i / pages.length) * 45), 'OCR scanned page ' + (i+1) + '/' + pages.length + '...');
                 const ctrl = new AbortController();
                 const tid = setTimeout(() => ctrl.abort(), 120000);
-                const result = await sendToOCR(pages[i].blob, ctrl.signal);
+                const result = await sendToOCR(pages[i].blob, ctrl.signal, 'Preparing page ' + (i+1) + '/' + pages.length);
                 clearTimeout(tid);
                 if (result.status === 'completed' && result.result) {
                     allText += prefix + (result.result.full_text || '');
@@ -1929,10 +2150,10 @@ goBtn.onclick = async () => {
             allRaw = allText;
             setProg(90, 'Formatting cells...');
         } else if (IMAGE_EXTS.includes(ext)) {
-            setProg(15, 'Uploading...');
+            setProg(12, 'Analyzing image...');
             const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 120000);
-            const result = await sendToOCR(file, ctrl.signal);
+            const tid = setTimeout(() => ctrl.abort(), 150000);
+            const result = await sendToOCR(file, ctrl.signal, 'Preparing image');
             clearTimeout(tid);
             if (result.status !== 'completed' || !result.result) throw new Error('No results');
             allText = result.result.full_text || '';
@@ -1977,7 +2198,7 @@ goBtn.onclick = async () => {
             setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
         }
     } catch(e) {
-        showErr(e.name==='AbortError' ? 'Timed out — try a smaller file.' : e.message);
+        showErr(e.name==='AbortError' ? 'OCR timed out. PaperAI already optimized the image; please try once more.' : e.message);
     } finally {
         goBtn.disabled=false;
     }

@@ -62,7 +62,7 @@ export default {
       try {
         return await handleOCR(request, env, corsHeaders);
       } catch (e) {
-        return Response.json({ error: e.message, stack: e.stack }, { status: 500, headers: corsHeaders });
+        return Response.json({ error: e.message || 'OCR request failed' }, { status: 500, headers: corsHeaders });
       }
     }
 
@@ -431,6 +431,8 @@ async function handleOCR(request, env, corsHeaders) {
   let mimeType = 'image/jpeg';
   let filename = 'unknown';
   let language = 'auto';
+  let difficulty = 'auto';
+  let imageMeta = {};
 
   if (contentType.includes('multipart/form-data')) {
     const formData = await request.formData();
@@ -441,6 +443,12 @@ async function handleOCR(request, env, corsHeaders) {
     filename = file.name;
     mimeType = file.type || 'application/octet-stream';
     language = formData.get('language') || 'auto';
+    difficulty = normalizeDifficulty(formData.get('difficulty'));
+    try {
+      imageMeta = JSON.parse(formData.get('image_meta') || '{}');
+    } catch (_) {
+      imageMeta = {};
+    }
     const buffer = await file.arrayBuffer();
     fileBuffer = buffer;
     imageDataBase64 = arrayBufferToBase64(buffer);
@@ -450,6 +458,8 @@ async function handleOCR(request, env, corsHeaders) {
     mimeType = body.mimeType || body.mime_type || 'image/jpeg';
     filename = body.filename || 'unknown';
     language = body.language || 'auto';
+    difficulty = normalizeDifficulty(body.difficulty);
+    imageMeta = body.image_meta || {};
     if (!imageDataBase64) {
       return Response.json({ error: 'No image data in JSON body. Send { "image": "base64..." }' }, { status: 400, headers: corsHeaders });
     }
@@ -554,7 +564,7 @@ async function handleOCR(request, env, corsHeaders) {
   try {
     // FREE-ONLY MODE: exactly ONE Workers AI inference per image/page.
     // No second verification model and no paid provider fallback.
-    aiResult = await runAI(imageDataBase64, mimeType, env, language);
+    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta);
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
@@ -630,6 +640,8 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'one_ai_call_no_paid_fallback',
         model: aiResult.model || 'unknown',
+        scan_mode: aiResult.scanMode || difficulty,
+        image_profile: imageMeta || {},
         layout: detectExamLayout(correctedText),
       },
       consistency_warnings: consistencyWarnings,
@@ -854,12 +866,34 @@ function detectExamLayout(text) {
   return { regions, hasGrid: regions.some(r => r.type === 'grid') };
 }
 
-async function runAI(base64Image, mimeType, env, language = 'auto') {
+function normalizeDifficulty(value) {
+  return value === 'easy' || value === 'hard' ? value : 'auto';
+}
+
+function isTransientAiError(error) {
+  const s = aiErrorText(error);
+  return s.includes('3040') ||
+    s.includes('out of capacity') ||
+    s.includes('temporarily unavailable') ||
+    s.includes('service unavailable') ||
+    s.includes('bad gateway') ||
+    s.includes('gateway timeout') ||
+    s.includes('502') ||
+    s.includes('503') ||
+    s.includes('504');
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}) {
   if (!env.AI) {
     throw new Error('Workers AI not available - check if AI binding is configured');
   }
 
   const model = '@cf/google/gemma-4-26b-a4b-it';
+  const scanMode = difficulty === 'easy' ? 'fast-clear' : 'detail-preserving';
   const dataUrl = `data:${mimeType};base64,${base64Image}`;
   const languageHint = {
     auto: 'Auto-detect all visible languages and scripts. Mixed-language pages are common.',
@@ -881,10 +915,13 @@ async function runAI(base64Image, mimeType, env, language = 'auto') {
 LANGUAGE INSTRUCTION:
 ${languageHint}
 
-Your job is to READ the pixels, including difficult handwriting, and transcribe what is actually visible.
-Be intelligent about character shapes and word boundaries like a strong multimodal document reader, but remain a PRINTER, not an editor.
+SCAN MODE:
+${scanMode === 'fast-clear'
+  ? 'The image looks clear. Read it efficiently, but still verify every visible line before answering.'
+  : 'The image may be difficult, blurry, dense, handwritten, low-contrast, or small. Inspect character shapes and line structure more carefully before answering.'}
 
-Before writing the answer, silently inspect the page line-by-line and cross-check ambiguous handwriting against the actual glyph shapes and nearby visible context. Use context only to choose between visually plausible characters; NEVER change the author's spelling, grammar, facts or wording.
+Your job is to READ the pixels, including difficult handwriting, and transcribe what is actually visible.
+Use nearby visible context only to choose between visually plausible characters; NEVER change the author's spelling, grammar, facts or wording.
 
 STRICT TRANSCRIPTION RULES:
 1. Output ONLY text visible in the image. No explanations, summaries, Markdown wrappers or commentary.
@@ -905,7 +942,7 @@ STRICT TRANSCRIPTION RULES:
 
 Return only the final transcription.`;
 
-  const response = await env.AI.run(model, {
+  const requestBody = {
     messages: [{
       role: 'user',
       content: [
@@ -916,13 +953,30 @@ Return only the final transcription.`;
     max_tokens: 8192,
     temperature: 0,
     chat_template_kwargs: {
-      // Keep hidden reasoning disabled so OCR uses fewer free Neurons.
       enable_thinking: false
     }
-  });
+  };
+
+  let response;
+  let lastError;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      response = await env.AI.run(model, requestBody);
+      break;
+    } catch (e) {
+      lastError = e;
+      if (isDailyFreeLimitError(e) || isPaidModelRequiredError(e) || !isTransientAiError(e) || attempt === 1) {
+        throw e;
+      }
+      await sleep(650);
+    }
+  }
+
+  if (!response) throw lastError || new Error('AI OCR unavailable');
 
   const text = (response.response || '').trim();
-  return { text, raw: text, model, usage: response.usage || null };
+  return { text, raw: text, model, usage: response.usage || null, scanMode };
 }
 
 function aiErrorText(error) {
