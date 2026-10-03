@@ -1118,7 +1118,119 @@ dropZone.ondragleave = () => dropZone.classList.remove('over');
 dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
 clearBtn.onclick = clearFile;
 
-// ── PDF reader: use embedded text for digital PDFs; AI OCR only for scanned pages ──
+// ── PDF layout reconstruction ───────────────────────────────────────────────
+// Digital PDFs already contain exact text plus x/y coordinates. Reconstruct the
+// visible rows from those coordinates instead of concatenating PDF objects in
+// their internal storage order. This keeps form labels next to their values.
+function median(values) {
+    if (!values.length) return 0;
+    const sorted = [...values].sort((a,b) => a-b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
+}
+
+function reconstructPdfText(textContent, pageWidth) {
+    const rawItems = (textContent.items || [])
+        .filter(item => item && typeof item.str === 'string' && item.str.trim())
+        .map(item => {
+            const tr = item.transform || [1,0,0,1,0,0];
+            return {
+                text: item.str.trim(),
+                x: Number(tr[4]) || 0,
+                y: Number(tr[5]) || 0,
+                width: Math.max(0, Number(item.width) || 0),
+                height: Math.max(1, Math.abs(Number(item.height) || Number(tr[3]) || 10))
+            };
+        });
+
+    if (!rawItems.length) return '';
+
+    const typicalHeight = median(rawItems.map(i => i.height).filter(Boolean)) || 10;
+    const yTolerance = Math.max(2, typicalHeight * 0.35);
+
+    // PDF coordinates usually grow upward, so higher Y is earlier on the page.
+    rawItems.sort((a,b) => (b.y - a.y) || (a.x - b.x));
+
+    const lines = [];
+    for (const item of rawItems) {
+        let target = null;
+
+        // Only inspect the most recent few visual lines. This prevents distant
+        // rows with coincidentally similar Y values from being merged.
+        for (let k = lines.length - 1; k >= Math.max(0, lines.length - 6); k--) {
+            if (Math.abs(lines[k].y - item.y) <= yTolerance) {
+                target = lines[k];
+                break;
+            }
+        }
+
+        if (!target) {
+            lines.push({ y: item.y, items: [item] });
+        } else {
+            target.items.push(item);
+            target.y = target.items.reduce((sum, i) => sum + i.y, 0) / target.items.length;
+        }
+    }
+
+    lines.sort((a,b) => b.y - a.y);
+
+    const output = [];
+    let previousY = null;
+    const wideGap = Math.max(28, pageWidth * 0.075);
+    const rightColumnX = pageWidth * 0.52;
+    const leftColumnMaxX = pageWidth * 0.50;
+
+    for (const line of lines) {
+        const items = [...line.items].sort((a,b) => a.x - b.x);
+        if (!items.length) continue;
+
+        // Preserve visible section spacing, but never invent "Page 1", "Page 2",
+        // or other text that was not present in the document.
+        if (previousY !== null && (previousY - line.y) > typicalHeight * 2.4 && output.length) {
+            if (output[output.length - 1] !== '') output.push('');
+        }
+
+        let row = '';
+        let previous = null;
+
+        for (const item of items) {
+            if (!previous) {
+                row = item.text;
+                previous = item;
+                continue;
+            }
+
+            const gap = item.x - (previous.x + previous.width);
+            const crossesFormColumns =
+                item.x >= rightColumnX &&
+                previous.x < leftColumnMaxX;
+
+            // A large horizontal gap or a left-column -> right-column jump is a
+            // visible form/table boundary. Use " | " so question/value pairs stay
+            // together, e.g. "Date of Birth: | 01 AUGUST 1977".
+            if (crossesFormColumns || gap > wideGap) {
+                row += ' | ' + item.text;
+            } else if (gap > 1.5) {
+                row += ' ' + item.text;
+            } else {
+                const noSpaceBefore = /^[,.;:!?%)\]}]/.test(item.text);
+                const noSpaceAfter = /[(\[{\/$-]$/.test(row);
+                if (!noSpaceBefore && !noSpaceAfter) row += ' ';
+                row += item.text;
+            }
+
+            previous = item;
+        }
+
+        row = row.replace(/[ \t]{2,}/g, ' ').trim();
+        if (row) output.push(row);
+        previousY = line.y;
+    }
+
+    return output.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// ── PDF reader: use embedded layout text for digital PDFs; AI only for scans ──
 async function pdfToPages(pdfFile) {
     const arrayBuffer = await pdfFile.arrayBuffer();
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1129,22 +1241,19 @@ async function pdfToPages(pdfFile) {
         setProg(10 + Math.round((i / pdf.numPages) * 35), 'Reading PDF page ' + i + '/' + pdf.numPages + '...');
         const page = await pdf.getPage(i);
 
-        // Digital PDFs are more accurate and cheaper when we read their real text layer.
+        // Digital PDFs: use the exact text layer + geometry. This avoids AI cost
+        // and fixes forms where PDF object order lists all labels before values.
         const textContent = await page.getTextContent();
-        let embedded = '';
-        for (const item of textContent.items || []) {
-            if (!item || typeof item.str !== 'string') continue;
-            embedded += item.str;
-            embedded += item.hasEOL ? '\n' : ' ';
-        }
-        embedded = embedded.replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
+        const baseViewport = page.getViewport({ scale: 1 });
+        const embedded = reconstructPdfText(textContent, baseViewport.width);
 
         if (embedded.length >= 20 && (textContent.items || []).length >= 3) {
             pages.push({ type: 'text', text: embedded });
             continue;
         }
 
-        // Scanned/handwritten PDF page: render clearly and send one AI OCR request.
+        // Scanned/handwritten PDF page: render clearly and send one free-only AI
+        // OCR request. No second model pass and no paid provider fallback.
         const scale = 2.25;
         const viewport = page.getViewport({ scale });
         const canvas = document.createElement('canvas');
@@ -1198,7 +1307,9 @@ async function extractSpreadsheetFile(spreadsheetFile) {
             .filter(line => line.trim().length > 0);
 
         if (lines.length) {
-            sections.push('--- Sheet: ' + sheetName + ' ---\n' + lines.join('\n'));
+            // Sheet names are workbook metadata, not necessarily visible cell text.
+            // Keep extraction literal and avoid adding synthetic headings.
+            sections.push(lines.join('\n'));
         }
     }
 
@@ -1249,7 +1360,8 @@ async function extractOfficeZipFile(officeFile) {
         for (let i = 0; i < slides.length; i++) {
             const xml = await zip.file(slides[i]).async('text');
             const text = xmlParagraphText(xml, 'p', 't');
-            if (text) sections.push('--- Slide ' + (i + 1) + ' ---\n' + text);
+            // Keep only text that is actually present on the slide.
+            if (text) sections.push(text);
         }
         const out = sections.join('\n\n').trim();
         if (!out) throw new Error('No readable text found in this PowerPoint file.');
@@ -1361,7 +1473,9 @@ goBtn.onclick = async () => {
             setProg(8, 'Loading PDF...');
             const pages = await pdfToPages(file);
             for (let i = 0; i < pages.length; i++) {
-                const prefix = allText ? '\n\n--- Page ' + (i+1) + ' ---\n\n' : '';
+                // Separate pages only with blank lines. Do not add synthetic
+                // labels such as "--- Page 2 ---" to the extracted document.
+                const prefix = allText ? '\n\n' : '';
                 if (pages[i].type === 'text') {
                     setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
                     allText += prefix + pages[i].text;
