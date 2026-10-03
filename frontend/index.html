@@ -328,12 +328,6 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .quota-note {
-            margin-top: 0.55rem;
-            font-size: 0.6rem;
-            line-height: 1.4;
-            color: var(--text3);
-        }
 
         .quota-card.warning .quota-fill {
             background: linear-gradient(90deg, var(--amber), var(--red));
@@ -1021,20 +1015,152 @@
             letter-spacing: -0.01em;
         }
 
+        @media (max-width: 479px) {
+            .main {
+                padding: 0.9rem 1rem 2rem;
+            }
+
+            .hero {
+                margin-bottom: 0.7rem;
+            }
+
+            .hero h1 {
+                font-size: 1.35rem;
+                margin-bottom: 0;
+            }
+
+            .hero p {
+                display: none;
+            }
+
+            .quota-card {
+                padding: 0.65rem 0.75rem;
+                margin-bottom: 0.7rem;
+                border-radius: 14px;
+            }
+
+            .quota-head {
+                align-items: center;
+                margin-bottom: 0.45rem;
+            }
+
+            .quota-title {
+                font-size: 0.72rem;
+            }
+
+            .quota-subtitle {
+                display: none;
+            }
+
+            .quota-live {
+                padding: 0.16rem 0.4rem;
+                font-size: 0.56rem;
+            }
+
+            .quota-stats {
+                gap: 0.45rem;
+                margin-bottom: 0.45rem;
+            }
+
+            .quota-stat {
+                padding: 0.35rem 0.5rem;
+                border-radius: 9px;
+            }
+
+            .quota-stat-label {
+                font-size: 0.52rem;
+                margin-bottom: 0;
+            }
+
+            .quota-stat-value {
+                font-size: 0.82rem;
+            }
+
+            .quota-track {
+                height: 6px;
+            }
+
+            .quota-scale {
+                margin-top: 0.22rem;
+                font-size: 0.55rem;
+            }
+
+            .quota-chart {
+                height: 24px;
+                margin-top: 0.3rem;
+            }
+
+            .quota-times {
+                grid-template-columns: 0.8fr 1.2fr;
+                gap: 0.4rem;
+                margin-top: 0.3rem;
+                padding-top: 0.35rem;
+            }
+
+            .quota-time-label {
+                display: none;
+            }
+
+            .quota-time-value {
+                font-size: 0.57rem;
+                line-height: 1.2;
+            }
+
+            .upload-card {
+                padding: 1rem;
+            }
+
+            .upload-zone {
+                padding: 1.3rem 0.8rem;
+            }
+
+            .upload-icon {
+                width: 44px;
+                height: 44px;
+                margin-bottom: 0.55rem;
+            }
+
+            .upload-title {
+                font-size: 0.84rem;
+            }
+
+            .upload-sub {
+                font-size: 0.66rem;
+            }
+
+            .language-row {
+                margin-top: 0.65rem;
+                padding: 0.55rem 0.65rem;
+            }
+
+            .btn-extract {
+                margin-top: 0.65rem;
+                height: 46px;
+            }
+
+            .results {
+                scroll-margin-top: 68px;
+            }
+
+            .footer {
+                padding: 1rem;
+            }
+        }
+
         /* ── Mobile: Small (< 380px) ─────────────────────── */
         @media (max-width: 380px) {
             .main { padding: 1.25rem 1rem 2rem; }
             .hero h1 { font-size: 1.375rem; }
             .hero p { font-size: 0.8rem; }
-            .upload-zone { padding: 1.75rem 0.75rem; }
-            .upload-card { padding: 1.25rem; }
+            .upload-zone { padding: 1.3rem 0.75rem; }
+            .upload-card { padding: 1rem; }
             .header { padding: 0 1rem; }
         }
 
         /* ── Mobile: Regular (381–479px) ──────────────────── */
         @media (min-width: 381px) and (max-width: 479px) {
-            .main { padding: 1.5rem 1.25rem 2.5rem; }
-            .hero h1 { font-size: 1.5rem; }
+            .main { padding: 0.9rem 1rem 2rem; }
+            .hero h1 { font-size: 1.35rem; }
         }
 
         /* ── Tablet & Desktop (≥ 480px) ──────────────────── */
@@ -1074,7 +1200,7 @@
 
         /* ── Android-specific touch improvements ──────────── */
         @media (hover: none) and (pointer: coarse) {
-            .upload-zone { padding: 2rem 1rem; }
+            .upload-zone { padding: 1.3rem 0.8rem; }
             .btn-extract { height: 52px; }
             .action-btn { height: 44px; min-height: 44px; }
             .file-remove { width: 40px; height: 40px; }
@@ -1114,7 +1240,7 @@
             <div class="quota-head">
                 <div>
                     <div class="quota-title">Today's free AI OCR quota</div>
-                    <div class="quota-subtitle">Public PaperAI usage estimate · Cloudflare Workers AI</div>
+                    <div class="quota-subtitle">Free AI usage today</div>
                 </div>
                 <div class="quota-live" id="quotaBadge">
                     <span class="quota-live-dot"></span>
@@ -1124,11 +1250,11 @@
 
             <div class="quota-stats">
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Estimated remaining</span>
+                    <span class="quota-stat-label">Remaining</span>
                     <span class="quota-stat-value" id="quotaRemaining">—</span>
                 </div>
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Estimated used</span>
+                    <span class="quota-stat-label">Used</span>
                     <span class="quota-stat-value" id="quotaUsed">—</span>
                 </div>
             </div>
@@ -1150,18 +1276,15 @@
 
             <div class="quota-times">
                 <div>
-                    <span class="quota-time-label">Current date & time</span>
+                    <span class="quota-time-label">Now</span>
                     <span class="quota-time-value" id="quotaNow">—</span>
                 </div>
                 <div>
-                    <span class="quota-time-label">Expected renewal</span>
+                    <span class="quota-time-label">Renews</span>
                     <span class="quota-time-value" id="quotaReset">—</span>
                 </div>
             </div>
 
-            <div class="quota-note" id="quotaNote">
-                Resets daily at 00:00 UTC. This graph estimates PaperAI OCR usage from model token usage; Cloudflare's account dashboard remains the billing authority.
-            </div>
         </section>
 
         <div class="upload-card">
@@ -1272,7 +1395,7 @@ const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
 const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
-const quotaBadgeText=$('quotaBadgeText'),quotaNote=$('quotaNote');
+const quotaBadgeText=$('quotaBadgeText');
 
 let file=null, lastResult=null, showingRaw=false;
 
@@ -1313,7 +1436,7 @@ function updateQuotaClock() {
         const mins = Math.max(0, Math.ceil(ms / 60000));
         const h = Math.floor(mins / 60);
         const m = mins % 60;
-        quotaReset.textContent = formatLocalDateTime(reset) + ' · in ' + h + 'h ' + m + 'm';
+        quotaReset.textContent = 'in ' + h + 'h ' + m + 'm · ' + formatLocalDateTime(reset);
     }
 }
 
@@ -1367,13 +1490,9 @@ async function loadUsage() {
         updateQuotaClock();
 
         const requests = Number(data.ocr_requests_tracked) || 0;
-        const trackingStarted = data.tracking_started_at ? formatLocalDateTime(data.tracking_started_at) : 'this deployment';
-        quotaNote.textContent =
-            'Tracks ' + requests + ' AI OCR request' + (requests === 1 ? '' : 's') +
-            ' since ' + trackingStarted + '. Resets at 00:00 UTC. Usage is estimated from PaperAI model tokens; earlier usage and other Workers AI apps on the same Cloudflare account are not included.';
+        quotaCard.dataset.requests = String(requests);
     } catch (e) {
         quotaBadgeText.textContent = 'Unavailable';
-        quotaNote.textContent = 'Daily free limit: 10,000 Neurons. Live usage could not be loaded right now; OCR can still work normally.';
         updateQuotaClock();
     }
 }
@@ -1887,8 +2006,10 @@ goBtn.onclick = async () => {
         resBox.classList.add('show');
         setProg(100, 'Done');
         setTimeout(() => prog.classList.remove('show'), 800);
-        // Refresh the public usage bar immediately after OCR activity.
         loadUsage();
+        if (window.matchMedia('(max-width: 479px)').matches) {
+            setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+        }
     } catch(e) {
         showErr(e.name==='AbortError' ? 'Timed out — try a smaller file.' : e.message);
     } finally {
