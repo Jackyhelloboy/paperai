@@ -832,11 +832,14 @@
             padding: 1.25rem;
             max-height: 400px;
             overflow-y: auto;
+            font-family: 'Inter', 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
             font-size: 0.85rem;
             line-height: 1.75;
             color: var(--text);
+            font-variant-numeric: tabular-nums;
+            unicode-bidi: plaintext;
             -webkit-overflow-scrolling: touch;
-            word-wrap: break-word;
+            overflow-wrap: anywhere;
         }
 
         .output-body::-webkit-scrollbar { width: 4px; }
