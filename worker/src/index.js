@@ -579,6 +579,12 @@ async function handleOCR(request, env, corsHeaders) {
         code: 'FREE_MODEL_UNAVAILABLE',
       }, { status: 503, headers: corsHeaders });
     }
+    if (isAiTimeoutError(e)) {
+      return Response.json({
+        error: 'AI OCR timed out on this image. PaperAI can automatically retry a lighter scan.',
+        code: 'AI_TIMEOUT',
+      }, { status: 408, headers: corsHeaders });
+    }
     return Response.json({
       error: 'AI OCR failed: ' + (e?.message || 'unknown error'),
       code: 'AI_OCR_FAILED',
@@ -640,7 +646,10 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'one_ai_call_no_paid_fallback',
         model: aiResult.model || 'unknown',
+        architecture: 'adaptive-line-ocr-v6',
         scan_mode: aiResult.scanMode || difficulty,
+        scan_strategy: imageMeta?.scanStrategy || 'full-page',
+        detected_lines: Number(imageMeta?.lineCount) || 0,
         rescue_pass_used: Boolean(aiResult.rescued),
         image_profile: imageMeta || {},
         layout: detectExamLayout(correctedText),
@@ -871,9 +880,21 @@ function normalizeDifficulty(value) {
   return value === 'easy' || value === 'hard' ? value : 'auto';
 }
 
+function isAiTimeoutError(error) {
+  const s = aiErrorText(error);
+  return s.includes('3007') ||
+    s.includes('3008') ||
+    s.includes('request timeout') ||
+    s.includes('timed out') ||
+    s.includes('timeout') ||
+    s.includes('aborted') ||
+    s.includes('408');
+}
+
 function isTransientAiError(error) {
   const s = aiErrorText(error);
-  return s.includes('3040') ||
+  return isAiTimeoutError(error) ||
+    s.includes('3040') ||
     s.includes('out of capacity') ||
     s.includes('temporarily unavailable') ||
     s.includes('service unavailable') ||
@@ -894,7 +915,10 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
   }
 
   const model = '@cf/google/gemma-4-26b-a4b-it';
-  const scanMode = difficulty === 'easy' ? 'fast-clear' : 'detail-preserving';
+  const scanStrategy = imageMeta?.scanStrategy || 'full-page';
+  const scanMode = scanStrategy === 'line-mosaic'
+    ? 'line-by-line'
+    : (difficulty === 'easy' ? 'fast-clear' : 'detail-preserving');
   const dataUrl = `data:${mimeType};base64,${base64Image}`;
   const languageHint = {
     auto: 'Auto-detect all visible languages and scripts. Mixed-language pages are common.',
@@ -917,9 +941,11 @@ LANGUAGE INSTRUCTION:
 ${languageHint}
 
 SCAN MODE:
-${scanMode === 'fast-clear'
-  ? 'The image looks clear. Read it efficiently, but still verify every visible line before answering.'
-  : 'The image may be difficult, blurry, dense, handwritten, low-contrast, or small. Inspect character shapes and line structure more carefully before answering.'}
+${scanMode === 'line-by-line'
+  ? 'The image has been locally reorganized into horizontal text strips in original top-to-bottom order. Read ONE strip at a time, left-to-right, and output one corresponding text line per strip. Blank vertical gaps were removed only to reduce wasted vision work. Do not invent strip numbers or separators.'
+  : scanMode === 'fast-clear'
+    ? 'The image looks clear. Read it efficiently, but still verify every visible line before answering.'
+    : 'The image may contain structured layout, handwriting, symbols, or low contrast. Preserve layout and inspect character shapes carefully.'}
 
 Your job is to READ the pixels, including difficult human handwriting, and transcribe what is actually visible.
 Use nearby visible context only to choose between visually plausible characters; NEVER change the writer's spelling, grammar, facts, calculations, or wording.
@@ -972,10 +998,10 @@ Return only the final transcription plus the allowed [[...]] edit markers when n
         ]
       }
     ],
-    max_completion_tokens: 8192,
+    max_completion_tokens: scanMode === 'fast-clear' ? 4096 : 6144,
     temperature: 0,
     chat_template_kwargs: {
-      enable_thinking: difficulty === 'hard'
+      enable_thinking: false
     }
   };
 
@@ -984,14 +1010,14 @@ Return only the final transcription plus the allowed [[...]] edit markers when n
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      response = await env.AI.run(model, requestBody);
+      response = await env.AI.run(model, requestBody, { rejectIfBusy: true });
       break;
     } catch (e) {
       lastError = e;
       if (isDailyFreeLimitError(e) || isPaidModelRequiredError(e) || !isTransientAiError(e) || attempt === 1) {
         throw e;
       }
-      await sleep(650);
+      await sleep(attempt === 0 ? 350 : 800);
     }
   }
 
@@ -1022,12 +1048,12 @@ The first read looked suspiciously empty or too short for the visible pen/pencil
             ]
           }
         ],
-        max_completion_tokens: 8192,
+        max_completion_tokens: 6144,
         temperature: 0,
         chat_template_kwargs: {
-          enable_thinking: true
+          enable_thinking: false
         }
-      });
+      }, { rejectIfBusy: true });
 
       const rescueText = extractAiText(rescueResponse);
       usage = mergeAiUsage(usage, rescueResponse.usage || null);
@@ -1063,7 +1089,17 @@ function shouldRescueHandwriting(text, imageMeta = {}) {
   const contrast = Number(imageMeta?.contrast) || 0;
   const likelyInk = edgeRatio >= 0.018 || score >= 1 || contrast >= 28;
 
-  return emptyLike || (plain.length < 12 && likelyInk);
+  const expectedLines = Number(imageMeta?.lineCount) || 0;
+  const actualLines = visible
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean).length;
+  const lineMiss =
+    imageMeta?.scanStrategy === 'line-mosaic' &&
+    expectedLines >= 4 &&
+    actualLines < Math.max(2, Math.floor(expectedLines * 0.45));
+
+  return emptyLike || lineMiss || (plain.length < 12 && likelyInk);
 }
 
 function isBetterOcrResult(first, second) {
