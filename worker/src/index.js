@@ -1023,6 +1023,13 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
     ? 'line-by-line'
     : (difficulty === 'easy' ? 'fast-clear' : 'detail-preserving');
   const dataUrl = `data:${mimeType};base64,${base64Image}`;
+  const layoutSection = imageMeta?.structuredLayout
+    ? '\nVISUAL LAYOUT HINT:\nThis page contains structured geometry. Preserve rows, columns, long answer lines and connected relationships. Detected multi-column rows: ' +
+      (Number(imageMeta?.multiColumnRows) || 0) +
+      '; long horizontal rules: ' + (Number(imageMeta?.longHorizontalRules) || 0) +
+      '; long vertical rules: ' + (Number(imageMeta?.longVerticalRules) || 0) +
+      (imageMeta?.branchingLayout ? '; possible branching/diagram layout detected. Preserve arrows and branch relationships.' : '.') + '\n'
+    : '';
   const learnedConfusions = sanitizeLearningHints(learningHints);
   const learningSection = learnedConfusions.length
     ? '\nVISUAL CONFUSION MEMORY (human-corrected examples from this browser):\n' +
@@ -1050,6 +1057,7 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
 LANGUAGE INSTRUCTION:
 ${languageHint}
 ${learningSection}
+${layoutSection}
 SCAN MODE:
 ${scanMode === 'line-by-line'
   ? 'The image has been locally reorganized into horizontal text strips in original top-to-bottom order. Read ONE strip at a time, left-to-right, and output one corresponding text line per strip. Blank vertical gaps were removed only to reduce wasted vision work. Do not invent strip numbers or separators.'
