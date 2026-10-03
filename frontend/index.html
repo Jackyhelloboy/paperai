@@ -1469,7 +1469,7 @@ async function loadUsage() {
         let res;
         try {
             res = await fetch(API_LOCAL + '/api/usage?t=' + Date.now(), { cache: 'no-store' });
-            if (!res.ok && res.status === 404) throw new Error('proxy unavailable');
+            if (!res.ok && [404,405,502,503,504].includes(res.status)) throw new Error('proxy unavailable');
         } catch (_) {
             res = await fetch(API_DIRECT + '/api/usage?t=' + Date.now(), { cache: 'no-store' });
         }
@@ -2001,7 +2001,9 @@ async function fetchOcrEndpoint(path, options) {
     for (let i = 0; i < targets.length; i++) {
         try {
             const res = await fetch(targets[i], options);
-            if (i === 0 && (res.status === 404 || res.headers.get('X-PaperAI-Proxy-Error') === '1')) continue;
+            if (i === 0 && ([404,405,502,503,504].includes(res.status) || res.headers.get('X-PaperAI-Proxy-Error') === '1')) {
+                continue;
+            }
             return res;
         } catch (e) {
             lastError = e;
@@ -2027,6 +2029,9 @@ async function sendFileToWorker(inputFile, signal) {
     try { body = await res.json(); } catch (_) {}
 
     if (!res.ok) {
+        if (res.status === 405) {
+            throw new Error('PaperAI API route was not accepting uploads. Please refresh and try again.');
+        }
         throw new Error(body?.error || ('OCR service error ' + res.status));
     }
     return body;
@@ -2080,6 +2085,9 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
             continue;
         }
 
+        if (res.status === 405) {
+            throw new Error('PaperAI API route was not accepting image uploads. Please refresh and try again.');
+        }
         throw new Error(body?.error || ('OCR service error ' + res.status));
     }
 
