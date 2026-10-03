@@ -1913,18 +1913,18 @@ function analyzeCanvasDifficulty(canvas, originalWidth, originalHeight) {
     const brightRatio = bright / n;
 
     let score = 0;
-    if (contrast < 34) score += 2;
-    else if (contrast < 47) score += 1;
-    if (sharpness < 20) score += 2;
-    else if (sharpness < 30) score += 1;
-    if (mean < 60 || mean > 235) score += 1;
-    if (edgeRatio > 0.22) score += 1;
-    if (Math.min(originalWidth, originalHeight) < 900) score += 1;
+    if (contrast < 36) score += 2;
+    else if (contrast < 52) score += 1;
+    if (sharpness < 22) score += 2;
+    else if (sharpness < 34) score += 1;
+    if (mean < 65 || mean > 232) score += 1;
+    if (edgeRatio > 0.09) score += 1;
+    if (Math.min(originalWidth, originalHeight) < 1400) score += 1;
     if (Math.max(originalWidth, originalHeight) / Math.max(1, Math.min(originalWidth, originalHeight)) > 2.6) score += 1;
-    if (darkRatio > 0.55 || brightRatio > 0.92) score += 1;
+    if (darkRatio > 0.50 || brightRatio > 0.90) score += 1;
 
     return {
-        difficulty: score >= 2 ? 'hard' : 'easy',
+        difficulty: score >= 1 ? 'hard' : 'easy',
         score,
         contrast: Math.round(contrast * 10) / 10,
         sharpness: Math.round(sharpness * 10) / 10,
@@ -1951,8 +1951,8 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const analysis = analyzeCanvasDifficulty(decoded, originalWidth, originalHeight);
     const hard = analysis.difficulty === 'hard';
 
-    const maxLongEdge = forceSafe ? 2000 : (hard ? 3000 : 2300);
-    const quality = forceSafe ? 0.84 : (hard ? 0.94 : 0.89);
+    const maxLongEdge = forceSafe ? 2400 : (hard ? 3400 : 2700);
+    const quality = forceSafe ? 0.88 : (hard ? 0.96 : 0.92);
     const longEdge = Math.max(originalWidth, originalHeight);
     const scale = Math.min(1, maxLongEdge / Math.max(1, longEdge));
     const targetWidth = Math.max(1, Math.round(originalWidth * scale));
@@ -1970,11 +1970,12 @@ async function prepareImageForOCR(source, forceSafe = false) {
 
     if (decoded.close) decoded.close();
 
+    const preferredType = hard && !forceSafe ? 'image/webp' : 'image/jpeg';
     let blob = await new Promise((resolve, reject) => {
-        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not optimize image')), 'image/jpeg', quality);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not optimize image')), preferredType, quality);
     });
 
-    if (blob.size > 6 * 1024 * 1024 && !forceSafe) {
+    if (blob.size > 7 * 1024 * 1024 && !forceSafe) {
         return prepareImageForOCR(source, true);
     }
 
@@ -2041,7 +2042,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
     let prepared = await prepareImageForOCR(sourceBlob, false);
 
     if (progressText) {
-        setProg(18, progressText + (prepared.difficulty === 'hard' ? ' · detailed scan' : ' · fast clear scan'));
+        setProg(18, progressText + (prepared.difficulty === 'hard' ? ' · handwriting & symbols' : ' · fast clear scan'));
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
