@@ -641,6 +641,7 @@ async function handleOCR(request, env, corsHeaders) {
         billing_safety: 'one_ai_call_no_paid_fallback',
         model: aiResult.model || 'unknown',
         scan_mode: aiResult.scanMode || difficulty,
+        rescue_pass_used: Boolean(aiResult.rescued),
         image_profile: imageMeta || {},
         layout: detectExamLayout(correctedText),
       },
@@ -942,11 +943,20 @@ STRICT TRANSCRIPTION RULES:
 14. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
 15. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
 16. Never invent page markers, filenames, headings, or text that is not visibly present.
-17. For crossed-out/overwritten handwriting, transcribe the final clearly intended visible writing only when it is visually obvious. Otherwise preserve the closest visible characters.
-18. Do not hallucinate text hidden by blur, glare, cropping, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
-19. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
+17. Detect human editing marks instead of throwing them away. Cross-outs, repeated mistakes, overwriting, caret insertions, circles, underlines, boxes, highlights, margin notes, ticks, crosses, and teacher corrections are part of the document.
+18. For a single legible strike-through use exactly: [[STRIKE: text]]
+19. If the same legible text has two or more clear strike lines or a heavy double-cancel mark, use exactly: [[DOUBLE-STRIKE: text]]
+20. If both the original and replacement are legible, use exactly: [[REPLACE: old -> new]]. Never guess an unreadable old word.
+21. For a clearly inserted word/number written with a caret or insertion mark, use exactly: [[INSERT: text]]
+22. For visible formatting/annotation use only when visually clear: [[CIRCLED: text]], [[UNDERLINE: text]], [[DOUBLE-UNDERLINE: text]], [[BOXED: text]], [[HIGHLIGHT: text]], [[MARGIN: text]], [[STAMP: text]]. Use [[SIGNATURE: text]] only when signature letters are actually readable; otherwise use [[SIGNATURE: [unreadable]]].
+23. If a writer makes multiple sequential mistakes, keep every visible stage in reading order. Example: [[STRIKE: first]] [[STRIKE: second]] final. Do not collapse them into only the final answer.
+24. If struck or overwritten text is partly readable, preserve the readable characters and use [unclear] only for the unreadable portion, for example [[STRIKE: ans[unclear]]].
+25. The [[...]] edit markers above are OCR metadata, not source text. Use them ONLY when the corresponding visual mark is genuinely present. Never invent a strike, correction, underline, circle, box, highlight, margin note, stamp, or signature from low image quality.
+26. Preserve teacher marks and grading notation such as ✓, ✗, ticks, crosses, circles around marks, "2/5", "+1", "-1", "Good", "Wrong", initials, and correction arrows when visible.
+27. Do not hallucinate text hidden by blur, glare, cropping, scribble, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
+28. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
 
-Return only the final transcription.`;
+Return only the final transcription plus the allowed [[...]] edit markers when needed.`;
 
   const requestBody = {
     messages: [
@@ -987,8 +997,102 @@ Return only the final transcription.`;
 
   if (!response) throw lastError || new Error('AI OCR unavailable');
 
-  const text = extractAiText(response);
-  return { text, raw: text, model, usage: response.usage || null, scanMode };
+  let text = extractAiText(response);
+  let usage = mergeAiUsage(response.usage || null, null);
+  let rescued = false;
+
+  if (shouldRescueHandwriting(text, imageMeta)) {
+    const rescuePrompt = prompt + `
+
+HANDWRITING RESCUE PASS:
+The first read looked suspiciously empty or too short for the visible pen/pencil strokes. Re-inspect the entire image at character level. Look for faint cursive, small numbers, operators, struck-out attempts, overwritten answers, teacher marks, margin notes, and symbols. Do not return "No text detected" unless the page is truly blank. Preserve all allowed [[...]] edit markers exactly as defined above.`;
+
+    try {
+      const rescueResponse = await env.AI.run(model, {
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a forensic literal OCR engine. Recover difficult handwritten text, mathematics, symbols, and visible edit marks without guessing.'
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: dataUrl } },
+              { type: 'text', text: rescuePrompt }
+            ]
+          }
+        ],
+        max_completion_tokens: 8192,
+        temperature: 0,
+        chat_template_kwargs: {
+          enable_thinking: true
+        }
+      });
+
+      const rescueText = extractAiText(rescueResponse);
+      usage = mergeAiUsage(usage, rescueResponse.usage || null);
+
+      if (isBetterOcrResult(text, rescueText)) {
+        text = rescueText;
+        rescued = true;
+      }
+    } catch (e) {
+      if (!isDailyFreeLimitError(e) && !isPaidModelRequiredError(e)) {
+        console.log('[Handwriting rescue] skipped:', e?.message || e);
+      }
+    }
+  }
+
+  return { text, raw: text, model, usage, scanMode, rescued };
+}
+
+function shouldRescueHandwriting(text, imageMeta = {}) {
+  const visible = String(text || '').trim();
+  const emptyLike =
+    !visible ||
+    /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(visible) ||
+    /^no\s+text\s+found[.!]?$/i.test(visible);
+
+  const plain = visible
+    .replace(/\[\[[\s\S]*?\]\]/g, '')
+    .replace(/\[unclear\]/gi, '')
+    .trim();
+
+  const edgeRatio = Number(imageMeta?.edgeRatio) || 0;
+  const score = Number(imageMeta?.score) || 0;
+  const contrast = Number(imageMeta?.contrast) || 0;
+  const likelyInk = edgeRatio >= 0.018 || score >= 1 || contrast >= 28;
+
+  return emptyLike || (plain.length < 12 && likelyInk);
+}
+
+function isBetterOcrResult(first, second) {
+  const a = String(first || '').trim();
+  const b = String(second || '').trim();
+  if (!b) return false;
+  if (/^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(b)) return false;
+  if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
+
+  const useful = s => s
+    .replace(/\[\[[\s\S]*?\]\]/g, 'X')
+    .replace(/\s+/g, '')
+    .length;
+
+  return useful(b) > useful(a) + 3;
+}
+
+function mergeAiUsage(a, b) {
+  const left = a || {};
+  const right = b || {};
+  const keys = ['prompt_tokens', 'completion_tokens', 'input_tokens', 'output_tokens', 'total_tokens'];
+  const merged = {};
+
+  for (const key of keys) {
+    const value = (Number(left[key]) || 0) + (Number(right[key]) || 0);
+    if (value > 0) merged[key] = value;
+  }
+
+  return Object.keys(merged).length ? merged : (a || b || null);
 }
 
 function extractAiText(response) {
