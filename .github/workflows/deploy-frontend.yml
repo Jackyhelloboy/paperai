@@ -1,10 +1,7 @@
 name: Deploy Frontend to Vercel
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'frontend/**'
+  # PaperAI production is Cloudflare Pages. Keep Vercel as a manual optional deploy.
   workflow_dispatch:
 
 jobs:
