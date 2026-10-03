@@ -25,17 +25,28 @@ export default {
         status: 'running',
         endpoints: [
           'POST /api/ocr',
-          'POST /api/train/collect',
-          'POST /api/train/verify',
-          'GET /api/train/export?language=hi&limit=1000',
-          'GET /api/train/stats',
+          'GET /api/usage',
+          'WS /api/live',
           'GET /health',
         ],
+        architecture: 'production-literal-ocr-v7',
       }, { headers: corsHeaders });
     }
 
     if (url.pathname === '/health') {
-      return Response.json({ status: 'healthy', platform: 'cloudflare-workers' }, { headers: corsHeaders });
+      return Response.json({
+        status: 'healthy',
+        platform: 'cloudflare-workers',
+        architecture: 'production-literal-ocr-v7',
+        model: '@cf/google/gemma-4-26b-a4b-it',
+      }, { headers: corsHeaders });
+    }
+
+    if (url.pathname === '/api/live') {
+      if ((request.headers.get('Upgrade') || '').toLowerCase() !== 'websocket') {
+        return Response.json({ error: 'WebSocket upgrade required' }, { status: 426, headers: corsHeaders });
+      }
+      return getPresenceStub(env).fetch(request);
     }
 
     // Public daily free-AI quota dashboard. This is a PaperAI-side estimate
@@ -64,6 +75,10 @@ export default {
       } catch (e) {
         return Response.json({ error: e.message || 'OCR request failed' }, { status: 500, headers: corsHeaders });
       }
+    }
+
+    if ((url.pathname.startsWith('/api/train/') || url.pathname === '/api/debug') && !isAdminRequest(request, env)) {
+      return Response.json({ error: 'Not found' }, { status: 404, headers: corsHeaders });
     }
 
     // Training data collection: save OCR result as training sample
@@ -299,8 +314,39 @@ export class UsageTracker extends DurableObject {
     super(ctx, env);
   }
 
+  broadcastPresence(exclude = null) {
+    const sockets = this.ctx.getWebSockets();
+    const active = sockets.filter(ws => ws !== exclude).length;
+    const message = JSON.stringify({ type: 'presence', active });
+
+    for (const ws of sockets) {
+      if (ws === exclude) continue;
+      try { ws.send(message); } catch (_) {}
+    }
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
+
+    if (url.pathname === '/api/live') {
+      if ((request.headers.get('Upgrade') || '').toLowerCase() !== 'websocket') {
+        return Response.json({ active: this.ctx.getWebSockets().length }, {
+          headers: { 'Cache-Control': 'no-store' },
+        });
+      }
+
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+      this.ctx.acceptWebSocket(server);
+      server.serializeAttachment({ connectedAt: Date.now() });
+      this.broadcastPresence();
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      });
+    }
+
     const now = new Date();
     const utcDay = now.toISOString().slice(0, 10);
 
@@ -379,6 +425,32 @@ export class UsageTracker extends DurableObject {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
     });
   }
+
+  webSocketMessage(ws, message) {
+    const active = this.ctx.getWebSockets().length;
+    try { ws.send(JSON.stringify({ type: 'presence', active })); } catch (_) {}
+  }
+
+  webSocketClose(ws) {
+    this.broadcastPresence(ws);
+  }
+
+  webSocketError(ws) {
+    this.broadcastPresence(ws);
+  }
+}
+
+function isAdminRequest(request, env) {
+  if (!env.ADMIN_TOKEN) return false;
+  return request.headers.get('Authorization') === `Bearer ${env.ADMIN_TOKEN}`;
+}
+
+function getPresenceStub(env) {
+  if (!env.USAGE_TRACKER) {
+    throw new Error('USAGE_TRACKER Durable Object binding is not configured');
+  }
+  const id = env.USAGE_TRACKER.idFromName('paperai-live-presence');
+  return env.USAGE_TRACKER.get(id);
 }
 
 function getUsageStub(env) {
