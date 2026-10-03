@@ -683,6 +683,7 @@ async function handleOCR(request, env, corsHeaders) {
   const allCorrections = [];
 
   const consistencyWarnings = checkConsistency(correctedText);
+  const plainText = stripOcrMetadata(correctedText);
 
   // Compute post-correction confidence
   const highConfCorrections = allCorrections.filter(c => c.confidence >= 0.95);
@@ -692,12 +693,14 @@ async function handleOCR(request, env, corsHeaders) {
     result: {
       pages: [{
         page: 1,
-        text: correctedText,
-        regions: countRegions(correctedText),
+        text: plainText,
+        annotated_text: correctedText,
+        regions: countRegions(plainText),
       }],
-      full_text: correctedText,
+      full_text: plainText,
+      annotated_text: correctedText,
       raw_text: rawOcrText,
-      verified_text: correctedText,
+      verified_text: plainText,
       corrections_summary: {
         total_corrections: allCorrections.length,
         high_confidence: highConfCorrections.length,
@@ -709,7 +712,7 @@ async function handleOCR(request, env, corsHeaders) {
       metadata: {
         filename: filename,
         total_pages: 1,
-        total_characters: correctedText.length,
+        total_characters: plainText.length,
         engine: aiResult.error ? 'error' : 'cloudflare-ai',
         error: aiResult.error || null,
         language: effectiveLanguage,
@@ -718,13 +721,13 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'one_ai_call_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'adaptive-line-ocr-v6',
+        architecture: 'production-literal-ocr-v7',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
-        rescue_pass_used: Boolean(aiResult.rescued),
+        verification_pass_used: Boolean(aiResult.rescued),
         image_profile: imageMeta || {},
-        layout: detectExamLayout(correctedText),
+        layout: detectExamLayout(plainText),
       },
       consistency_warnings: consistencyWarnings,
     },
@@ -1318,6 +1321,19 @@ function detectLanguageFromText(text) {
 // ═══════════════════════════════════════════════════════════════
 // STEP 1: Safe regex pre-pass — deterministic, high-confidence fixes
 // ═══════════════════════════════════════════════════════════════
+function stripOcrMetadata(text) {
+  if (!text) return '';
+
+  return String(text)
+    .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
+      return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
+    })
+    .replace(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):\s*([\s\S]*?)\]\]/gi, (_, content) => content.trim())
+    .replace(/\[unclear:\s*([^\]]+)\]/gi, '[unclear]')
+    .normalize('NFC')
+    .trim();
+}
+
 function safeRegexCleanup(text, language) {
   if (!text || text === 'No text detected') return { text, corrections: [] };
 
