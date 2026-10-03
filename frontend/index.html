@@ -2444,7 +2444,10 @@ function detectTextLineLayout(source, originalWidth, originalHeight) {
         lineFriendly,
         multiColumnRows,
         multiColumnRatio: Math.round(multiColumnRatio * 1000) / 1000,
-        denseOptionRows
+        denseOptionRows,
+        longHorizontalRules,
+        longVerticalRules,
+        branchingLayout: multiColumnRows >= 3 && denseOptionRows >= 2
     };
 }
 
@@ -2584,6 +2587,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
                 multiColumnRows: layout.multiColumnRows || 0,
                 multiColumnRatio: layout.multiColumnRatio || 0,
                 denseOptionRows: layout.denseOptionRows || 0,
+                longHorizontalRules: layout.longHorizontalRules || 0,
+                longVerticalRules: layout.longVerticalRules || 0,
+                branchingLayout: Boolean(layout.branchingLayout),
                 difficulty: hard ? 'hard' : 'easy'
             }
         };
@@ -2641,6 +2647,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
             multiColumnRows: layout.multiColumnRows || 0,
             multiColumnRatio: layout.multiColumnRatio || 0,
             denseOptionRows: layout.denseOptionRows || 0,
+            longHorizontalRules: layout.longHorizontalRules || 0,
+            longVerticalRules: layout.longVerticalRules || 0,
+            branchingLayout: Boolean(layout.branchingLayout),
             difficulty: forceSafe ? 'hard' : analysis.difficulty
         }
     };
