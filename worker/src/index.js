@@ -893,8 +893,7 @@ function isAiTimeoutError(error) {
 
 function isTransientAiError(error) {
   const s = aiErrorText(error);
-  return isAiTimeoutError(error) ||
-    s.includes('3040') ||
+  return s.includes('3040') ||
     s.includes('out of capacity') ||
     s.includes('temporarily unavailable') ||
     s.includes('service unavailable') ||
