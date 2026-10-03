@@ -1,4 +1,4 @@
-# PaperAI Production Architecture v8
+# PaperAI Production Architecture v9
 
 ## Goals
 
@@ -71,3 +71,14 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Hard and structured pages receive a literal verification pass.
 - Devanagari verification checks visible grapheme anatomy rather than choosing the most common word.
 - Verification results are rejected when they rewrite too much of an otherwise coherent first transcription.
+
+
+## v9 visual-learning changes
+
+- Results now include a private **Teach** workflow in the browser. A user can correct OCR text and PaperAI stores small wrong→right token pairs in that browser's localStorage.
+- Future scans send only the top local confusion pairs as visual hints. These hints are never automatic substitutions and never override the current image pixels.
+- No user identity, IP address or global correction profile is required for this learning loop.
+- The model weights are not fine-tuned; this is retrieval-style visual confusion memory layered on top of the existing OCR model.
+- Visual structure metadata now includes long horizontal/vertical rule counts, multi-column rows and likely branching layouts.
+- Structured OCR prompts receive those geometry hints so circles, arrows, branch diagrams, answer lines and two-column relationships are less likely to be flattened incorrectly.
+- Literal verification and anti-hallucination safeguards from v8 remain in force.
