@@ -842,6 +842,97 @@
             overflow-wrap: anywhere;
         }
 
+        .ocr-strike {
+            text-decoration-line: line-through;
+            text-decoration-thickness: 2px;
+            text-decoration-color: var(--red);
+        }
+
+        .ocr-double-strike {
+            text-decoration-line: line-through;
+            text-decoration-style: double;
+            text-decoration-thickness: 2px;
+            text-decoration-color: var(--red);
+        }
+
+        .ocr-insert {
+            padding: 0 0.18rem;
+            border-bottom: 1px dashed var(--green);
+            background: var(--green-soft);
+            border-radius: 4px;
+        }
+
+        .ocr-replace {
+            display: inline;
+            padding: 0 0.18rem;
+            background: var(--amber-soft);
+            border-radius: 4px;
+        }
+
+        .ocr-replace-old {
+            color: var(--text3);
+            text-decoration: line-through;
+            text-decoration-color: var(--red);
+        }
+
+        .ocr-replace-new {
+            color: var(--text);
+            font-weight: 650;
+        }
+
+        .ocr-circled {
+            display: inline-block;
+            padding: 0 0.28rem;
+            border: 1px solid currentColor;
+            border-radius: 999px;
+            line-height: 1.45;
+        }
+
+        .ocr-underline {
+            text-decoration-line: underline;
+            text-decoration-thickness: 1.5px;
+            text-underline-offset: 2px;
+        }
+
+        .ocr-double-underline {
+            text-decoration-line: underline;
+            text-decoration-style: double;
+            text-decoration-thickness: 1.5px;
+            text-underline-offset: 2px;
+        }
+
+        .ocr-boxed {
+            display: inline-block;
+            padding: 0 0.22rem;
+            border: 1px solid var(--text2);
+            border-radius: 3px;
+        }
+
+        .ocr-highlight {
+            padding: 0 0.12rem;
+            background: var(--amber-soft);
+            border-radius: 3px;
+        }
+
+        .ocr-margin {
+            padding: 0 0.2rem;
+            border-left: 2px solid var(--accent);
+            color: var(--text2);
+        }
+
+        .ocr-stamp {
+            display: inline-block;
+            padding: 0 0.22rem;
+            border: 1px dashed var(--red);
+            border-radius: 3px;
+            color: var(--red);
+        }
+
+        .ocr-signature {
+            font-style: italic;
+            color: var(--text2);
+        }
+
         .output-body::-webkit-scrollbar { width: 4px; }
         .output-body::-webkit-scrollbar-track { background: transparent; }
         .output-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
@@ -2115,9 +2206,49 @@ function showTab(tab) {
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
+function formatOcrAnnotation(type, content) {
+    const safe = esc(content || '').replace(/\n/g, '<br>');
+    if (type === 'STRIKE') return '<span class="ocr-strike">' + safe + '</span>';
+    if (type === 'DOUBLE-STRIKE') return '<span class="ocr-double-strike">' + safe + '</span>';
+    if (type === 'INSERT') return '<span class="ocr-insert">' + safe + '</span>';
+    if (type === 'CIRCLED') return '<span class="ocr-circled">' + safe + '</span>';
+    if (type === 'UNDERLINE') return '<span class="ocr-underline">' + safe + '</span>';
+    if (type === 'DOUBLE-UNDERLINE') return '<span class="ocr-double-underline">' + safe + '</span>';
+    if (type === 'BOXED') return '<span class="ocr-boxed">' + safe + '</span>';
+    if (type === 'HIGHLIGHT') return '<span class="ocr-highlight">' + safe + '</span>';
+    if (type === 'MARGIN') return '<span class="ocr-margin">' + safe + '</span>';
+    if (type === 'STAMP') return '<span class="ocr-stamp">' + safe + '</span>';
+    if (type === 'SIGNATURE') return '<span class="ocr-signature">Signature: ' + safe + '</span>';
+
+    if (type === 'REPLACE') {
+        const parts = String(content || '').split(/\s*(?:->|→|=>)\s*/);
+        if (parts.length >= 2) {
+            const oldText = esc(parts.shift());
+            const newText = esc(parts.join(' → '));
+            return '<span class="ocr-replace"><span class="ocr-replace-old">' + oldText + '</span> → <span class="ocr-replace-new">' + newText + '</span></span>';
+        }
+        return '<span class="ocr-replace">' + safe + '</span>';
+    }
+
+    return '[[' + esc(type) + ': ' + safe + ']]';
+}
+
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
-    return esc(text).replace(/\n/g, '<br>');
+
+    const token = /\[\[(DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):\s*([\s\S]*?)\]\]/g;
+    let html = '';
+    let last = 0;
+    let match;
+
+    while ((match = token.exec(text)) !== null) {
+        html += esc(text.slice(last, match.index)).replace(/\n/g, '<br>');
+        html += formatOcrAnnotation(match[1], match[2]);
+        last = token.lastIndex;
+    }
+
+    html += esc(text.slice(last)).replace(/\n/g, '<br>');
+    return html;
 }
 
 goBtn.onclick = async () => {
@@ -2192,7 +2323,9 @@ goBtn.onclick = async () => {
         if (!allText.trim()) throw new Error('No text found in file');
 
         const charCount = allText.length;
+        const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
+        if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         $('statsBar').innerHTML = badges;
 
         lastResult = { text: allText, raw_text: allRaw };
