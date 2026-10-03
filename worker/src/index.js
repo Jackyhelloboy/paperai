@@ -975,8 +975,36 @@ Return only the final transcription.`;
 
   if (!response) throw lastError || new Error('AI OCR unavailable');
 
-  const text = (response.response || '').trim();
+  const text = extractAiText(response);
   return { text, raw: text, model, usage: response.usage || null, scanMode };
+}
+
+function extractAiText(response) {
+  if (!response) return '';
+
+  if (typeof response === 'string') return response.trim();
+  if (typeof response.response === 'string') return response.response.trim();
+
+  const choiceContent = response?.choices?.[0]?.message?.content;
+  if (typeof choiceContent === 'string') return choiceContent.trim();
+
+  if (Array.isArray(choiceContent)) {
+    return choiceContent
+      .map(part => {
+        if (typeof part === 'string') return part;
+        if (typeof part?.text === 'string') return part.text;
+        if (typeof part?.content === 'string') return part.content;
+        return '';
+      })
+      .join('')
+      .trim();
+  }
+
+  if (typeof response?.result?.response === 'string') {
+    return response.result.response.trim();
+  }
+
+  return '';
 }
 
 function aiErrorText(error) {
