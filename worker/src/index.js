@@ -634,8 +634,8 @@ async function handleOCR(request, env, corsHeaders) {
 
   let aiResult;
   try {
-    // FREE-ONLY MODE: exactly ONE Workers AI inference per image/page.
-    // No second verification model and no paid provider fallback.
+    // FREE-ONLY MODE: one primary inference, with a conditional same-model
+    // verification pass only when the first result is uncertain. No paid fallback.
     aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta);
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
@@ -719,7 +719,7 @@ async function handleOCR(request, env, corsHeaders) {
         requested_language: language,
         detected_language: detectedLanguage,
         mode: 'free_only_literal_transcription',
-        billing_safety: 'one_ai_call_no_paid_fallback',
+        billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
         architecture: 'production-literal-ocr-v7',
         scan_mode: aiResult.scanMode || difficulty,
