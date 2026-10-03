@@ -2385,9 +2385,11 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
     let prepared = await prepareImageForOCR(sourceBlob, false);
 
     if (progressText) {
+        const lines = Number(prepared.meta?.lineCount) || 0;
+        const lineInfo = lines > 0 ? ' · ' + lines + ' lines' : '';
         const strategy = prepared.meta?.scanStrategy === 'line-mosaic' ? ' · line-by-line scan' :
             (prepared.difficulty === 'hard' ? ' · detailed layout scan' : ' · fast clear scan');
-        setProg(18, progressText + strategy);
+        setProg(18, progressText + lineInfo + strategy);
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
