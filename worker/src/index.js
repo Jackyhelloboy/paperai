@@ -920,40 +920,52 @@ ${scanMode === 'fast-clear'
   ? 'The image looks clear. Read it efficiently, but still verify every visible line before answering.'
   : 'The image may be difficult, blurry, dense, handwritten, low-contrast, or small. Inspect character shapes and line structure more carefully before answering.'}
 
-Your job is to READ the pixels, including difficult handwriting, and transcribe what is actually visible.
-Use nearby visible context only to choose between visually plausible characters; NEVER change the author's spelling, grammar, facts or wording.
+Your job is to READ the pixels, including difficult human handwriting, and transcribe what is actually visible.
+Use nearby visible context only to choose between visually plausible characters; NEVER change the writer's spelling, grammar, facts, calculations, or wording.
+
+Before answering, silently inspect the complete page from top-left to bottom-right. For difficult pages, do a second visual check of every number, operator, mark, unit, punctuation symbol, and short handwritten word before producing the final transcription.
 
 STRICT TRANSCRIPTION RULES:
-1. Output ONLY text visible in the image. No explanations, summaries, Markdown wrappers or commentary.
-2. Preserve the source exactly even when it contains mistakes.
-3. Preserve English, Hindi, Telugu and every other visible script without transliteration.
-4. Pay special attention to handwritten English letter shapes, Devanagari matras/conjuncts and Telugu vowel signs/conjuncts.
-5. Distinguish visually similar characters and digits carefully (for example 1/l/I, 0/O, 5/S, 2/Z) only from the image.
-6. Preserve dates, numbers, names, punctuation, capitalization, math symbols, units, brackets, question numbers and marks exactly.
-7. Preserve line order and meaningful line breaks. Do not merge unrelated lines.
-8. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
-9. Forms, tables and two-column lists: keep each label beside the value that is visibly on the same row, using " | " between visible columns.
-10. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together (for example "बा" is one cell).
-11. Anything visibly OUTSIDE the grid boundary must stay outside the grid. Never insert side answer numbers or labels into grid cells.
-12. Never invent page markers, section markers, filenames, "--- Page 2 ---", or any other text that is not visibly printed in the source.
-13. For crossed-out or overwritten handwriting, transcribe the final clearly intended visible writing only when it is visually obvious; otherwise preserve the visible ambiguous text as closely as possible.
-14. Do not hallucinate text hidden by blur, cropping, glare or low resolution. If a tiny portion is unreadable, use [unclear] only for that portion rather than inventing a word.
-15. Write "No text detected" only when the image truly contains no readable text.
+1. Output ONLY text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
+2. Preserve the source exactly even when it contains mistakes. Do not correct an equation, date, spelling, answer, or fact.
+3. Preserve English, Hindi, Telugu, and every other visible script without transliteration.
+4. Treat handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
+5. Distinguish visually similar characters only from the image: 1/l/I, 0/O, 5/S, 2/Z, 6/G, x/×, +/t, -/−, ./,/:
+6. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
+7. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
+8. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
+9. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
+10. For diagrams, shapes, flowcharts, maps, or labelled drawings: transcribe visible labels, numbers, arrows, and symbols in reading order. Do not invent a description of the drawing.
+11. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
+12. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
+13. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row, using " | " only as a column separator.
+14. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
+15. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
+16. Never invent page markers, filenames, headings, or text that is not visibly present.
+17. For crossed-out/overwritten handwriting, transcribe the final clearly intended visible writing only when it is visually obvious. Otherwise preserve the closest visible characters.
+18. Do not hallucinate text hidden by blur, glare, cropping, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
+19. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
 
 Return only the final transcription.`;
 
   const requestBody = {
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: dataUrl } },
-        { type: 'text', text: prompt }
-      ]
-    }],
-    max_tokens: 8192,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a literal OCR engine for printed and handwritten documents. Accuracy of characters, numbers, mathematics, and symbols is more important than fluency.'
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: dataUrl } },
+          { type: 'text', text: prompt }
+        ]
+      }
+    ],
+    max_completion_tokens: 8192,
     temperature: 0,
     chat_template_kwargs: {
-      enable_thinking: false
+      enable_thinking: difficulty === 'hard'
     }
   };
 
