@@ -1,4 +1,4 @@
-# PaperAI Production Architecture v7
+# PaperAI Production Architecture v8
 
 ## Goals
 
@@ -10,15 +10,18 @@ The production path is designed for Cloudflare Workers Free + Workers AI Free al
 
 1. Browser validates file type and size.
 2. Digital PDF, spreadsheet, modern Office and plain-text content is extracted locally when reliable text is already embedded.
-3. Images/scanned pages are analyzed locally for:
+3. Photographed pages are first checked for a dominant light paper region. When reliable, PaperAI crops away background fabric/table/desk pixels before OCR.
+4. Images/scanned pages are analyzed locally for:
    - contrast and sharpness
    - page density
    - text-line bands
+   - multiple separated text groups on the same row
+   - option/matching/two-column structure
    - simple line layout versus structured layout
-4. Simple handwriting/text pages use a compact line-mosaic that preserves left-to-right content and top-to-bottom order while removing large blank vertical gaps.
-5. Structured forms, tables, grids, diagrams and complex pages stay full-page so spatial relationships are not destroyed.
-6. Gemma 4 vision performs literal OCR with temperature 0.
-7. A second literal verification pass is used only when the first result is suspicious: missing lines, [unclear] text, or visual edit metadata that needs confirmation.
+5. Simple handwriting/text pages use a compact line-mosaic that preserves left-to-right content and top-to-bottom order while removing large blank vertical gaps.
+6. Structured forms, tables, grids, diagrams, matching questions and option-heavy rows stay full-page so spatial relationships are not destroyed.
+7. Gemma 4 vision performs literal OCR with temperature 0.
+8. A second literal verification pass is used for hard/structured pages or when the first result is suspicious. It re-checks Indic graphemes, bracketed options, columns, symbols and edit marks against the pixels.
 8. Deterministic post-processing only normalizes Unicode and wrapper artifacts. It never spell-corrects or fact-corrects source text.
 9. API returns:
    - `full_text`: copy/download-safe literal text without PaperAI metadata labels
@@ -60,3 +63,11 @@ The pipeline improves model use through preprocessing, routing, literal promptin
 ## Accuracy boundary
 
 No OCR system can guarantee 100% recovery when the source pixels do not contain enough information. PaperAI's production rule is to prefer a visible `[unclear]` over a confident-looking invention.
+
+## v8 accuracy changes
+
+- Automatic paper/background separation for photographed worksheets.
+- Multi-column and option-row detection prevents destructive line-mosaic routing.
+- Hard and structured pages receive a literal verification pass.
+- Devanagari verification checks visible grapheme anatomy rather than choosing the most common word.
+- Verification results are rejected when they rewrite too much of an otherwise coherent first transcription.
