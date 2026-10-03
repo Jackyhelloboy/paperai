@@ -56,6 +56,7 @@ export async function onRequest({ request }) {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'no-store',
+        'X-PaperAI-Proxy-Error': '1',
       },
     });
   }
