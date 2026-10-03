@@ -168,6 +168,186 @@
             line-height: 1.5;
         }
 
+        /* ── Public Free AI Quota ───────────────────────────── */
+        .quota-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem 1.05rem;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 1rem;
+            animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.03s both;
+        }
+
+        .quota-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .quota-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.01em;
+        }
+
+        .quota-subtitle {
+            margin-top: 0.12rem;
+            font-size: 0.66rem;
+            color: var(--text3);
+            line-height: 1.35;
+        }
+
+        .quota-live {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.22rem 0.5rem;
+            border-radius: 999px;
+            background: var(--green-soft);
+            color: var(--green);
+            font-size: 0.62rem;
+            font-weight: 700;
+        }
+
+        .quota-live-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .quota-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.65rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .quota-stat {
+            padding: 0.65rem 0.7rem;
+            border-radius: var(--radius-xs);
+            background: var(--bg);
+            border: 1px solid var(--border);
+        }
+
+        .quota-stat-label {
+            display: block;
+            font-size: 0.61rem;
+            color: var(--text3);
+            margin-bottom: 0.12rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 600;
+        }
+
+        .quota-stat-value {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.025em;
+        }
+
+        .quota-track {
+            height: 10px;
+            background: var(--surface2);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .quota-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--green), var(--accent));
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .quota-scale {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 0.35rem;
+            font-size: 0.62rem;
+            color: var(--text3);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .quota-chart {
+            width: 100%;
+            height: 54px;
+            display: block;
+            margin-top: 0.6rem;
+            overflow: visible;
+        }
+
+        .quota-chart-grid {
+            stroke: var(--border);
+            stroke-width: 1;
+        }
+
+        .quota-chart-line {
+            fill: none;
+            stroke: var(--accent);
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            vector-effect: non-scaling-stroke;
+        }
+
+        .quota-times {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+            margin-top: 0.55rem;
+            padding-top: 0.6rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .quota-time-label {
+            display: block;
+            font-size: 0.58rem;
+            color: var(--text3);
+            margin-bottom: 0.12rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 600;
+        }
+
+        .quota-time-value {
+            display: block;
+            font-size: 0.67rem;
+            color: var(--text2);
+            line-height: 1.35;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .quota-note {
+            margin-top: 0.55rem;
+            font-size: 0.6rem;
+            line-height: 1.4;
+            color: var(--text3);
+        }
+
+        .quota-card.warning .quota-fill {
+            background: linear-gradient(90deg, var(--amber), var(--red));
+        }
+
+        .quota-card.exhausted .quota-fill {
+            background: var(--red);
+        }
+
+        .quota-card.exhausted .quota-live {
+            background: var(--red-soft);
+            color: var(--red);
+        }
+
         /* ── Upload Card ───────────────────────────────────── */
         .upload-card {
             background: var(--surface);
@@ -930,6 +1110,60 @@
             <p>Images, handwriting, PDFs, Word, PowerPoint, Excel and text — with free-only AI OCR</p>
         </div>
 
+        <section class="quota-card" id="quotaCard" aria-live="polite">
+            <div class="quota-head">
+                <div>
+                    <div class="quota-title">Today's free AI OCR quota</div>
+                    <div class="quota-subtitle">Public PaperAI usage estimate · Cloudflare Workers AI</div>
+                </div>
+                <div class="quota-live" id="quotaBadge">
+                    <span class="quota-live-dot"></span>
+                    <span id="quotaBadgeText">Loading</span>
+                </div>
+            </div>
+
+            <div class="quota-stats">
+                <div class="quota-stat">
+                    <span class="quota-stat-label">Estimated remaining</span>
+                    <span class="quota-stat-value" id="quotaRemaining">—</span>
+                </div>
+                <div class="quota-stat">
+                    <span class="quota-stat-label">Estimated used</span>
+                    <span class="quota-stat-value" id="quotaUsed">—</span>
+                </div>
+            </div>
+
+            <div class="quota-track" title="Daily AI quota used">
+                <div class="quota-fill" id="quotaFill"></div>
+            </div>
+            <div class="quota-scale">
+                <span id="quotaPercent">0% used</span>
+                <span>10,000 Neurons / day</span>
+            </div>
+
+            <svg class="quota-chart" viewBox="0 0 320 54" preserveAspectRatio="none" role="img" aria-label="AI usage trend today">
+                <line class="quota-chart-grid" x1="0" y1="13.5" x2="320" y2="13.5"></line>
+                <line class="quota-chart-grid" x1="0" y1="27" x2="320" y2="27"></line>
+                <line class="quota-chart-grid" x1="0" y1="40.5" x2="320" y2="40.5"></line>
+                <polyline class="quota-chart-line" id="quotaLine" points="0,53 320,53"></polyline>
+            </svg>
+
+            <div class="quota-times">
+                <div>
+                    <span class="quota-time-label">Current date & time</span>
+                    <span class="quota-time-value" id="quotaNow">—</span>
+                </div>
+                <div>
+                    <span class="quota-time-label">Expected renewal</span>
+                    <span class="quota-time-value" id="quotaReset">—</span>
+                </div>
+            </div>
+
+            <div class="quota-note" id="quotaNote">
+                Resets daily at 00:00 UTC. This graph estimates PaperAI OCR usage from model token usage; Cloudflare's account dashboard remains the billing authority.
+            </div>
+        </section>
+
         <div class="upload-card">
             <div class="upload-zone" id="dropZone">
                 <div class="upload-icon">
@@ -1036,6 +1270,9 @@ const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageS
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
+const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
+const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
+const quotaBadgeText=$('quotaBadgeText'),quotaNote=$('quotaNote');
 
 let file=null, lastResult=null, showingRaw=false;
 
@@ -1043,6 +1280,108 @@ const fmtSize = b => b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFix
 const showErr = m => { errText.textContent=m; errBox.classList.add('show'); };
 const hideErr = () => errBox.classList.remove('show');
 const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'%'; if(msg)pMsg.textContent=msg; };
+
+let quotaResetAt = null;
+
+const fmtNeuron = n => {
+    const value = Number(n);
+    if (!Number.isFinite(value)) return '—';
+    if (value >= 1000) return Math.round(value).toLocaleString();
+    if (value >= 100) return value.toFixed(0);
+    return value.toFixed(1);
+};
+
+function formatLocalDateTime(value) {
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat(undefined, {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZoneName: 'short'
+    }).format(d);
+}
+
+function updateQuotaClock() {
+    quotaNow.textContent = formatLocalDateTime(new Date());
+    if (quotaResetAt) {
+        const reset = new Date(quotaResetAt);
+        const ms = reset - Date.now();
+        const mins = Math.max(0, Math.ceil(ms / 60000));
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        quotaReset.textContent = formatLocalDateTime(reset) + ' · in ' + h + 'h ' + m + 'm';
+    }
+}
+
+function drawQuotaHistory(history, limit, resetAt) {
+    const width = 320, height = 53;
+    const reset = new Date(resetAt);
+    const start = new Date(reset.getTime() - 86400000);
+    const startMs = start.getTime();
+    const span = Math.max(1, reset.getTime() - startMs);
+
+    const rows = Array.isArray(history) ? history.slice() : [];
+    const points = [{ at: start.toISOString(), used: 0 }, ...rows];
+
+    // Extend the final measured value to "now" so the line clearly shows the
+    // current plateau rather than stopping at the last OCR request.
+    const lastUsed = Number(points[points.length - 1]?.used || 0);
+    points.push({ at: new Date().toISOString(), used: lastUsed });
+
+    const mapped = points.map(p => {
+        const t = new Date(p.at).getTime();
+        const x = Math.max(0, Math.min(width, ((t - startMs) / span) * width));
+        const y = Math.max(1, Math.min(height, height - ((Number(p.used) || 0) / Math.max(1, limit)) * height));
+        return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+
+    quotaLine.setAttribute('points', mapped.join(' '));
+}
+
+async function loadUsage() {
+    try {
+        const res = await fetch(API + '/api/usage?t=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) throw new Error('status ' + res.status);
+        const data = await res.json();
+
+        const limit = Number(data.free_limit) || 10000;
+        const used = Math.max(0, Number(data.estimated_used) || 0);
+        const remaining = Math.max(0, Number(data.estimated_remaining ?? (limit - used)) || 0);
+        const pct = Math.max(0, Math.min(100, Number(data.percent_used) || (used / limit * 100)));
+
+        quotaRemaining.textContent = fmtNeuron(remaining);
+        quotaUsed.textContent = fmtNeuron(used);
+        quotaFill.style.width = pct.toFixed(2) + '%';
+        quotaPercent.textContent = pct.toFixed(pct < 10 ? 1 : 0) + '% used';
+        quotaResetAt = data.reset_at || null;
+
+        quotaCard.classList.toggle('warning', pct >= 75 && pct < 100);
+        quotaCard.classList.toggle('exhausted', pct >= 100 || data.exhausted);
+        quotaBadgeText.textContent = (pct >= 100 || data.exhausted) ? 'Limit reached' : 'Live estimate';
+
+        drawQuotaHistory(data.history || [], limit, data.reset_at);
+        updateQuotaClock();
+
+        const requests = Number(data.ocr_requests_tracked) || 0;
+        const trackingStarted = data.tracking_started_at ? formatLocalDateTime(data.tracking_started_at) : 'this deployment';
+        quotaNote.textContent =
+            'Tracks ' + requests + ' AI OCR request' + (requests === 1 ? '' : 's') +
+            ' since ' + trackingStarted + '. Resets at 00:00 UTC. Usage is estimated from PaperAI model tokens; earlier usage and other Workers AI apps on the same Cloudflare account are not included.';
+    } catch (e) {
+        quotaBadgeText.textContent = 'Unavailable';
+        quotaNote.textContent = 'Daily free limit: 10,000 Neurons. Live usage could not be loaded right now; OCR can still work normally.';
+        updateQuotaClock();
+    }
+}
+
+updateQuotaClock();
+setInterval(updateQuotaClock, 1000);
+loadUsage();
+setInterval(loadUsage, 120000);
 
 const IMAGE_EXTS = ['jpg','jpeg','png','bmp','webp','gif','tiff','tif'];
 const PDF_EXTS = ['pdf'];
@@ -1548,6 +1887,8 @@ goBtn.onclick = async () => {
         resBox.classList.add('show');
         setProg(100, 'Done');
         setTimeout(() => prog.classList.remove('show'), 800);
+        // Refresh the public usage bar immediately after OCR activity.
+        loadUsage();
     } catch(e) {
         showErr(e.name==='AbortError' ? 'Timed out — try a smaller file.' : e.message);
     } finally {
