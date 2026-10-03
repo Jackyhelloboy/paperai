@@ -1,4 +1,9 @@
+import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
+
+const DAILY_FREE_NEURONS = 10000;
+const GEMMA4_INPUT_NEURONS_PER_MILLION = 9091;
+const GEMMA4_OUTPUT_NEURONS_PER_MILLION = 27273;
 
 export default {
   async fetch(request, env) {
@@ -31,6 +36,26 @@ export default {
 
     if (url.pathname === '/health') {
       return Response.json({ status: 'healthy', platform: 'cloudflare-workers' }, { headers: corsHeaders });
+    }
+
+    // Public daily free-AI quota dashboard. This is a PaperAI-side estimate
+    // calculated from Workers AI token usage returned after each OCR request.
+    if (url.pathname === '/api/usage' && request.method === 'GET') {
+      try {
+        const usage = await getUsageStatus(env);
+        return Response.json(usage, {
+          headers: {
+            ...corsHeaders,
+            'Cache-Control': 'no-store, max-age=0',
+          },
+        });
+      } catch (e) {
+        return Response.json({
+          error: 'Usage tracker unavailable',
+          detail: e.message,
+          free_limit: DAILY_FREE_NEURONS,
+        }, { status: 503, headers: corsHeaders });
+      }
     }
 
     if (url.pathname === '/api/ocr' && request.method === 'POST') {
@@ -269,6 +294,133 @@ export default {
   },
 };
 
+export class UsageTracker extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    const now = new Date();
+    const utcDay = now.toISOString().slice(0, 10);
+
+    let state = await this.ctx.storage.get('daily');
+    if (!state || state.day !== utcDay) {
+      state = {
+        day: utcDay,
+        used: 0,
+        requests: 0,
+        history: [],
+        exhausted: false,
+      };
+    }
+
+    if (request.method === 'POST' && url.pathname === '/add') {
+      const body = await request.json();
+      const neurons = Number(body.neurons) || 0;
+
+      if (Number.isFinite(neurons) && neurons > 0) {
+        state.used = Math.min(DAILY_FREE_NEURONS, state.used + neurons);
+        state.requests += 1;
+        state.history.push({
+          at: now.toISOString(),
+          used: Math.round(state.used * 100) / 100,
+        });
+
+        // A whole day only needs a compact trend. Keep first/last and recent
+        // points if traffic ever grows beyond the current small audience.
+        if (state.history.length > 144) {
+          const sampled = state.history.filter((_, i) => i % 2 === 0);
+          if (sampled[sampled.length - 1]?.at !== state.history[state.history.length - 1]?.at) {
+            sampled.push(state.history[state.history.length - 1]);
+          }
+          state.history = sampled.slice(-144);
+        }
+      }
+
+      await this.ctx.storage.put('daily', state);
+    }
+
+    if (request.method === 'POST' && url.pathname === '/exhausted') {
+      state.used = DAILY_FREE_NEURONS;
+      state.exhausted = true;
+      state.history.push({ at: now.toISOString(), used: DAILY_FREE_NEURONS });
+      state.history = state.history.slice(-144);
+      await this.ctx.storage.put('daily', state);
+    }
+
+    const reset = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 1,
+      0, 0, 0, 0
+    ));
+
+    const used = Math.min(DAILY_FREE_NEURONS, Math.max(0, Number(state.used) || 0));
+    const remaining = Math.max(0, DAILY_FREE_NEURONS - used);
+
+    return Response.json({
+      date_utc: utcDay,
+      server_time: now.toISOString(),
+      reset_at: reset.toISOString(),
+      free_limit: DAILY_FREE_NEURONS,
+      estimated_used: Math.round(used * 100) / 100,
+      estimated_remaining: Math.round(remaining * 100) / 100,
+      percent_used: Math.round((used / DAILY_FREE_NEURONS) * 10000) / 100,
+      ocr_requests_tracked: Number(state.requests) || 0,
+      exhausted: Boolean(state.exhausted || used >= DAILY_FREE_NEURONS),
+      history: state.history || [],
+      scope: 'PaperAI OCR requests handled by this Worker',
+      accuracy: 'estimate',
+      reset_rule: '00:00 UTC daily',
+    }, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
+  }
+}
+
+function getUsageStub(env) {
+  if (!env.USAGE_TRACKER) {
+    throw new Error('USAGE_TRACKER Durable Object binding is not configured');
+  }
+  const id = env.USAGE_TRACKER.idFromName('paperai-global');
+  return env.USAGE_TRACKER.get(id);
+}
+
+async function getUsageStatus(env) {
+  const res = await getUsageStub(env).fetch('https://usage.internal/status');
+  if (!res.ok) throw new Error('Usage tracker returned ' + res.status);
+  return await res.json();
+}
+
+function estimateGemma4Neurons(usage) {
+  if (!usage) return 0;
+  const promptTokens = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0) || 0;
+  const completionTokens = Number(usage.completion_tokens ?? usage.output_tokens ?? 0) || 0;
+
+  return (
+    (promptTokens * GEMMA4_INPUT_NEURONS_PER_MILLION / 1_000_000) +
+    (completionTokens * GEMMA4_OUTPUT_NEURONS_PER_MILLION / 1_000_000)
+  );
+}
+
+async function recordAiUsage(env, usage) {
+  const neurons = estimateGemma4Neurons(usage);
+  if (!(neurons > 0)) return;
+
+  await getUsageStub(env).fetch('https://usage.internal/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ neurons }),
+  });
+}
+
+async function markUsageExhausted(env) {
+  await getUsageStub(env).fetch('https://usage.internal/exhausted', {
+    method: 'POST',
+  });
+}
+
 async function handleOCR(request, env, corsHeaders) {
   const contentType = request.headers.get('content-type') || '';
 
@@ -403,6 +555,7 @@ async function handleOCR(request, env, corsHeaders) {
     aiResult = await runAI(imageDataBase64, mimeType, env, language);
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
+      try { await markUsageExhausted(env); } catch (_) {}
       return Response.json({
         error: 'Daily free AI OCR limit reached. PaperAI stopped before any paid fallback. Try again after the Cloudflare daily reset.',
         code: 'FREE_AI_LIMIT_REACHED',
@@ -418,6 +571,14 @@ async function handleOCR(request, env, corsHeaders) {
       error: 'AI OCR failed: ' + (e?.message || 'unknown error'),
       code: 'AI_OCR_FAILED',
     }, { status: 502, headers: corsHeaders });
+  }
+
+  // Record this successful inference for the public daily usage graph.
+  // Failure to write analytics must never block the OCR result.
+  try {
+    await recordAiUsage(env, aiResult.usage || null);
+  } catch (e) {
+    console.log('[Usage tracker] Could not record usage:', e.message);
   }
 
   const rawOcrText = aiResult.raw || aiResult.text || '';
