@@ -25,17 +25,28 @@ export default {
         status: 'running',
         endpoints: [
           'POST /api/ocr',
-          'POST /api/train/collect',
-          'POST /api/train/verify',
-          'GET /api/train/export?language=hi&limit=1000',
-          'GET /api/train/stats',
+          'GET /api/usage',
+          'WS /api/live',
           'GET /health',
         ],
+        architecture: 'production-literal-ocr-v7',
       }, { headers: corsHeaders });
     }
 
     if (url.pathname === '/health') {
-      return Response.json({ status: 'healthy', platform: 'cloudflare-workers' }, { headers: corsHeaders });
+      return Response.json({
+        status: 'healthy',
+        platform: 'cloudflare-workers',
+        architecture: 'production-literal-ocr-v7',
+        model: '@cf/google/gemma-4-26b-a4b-it',
+      }, { headers: corsHeaders });
+    }
+
+    if (url.pathname === '/api/live') {
+      if ((request.headers.get('Upgrade') || '').toLowerCase() !== 'websocket') {
+        return Response.json({ error: 'WebSocket upgrade required' }, { status: 426, headers: corsHeaders });
+      }
+      return getPresenceStub(env).fetch(request);
     }
 
     // Public daily free-AI quota dashboard. This is a PaperAI-side estimate
@@ -64,6 +75,10 @@ export default {
       } catch (e) {
         return Response.json({ error: e.message || 'OCR request failed' }, { status: 500, headers: corsHeaders });
       }
+    }
+
+    if ((url.pathname.startsWith('/api/train/') || url.pathname === '/api/debug') && !isAdminRequest(request, env)) {
+      return Response.json({ error: 'Not found' }, { status: 404, headers: corsHeaders });
     }
 
     // Training data collection: save OCR result as training sample
@@ -299,8 +314,39 @@ export class UsageTracker extends DurableObject {
     super(ctx, env);
   }
 
+  broadcastPresence(exclude = null) {
+    const sockets = this.ctx.getWebSockets();
+    const active = sockets.filter(ws => ws !== exclude).length;
+    const message = JSON.stringify({ type: 'presence', active });
+
+    for (const ws of sockets) {
+      if (ws === exclude) continue;
+      try { ws.send(message); } catch (_) {}
+    }
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
+
+    if (url.pathname === '/api/live') {
+      if ((request.headers.get('Upgrade') || '').toLowerCase() !== 'websocket') {
+        return Response.json({ active: this.ctx.getWebSockets().length }, {
+          headers: { 'Cache-Control': 'no-store' },
+        });
+      }
+
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+      this.ctx.acceptWebSocket(server);
+      server.serializeAttachment({ connectedAt: Date.now() });
+      this.broadcastPresence();
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      });
+    }
+
     const now = new Date();
     const utcDay = now.toISOString().slice(0, 10);
 
@@ -379,6 +425,32 @@ export class UsageTracker extends DurableObject {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
     });
   }
+
+  webSocketMessage(ws, message) {
+    const active = this.ctx.getWebSockets().length;
+    try { ws.send(JSON.stringify({ type: 'presence', active })); } catch (_) {}
+  }
+
+  webSocketClose(ws) {
+    this.broadcastPresence(ws);
+  }
+
+  webSocketError(ws) {
+    this.broadcastPresence(ws);
+  }
+}
+
+function isAdminRequest(request, env) {
+  if (!env.ADMIN_TOKEN) return false;
+  return request.headers.get('Authorization') === `Bearer ${env.ADMIN_TOKEN}`;
+}
+
+function getPresenceStub(env) {
+  if (!env.USAGE_TRACKER) {
+    throw new Error('USAGE_TRACKER Durable Object binding is not configured');
+  }
+  const id = env.USAGE_TRACKER.idFromName('paperai-live-presence');
+  return env.USAGE_TRACKER.get(id);
 }
 
 function getUsageStub(env) {
@@ -562,8 +634,8 @@ async function handleOCR(request, env, corsHeaders) {
 
   let aiResult;
   try {
-    // FREE-ONLY MODE: exactly ONE Workers AI inference per image/page.
-    // No second verification model and no paid provider fallback.
+    // FREE-ONLY MODE: one primary inference, with a conditional same-model
+    // verification pass only when the first result is uncertain. No paid fallback.
     aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta);
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
@@ -611,6 +683,7 @@ async function handleOCR(request, env, corsHeaders) {
   const allCorrections = [];
 
   const consistencyWarnings = checkConsistency(correctedText);
+  const plainText = stripOcrMetadata(correctedText);
 
   // Compute post-correction confidence
   const highConfCorrections = allCorrections.filter(c => c.confidence >= 0.95);
@@ -620,12 +693,14 @@ async function handleOCR(request, env, corsHeaders) {
     result: {
       pages: [{
         page: 1,
-        text: correctedText,
-        regions: countRegions(correctedText),
+        text: plainText,
+        annotated_text: correctedText,
+        regions: countRegions(plainText),
       }],
-      full_text: correctedText,
+      full_text: plainText,
+      annotated_text: correctedText,
       raw_text: rawOcrText,
-      verified_text: correctedText,
+      verified_text: plainText,
       corrections_summary: {
         total_corrections: allCorrections.length,
         high_confidence: highConfCorrections.length,
@@ -637,22 +712,22 @@ async function handleOCR(request, env, corsHeaders) {
       metadata: {
         filename: filename,
         total_pages: 1,
-        total_characters: correctedText.length,
+        total_characters: plainText.length,
         engine: aiResult.error ? 'error' : 'cloudflare-ai',
         error: aiResult.error || null,
         language: effectiveLanguage,
         requested_language: language,
         detected_language: detectedLanguage,
         mode: 'free_only_literal_transcription',
-        billing_safety: 'one_ai_call_no_paid_fallback',
+        billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'adaptive-line-ocr-v6',
+        architecture: 'production-literal-ocr-v7',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
-        rescue_pass_used: Boolean(aiResult.rescued),
+        verification_pass_used: Boolean(aiResult.rescued),
         image_profile: imageMeta || {},
-        layout: detectExamLayout(correctedText),
+        layout: detectExamLayout(plainText),
       },
       consistency_warnings: consistencyWarnings,
     },
@@ -955,31 +1030,34 @@ STRICT TRANSCRIPTION RULES:
 1. Output ONLY text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
 2. Preserve the source exactly even when it contains mistakes. Do not correct an equation, date, spelling, answer, or fact.
 3. Preserve English, Hindi, Telugu, and every other visible script without transliteration.
-4. Treat handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
-5. Distinguish visually similar characters only from the image: 1/l/I, 0/O, 5/S, 2/Z, 6/G, x/×, +/t, -/−, ./,/:
-6. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
-7. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
-8. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
-9. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
-10. For diagrams, shapes, flowcharts, maps, or labelled drawings: transcribe visible labels, numbers, arrows, and symbols in reading order. Do not invent a description of the drawing.
-11. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
-12. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
-13. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row, using " | " only as a column separator.
-14. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
-15. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
-16. Never invent page markers, filenames, headings, or text that is not visibly present.
-17. Detect human editing marks instead of throwing them away. Cross-outs, repeated mistakes, overwriting, caret insertions, circles, underlines, boxes, highlights, margin notes, ticks, crosses, and teacher corrections are part of the document.
-18. For a single legible strike-through use exactly: [[STRIKE: text]]
-19. If the same legible text has two or more clear strike lines or a heavy double-cancel mark, use exactly: [[DOUBLE-STRIKE: text]]
-20. If both the original and replacement are legible, use exactly: [[REPLACE: old -> new]]. Never guess an unreadable old word.
-21. For a clearly inserted word/number written with a caret or insertion mark, use exactly: [[INSERT: text]]
-22. For visible formatting/annotation use only when visually clear: [[CIRCLED: text]], [[UNDERLINE: text]], [[DOUBLE-UNDERLINE: text]], [[BOXED: text]], [[HIGHLIGHT: text]], [[MARGIN: text]], [[STAMP: text]]. Use [[SIGNATURE: text]] only when signature letters are actually readable; otherwise use [[SIGNATURE: [unreadable]]].
-23. If a writer makes multiple sequential mistakes, keep every visible stage in reading order. Example: [[STRIKE: first]] [[STRIKE: second]] final. Do not collapse them into only the final answer.
-24. If struck or overwritten text is partly readable, preserve the readable characters and use [unclear] only for the unreadable portion, for example [[STRIKE: ans[unclear]]].
-25. The [[...]] edit markers above are OCR metadata, not source text. Use them ONLY when the corresponding visual mark is genuinely present. Never invent a strike, correction, underline, circle, box, highlight, margin note, stamp, or signature from low image quality.
-26. Preserve teacher marks and grading notation such as ✓, ✗, ticks, crosses, circles around marks, "2/5", "+1", "-1", "Good", "Wrong", initials, and correction arrows when visible.
-27. Do not hallucinate text hidden by blur, glare, cropping, scribble, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
-28. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
+4. Treat intentional handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
+5. Do NOT treat page show-through, reverse-side writing, paper embossing, shadows, ruled-line texture, erased graphite ghosts, compression artifacts, or background fabric as new text unless there is clear intentional ink/pencil evidence on the current page surface.
+6. Blank answer lines stay blank. Never fill a blank from the expected answer, nearby options, grammar, school subject knowledge, or faint erased/ghost writing.
+7. When a character is ambiguous, choose the closest visually supported character. Language context may break a tie only between characters that are BOTH visually plausible. Context must never override the pixels.
+8. Distinguish visually similar characters only from the image: 1/l/I, 0/O, 5/S, 2/Z, 6/G, x/×, +/t, -/−, ./,/:
+9. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
+10. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
+11. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
+12. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
+13. For diagrams, shapes, flowcharts, maps, or labelled drawings: transcribe visible labels, numbers, arrows, and symbols in reading order. Do not invent a description of the drawing.
+14. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
+15. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
+16. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row, using " | " only as a column separator.
+17. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
+18. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
+19. Never invent page markers, filenames, headings, or text that is not visibly present.
+20. Detect human editing marks instead of throwing them away. Cross-outs, repeated mistakes, overwriting, caret insertions, circles, underlines, boxes, highlights, margin notes, ticks, crosses, and teacher corrections are part of the document.
+21. For a single legible strike-through use exactly: [[STRIKE: text]]
+22. If the same legible text has two or more clear strike lines or a heavy double-cancel mark, use exactly: [[DOUBLE-STRIKE: text]]
+23. If both the original and replacement are legible, use exactly: [[REPLACE: old -> new]]. Never guess an unreadable old word.
+24. For a clearly inserted word/number written with a caret or insertion mark, use exactly: [[INSERT: text]]
+25. For visible formatting/annotation use only when visually clear: [[CIRCLED: text]], [[UNDERLINE: text]], [[DOUBLE-UNDERLINE: text]], [[BOXED: text]], [[HIGHLIGHT: text]], [[MARGIN: text]], [[STAMP: text]]. Use [[SIGNATURE: text]] only when signature letters are actually readable; otherwise use [[SIGNATURE: [unreadable]]].
+26. If a writer makes multiple sequential mistakes, keep every visible stage in reading order. Example: [[STRIKE: first]] [[STRIKE: second]] final. Do not collapse them into only the final answer.
+27. If struck or overwritten text is partly readable, preserve the readable characters and use [unclear] only for the unreadable portion, for example [[STRIKE: ans[unclear]]].
+28. The [[...]] edit markers above are OCR metadata, not source text. Use them ONLY when the corresponding visual mark is genuinely present. Never invent a strike, correction, underline, circle, box, highlight, margin note, stamp, or signature from low image quality.
+29. Preserve teacher marks and grading notation such as ✓, ✗, ticks, crosses, circles around marks, "2/5", "+1", "-1", "Good", "Wrong", initials, and correction arrows when visible.
+30. Do not hallucinate text hidden by blur, glare, cropping, scribble, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
+31. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
 
 Return only the final transcription plus the allowed [[...]] edit markers when needed.`;
 
@@ -1026,18 +1104,33 @@ Return only the final transcription plus the allowed [[...]] edit markers when n
   let usage = mergeAiUsage(response.usage || null, null);
   let rescued = false;
 
-  if (shouldRescueHandwriting(text, imageMeta)) {
+  if (shouldVerifyOcr(text, imageMeta)) {
     const rescuePrompt = prompt + `
 
-HANDWRITING RESCUE PASS:
-The first read looked suspiciously empty or too short for the visible pen/pencil strokes. Re-inspect the entire image at character level. Look for faint cursive, small numbers, operators, struck-out attempts, overwritten answers, teacher marks, margin notes, and symbols. Do not return "No text detected" unless the page is truly blank. Preserve all allowed [[...]] edit markers exactly as defined above.`;
+LITERAL VERIFICATION PASS:
+Below is the first OCR transcription. Re-check it against the image line-by-line and return the best literal transcription.
+
+FIRST OCR:
+---BEGIN FIRST OCR---
+${text}
+---END FIRST OCR---
+
+VERIFICATION RULES:
+- Keep text unchanged when the pixels support it.
+- Resolve [unclear] only when the image gives enough visual evidence.
+- Remove [[INSERT]], [[REPLACE]], [[STRIKE]], [[CIRCLED]], [[UNDERLINE]], or other edit markers if the corresponding visual mark is not clearly present.
+- Do not turn faint erased writing, reverse-side show-through, indentation, shadows, or paper texture into readable text.
+- Do not fill answer blanks from context or options.
+- Correct a character only when the image itself supports that correction.
+- Preserve mathematics, marks, punctuation, spacing relationships, and mixed scripts exactly.
+- If genuinely unreadable, keep [unclear] instead of guessing.`;
 
     try {
       const rescueResponse = await env.AI.run(model, {
         messages: [
           {
             role: 'system',
-            content: 'You are a forensic literal OCR engine. Recover difficult handwritten text, mathematics, symbols, and visible edit marks without guessing.'
+            content: 'You are a forensic literal OCR verifier. Your job is to compare the first transcription to the image and remove hallucinations while recovering only visually supported characters.'
           },
           {
             role: 'user',
@@ -1057,7 +1150,7 @@ The first read looked suspiciously empty or too short for the visible pen/pencil
       const rescueText = extractAiText(rescueResponse);
       usage = mergeAiUsage(usage, rescueResponse.usage || null);
 
-      if (isBetterOcrResult(text, rescueText)) {
+      if (shouldAcceptVerifiedText(text, rescueText, imageMeta)) {
         text = rescueText;
         rescued = true;
       }
@@ -1071,7 +1164,7 @@ The first read looked suspiciously empty or too short for the visible pen/pencil
   return { text, raw: text, model, usage, scanMode, rescued };
 }
 
-function shouldRescueHandwriting(text, imageMeta = {}) {
+function shouldVerifyOcr(text, imageMeta = {}) {
   const visible = String(text || '').trim();
   const emptyLike =
     !visible ||
@@ -1080,7 +1173,7 @@ function shouldRescueHandwriting(text, imageMeta = {}) {
 
   const plain = visible
     .replace(/\[\[[\s\S]*?\]\]/g, '')
-    .replace(/\[unclear\]/gi, '')
+    .replace(/\[unclear(?::[^\]]*)?\]/gi, '')
     .trim();
 
   const edgeRatio = Number(imageMeta?.edgeRatio) || 0;
@@ -1093,27 +1186,45 @@ function shouldRescueHandwriting(text, imageMeta = {}) {
     .split(/\n+/)
     .map(line => line.trim())
     .filter(Boolean).length;
+
   const lineMiss =
     imageMeta?.scanStrategy === 'line-mosaic' &&
     expectedLines >= 4 &&
-    actualLines < Math.max(2, Math.floor(expectedLines * 0.45));
+    actualLines < Math.max(2, Math.floor(expectedLines * 0.50));
 
-  return emptyLike || lineMiss || (plain.length < 12 && likelyInk);
+  const hasUnclear = /\[unclear(?::[^\]]*)?\]/i.test(visible);
+  const hasEditMetadata = /\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/i.test(visible);
+
+  return emptyLike || lineMiss || hasUnclear || hasEditMetadata || (plain.length < 12 && likelyInk);
 }
 
-function isBetterOcrResult(first, second) {
+function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   const a = String(first || '').trim();
   const b = String(second || '').trim();
   if (!b) return false;
   if (/^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(b)) return false;
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
 
-  const useful = s => s
+  const usefulLength = s => s
     .replace(/\[\[[\s\S]*?\]\]/g, 'X')
     .replace(/\s+/g, '')
     .length;
 
-  return useful(b) > useful(a) + 3;
+  const uncertainCount = s => (s.match(/\[unclear(?::[^\]]*)?\]/gi) || []).length;
+  const editCount = s => (s.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
+  const lineCount = s => s.split(/\n+/).filter(line => line.trim()).length;
+
+  const aLen = usefulLength(a);
+  const bLen = usefulLength(b);
+  const expectedLines = Number(imageMeta?.lineCount) || 0;
+  const bLines = lineCount(b);
+
+  if (bLen < Math.max(4, aLen * 0.68)) return false;
+  if (expectedLines >= 4 && bLines < Math.max(2, Math.floor(expectedLines * 0.40))) return false;
+
+  if (uncertainCount(b) < uncertainCount(a)) return true;
+  if (editCount(b) < editCount(a) && bLen >= aLen * 0.75) return true;
+  return bLen >= aLen * 0.92;
 }
 
 function mergeAiUsage(a, b) {
@@ -1210,6 +1321,19 @@ function detectLanguageFromText(text) {
 // ═══════════════════════════════════════════════════════════════
 // STEP 1: Safe regex pre-pass — deterministic, high-confidence fixes
 // ═══════════════════════════════════════════════════════════════
+function stripOcrMetadata(text) {
+  if (!text) return '';
+
+  return String(text)
+    .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
+      return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
+    })
+    .replace(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):\s*([\s\S]*?)\]\]/gi, (_, content) => content.trim())
+    .replace(/\[unclear:\s*([^\]]+)\]/gi, '[unclear]')
+    .normalize('NFC')
+    .trim();
+}
+
 function safeRegexCleanup(text, language) {
   if (!text || text === 'No text detected') return { text, corrections: [] };
 

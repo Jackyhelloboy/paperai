@@ -1318,9 +1318,9 @@
             <div class="header-logo">P</div>
             <span class="header-title">PaperAI</span>
         </div>
-        <div class="header-status">
+        <div class="header-status" title="Current connected PaperAI browser sessions">
             <span class="header-dot"></span>
-            <span>Online</span>
+            <span id="onlineCount">Online</span>
         </div>
     </header>
 
@@ -1490,7 +1490,7 @@ const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
 const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
-const quotaBadgeText=$('quotaBadgeText');
+const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 
 let file=null, lastResult=null, showingRaw=false;
 
@@ -1600,6 +1600,48 @@ updateQuotaClock();
 setInterval(updateQuotaClock, 1000);
 loadUsage();
 setInterval(loadUsage, 120000);
+
+let presenceSocket = null;
+let presenceRetry = null;
+
+function connectPresence() {
+    if (presenceRetry) {
+        clearTimeout(presenceRetry);
+        presenceRetry = null;
+    }
+
+    try {
+        const wsUrl = API_DIRECT.replace(/^https:/, 'wss:') + '/api/live';
+        presenceSocket = new WebSocket(wsUrl);
+
+        presenceSocket.onmessage = event => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'presence' && Number.isFinite(Number(data.active))) {
+                    onlineCount.textContent = Number(data.active) + ' online';
+                }
+            } catch (_) {}
+        };
+
+        presenceSocket.onopen = () => {
+            try { presenceSocket.send('count'); } catch (_) {}
+        };
+
+        presenceSocket.onclose = () => {
+            onlineCount.textContent = 'Online';
+            presenceRetry = setTimeout(connectPresence, 5000);
+        };
+
+        presenceSocket.onerror = () => {
+            try { presenceSocket.close(); } catch (_) {}
+        };
+    } catch (_) {
+        onlineCount.textContent = 'Online';
+        presenceRetry = setTimeout(connectPresence, 8000);
+    }
+}
+
+connectPresence();
 
 const IMAGE_EXTS = ['jpg','jpeg','png','bmp','webp','gif','tiff','tif'];
 const PDF_EXTS = ['pdf'];
@@ -2343,9 +2385,11 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
     let prepared = await prepareImageForOCR(sourceBlob, false);
 
     if (progressText) {
+        const lines = Number(prepared.meta?.lineCount) || 0;
+        const lineInfo = lines > 0 ? ' · ' + lines + ' lines' : '';
         const strategy = prepared.meta?.scanStrategy === 'line-mosaic' ? ' · line-by-line scan' :
             (prepared.difficulty === 'hard' ? ' · detailed layout scan' : ' · fast clear scan');
-        setProg(18, progressText + strategy);
+        setProg(18, progressText + lineInfo + strategy);
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -2479,6 +2523,7 @@ goBtn.onclick = async () => {
 
     try {
         let allText = '';
+        let allPlain = '';
         let allRaw = '';
 
         if (ext === 'pdf') {
@@ -2489,6 +2534,7 @@ goBtn.onclick = async () => {
                 if (pages[i].type === 'text') {
                     setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
                     allText += prefix + pages[i].text;
+                    allPlain += prefix + pages[i].text;
                     allRaw += prefix + pages[i].text;
                     continue;
                 }
@@ -2499,13 +2545,17 @@ goBtn.onclick = async () => {
                 const result = await sendToOCR(pages[i].blob, ctrl.signal, 'Preparing page ' + (i+1) + '/' + pages.length);
                 clearTimeout(tid);
                 if (result.status === 'completed' && result.result) {
-                    allText += prefix + (result.result.full_text || '');
-                    allRaw += prefix + (result.result.raw_text || result.result.full_text || '');
+                    const annotated = result.result.annotated_text || result.result.full_text || '';
+                    const plain = result.result.full_text || annotated;
+                    allText += prefix + annotated;
+                    allPlain += prefix + plain;
+                    allRaw += prefix + (result.result.raw_text || annotated);
                 }
             }
         } else if (XLS_EXTS.includes(ext)) {
             setProg(20, 'Reading spreadsheet...');
             allText = await extractSpreadsheetFile(file);
+            allPlain = allText;
             allRaw = allText;
             setProg(90, 'Formatting cells...');
         } else if (IMAGE_EXTS.includes(ext)) {
@@ -2515,15 +2565,18 @@ goBtn.onclick = async () => {
             const result = await sendToOCR(file, ctrl.signal, 'Preparing image');
             clearTimeout(tid);
             if (result.status !== 'completed' || !result.result) throw new Error('No results');
-            allText = result.result.full_text || '';
+            allText = result.result.annotated_text || result.result.full_text || '';
+            allPlain = result.result.full_text || allText;
             allRaw = result.result.raw_text || allText;
         } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
             setProg(25, 'Reading text...');
             allText = await extractPlainTextFile(file);
+            allPlain = allText;
             allRaw = allText;
         } else if (['docx','odt','pptx','odp'].includes(ext)) {
             setProg(25, 'Reading Office document...');
             allText = await extractOfficeZipFile(file);
+            allPlain = allText;
             allRaw = allText;
         } else {
             setProg(20, 'Reading legacy document...');
@@ -2532,19 +2585,21 @@ goBtn.onclick = async () => {
             const result = await sendFileToWorker(file, ctrl.signal);
             clearTimeout(tid);
             if (result.status !== 'completed' || !result.result) throw new Error('No results');
-            allText = result.result.full_text || '';
+            allText = result.result.annotated_text || result.result.full_text || '';
+            allPlain = result.result.full_text || allText;
             allRaw = result.result.raw_text || allText;
         }
 
-        if (!allText.trim()) throw new Error('No text found in file');
+        if (!allPlain) allPlain = allText;
+        if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in file');
 
-        const charCount = allText.length;
+        const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         $('statsBar').innerHTML = badges;
 
-        lastResult = { text: allText, raw_text: allRaw };
+        lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw };
         showingRaw = false;
         $('tabVerified').classList.add('active');
         $('tabRaw').classList.remove('active');
@@ -2566,8 +2621,8 @@ goBtn.onclick = async () => {
 };
 
 function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();URL.revokeObjectURL(a.href)}
-function dlTxt(){if(!lastResult)return;dlBlob(new Blob([lastResult.text],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
-function copyText(btn){if(!lastResult)return;navigator.clipboard.writeText(lastResult.text).then(()=>{btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)})}
+function dlTxt(){if(!lastResult)return;dlBlob(new Blob([lastResult.plain_text || lastResult.text],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
+function copyText(btn){if(!lastResult)return;navigator.clipboard.writeText(lastResult.plain_text || lastResult.text).then(()=>{btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)})}
 </script>
 </body>
 </html>
