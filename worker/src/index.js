@@ -815,15 +815,22 @@ function protectContent(text) {
     return ph;
   });
 
-  // Protect long numbers (roll numbers, application numbers, etc.)
-  result = result.replace(/\b(\d{5,})\b/g, (match) => {
+  // Protect ALL numeric tokens. PaperAI must never fact-correct or renumber the source.
+  result = result.replace(/[0-9०-९౦-౯]+/g, (match) => {
     const ph = `<PROT_${idx++}>`;
     map.set(ph, match);
     return ph;
   });
 
-  // Protect all punctuation: । ? ! , ; : " ' ( ) [ ] -
-  result = result.replace(/[।?!,;:\"'()\[\]{}-]/g, (match) => {
+  // Protect exam/layout tokens before word-level verification.
+  result = result.replace(/_{2,}|[①-⑳]|[=×|]/g, (match) => {
+    const ph = `<PROT_${idx++}>`;
+    map.set(ph, match);
+    return ph;
+  });
+
+  // Protect punctuation and separators.
+  result = result.replace(/[।.?!,;:\"'()\[\]{}\-]/g, (match) => {
     const ph = `<PROT_${idx++}>`;
     map.set(ph, match);
     return ph;
