@@ -2027,6 +2027,175 @@ function analyzeCanvasDifficulty(canvas, originalWidth, originalHeight) {
     };
 }
 
+function detectTextLineLayout(source, originalWidth, originalHeight) {
+    const maxW = 900;
+    const maxH = 1200;
+    const ratio = Math.min(1, maxW / Math.max(1, originalWidth), maxH / Math.max(1, originalHeight));
+    const w = Math.max(48, Math.round(originalWidth * ratio));
+    const h = Math.max(48, Math.round(originalHeight * ratio));
+
+    const probe = document.createElement('canvas');
+    probe.width = w;
+    probe.height = h;
+    const ctx = probe.getContext('2d', { willReadFrequently: true, alpha: false });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(source, 0, 0, w, h);
+
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const gray = new Uint8Array(w * h);
+    let sum = 0;
+
+    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+        const g = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+        gray[p] = g;
+        sum += g;
+    }
+
+    const mean = sum / Math.max(1, gray.length);
+    const threshold = Math.max(105, Math.min(225, mean - 20));
+    const rowInk = new Float32Array(h);
+    const colInk = new Float32Array(w);
+
+    for (let y = 0; y < h; y++) {
+        let row = 0;
+        for (let x = 0; x < w; x++) {
+            if (gray[y * w + x] < threshold) {
+                row++;
+                colInk[x]++;
+            }
+        }
+        rowInk[y] = row / w;
+    }
+
+    for (let x = 0; x < w; x++) colInk[x] /= h;
+
+    const smooth = new Float32Array(h);
+    for (let y = 0; y < h; y++) {
+        let total = 0, count = 0;
+        for (let k = -2; k <= 2; k++) {
+            const yy = y + k;
+            if (yy >= 0 && yy < h) {
+                total += rowInk[yy];
+                count++;
+            }
+        }
+        smooth[y] = total / Math.max(1, count);
+    }
+
+    const activeThreshold = Math.max(0.0045, Math.min(0.016, (1 - mean / 255) * 0.055));
+    const rawBands = [];
+    let bandStart = -1;
+
+    for (let y = 0; y < h; y++) {
+        const active = smooth[y] >= activeThreshold;
+        if (active && bandStart < 0) bandStart = y;
+        if (!active && bandStart >= 0) {
+            rawBands.push([bandStart, y - 1]);
+            bandStart = -1;
+        }
+    }
+    if (bandStart >= 0) rawBands.push([bandStart, h - 1]);
+
+    const gapLimit = Math.max(2, Math.round(h * 0.008));
+    const merged = [];
+    for (const band of rawBands) {
+        if (!merged.length || band[0] - merged[merged.length - 1][1] > gapLimit) {
+            merged.push([...band]);
+        } else {
+            merged[merged.length - 1][1] = band[1];
+        }
+    }
+
+    const minBand = Math.max(2, Math.round(h * 0.003));
+    const bands = merged
+        .filter(([y0,y1]) => y1 - y0 + 1 >= minBand)
+        .map(([y0,y1]) => {
+            const pad = Math.max(2, Math.round((y1 - y0 + 1) * 0.45));
+            return {
+                y0: Math.max(0, Math.floor((y0 - pad) / ratio)),
+                y1: Math.min(originalHeight, Math.ceil((y1 + pad + 1) / ratio))
+            };
+        });
+
+    let inkHeight = 0;
+    for (const band of bands) inkHeight += Math.max(0, band.y1 - band.y0);
+    const coverage = inkHeight / Math.max(1, originalHeight);
+
+    const longVerticalRules = Array.from(colInk).filter(v => v > 0.38).length;
+    const longHorizontalRules = Array.from(rowInk).filter(v => v > 0.38).length;
+    const structured = longVerticalRules >= 2 || longHorizontalRules >= 3;
+    const lineFriendly =
+        bands.length >= 3 &&
+        bands.length <= 60 &&
+        coverage >= 0.05 &&
+        coverage <= 0.78 &&
+        !structured;
+
+    return {
+        bands,
+        lineCount: bands.length,
+        coverage: Math.round(coverage * 1000) / 1000,
+        structured,
+        lineFriendly
+    };
+}
+
+async function makeLineMosaic(source, layout, originalWidth, originalHeight, forceSafe = false) {
+    if (!layout?.lineFriendly || !layout.bands?.length) return null;
+
+    const desiredWidth = forceSafe ? 2200 : 2900;
+    const upscale = originalWidth < desiredWidth ? Math.min(1.25, desiredWidth / Math.max(1, originalWidth)) : 1;
+    let scale = originalWidth > desiredWidth ? desiredWidth / originalWidth : upscale;
+    const separator = Math.max(10, Math.round(14 * scale));
+
+    let totalHeight = separator;
+    for (const band of layout.bands) {
+        totalHeight += Math.max(8, Math.round((band.y1 - band.y0) * scale)) + separator;
+    }
+
+    const maxHeight = forceSafe ? 5000 : 6800;
+    if (totalHeight > maxHeight) {
+        scale *= maxHeight / totalHeight;
+        totalHeight = separator;
+        for (const band of layout.bands) {
+            totalHeight += Math.max(8, Math.round((band.y1 - band.y0) * scale)) + separator;
+        }
+    }
+
+    const width = Math.max(320, Math.round(originalWidth * scale));
+    const mosaic = document.createElement('canvas');
+    mosaic.width = width;
+    mosaic.height = Math.max(64, Math.ceil(totalHeight));
+    const ctx = mosaic.getContext('2d', { alpha: false });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, mosaic.width, mosaic.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    let y = separator;
+    for (const band of layout.bands) {
+        const srcH = Math.max(1, band.y1 - band.y0);
+        const destH = Math.max(8, Math.round(srcH * scale));
+        ctx.drawImage(source, 0, band.y0, originalWidth, srcH, 0, y, width, destH);
+        y += destH + separator;
+    }
+
+    const blob = await new Promise((resolve, reject) => {
+        mosaic.toBlob(
+            b => b ? resolve(b) : reject(new Error('Could not build line scan')),
+            'image/webp',
+            forceSafe ? 0.90 : 0.96
+        );
+    });
+
+    return {
+        blob,
+        width: mosaic.width,
+        height: mosaic.height
+    };
+}
+
 async function prepareImageForOCR(source, forceSafe = false) {
     let decoded;
     try {
@@ -2035,7 +2204,11 @@ async function prepareImageForOCR(source, forceSafe = false) {
         return {
             blob: source,
             difficulty: 'hard',
-            meta: { originalBytes: source.size || 0, decodeFallback: true }
+            meta: {
+                originalBytes: source.size || 0,
+                decodeFallback: true,
+                scanStrategy: 'full-page'
+            }
         };
     }
 
@@ -2043,10 +2216,40 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const originalHeight = decoded.height || decoded.naturalHeight || 0;
 
     const analysis = analyzeCanvasDifficulty(decoded, originalWidth, originalHeight);
+    const layout = detectTextLineLayout(decoded, originalWidth, originalHeight);
     const hard = analysis.difficulty === 'hard';
 
-    const maxLongEdge = forceSafe ? 2400 : (hard ? 3400 : 2700);
-    const quality = forceSafe ? 0.88 : (hard ? 0.96 : 0.92);
+    let lineMosaic = null;
+    if (layout.lineFriendly) {
+        try {
+            lineMosaic = await makeLineMosaic(decoded, layout, originalWidth, originalHeight, forceSafe);
+        } catch (_) {}
+    }
+
+    if (lineMosaic) {
+        if (decoded.close) decoded.close();
+        return {
+            blob: lineMosaic.blob,
+            difficulty: hard ? 'hard' : 'easy',
+            meta: {
+                originalWidth,
+                originalHeight,
+                width: lineMosaic.width,
+                height: lineMosaic.height,
+                originalBytes: source.size || 0,
+                bytes: lineMosaic.blob.size,
+                ...analysis,
+                safeRetry: forceSafe,
+                scanStrategy: 'line-mosaic',
+                lineCount: layout.lineCount,
+                lineCoverage: layout.coverage,
+                structuredLayout: false
+            }
+        };
+    }
+
+    const maxLongEdge = forceSafe ? 2200 : (hard ? 3200 : 2600);
+    const quality = forceSafe ? 0.88 : (hard ? 0.95 : 0.92);
     const longEdge = Math.max(originalWidth, originalHeight);
     const scale = Math.min(1, maxLongEdge / Math.max(1, longEdge));
     const targetWidth = Math.max(1, Math.round(originalWidth * scale));
@@ -2065,7 +2268,7 @@ async function prepareImageForOCR(source, forceSafe = false) {
     if (decoded.close) decoded.close();
 
     const preferredType = hard && !forceSafe ? 'image/webp' : 'image/jpeg';
-    let blob = await new Promise((resolve, reject) => {
+    const blob = await new Promise((resolve, reject) => {
         canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not optimize image')), preferredType, quality);
     });
 
@@ -2084,7 +2287,11 @@ async function prepareImageForOCR(source, forceSafe = false) {
             originalBytes: source.size || 0,
             bytes: blob.size,
             ...analysis,
-            safeRetry: forceSafe
+            safeRetry: forceSafe,
+            scanStrategy: layout.structured ? 'structured-full-page' : 'full-page',
+            lineCount: layout.lineCount,
+            lineCoverage: layout.coverage,
+            structuredLayout: layout.structured
         }
     };
 }
@@ -2136,7 +2343,9 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
     let prepared = await prepareImageForOCR(sourceBlob, false);
 
     if (progressText) {
-        setProg(18, progressText + (prepared.difficulty === 'hard' ? ' · handwriting & symbols' : ' · fast clear scan'));
+        const strategy = prepared.meta?.scanStrategy === 'line-mosaic' ? ' · line-by-line scan' :
+            (prepared.difficulty === 'hard' ? ' · detailed layout scan' : ' · fast clear scan');
+        setProg(18, progressText + strategy);
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -2174,8 +2383,15 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
             throw new Error('Daily free AI OCR limit reached. Try again after the daily reset.');
         }
 
+        if ((res.status === 408 || body?.code === 'AI_TIMEOUT') && attempt === 0) {
+            setProg(22, 'AI was slow · retrying a lighter line scan...');
+            await wait(250);
+            prepared = await prepareImageForOCR(sourceBlob, true);
+            continue;
+        }
+
         if (res.status === 413 && attempt === 0) {
-            await wait(300);
+            await wait(250);
             prepared = await prepareImageForOCR(sourceBlob, true);
             continue;
         }
@@ -2279,7 +2495,7 @@ goBtn.onclick = async () => {
 
                 setProg(48 + Math.round((i / pages.length) * 45), 'OCR scanned page ' + (i+1) + '/' + pages.length + '...');
                 const ctrl = new AbortController();
-                const tid = setTimeout(() => ctrl.abort(), 120000);
+                const tid = setTimeout(() => ctrl.abort(), 240000);
                 const result = await sendToOCR(pages[i].blob, ctrl.signal, 'Preparing page ' + (i+1) + '/' + pages.length);
                 clearTimeout(tid);
                 if (result.status === 'completed' && result.result) {
@@ -2295,7 +2511,7 @@ goBtn.onclick = async () => {
         } else if (IMAGE_EXTS.includes(ext)) {
             setProg(12, 'Analyzing image...');
             const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 150000);
+            const tid = setTimeout(() => ctrl.abort(), 240000);
             const result = await sendToOCR(file, ctrl.signal, 'Preparing image');
             clearTimeout(tid);
             if (result.status !== 'completed' || !result.result) throw new Error('No results');
@@ -2343,7 +2559,7 @@ goBtn.onclick = async () => {
             setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
         }
     } catch(e) {
-        showErr(e.name==='AbortError' ? 'OCR timed out. PaperAI already optimized the image; please try once more.' : e.message);
+        showErr(e.name==='AbortError' ? 'The network request took too long. PaperAI now retries AI timeouts automatically; please check your connection and try again.' : e.message);
     } finally {
         goBtn.disabled=false;
     }
