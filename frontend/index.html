@@ -12,6 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -307,6 +308,42 @@
         .file-type-icon.xls { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
         .file-type-icon.txt { background: var(--surface2); color: var(--text2); }
         .file-type-icon.img { background: #fefce8; color: #ca8a04; border-color: #fef08a; }
+
+        .language-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-top: 0.875rem;
+            padding: 0.7rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            background: var(--bg);
+        }
+
+        .language-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text2);
+        }
+
+        .language-select {
+            min-width: 132px;
+            height: 34px;
+            border: 1px solid var(--border2);
+            border-radius: 9px;
+            background: var(--surface);
+            color: var(--text);
+            font: inherit;
+            font-size: 0.75rem;
+            padding: 0 0.6rem;
+            outline: none;
+        }
+
+        .language-select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
 
         .file-info {
             flex: 1;
@@ -901,6 +938,16 @@
                 <input type="file" id="fileInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.py,.java,.rtf">
             </div>
 
+            <div class="language-row">
+                <label class="language-label" for="languageSelect">Document language</label>
+                <select id="languageSelect" class="language-select">
+                    <option value="auto" selected>Auto detect</option>
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="te">Telugu</option>
+                </select>
+            </div>
+
             <div class="file-preview" id="filePreview">
                 <img class="file-thumb" id="fileThumb" src="" alt="" style="display:none">
                 <div class="file-type-icon" id="fileTypeIcon" style="display:none"></div>
@@ -976,7 +1023,7 @@
 const API = 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
 const API_FALLBACK = 'https://paperai-backend.onrender.com';
 const $ = id => document.getElementById(id);
-const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn');
+const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageSelect=$('languageSelect');
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
@@ -1075,11 +1122,55 @@ async function pdfToImages(pdfFile) {
     return images;
 }
 
+// ── Excel/CSV extraction in the browser (preserves sheets, rows and columns) ──
+async function extractSpreadsheetFile(spreadsheetFile) {
+    if (typeof XLSX === 'undefined') {
+        throw new Error('Excel reader failed to load. Refresh the page and try again.');
+    }
+
+    const ext = spreadsheetFile.name.split('.').pop().toLowerCase();
+    if (ext === 'csv') {
+        const csv = await spreadsheetFile.text();
+        if (!csv.trim()) throw new Error('This CSV file is empty.');
+        return csv;
+    }
+
+    const data = await spreadsheetFile.arrayBuffer();
+    const workbook = XLSX.read(data, {
+        type: 'array',
+        cellDates: true,
+        cellNF: false,
+        cellText: true
+    });
+
+    const sections = [];
+    for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, {
+            header: 1,
+            raw: false,
+            defval: '',
+            blankrows: false
+        });
+
+        const lines = rows
+            .map(row => row.map(value => String(value ?? '').trim()).join('\t').replace(/\t+$/g, ''))
+            .filter(line => line.trim().length > 0);
+
+        if (lines.length) {
+            sections.push('--- Sheet: ' + sheetName + ' ---\n' + lines.join('\n'));
+        }
+    }
+
+    if (!sections.length) throw new Error('No readable cells found in this Excel file.');
+    return sections.join('\n\n');
+}
+
 // ── Send image to OCR API ──
 async function sendToOCR(imageBlob, signal) {
     const formData = new FormData();
     formData.append('file', imageBlob, 'page.jpg');
-    formData.append('language', 'en');
+    formData.append('language', languageSelect.value || 'auto');
     formData.append('preprocessing', 'auto');
     formData.append('engine', 'auto');
     try {
@@ -1147,6 +1238,12 @@ goBtn.onclick = async () => {
                     allRaw += (allRaw ? '\n\n--- Page ' + (i+1) + ' ---\n\n' : '') + (result.result.raw_text || result.result.full_text || '');
                 }
             }
+        } else if (XLS_EXTS.includes(ext)) {
+            // ── Excel/CSV: parse locally with SheetJS, no OCR required ──
+            setProg(20, 'Reading spreadsheet...');
+            allText = await extractSpreadsheetFile(file);
+            allRaw = allText;
+            setProg(90, 'Formatting cells...');
         } else if (IMAGE_EXTS.includes(ext)) {
             // ── Images: direct OCR ──
             setProg(15, 'Uploading...');
@@ -1162,7 +1259,7 @@ goBtn.onclick = async () => {
             setProg(15, 'Uploading...');
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('language', 'en');
+            formData.append('language', languageSelect.value || 'auto');
             const ctrl = new AbortController();
             const tid = setTimeout(() => ctrl.abort(), 120000);
             let result;
