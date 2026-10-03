@@ -2150,15 +2150,87 @@ function detectTextLineLayout(source, originalWidth, originalHeight) {
     }
 
     const minBand = Math.max(2, Math.round(h * 0.003));
-    const bands = merged
-        .filter(([y0,y1]) => y1 - y0 + 1 >= minBand)
-        .map(([y0,y1]) => {
-            const pad = Math.max(2, Math.round((y1 - y0 + 1) * 0.45));
-            return {
-                y0: Math.max(0, Math.floor((y0 - pad) / ratio)),
-                y1: Math.min(originalHeight, Math.ceil((y1 + pad + 1) / ratio))
-            };
-        });
+    const probeBands = merged.filter(([y0,y1]) => y1 - y0 + 1 >= minBand);
+
+    // Detect rows that contain two or more spatially separated text groups.
+    // These are common in matching questions, options, forms and answer columns.
+    // Such pages must keep their full geometry instead of being repacked into
+    // a simple one-line mosaic.
+    let multiColumnRows = 0;
+    let denseOptionRows = 0;
+
+    for (const [y0, y1] of probeBands) {
+        const bandH = Math.max(1, y1 - y0 + 1);
+        const density = new Float32Array(w);
+
+        for (let x = 0; x < w; x++) {
+            let ink = 0;
+            for (let y = y0; y <= y1; y++) {
+                if (gray[y * w + x] < threshold) ink++;
+            }
+            density[x] = ink / bandH;
+        }
+
+        const activeCols = new Uint8Array(w);
+        for (let x = 0; x < w; x++) {
+            let v = 0, n = 0;
+            for (let k = -2; k <= 2; k++) {
+                const xx = x + k;
+                if (xx >= 0 && xx < w) {
+                    v += density[xx];
+                    n++;
+                }
+            }
+            if ((v / Math.max(1, n)) > 0.055) activeCols[x] = 1;
+        }
+
+        const runs = [];
+        let runStart = -1;
+        for (let x = 0; x < w; x++) {
+            if (activeCols[x] && runStart < 0) runStart = x;
+            if (!activeCols[x] && runStart >= 0) {
+                runs.push([runStart, x - 1]);
+                runStart = -1;
+            }
+        }
+        if (runStart >= 0) runs.push([runStart, w - 1]);
+
+        const mergedRuns = [];
+        const smallGap = Math.max(3, Math.round(w * 0.018));
+        for (const run of runs) {
+            if (!mergedRuns.length || run[0] - mergedRuns[mergedRuns.length - 1][1] > smallGap) {
+                mergedRuns.push([...run]);
+            } else {
+                mergedRuns[mergedRuns.length - 1][1] = run[1];
+            }
+        }
+
+        const meaningful = mergedRuns.filter(([x0,x1]) => (x1 - x0 + 1) >= Math.max(8, w * 0.025));
+        let separatedGroups = 0;
+
+        for (let i = 1; i < meaningful.length; i++) {
+            const gap = meaningful[i][0] - meaningful[i - 1][1] - 1;
+            const leftW = meaningful[i - 1][1] - meaningful[i - 1][0] + 1;
+            const rightW = meaningful[i][1] - meaningful[i][0] + 1;
+            if (gap >= w * 0.075 && leftW >= w * 0.04 && rightW >= w * 0.04) {
+                separatedGroups++;
+            }
+        }
+
+        if (separatedGroups >= 1) multiColumnRows++;
+
+        const leftInk = meaningful.some(([x0,x1]) => x0 < w * 0.48 && x1 > w * 0.08);
+        const rightInk = meaningful.some(([x0,x1]) => x0 < w * 0.92 && x1 > w * 0.55);
+        if (leftInk && rightInk && separatedGroups >= 1) denseOptionRows++;
+    }
+
+    const bands = probeBands.map(([y0,y1]) => {
+        const pad = Math.max(2, Math.round((y1 - y0 + 1) * 0.45));
+        return {
+            y0: Math.max(0, Math.floor((y0 - pad) / ratio)),
+            y1: Math.min(originalHeight, Math.ceil((y1 + pad + 1) / ratio))
+        };
+    });
 
     let inkHeight = 0;
     for (const band of bands) inkHeight += Math.max(0, band.y1 - band.y0);
@@ -2166,7 +2238,15 @@ function detectTextLineLayout(source, originalWidth, originalHeight) {
 
     const longVerticalRules = Array.from(colInk).filter(v => v > 0.38).length;
     const longHorizontalRules = Array.from(rowInk).filter(v => v > 0.38).length;
-    const structured = longVerticalRules >= 2 || longHorizontalRules >= 3;
+    const multiColumnRatio = probeBands.length ? multiColumnRows / probeBands.length : 0;
+
+    const structured =
+        longVerticalRules >= 2 ||
+        longHorizontalRules >= 3 ||
+        multiColumnRows >= 2 ||
+        denseOptionRows >= 2 ||
+        multiColumnRatio >= 0.16;
+
     const lineFriendly =
         bands.length >= 3 &&
         bands.length <= 60 &&
@@ -2179,7 +2259,10 @@ function detectTextLineLayout(source, originalWidth, originalHeight) {
         lineCount: bands.length,
         coverage: Math.round(coverage * 1000) / 1000,
         structured,
-        lineFriendly
+        lineFriendly,
+        multiColumnRows,
+        multiColumnRatio: Math.round(multiColumnRatio * 1000) / 1000,
+        denseOptionRows
     };
 }
 
@@ -2285,7 +2368,11 @@ async function prepareImageForOCR(source, forceSafe = false) {
                 scanStrategy: 'line-mosaic',
                 lineCount: layout.lineCount,
                 lineCoverage: layout.coverage,
-                structuredLayout: false
+                structuredLayout: false,
+                multiColumnRows: layout.multiColumnRows || 0,
+                multiColumnRatio: layout.multiColumnRatio || 0,
+                denseOptionRows: layout.denseOptionRows || 0,
+                difficulty: hard ? 'hard' : 'easy'
             }
         };
     }
@@ -2333,7 +2420,11 @@ async function prepareImageForOCR(source, forceSafe = false) {
             scanStrategy: layout.structured ? 'structured-full-page' : 'full-page',
             lineCount: layout.lineCount,
             lineCoverage: layout.coverage,
-            structuredLayout: layout.structured
+            structuredLayout: layout.structured,
+            multiColumnRows: layout.multiColumnRows || 0,
+            multiColumnRatio: layout.multiColumnRatio || 0,
+            denseOptionRows: layout.denseOptionRows || 0,
+            difficulty: forceSafe ? 'hard' : analysis.difficulty
         }
     };
 }
