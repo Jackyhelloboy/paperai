@@ -5,3 +5,11 @@ account_id = "9195bc9144b0e1c8811dfae71e58c7e4"
 
 [ai]
 binding = "AI"
+
+[[durable_objects.bindings]]
+name = "USAGE_TRACKER"
+class_name = "UsageTracker"
+
+[exports.UsageTracker]
+type = "durable-object"
+storage = "sqlite"
