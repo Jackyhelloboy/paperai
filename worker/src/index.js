@@ -750,7 +750,11 @@ Return only the final transcription.`;
       ]
     }],
     max_tokens: 8192,
-    temperature: 0
+    temperature: 0,
+    chat_template_kwargs: {
+      // Keep hidden reasoning disabled so OCR uses fewer free Neurons.
+      enable_thinking: false
+    }
   });
 
   const text = (response.response || '').trim();
