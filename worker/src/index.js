@@ -816,7 +816,7 @@ function protectContent(text) {
   });
 
   // Protect ALL numeric tokens. PaperAI must never fact-correct or renumber the source.
-  result = result.replace(/[0-9०-९౦-౯]+/g, (match) => {
+  result = result.replace(/\b[0-9]+\b|[०-९]+|[౦-౯]+/g, (match) => {
     const ph = `<PROT_${idx++}>`;
     map.set(ph, match);
     return ph;
