@@ -2172,11 +2172,16 @@ function detectPaperBounds(source, originalWidth, originalHeight) {
     const x1 = Math.min(w, best.maxX + padX + 1);
     const y1 = Math.min(h, best.maxY + padY + 1);
 
+    const cropX = Math.max(0, Math.floor(x0 / ratio));
+    const cropY = Math.max(0, Math.floor(y0 / ratio));
+    const cropW = Math.min(originalWidth - cropX, Math.ceil((x1 - x0) / ratio));
+    const cropH = Math.min(originalHeight - cropY, Math.ceil((y1 - y0) / ratio));
+
     return {
-        x: Math.max(0, Math.floor(x0 / ratio)),
-        y: Math.max(0, Math.floor(y0 / ratio)),
-        width: Math.min(originalWidth, Math.ceil((x1 - x0) / ratio)),
-        height: Math.min(originalHeight, Math.ceil((y1 - y0) / ratio)),
+        x: cropX,
+        y: cropY,
+        width: Math.max(1, cropW),
+        height: Math.max(1, cropH),
         confidence: Math.round((best.area / Math.max(1, bboxArea)) * 1000) / 1000
     };
 }
