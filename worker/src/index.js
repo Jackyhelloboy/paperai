@@ -732,12 +732,13 @@ STRICT TRANSCRIPTION RULES:
 6. Preserve dates, numbers, names, punctuation, capitalization, math symbols, units, brackets, question numbers and marks exactly.
 7. Preserve line order and meaningful line breaks. Do not merge unrelated lines.
 8. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
-9. Tables and two-column lists: one visual row per output line; separate visible columns with " | ".
+9. Forms, tables and two-column lists: keep each label beside the value that is visibly on the same row, using " | " between visible columns.
 10. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together (for example "बा" is one cell).
 11. Anything visibly OUTSIDE the grid boundary must stay outside the grid. Never insert side answer numbers or labels into grid cells.
-12. For crossed-out or overwritten handwriting, transcribe the final clearly intended visible writing only when it is visually obvious; otherwise preserve the visible ambiguous text as closely as possible.
-13. Do not hallucinate text hidden by blur, cropping, glare or low resolution. If a tiny portion is unreadable, use [unclear] only for that portion rather than inventing a word.
-14. Write "No text detected" only when the image truly contains no readable text.
+12. Never invent page markers, section markers, filenames, "--- Page 2 ---", or any other text that is not visibly printed in the source.
+13. For crossed-out or overwritten handwriting, transcribe the final clearly intended visible writing only when it is visually obvious; otherwise preserve the visible ambiguous text as closely as possible.
+14. Do not hallucinate text hidden by blur, cropping, glare or low resolution. If a tiny portion is unreadable, use [unclear] only for that portion rather than inventing a word.
+15. Write "No text detected" only when the image truly contains no readable text.
 
 Return only the final transcription.`;
 
