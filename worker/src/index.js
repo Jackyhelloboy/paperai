@@ -1234,17 +1234,52 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   const editCount = s => (s.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
   const lineCount = s => s.split(/\n+/).filter(line => line.trim()).length;
 
+  const tokenAgreement = (x, y) => {
+    const tokenize = s => String(s || '')
+      .replace(/\[\[[\s\S]*?\]\]/g, ' ')
+      .replace(/[|()[\]{}.,;:!?/\\]+/g, ' ')
+      .split(/\s+/)
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    const left = tokenize(x);
+    const right = tokenize(y);
+    if (!left.length || !right.length) return 0;
+
+    const counts = new Map();
+    for (const token of left) counts.set(token, (counts.get(token) || 0) + 1);
+
+    let shared = 0;
+    for (const token of right) {
+      const n = counts.get(token) || 0;
+      if (n > 0) {
+        shared++;
+        counts.set(token, n - 1);
+      }
+    }
+
+    return shared / Math.max(left.length, right.length);
+  };
+
   const aLen = usefulLength(a);
   const bLen = usefulLength(b);
   const expectedLines = Number(imageMeta?.lineCount) || 0;
   const bLines = lineCount(b);
+  const agreement = tokenAgreement(a, b);
+  const firstWasUncertain = uncertainCount(a) > 0 || editCount(a) > 0;
 
   if (bLen < Math.max(4, aLen * 0.68)) return false;
+  if (bLen > aLen * 1.55 && aLen > 20) return false;
   if (expectedLines >= 4 && bLines < Math.max(2, Math.floor(expectedLines * 0.40))) return false;
+
+  // Verification may fix several characters, but it should not rewrite the
+  // entire document into a different same-length answer.
+  if (!firstWasUncertain && aLen > 40 && agreement < 0.50) return false;
 
   if (uncertainCount(b) < uncertainCount(a)) return true;
   if (editCount(b) < editCount(a) && bLen >= aLen * 0.75) return true;
-  return bLen >= aLen * 0.92;
+
+  return bLen >= aLen * 0.88 && (aLen <= 40 || agreement >= 0.50 || firstWasUncertain);
 }
 
 function mergeAiUsage(a, b) {
