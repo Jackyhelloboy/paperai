@@ -13,6 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -306,6 +307,7 @@
         .file-type-icon.pdf { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
         .file-type-icon.doc { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
         .file-type-icon.xls { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
+        .file-type-icon.ppt { background: #fff7ed; color: #ea580c; border-color: #fed7aa; }
         .file-type-icon.txt { background: var(--surface2); color: var(--text2); }
         .file-type-icon.img { background: #fefce8; color: #ca8a04; border-color: #fef08a; }
 
@@ -925,7 +927,7 @@
     <main class="main">
         <div class="hero">
             <h1>Extract text from anything</h1>
-            <p>Drop any file — images, PDFs, Word, Excel, text — and get the text instantly</p>
+            <p>Images, handwriting, PDFs, Word, PowerPoint, Excel and text — with free-only AI OCR</p>
         </div>
 
         <div class="upload-card">
@@ -934,17 +936,25 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 </div>
                 <div class="upload-title">Drop a file here</div>
-                <div class="upload-sub">or tap to browse · <strong>PNG, JPG, PDF, Word, Excel, TXT</strong> · 50 MB max</div>
-                <input type="file" id="fileInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.py,.java,.rtf">
+                <div class="upload-sub">or tap to browse · <strong>Images, PDF, Word, PPT, Excel, TXT</strong> · 50 MB max</div>
+                <input type="file" id="fileInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
             </div>
 
             <div class="language-row">
                 <label class="language-label" for="languageSelect">Document language</label>
                 <select id="languageSelect" class="language-select">
-                    <option value="auto" selected>Auto detect</option>
+                    <option value="auto" selected>Auto detect (recommended)</option>
                     <option value="en">English</option>
                     <option value="hi">Hindi</option>
                     <option value="te">Telugu</option>
+                    <option value="ta">Tamil</option>
+                    <option value="kn">Kannada</option>
+                    <option value="ml">Malayalam</option>
+                    <option value="mr">Marathi</option>
+                    <option value="bn">Bengali</option>
+                    <option value="gu">Gujarati</option>
+                    <option value="pa">Punjabi</option>
+                    <option value="ur">Urdu</option>
                 </select>
             </div>
 
@@ -1016,12 +1026,11 @@
     </main>
 
     <footer class="footer">
-        <div class="footer-text">PaperAI — Extract text from any file</div>
+        <div class="footer-text">PaperAI — Free-only OCR · no paid fallback</div>
     </footer>
 
 <script>
 const API = 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
-const API_FALLBACK = 'https://paperai-backend.onrender.com';
 const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageSelect=$('languageSelect');
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
@@ -1037,15 +1046,18 @@ const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'
 
 const IMAGE_EXTS = ['jpg','jpeg','png','bmp','webp','gif','tiff','tif'];
 const PDF_EXTS = ['pdf'];
-const DOC_EXTS = ['doc','docx'];
-const XLS_EXTS = ['xls','xlsx','csv'];
-const TXT_EXTS = ['txt','md','json','xml','html','htm','css','js','py','java','rtf'];
-const ALLOWED_EXTS = [...IMAGE_EXTS, ...PDF_EXTS, ...DOC_EXTS, ...XLS_EXTS, ...TXT_EXTS];
+const DOC_EXTS = ['doc','docx','odt','rtf'];
+const PPT_EXTS = ['ppt','pptx','odp'];
+const XLS_EXTS = ['xls','xlsx','ods','csv','tsv'];
+const TXT_EXTS = ['txt','md','json','xml','html','htm','css','js','ts','py','java','c','cpp','h','sql','yaml','yml','toml','ini','log'];
+const ALLOWED_EXTS = [...IMAGE_EXTS, ...PDF_EXTS, ...DOC_EXTS, ...PPT_EXTS, ...XLS_EXTS, ...TXT_EXTS];
+const BLOCKED_EXTS = ['mov','mp4','m4v','avi','mkv','webm','wmv','flv','mpeg','mpg','3gp','mp3','wav','aac','m4a','flac','ogg','psd','psb','ai','eps'];
 
 function getFileCategory(ext) {
     if (IMAGE_EXTS.includes(ext)) return 'img';
     if (PDF_EXTS.includes(ext)) return 'pdf';
     if (DOC_EXTS.includes(ext)) return 'doc';
+    if (PPT_EXTS.includes(ext)) return 'ppt';
     if (XLS_EXTS.includes(ext)) return 'xls';
     if (TXT_EXTS.includes(ext)) return 'txt';
     return 'txt';
@@ -1053,7 +1065,14 @@ function getFileCategory(ext) {
 
 function setFile(f) {
     const ext = f.name.split('.').pop().toLowerCase();
-    if (!ALLOWED_EXTS.includes(ext)) { showErr('File type not supported: .' + ext + '. Allowed: PNG, JPG, PDF, Word, Excel, TXT'); return; }
+    if (BLOCKED_EXTS.includes(ext) || f.type.startsWith('video/') || f.type.startsWith('audio/') || f.type === 'image/vnd.adobe.photoshop') {
+        showErr('Video, audio and PSD/design files are intentionally not supported.');
+        return;
+    }
+    if (!ALLOWED_EXTS.includes(ext)) {
+        showErr('File type not supported: .' + ext + '. Use image, PDF, Word, PowerPoint, Excel or text files.');
+        return;
+    }
     if (f.size > 52428800) { showErr('File too large (max 50 MB)'); return; }
     file = f;
     fileName.textContent = f.name;
@@ -1099,27 +1118,48 @@ dropZone.ondragleave = () => dropZone.classList.remove('over');
 dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
 clearBtn.onclick = clearFile;
 
-// ── PDF to images using pdf.js ──
-async function pdfToImages(pdfFile) {
+// ── PDF reader: use embedded text for digital PDFs; AI OCR only for scanned pages ──
+async function pdfToPages(pdfFile) {
     const arrayBuffer = await pdfFile.arrayBuffer();
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const images = [];
-    const totalPages = pdf.numPages;
-    for (let i = 1; i <= totalPages; i++) {
-        setProg(10 + Math.round((i / totalPages) * 40), 'Rendering page ' + i + '/' + totalPages + '...');
+    const pages = [];
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+        setProg(10 + Math.round((i / pdf.numPages) * 35), 'Reading PDF page ' + i + '/' + pdf.numPages + '...');
         const page = await pdf.getPage(i);
-        const scale = 2;
+
+        // Digital PDFs are more accurate and cheaper when we read their real text layer.
+        const textContent = await page.getTextContent();
+        let embedded = '';
+        for (const item of textContent.items || []) {
+            if (!item || typeof item.str !== 'string') continue;
+            embedded += item.str;
+            embedded += item.hasEOL ? '\n' : ' ';
+        }
+        embedded = embedded.replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
+
+        if (embedded.length >= 20 && (textContent.items || []).length >= 3) {
+            pages.push({ type: 'text', text: embedded });
+            continue;
+        }
+
+        // Scanned/handwritten PDF page: render clearly and send one AI OCR request.
+        const scale = 2.25;
         const viewport = page.getViewport({ scale });
         const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d');
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        const ctx = canvas.getContext('2d', { alpha: false });
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         await page.render({ canvasContext: ctx, viewport }).promise;
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-        images.push(blob);
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not render PDF page')), 'image/jpeg', 0.94);
+        });
+        pages.push({ type: 'image', blob });
     }
-    return images;
+    return pages;
 }
 
 // ── Excel/CSV extraction in the browser (preserves sheets, rows and columns) ──
@@ -1129,9 +1169,9 @@ async function extractSpreadsheetFile(spreadsheetFile) {
     }
 
     const ext = spreadsheetFile.name.split('.').pop().toLowerCase();
-    if (ext === 'csv') {
+    if (ext === 'csv' || ext === 'tsv') {
         const csv = await spreadsheetFile.text();
-        if (!csv.trim()) throw new Error('This CSV file is empty.');
+        if (!csv.trim()) throw new Error('This spreadsheet file is empty.');
         return csv;
     }
 
@@ -1166,25 +1206,118 @@ async function extractSpreadsheetFile(spreadsheetFile) {
     return sections.join('\n\n');
 }
 
-// ── Send image to OCR API ──
+// ── Local text/Office extraction: no AI usage ──
+function xmlParagraphText(xmlText, paragraphLocalName = 'p', textLocalName = 't') {
+    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+    if (doc.querySelector('parsererror')) throw new Error('Invalid Office XML');
+    const paragraphs = Array.from(doc.getElementsByTagNameNS('*', paragraphLocalName));
+    const lines = paragraphs.map(p => {
+        const nodes = Array.from(p.getElementsByTagNameNS('*', textLocalName));
+        return nodes.map(n => n.textContent || '').join('').trim();
+    }).filter(Boolean);
+    if (lines.length) return lines.join('\n');
+
+    const textNodes = Array.from(doc.getElementsByTagNameNS('*', textLocalName));
+    return textNodes.map(n => n.textContent || '').filter(Boolean).join(' ').trim();
+}
+
+async function extractOfficeZipFile(officeFile) {
+    if (typeof JSZip === 'undefined') throw new Error('Office reader failed to load. Refresh and try again.');
+    const ext = officeFile.name.split('.').pop().toLowerCase();
+    const zip = await JSZip.loadAsync(await officeFile.arrayBuffer());
+
+    if (ext === 'docx') {
+        const parts = Object.keys(zip.files)
+            .filter(n => /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i.test(n))
+            .sort((a,b) => a.includes('document.xml') ? -1 : b.includes('document.xml') ? 1 : a.localeCompare(b));
+        const sections = [];
+        for (const name of parts) {
+            const xml = await zip.file(name).async('text');
+            const text = xmlParagraphText(xml, 'p', 't');
+            if (text) sections.push(text);
+        }
+        const out = sections.join('\n\n').trim();
+        if (!out) throw new Error('No readable text found in this Word file.');
+        return out;
+    }
+
+    if (ext === 'pptx') {
+        const slides = Object.keys(zip.files)
+            .filter(n => /^ppt\/slides\/slide\d+\.xml$/i.test(n))
+            .sort((a,b) => Number(a.match(/slide(\d+)/i)?.[1] || 0) - Number(b.match(/slide(\d+)/i)?.[1] || 0));
+        const sections = [];
+        for (let i = 0; i < slides.length; i++) {
+            const xml = await zip.file(slides[i]).async('text');
+            const text = xmlParagraphText(xml, 'p', 't');
+            if (text) sections.push('--- Slide ' + (i + 1) + ' ---\n' + text);
+        }
+        const out = sections.join('\n\n').trim();
+        if (!out) throw new Error('No readable text found in this PowerPoint file.');
+        return out;
+    }
+
+    if (ext === 'odt' || ext === 'odp') {
+        const entry = zip.file('content.xml');
+        if (!entry) throw new Error('Office content.xml not found.');
+        const xml = await entry.async('text');
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        const paras = Array.from(doc.getElementsByTagNameNS('*', 'p'))
+            .map(p => (p.textContent || '').trim()).filter(Boolean);
+        const out = paras.join('\n').trim();
+        if (!out) throw new Error('No readable text found in this document.');
+        return out;
+    }
+
+    throw new Error('This Office ZIP format is not supported locally.');
+}
+
+async function extractPlainTextFile(textFile) {
+    const ext = textFile.name.split('.').pop().toLowerCase();
+    let text = await textFile.text();
+    if (ext === 'rtf') {
+        text = text
+            .replace(/\\par[d]?/g, '\n')
+            .replace(/\\'[0-9a-fA-F]{2}/g, ' ')
+            .replace(/\\[a-zA-Z]+-?\d* ?/g, '')
+            .replace(/[{}]/g, '');
+    }
+    if (!text.trim()) throw new Error('No readable text found in this file.');
+    return text.trim();
+}
+
+async function sendFileToWorker(inputFile, signal) {
+    const formData = new FormData();
+    formData.append('file', inputFile);
+    formData.append('language', languageSelect.value || 'auto');
+    const res = await fetch(API + '/api/ocr', { method: 'POST', body: formData, signal });
+    let body = null;
+    try { body = await res.json(); } catch (_) {}
+    if (!res.ok) {
+        const msg = body?.error || ('Worker error ' + res.status);
+        throw new Error(msg);
+    }
+    return body;
+}
+
+// ── Send image to OCR API. No paid/third-party fallback. ──
 async function sendToOCR(imageBlob, signal) {
     const formData = new FormData();
     formData.append('file', imageBlob, 'page.jpg');
     formData.append('language', languageSelect.value || 'auto');
     formData.append('preprocessing', 'auto');
-    formData.append('engine', 'auto');
-    try {
-        const res = await fetch(API + '/api/ocr', { method: 'POST', body: formData, signal });
-        if (!res.ok) throw new Error('Worker error ' + res.status);
-        return await res.json();
-    } catch (e) {
-        if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
-            const res = await fetch(API_FALLBACK + '/api/ocr', { method: 'POST', body: formData, signal });
-            if (!res.ok) throw new Error('Backup error ' + res.status);
-            return await res.json();
+    formData.append('engine', 'free-only');
+
+    const res = await fetch(API + '/api/ocr', { method: 'POST', body: formData, signal });
+    let body = null;
+    try { body = await res.json(); } catch (_) {}
+
+    if (!res.ok) {
+        if (res.status === 429 || body?.code === 'FREE_AI_LIMIT_REACHED') {
+            throw new Error('Daily free AI OCR limit reached. PaperAI stopped; no paid fallback was used. Try again after the daily reset.');
         }
-        throw e;
+        throw new Error(body?.error || ('OCR service error ' + res.status));
     }
+    return body;
 }
 
 function showTab(tab) {
@@ -1224,18 +1357,26 @@ goBtn.onclick = async () => {
         let allRaw = '';
 
         if (ext === 'pdf') {
-            // ── PDF: convert pages to images, then OCR each ──
+            // ── PDF: exact text-layer extraction when available; AI only for scanned pages ──
             setProg(8, 'Loading PDF...');
-            const images = await pdfToImages(file);
-            for (let i = 0; i < images.length; i++) {
-                setProg(50 + Math.round((i / images.length) * 45), 'OCR page ' + (i+1) + '/' + images.length + '...');
+            const pages = await pdfToPages(file);
+            for (let i = 0; i < pages.length; i++) {
+                const prefix = allText ? '\n\n--- Page ' + (i+1) + ' ---\n\n' : '';
+                if (pages[i].type === 'text') {
+                    setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
+                    allText += prefix + pages[i].text;
+                    allRaw += prefix + pages[i].text;
+                    continue;
+                }
+
+                setProg(48 + Math.round((i / pages.length) * 45), 'OCR scanned page ' + (i+1) + '/' + pages.length + '...');
                 const ctrl = new AbortController();
                 const tid = setTimeout(() => ctrl.abort(), 120000);
-                const result = await sendToOCR(images[i], ctrl.signal);
+                const result = await sendToOCR(pages[i].blob, ctrl.signal);
                 clearTimeout(tid);
                 if (result.status === 'completed' && result.result) {
-                    allText += (allText ? '\n\n--- Page ' + (i+1) + ' ---\n\n' : '') + (result.result.full_text || '');
-                    allRaw += (allRaw ? '\n\n--- Page ' + (i+1) + ' ---\n\n' : '') + (result.result.raw_text || result.result.full_text || '');
+                    allText += prefix + (result.result.full_text || '');
+                    allRaw += prefix + (result.result.raw_text || result.result.full_text || '');
                 }
             }
         } else if (XLS_EXTS.includes(ext)) {
@@ -1254,29 +1395,23 @@ goBtn.onclick = async () => {
             if (result.status !== 'completed' || !result.result) throw new Error('No results');
             allText = result.result.full_text || '';
             allRaw = result.result.raw_text || allText;
+        } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
+            // ── Text/RTF: read locally, zero server usage ──
+            setProg(25, 'Reading text...');
+            allText = await extractPlainTextFile(file);
+            allRaw = allText;
+        } else if (['docx','odt','pptx','odp'].includes(ext)) {
+            // ── Modern Word/PowerPoint/OpenDocument: extract locally with JSZip ──
+            setProg(25, 'Reading Office document...');
+            allText = await extractOfficeZipFile(file);
+            allRaw = allText;
         } else {
-            // ── Other files: send to backend (text/doc/xls) ──
-            setProg(15, 'Uploading...');
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('language', languageSelect.value || 'auto');
+            // ── Legacy DOC/PPT only: free Worker text extraction, never AI fallback ──
+            setProg(20, 'Reading legacy document...');
             const ctrl = new AbortController();
             const tid = setTimeout(() => ctrl.abort(), 120000);
-            let result;
-            try {
-                const res = await fetch(API + '/api/ocr', { method: 'POST', body: formData, signal: ctrl.signal });
-                clearTimeout(tid);
-                if (!res.ok) throw new Error('error');
-                const txt = await res.text();
-                result = JSON.parse(txt);
-            } catch(e) {
-                const ctrl2 = new AbortController();
-                const tid2 = setTimeout(() => ctrl2.abort(), 120000);
-                const res = await fetch(API_FALLBACK + '/api/ocr', { method: 'POST', body: formData, signal: ctrl2.signal });
-                clearTimeout(tid2);
-                if (!res.ok) throw new Error('Server error');
-                result = await res.json();
-            }
+            const result = await sendFileToWorker(file, ctrl.signal);
+            clearTimeout(tid);
             if (result.status !== 'completed' || !result.result) throw new Error('No results');
             allText = result.result.full_text || '';
             allRaw = result.result.raw_text || allText;
