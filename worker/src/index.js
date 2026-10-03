@@ -305,7 +305,7 @@ async function handleOCR(request, env, corsHeaders) {
 
   const ext = filename.split('.').pop().toLowerCase();
   const TEXT_EXTS = ['txt','md','json','xml','html','htm','css','js','py','java','c','cpp','h','log','yaml','yml','toml','ini','cfg','csv','tsv','sql','sh','bat','ps1','env','gitignore','dockerfile','makefile'];
-  const DOC_EXTS = ['doc','docx','odt','rtf'];
+  const DOC_EXTS = ['doc','docx','odt','rtf','ppt','pptx','odp'];
   const XLS_EXTS = ['xls','xlsx','ods'];
 
   // ── Text files: read directly ──
@@ -398,63 +398,38 @@ async function handleOCR(request, env, corsHeaders) {
 
   let aiResult;
   try {
+    // FREE-ONLY MODE: exactly ONE Workers AI inference per image/page.
+    // No second verification model and no paid provider fallback.
     aiResult = await runAI(imageDataBase64, mimeType, env, language);
   } catch (e) {
-    aiResult = { text: '', error: e.message };
+    if (isDailyFreeLimitError(e)) {
+      return Response.json({
+        error: 'Daily free AI OCR limit reached. PaperAI stopped before any paid fallback. Try again after the Cloudflare daily reset.',
+        code: 'FREE_AI_LIMIT_REACHED',
+      }, { status: 429, headers: corsHeaders });
+    }
+    if (isPaidModelRequiredError(e)) {
+      return Response.json({
+        error: 'This OCR model is not available on the Cloudflare Free plan. PaperAI will not switch to a paid model.',
+        code: 'FREE_MODEL_UNAVAILABLE',
+      }, { status: 503, headers: corsHeaders });
+    }
+    return Response.json({
+      error: 'AI OCR failed: ' + (e?.message || 'unknown error'),
+      code: 'AI_OCR_FAILED',
+    }, { status: 502, headers: corsHeaders });
   }
 
   const rawOcrText = aiResult.raw || aiResult.text || '';
   const detectedLanguage = detectLanguageFromText(rawOcrText);
   const effectiveLanguage = language === 'auto' ? detectedLanguage : language;
 
-  // Step 1: deterministic cleanup must NEVER rewrite words or facts.
+  // Deterministic cleanup only. Never rewrite spelling, facts, numbers or wording.
   const regexResult = safeRegexCleanup(rawOcrText, effectiveLanguage);
+  let correctedText = validateOcrOutput(regexResult.text, rawOcrText);
 
-  // Step 2: visually verify against the source image.
-  // The verifier returns patches only; it never regenerates the whole document.
-  let llmCorrections = [];
-  if (regexResult.text.length > 20) {
-    try {
-      const llmResult = await llmContextualCorrection(
-        regexResult.text,
-        imageDataBase64,
-        mimeType,
-        env,
-        effectiveLanguage
-      );
-      llmCorrections = llmResult.corrections || [];
-    } catch (e) {
-      console.log('[LLM Verification] Failed:', e.message);
-    }
-  }
-
-  // Step 3: protect dates, numbers, punctuation and line breaks BEFORE applying patches.
-  // Word-only corrections still apply, while risky structure/number changes are blocked.
-  const { text: protectedText, map: protectionMap } = protectContent(regexResult.text);
-  let correctedText = protectedText;
-
-  for (const patch of llmCorrections) {
-    if (!patch.original || !patch.corrected || patch.confidence < 0.97) continue;
-    if (patch.original === patch.corrected) continue;
-
-    // If the original text was protected (date/number/punctuation/line break),
-    // it will no longer exist verbatim here and therefore cannot be overwritten.
-    if (correctedText.includes(patch.original)) {
-      correctedText = correctedText.replace(patch.original, patch.corrected);
-    }
-  }
-
-  // Step 4: restore the exact protected source content.
-  correctedText = restoreContent(correctedText, protectionMap);
-
-  // Step 5: only remove model wrapper artifacts; preserve document content.
-  correctedText = validateOcrOutput(correctedText, rawOcrText);
-
-  // Merge all corrections
-  const allCorrections = [
-    ...regexResult.corrections.map(c => ({ ...c, source: 'regex', confidence: 1.0 })),
-    ...llmCorrections.filter(c => c.confidence >= 0.97).map(c => ({ ...c, source: 'llm' }))
-  ];
+  // No semantic auto-correction in free-only literal OCR mode.
+  const allCorrections = [];
 
   const consistencyWarnings = checkConsistency(correctedText);
 
@@ -489,7 +464,9 @@ async function handleOCR(request, env, corsHeaders) {
         language: effectiveLanguage,
         requested_language: language,
         detected_language: detectedLanguage,
-        mode: 'literal_transcription',
+        mode: 'free_only_literal_transcription',
+        billing_safety: 'one_ai_call_no_paid_fallback',
+        model: aiResult.model || 'unknown',
         layout: detectExamLayout(correctedText),
       },
       consistency_warnings: consistencyWarnings,
@@ -719,37 +696,52 @@ async function runAI(base64Image, mimeType, env, language = 'auto') {
     throw new Error('Workers AI not available - check if AI binding is configured');
   }
 
+  const model = '@cf/google/gemma-4-26b-a4b-it';
   const dataUrl = `data:${mimeType};base64,${base64Image}`;
   const languageHint = {
-    auto: 'Detect the language automatically. The page may mix English, Hindi (Devanagari), and Telugu.',
-    en: 'The main document language is English, but preserve any other scripts exactly.',
-    hi: 'The main document language is Hindi (Devanagari), but preserve English words and numbers exactly.',
-    te: 'The main document language is Telugu, but preserve English words and numbers exactly.'
-  }[language] || 'Detect the document language and preserve every script exactly.';
+    auto: 'Auto-detect all visible languages and scripts. Mixed-language pages are common.',
+    en: 'Main language: English. Preserve any Indian-language text exactly where it appears.',
+    hi: 'Main language: Hindi (Devanagari). Preserve English, numbers and mixed scripts exactly.',
+    te: 'Main language: Telugu. Preserve English, numbers and mixed scripts exactly.',
+    ta: 'Main language: Tamil. Preserve English, numbers and mixed scripts exactly.',
+    kn: 'Main language: Kannada. Preserve English, numbers and mixed scripts exactly.',
+    ml: 'Main language: Malayalam. Preserve English, numbers and mixed scripts exactly.',
+    mr: 'Main language: Marathi (Devanagari). Preserve English, numbers and mixed scripts exactly.',
+    bn: 'Main language: Bengali. Preserve English, numbers and mixed scripts exactly.',
+    gu: 'Main language: Gujarati. Preserve English, numbers and mixed scripts exactly.',
+    pa: 'Main language: Punjabi/Gurmukhi. Preserve English, numbers and mixed scripts exactly.',
+    ur: 'Main language: Urdu. Preserve English, numbers and mixed scripts exactly.'
+  }[language] || 'Auto-detect every visible language and preserve the original scripts exactly.';
 
-  const prompt = `You are PaperAI, a literal document transcription engine.
+  const prompt = `You are PaperAI, a high-accuracy visual OCR and handwriting transcription engine.
 
-DOCUMENT LANGUAGE:
+LANGUAGE INSTRUCTION:
 ${languageHint}
 
-TRANSCRIBE THE IMAGE EXACTLY. You are a PRINTER, not an editor.
+Your job is to READ the pixels, including difficult handwriting, and transcribe what is actually visible.
+Be intelligent about character shapes and word boundaries like a strong multimodal document reader, but remain a PRINTER, not an editor.
 
-RULES:
-1. Output ONLY text visible in the image. Do not explain, summarize, correct grammar, or improve spelling.
-2. Preserve dates, numbers, names, punctuation, capitalization, mathematical symbols, brackets, and answer blanks exactly.
-3. Preserve reading order and line breaks. Do not merge unrelated lines.
-4. For exam papers, preserve section labels, question numbers, circled numbers, marks such as 5×2=10, and empty answer areas.
-5. For tables/two-column lists, output one visual row per text line and separate columns with " | ".
-6. For grids/word-search/crossword boxes, output ONE GRID ROW PER LINE and separate cells with " | ".
-7. Text or answer numbers OUTSIDE a grid must stay outside the grid. Never insert side labels into grid cells.
-8. Preserve underscores and empty brackets such as _____ and ( ).
-9. Mixed-language text must remain in its original script. Never transliterate.
-10. If handwriting is unclear, transcribe the closest visible characters; do not infer a more sensible word.
-11. Write "No text detected" only if the image is actually blank.
+Before writing the answer, silently inspect the page line-by-line and cross-check ambiguous handwriting against the actual glyph shapes and nearby visible context. Use context only to choose between visually plausible characters; NEVER change the author's spelling, grammar, facts or wording.
 
-Return only the transcription.`;
+STRICT TRANSCRIPTION RULES:
+1. Output ONLY text visible in the image. No explanations, summaries, Markdown wrappers or commentary.
+2. Preserve the source exactly even when it contains mistakes.
+3. Preserve English, Hindi, Telugu and every other visible script without transliteration.
+4. Pay special attention to handwritten English letter shapes, Devanagari matras/conjuncts and Telugu vowel signs/conjuncts.
+5. Distinguish visually similar characters and digits carefully (for example 1/l/I, 0/O, 5/S, 2/Z) only from the image.
+6. Preserve dates, numbers, names, punctuation, capitalization, math symbols, units, brackets, question numbers and marks exactly.
+7. Preserve line order and meaningful line breaks. Do not merge unrelated lines.
+8. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
+9. Tables and two-column lists: one visual row per output line; separate visible columns with " | ".
+10. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together (for example "बा" is one cell).
+11. Anything visibly OUTSIDE the grid boundary must stay outside the grid. Never insert side answer numbers or labels into grid cells.
+12. For crossed-out or overwritten handwriting, transcribe the final clearly intended visible writing only when it is visually obvious; otherwise preserve the visible ambiguous text as closely as possible.
+13. Do not hallucinate text hidden by blur, cropping, glare or low resolution. If a tiny portion is unreadable, use [unclear] only for that portion rather than inventing a word.
+14. Write "No text detected" only when the image truly contains no readable text.
 
-  const response = await env.AI.run('@cf/meta/llama-4-scout-17b-16e-instruct', {
+Return only the final transcription.`;
+
+  const response = await env.AI.run(model, {
     messages: [{
       role: 'user',
       content: [
@@ -758,23 +750,64 @@ Return only the transcription.`;
       ]
     }],
     max_tokens: 8192,
-    temperature: 0
+    temperature: 0,
+    chat_template_kwargs: {
+      // Keep hidden reasoning disabled so OCR uses fewer free Neurons.
+      enable_thinking: false
+    }
   });
 
   const text = (response.response || '').trim();
-  return { text, raw: text };
+  return { text, raw: text, model, usage: response.usage || null };
+}
+
+function aiErrorText(error) {
+  try {
+    return [
+      error?.message || '',
+      error?.cause?.message || '',
+      typeof error === 'string' ? error : '',
+      JSON.stringify(error || {})
+    ].join(' ').toLowerCase();
+  } catch (_) {
+    return String(error?.message || error || '').toLowerCase();
+  }
+}
+
+function isDailyFreeLimitError(error) {
+  const s = aiErrorText(error);
+  return s.includes('3036') ||
+    s.includes('daily free allocation') ||
+    s.includes('used up your daily free') ||
+    (s.includes('429') && (s.includes('neuron') || s.includes('allocation')));
+}
+
+function isPaidModelRequiredError(error) {
+  const s = aiErrorText(error);
+  return s.includes('5035') || s.includes('requires a workers paid plan');
 }
 
 function detectLanguageFromText(text) {
   if (!text) return 'en';
-  const devanagari = (text.match(/[\u0900-\u097F]/g) || []).length;
-  const telugu = (text.match(/[\u0C00-\u0C7F]/g) || []).length;
-  const latin = (text.match(/[A-Za-z]/g) || []).length;
 
-  if (devanagari >= 4 && devanagari >= telugu) return 'hi';
-  if (telugu >= 4 && telugu > devanagari) return 'te';
-  if (latin > 0) return 'en';
-  return devanagari > telugu ? 'hi' : telugu > 0 ? 'te' : 'en';
+  const scripts = [
+    ['hi', /[\u0900-\u097F]/g],   // Devanagari (Hindi/Marathi and others)
+    ['te', /[\u0C00-\u0C7F]/g],
+    ['ta', /[\u0B80-\u0BFF]/g],
+    ['kn', /[\u0C80-\u0CFF]/g],
+    ['ml', /[\u0D00-\u0D7F]/g],
+    ['bn', /[\u0980-\u09FF]/g],
+    ['gu', /[\u0A80-\u0AFF]/g],
+    ['pa', /[\u0A00-\u0A7F]/g],
+    ['ur', /[\u0600-\u06FF]/g],
+  ];
+
+  let best = ['en', (text.match(/[A-Za-z]/g) || []).length];
+  for (const [code, re] of scripts) {
+    const count = (text.match(re) || []).length;
+    if (count > best[1] && count >= 3) best = [code, count];
+  }
+  return best[0];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -877,99 +910,8 @@ function validateOcrOutput(text, rawOcrText) {
   return result.trim();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// STEP 2: LLM contextual correction — returns only patch list
-async function llmContextualCorrection(ocrText, imageBase64, mimeType, env, language = 'en') {
-  if (!env.AI) return { corrections: [], confidence: 0.9 };
-
-  const dataUrl = `data:${mimeType};base64,${imageBase64}`;
-  const languageName = { en: 'English', hi: 'Hindi', te: 'Telugu' }[language] || 'the detected language';
-
-  const prompt = `You are a visual OCR verifier for ${languageName}. You have the ORIGINAL IMAGE and a first-pass OCR transcription.
-
-Return ONLY a JSON patch list. Do NOT regenerate the document.
-
-STRICT RULES:
-1. Correct only characters/words that are visibly misread by OCR.
-2. Never improve spelling, grammar, wording, factual content, or historical facts.
-3. Never paraphrase.
-4. Never add or remove headings, questions, rows, columns, or answer choices.
-5. Preserve the student's/source author's mistakes exactly.
-6. Treat dates, numbers, names, punctuation and layout as high-risk. Change them only if the image makes the OCR misread unmistakable.
-7. A correction's "original" MUST be an exact substring of OCR TEXT.
-8. Keep replacements as small as possible: normally one word or one short phrase.
-9. If uncertain, return no correction.
-10. Confidence >= 0.97 means the image clearly proves the patch.
-
-Return ONLY valid JSON:
-{
-  "corrections": [
-    {
-      "original": "exact OCR substring",
-      "corrected": "exact text visible in image",
-      "confidence": 0.99,
-      "reason": "visual OCR misread"
-    }
-  ],
-  "overall_confidence": 0.95
-}
-
-If no safe patch is needed:
-{"corrections": [], "overall_confidence": 0.98}
-
-OCR TEXT:
-${ocrText}`;
-
-  const response = await env.AI.run('@cf/meta/llama-4-scout-17b-16e-instruct', {
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: dataUrl } },
-        { type: 'text', text: prompt }
-      ]
-    }],
-    max_tokens: 4096,
-    temperature: 0
-  });
-
-  const raw = (response.response || '').trim();
-  let parsed;
-
-  try {
-    parsed = JSON.parse(raw);
-  } catch (e) {
-    const fenced = raw.match(/\`\`\`(?:json)?\s*([\s\S]*?)\s*\`\`\`/i);
-    if (fenced) {
-      try { parsed = JSON.parse(fenced[1]); } catch (_) {}
-    }
-    if (!parsed) {
-      const objectMatch = raw.match(/\{[\s\S]*"corrections"[\s\S]*\}/);
-      if (objectMatch) {
-        try { parsed = JSON.parse(objectMatch[0]); } catch (_) {}
-      }
-    }
-  }
-
-  if (!parsed || !Array.isArray(parsed.corrections)) {
-    return { corrections: [], confidence: 0.9 };
-  }
-
-  const corrections = parsed.corrections
-    .filter(p => p && typeof p.original === 'string' && typeof p.corrected === 'string')
-    .filter(p => p.original.length > 0 && p.original !== p.corrected)
-    .filter(p => ocrText.includes(p.original))
-    .map(p => ({
-      original: p.original,
-      corrected: p.corrected,
-      confidence: Math.max(0, Math.min(1, Number(p.confidence) || 0)),
-      reason: p.reason || 'visual OCR verification'
-    }));
-
-  return {
-    corrections,
-    confidence: Math.max(0, Math.min(1, Number(parsed.overall_confidence) || 0.9))
-  };
-}
+// Second-pass AI verification intentionally removed.
+// Free-only mode performs one high-quality multimodal OCR inference per image.
 
 function postProcessHindi(text, language) {
   if (!text || text === 'No text detected') return text;
@@ -977,31 +919,9 @@ function postProcessHindi(text, language) {
 }
 
 function getAppliedCorrections(original, corrected) {
-  const corrections = [
-    ['रेम्युलेटिंग', 'रेग्युलेटिंग'],
-    ['विलियम बैटिक', 'विलियम बैंटिक'],
-    ['लॉर्ड बैटिक', 'लॉर्ड बैंटिक'],
-    ['चारपेकर बंदुओं', 'चापेकर बंधुओं'],
-    ['रैड को हत्या', 'रैंड की हत्या'],
-    ['जार्ज यूल', 'जॉर्ज यूल'],
-    ['मैकले का', 'मैकाले का'],
-    ['बैटिक', 'बैंटिक'],
-    ['चारपेकर', 'चापेकर'],
-    ['बंदुओं', 'बंधुओं'],
-    ['रैड', 'रैंड'],
-    ['जार्ज', 'जॉर्ज'],
-    ['मैकले', 'मैकाले'],
-  ];
-  
-  const applied = [];
-  for (const [wrong, correct] of corrections) {
-    if (original.includes(wrong)) {
-      applied.push({ from: wrong, to: correct });
-    }
-  }
-  return applied;
+  // Literal OCR mode never applies semantic dictionary corrections.
+  return [];
 }
-
 function countRegions(text) {
   if (!text) return 0;
   return Math.max(1, text.split('\n').filter(l => l.trim()).length);
@@ -1137,27 +1057,77 @@ function decodePdfString(s) {
     .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
 }
 
-// ── DOC/DOCX text extraction (basic) ──
+// ── Word / PowerPoint / OpenDocument text extraction ──
 async function extractDocText(buffer, ext) {
-  if (ext === 'docx' || ext === 'odt') {
-    // DOCX is a ZIP file, try to extract word/document.xml
+  if (['docx','odt','pptx','odp'].includes(ext)) {
     try {
       const unzipResult = await unzipBuffer(buffer);
-      for (const [name, content] of Object.entries(unzipResult)) {
-        if (name.includes('document.xml') || name.includes('content.xml')) {
-          const text = new TextDecoder('utf-8').decode(content);
-          return stripXmlTags(text);
+      const decoder = new TextDecoder('utf-8');
+      const sections = [];
+
+      if (ext === 'docx') {
+        const names = Object.keys(unzipResult)
+          .filter(name => /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i.test(name))
+          .sort((a,b) => a.includes('document.xml') ? -1 : b.includes('document.xml') ? 1 : a.localeCompare(b));
+        for (const name of names) {
+          const text = stripOfficeXml(decoder.decode(unzipResult[name]));
+          if (text) sections.push(text);
+        }
+      } else if (ext === 'pptx') {
+        const names = Object.keys(unzipResult)
+          .filter(name => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
+          .sort((a,b) => Number(a.match(/slide(\d+)/i)?.[1] || 0) - Number(b.match(/slide(\d+)/i)?.[1] || 0));
+        for (let i = 0; i < names.length; i++) {
+          const text = stripOfficeXml(decoder.decode(unzipResult[names[i]]));
+          if (text) sections.push(`--- Slide ${i + 1} ---\n${text}`);
+        }
+      } else {
+        const content = unzipResult['content.xml'];
+        if (content) {
+          const text = stripOfficeXml(decoder.decode(content));
+          if (text) sections.push(text);
         }
       }
+
+      const joined = sections.join('\n\n').trim();
+      if (joined) return joined;
     } catch (e) {
-      // Fallback: try raw text extraction
+      console.log('[Office] ZIP extraction failed:', e.message);
     }
   }
-  // Fallback: extract readable text from binary
+
+  // Legacy .doc/.ppt/.rtf fallback: best-effort printable text only, never AI.
   const decoder = new TextDecoder('utf-8', { fatal: false });
   const raw = decoder.decode(buffer);
-  const readable = raw.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
-  return readable || 'Could not extract readable text from this document.';
+  const readable = raw
+    .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  if (!readable || readable.length < 3) {
+    throw new Error('Could not extract readable text from this legacy document. Save it as DOCX or PPTX and try again.');
+  }
+  return readable;
+}
+
+function stripOfficeXml(xml) {
+  return xml
+    .replace(/<w:tab\s*\/>/gi, '\t')
+    .replace(/<w:br\s*\/>/gi, '\n')
+    .replace(/<a:br\s*\/>/gi, '\n')
+    .replace(/<\/w:p>/gi, '\n')
+    .replace(/<\/a:p>/gi, '\n')
+    .replace(/<\/text:p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 // ── Spreadsheet text extraction ──
