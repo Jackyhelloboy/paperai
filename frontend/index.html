@@ -62,7 +62,7 @@
             overflow-x: hidden;
         }
 
-        /* ── Header ────────────────────────────────────────── */
+
         .header {
             position: sticky;
             top: 0;
@@ -131,7 +131,7 @@
             50% { opacity: 0.4; transform: scale(0.85); }
         }
 
-        /* ── Main Container ─────────────────────────────────── */
+
         .main {
             padding: 1.75rem 1.25rem 3rem;
             max-width: 480px;
@@ -139,7 +139,7 @@
             margin: 0 auto;
         }
 
-        /* ── Hero ──────────────────────────────────────────── */
+
         .hero {
             text-align: center;
             margin-bottom: 1.75rem;
@@ -168,7 +168,7 @@
             line-height: 1.5;
         }
 
-        /* ── Public Free AI Quota ───────────────────────────── */
+
         .quota-card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -328,12 +328,6 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .quota-note {
-            margin-top: 0.55rem;
-            font-size: 0.6rem;
-            line-height: 1.4;
-            color: var(--text3);
-        }
 
         .quota-card.warning .quota-fill {
             background: linear-gradient(90deg, var(--amber), var(--red));
@@ -348,7 +342,7 @@
             color: var(--red);
         }
 
-        /* ── Upload Card ───────────────────────────────────── */
+
         .upload-card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -442,7 +436,7 @@
             pointer-events: none;
         }
 
-        /* ── File Preview ──────────────────────────────────── */
+
         .file-preview {
             display: none;
             align-items: center;
@@ -573,7 +567,7 @@
             transform: scale(0.92);
         }
 
-        /* ── Extract Button ────────────────────────────────── */
+
         .btn-extract {
             display: none;
             width: 100%;
@@ -618,7 +612,7 @@
             height: 18px;
         }
 
-        /* ── Progress ──────────────────────────────────────── */
+
         .progress-wrap {
             display: none;
             margin-top: 1rem;
@@ -664,7 +658,7 @@
             transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* ── Error ─────────────────────────────────────────── */
+
         .error-toast {
             display: none;
             padding: 0.75rem 1rem;
@@ -692,7 +686,7 @@
             80% { transform: translateX(2px); }
         }
 
-        /* ── Results ───────────────────────────────────────── */
+
         .results {
             display: none;
             margin-top: 1.25rem;
@@ -783,7 +777,7 @@
             height: 15px;
         }
 
-        /* ── Output Card ───────────────────────────────────── */
+
         .output-card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -856,7 +850,7 @@
             line-height: 1.7;
         }
 
-        /* ── Formatted Output ──────────────────────────────── */
+
         .fmt-section {
             font-weight: 700;
             font-size: 0.88rem;
@@ -933,7 +927,7 @@
             font-weight: 600;
         }
 
-        /* ── Flagged Words ─────────────────────────────────── */
+
         .flagged-card {
             display: none;
             margin-top: 0.625rem;
@@ -1007,7 +1001,7 @@
             font-style: italic;
         }
 
-        /* ── Footer ────────────────────────────────────────── */
+
         .footer {
             text-align: center;
             padding: 1.75rem 1.25rem;
@@ -1021,23 +1015,155 @@
             letter-spacing: -0.01em;
         }
 
-        /* ── Mobile: Small (< 380px) ─────────────────────── */
+        @media (max-width: 479px) {
+            .main {
+                padding: 0.9rem 1rem 2rem;
+            }
+
+            .hero {
+                margin-bottom: 0.7rem;
+            }
+
+            .hero h1 {
+                font-size: 1.35rem;
+                margin-bottom: 0;
+            }
+
+            .hero p {
+                display: none;
+            }
+
+            .quota-card {
+                padding: 0.65rem 0.75rem;
+                margin-bottom: 0.7rem;
+                border-radius: 14px;
+            }
+
+            .quota-head {
+                align-items: center;
+                margin-bottom: 0.45rem;
+            }
+
+            .quota-title {
+                font-size: 0.72rem;
+            }
+
+            .quota-subtitle {
+                display: none;
+            }
+
+            .quota-live {
+                padding: 0.16rem 0.4rem;
+                font-size: 0.56rem;
+            }
+
+            .quota-stats {
+                gap: 0.45rem;
+                margin-bottom: 0.45rem;
+            }
+
+            .quota-stat {
+                padding: 0.35rem 0.5rem;
+                border-radius: 9px;
+            }
+
+            .quota-stat-label {
+                font-size: 0.52rem;
+                margin-bottom: 0;
+            }
+
+            .quota-stat-value {
+                font-size: 0.82rem;
+            }
+
+            .quota-track {
+                height: 6px;
+            }
+
+            .quota-scale {
+                margin-top: 0.22rem;
+                font-size: 0.55rem;
+            }
+
+            .quota-chart {
+                height: 24px;
+                margin-top: 0.3rem;
+            }
+
+            .quota-times {
+                grid-template-columns: 0.8fr 1.2fr;
+                gap: 0.4rem;
+                margin-top: 0.3rem;
+                padding-top: 0.35rem;
+            }
+
+            .quota-time-label {
+                display: none;
+            }
+
+            .quota-time-value {
+                font-size: 0.57rem;
+                line-height: 1.2;
+            }
+
+            .upload-card {
+                padding: 1rem;
+            }
+
+            .upload-zone {
+                padding: 1.3rem 0.8rem;
+            }
+
+            .upload-icon {
+                width: 44px;
+                height: 44px;
+                margin-bottom: 0.55rem;
+            }
+
+            .upload-title {
+                font-size: 0.84rem;
+            }
+
+            .upload-sub {
+                font-size: 0.66rem;
+            }
+
+            .language-row {
+                margin-top: 0.65rem;
+                padding: 0.55rem 0.65rem;
+            }
+
+            .btn-extract {
+                margin-top: 0.65rem;
+                height: 46px;
+            }
+
+            .results {
+                scroll-margin-top: 68px;
+            }
+
+            .footer {
+                padding: 1rem;
+            }
+        }
+
+
         @media (max-width: 380px) {
             .main { padding: 1.25rem 1rem 2rem; }
             .hero h1 { font-size: 1.375rem; }
             .hero p { font-size: 0.8rem; }
-            .upload-zone { padding: 1.75rem 0.75rem; }
-            .upload-card { padding: 1.25rem; }
+            .upload-zone { padding: 1.3rem 0.75rem; }
+            .upload-card { padding: 1rem; }
             .header { padding: 0 1rem; }
         }
 
-        /* ── Mobile: Regular (381–479px) ──────────────────── */
+
         @media (min-width: 381px) and (max-width: 479px) {
-            .main { padding: 1.5rem 1.25rem 2.5rem; }
-            .hero h1 { font-size: 1.5rem; }
+            .main { padding: 0.9rem 1rem 2rem; }
+            .hero h1 { font-size: 1.35rem; }
         }
 
-        /* ── Tablet & Desktop (≥ 480px) ──────────────────── */
+
         @media (min-width: 480px) {
             .main {
                 padding: 2.5rem 2rem 3.5rem;
@@ -1051,7 +1177,7 @@
             .output-body { max-height: 480px; }
         }
 
-        /* ── Large Desktop (≥ 768px) ─────────────────────── */
+
         @media (min-width: 768px) {
             .main { max-width: 540px; padding: 3rem 2rem 4rem; }
             .hero h1 { font-size: 2.25rem; }
@@ -1061,7 +1187,7 @@
             .output-body { max-height: 520px; }
         }
 
-        /* ── Safe Area (notch devices) ────────────────────── */
+
         @supports (padding-top: env(safe-area-inset-top)) {
             .header {
                 padding-top: env(safe-area-inset-top);
@@ -1072,16 +1198,16 @@
             }
         }
 
-        /* ── Android-specific touch improvements ──────────── */
+
         @media (hover: none) and (pointer: coarse) {
-            .upload-zone { padding: 2rem 1rem; }
+            .upload-zone { padding: 1.3rem 0.8rem; }
             .btn-extract { height: 52px; }
             .action-btn { height: 44px; min-height: 44px; }
             .file-remove { width: 40px; height: 40px; }
             .output-tab { padding: 0.875rem; }
         }
 
-        /* ── Landscape on mobile ──────────────────────────── */
+
         @media (max-height: 500px) and (orientation: landscape) {
             .hero { margin-bottom: 1rem; }
             .hero h1 { font-size: 1.25rem; }
@@ -1114,7 +1240,7 @@
             <div class="quota-head">
                 <div>
                     <div class="quota-title">Today's free AI OCR quota</div>
-                    <div class="quota-subtitle">Public PaperAI usage estimate · Cloudflare Workers AI</div>
+                    <div class="quota-subtitle">Free AI usage today</div>
                 </div>
                 <div class="quota-live" id="quotaBadge">
                     <span class="quota-live-dot"></span>
@@ -1124,11 +1250,11 @@
 
             <div class="quota-stats">
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Estimated remaining</span>
+                    <span class="quota-stat-label">Remaining</span>
                     <span class="quota-stat-value" id="quotaRemaining">—</span>
                 </div>
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Estimated used</span>
+                    <span class="quota-stat-label">Used</span>
                     <span class="quota-stat-value" id="quotaUsed">—</span>
                 </div>
             </div>
@@ -1150,18 +1276,15 @@
 
             <div class="quota-times">
                 <div>
-                    <span class="quota-time-label">Current date & time</span>
+                    <span class="quota-time-label">Now</span>
                     <span class="quota-time-value" id="quotaNow">—</span>
                 </div>
                 <div>
-                    <span class="quota-time-label">Expected renewal</span>
+                    <span class="quota-time-label">Renews</span>
                     <span class="quota-time-value" id="quotaReset">—</span>
                 </div>
             </div>
 
-            <div class="quota-note" id="quotaNote">
-                Resets daily at 00:00 UTC. This graph estimates PaperAI OCR usage from model token usage; Cloudflare's account dashboard remains the billing authority.
-            </div>
         </section>
 
         <div class="upload-card">
@@ -1272,7 +1395,7 @@ const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
 const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
-const quotaBadgeText=$('quotaBadgeText'),quotaNote=$('quotaNote');
+const quotaBadgeText=$('quotaBadgeText');
 
 let file=null, lastResult=null, showingRaw=false;
 
@@ -1313,7 +1436,7 @@ function updateQuotaClock() {
         const mins = Math.max(0, Math.ceil(ms / 60000));
         const h = Math.floor(mins / 60);
         const m = mins % 60;
-        quotaReset.textContent = formatLocalDateTime(reset) + ' · in ' + h + 'h ' + m + 'm';
+        quotaReset.textContent = 'in ' + h + 'h ' + m + 'm · ' + formatLocalDateTime(reset);
     }
 }
 
@@ -1327,8 +1450,6 @@ function drawQuotaHistory(history, limit, resetAt) {
     const rows = Array.isArray(history) ? history.slice() : [];
     const points = [{ at: start.toISOString(), used: 0 }, ...rows];
 
-    // Extend the final measured value to "now" so the line clearly shows the
-    // current plateau rather than stopping at the last OCR request.
     const lastUsed = Number(points[points.length - 1]?.used || 0);
     points.push({ at: new Date().toISOString(), used: lastUsed });
 
@@ -1367,13 +1488,9 @@ async function loadUsage() {
         updateQuotaClock();
 
         const requests = Number(data.ocr_requests_tracked) || 0;
-        const trackingStarted = data.tracking_started_at ? formatLocalDateTime(data.tracking_started_at) : 'this deployment';
-        quotaNote.textContent =
-            'Tracks ' + requests + ' AI OCR request' + (requests === 1 ? '' : 's') +
-            ' since ' + trackingStarted + '. Resets at 00:00 UTC. Usage is estimated from PaperAI model tokens; earlier usage and other Workers AI apps on the same Cloudflare account are not included.';
+        quotaCard.dataset.requests = String(requests);
     } catch (e) {
         quotaBadgeText.textContent = 'Unavailable';
-        quotaNote.textContent = 'Daily free limit: 10,000 Neurons. Live usage could not be loaded right now; OCR can still work normally.';
         updateQuotaClock();
     }
 }
@@ -1457,10 +1574,6 @@ dropZone.ondragleave = () => dropZone.classList.remove('over');
 dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
 clearBtn.onclick = clearFile;
 
-// ── PDF layout reconstruction ───────────────────────────────────────────────
-// Digital PDFs already contain exact text plus x/y coordinates. Reconstruct the
-// visible rows from those coordinates instead of concatenating PDF objects in
-// their internal storage order. This keeps form labels next to their values.
 function median(values) {
     if (!values.length) return 0;
     const sorted = [...values].sort((a,b) => a-b);
@@ -1487,15 +1600,12 @@ function reconstructPdfText(textContent, pageWidth) {
     const typicalHeight = median(rawItems.map(i => i.height).filter(Boolean)) || 10;
     const yTolerance = Math.max(2, typicalHeight * 0.35);
 
-    // PDF coordinates usually grow upward, so higher Y is earlier on the page.
     rawItems.sort((a,b) => (b.y - a.y) || (a.x - b.x));
 
     const lines = [];
     for (const item of rawItems) {
         let target = null;
 
-        // Only inspect the most recent few visual lines. This prevents distant
-        // rows with coincidentally similar Y values from being merged.
         for (let k = lines.length - 1; k >= Math.max(0, lines.length - 6); k--) {
             if (Math.abs(lines[k].y - item.y) <= yTolerance) {
                 target = lines[k];
@@ -1523,8 +1633,6 @@ function reconstructPdfText(textContent, pageWidth) {
         const items = [...line.items].sort((a,b) => a.x - b.x);
         if (!items.length) continue;
 
-        // Preserve visible section spacing, but never invent "Page 1", "Page 2",
-        // or other text that was not present in the document.
         if (previousY !== null && (previousY - line.y) > typicalHeight * 2.4 && output.length) {
             if (output[output.length - 1] !== '') output.push('');
         }
@@ -1544,9 +1652,6 @@ function reconstructPdfText(textContent, pageWidth) {
                 item.x >= rightColumnX &&
                 previous.x < leftColumnMaxX;
 
-            // A large horizontal gap or a left-column -> right-column jump is a
-            // visible form/table boundary. Use " | " so question/value pairs stay
-            // together, e.g. "Date of Birth: | 01 AUGUST 1977".
             if (crossesFormColumns || gap > wideGap) {
                 row += ' | ' + item.text;
             } else if (gap > 1.5) {
@@ -1569,7 +1674,6 @@ function reconstructPdfText(textContent, pageWidth) {
     return output.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-// ── PDF reader: use embedded layout text for digital PDFs; AI only for scans ──
 async function pdfToPages(pdfFile) {
     const arrayBuffer = await pdfFile.arrayBuffer();
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1580,8 +1684,6 @@ async function pdfToPages(pdfFile) {
         setProg(10 + Math.round((i / pdf.numPages) * 35), 'Reading PDF page ' + i + '/' + pdf.numPages + '...');
         const page = await pdf.getPage(i);
 
-        // Digital PDFs: use the exact text layer + geometry. This avoids AI cost
-        // and fixes forms where PDF object order lists all labels before values.
         const textContent = await page.getTextContent();
         const baseViewport = page.getViewport({ scale: 1 });
         const embedded = reconstructPdfText(textContent, baseViewport.width);
@@ -1591,8 +1693,6 @@ async function pdfToPages(pdfFile) {
             continue;
         }
 
-        // Scanned/handwritten PDF page: render clearly and send one free-only AI
-        // OCR request. No second model pass and no paid provider fallback.
         const scale = 2.25;
         const viewport = page.getViewport({ scale });
         const canvas = document.createElement('canvas');
@@ -1610,7 +1710,6 @@ async function pdfToPages(pdfFile) {
     return pages;
 }
 
-// ── Excel/CSV extraction in the browser (preserves sheets, rows and columns) ──
 async function extractSpreadsheetFile(spreadsheetFile) {
     if (typeof XLSX === 'undefined') {
         throw new Error('Excel reader failed to load. Refresh the page and try again.');
@@ -1646,8 +1745,6 @@ async function extractSpreadsheetFile(spreadsheetFile) {
             .filter(line => line.trim().length > 0);
 
         if (lines.length) {
-            // Sheet names are workbook metadata, not necessarily visible cell text.
-            // Keep extraction literal and avoid adding synthetic headings.
             sections.push(lines.join('\n'));
         }
     }
@@ -1656,7 +1753,6 @@ async function extractSpreadsheetFile(spreadsheetFile) {
     return sections.join('\n\n');
 }
 
-// ── Local text/Office extraction: no AI usage ──
 function xmlParagraphText(xmlText, paragraphLocalName = 'p', textLocalName = 't') {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('Invalid Office XML');
@@ -1699,7 +1795,6 @@ async function extractOfficeZipFile(officeFile) {
         for (let i = 0; i < slides.length; i++) {
             const xml = await zip.file(slides[i]).async('text');
             const text = xmlParagraphText(xml, 'p', 't');
-            // Keep only text that is actually present on the slide.
             if (text) sections.push(text);
         }
         const out = sections.join('\n\n').trim();
@@ -1750,7 +1845,6 @@ async function sendFileToWorker(inputFile, signal) {
     return body;
 }
 
-// ── Send image to OCR API. No paid/third-party fallback. ──
 async function sendToOCR(imageBlob, signal) {
     const formData = new FormData();
     formData.append('file', imageBlob, 'page.jpg');
@@ -1808,12 +1902,9 @@ goBtn.onclick = async () => {
         let allRaw = '';
 
         if (ext === 'pdf') {
-            // ── PDF: exact text-layer extraction when available; AI only for scanned pages ──
             setProg(8, 'Loading PDF...');
             const pages = await pdfToPages(file);
             for (let i = 0; i < pages.length; i++) {
-                // Separate pages only with blank lines. Do not add synthetic
-                // labels such as "--- Page 2 ---" to the extracted document.
                 const prefix = allText ? '\n\n' : '';
                 if (pages[i].type === 'text') {
                     setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
@@ -1833,13 +1924,11 @@ goBtn.onclick = async () => {
                 }
             }
         } else if (XLS_EXTS.includes(ext)) {
-            // ── Excel/CSV: parse locally with SheetJS, no OCR required ──
             setProg(20, 'Reading spreadsheet...');
             allText = await extractSpreadsheetFile(file);
             allRaw = allText;
             setProg(90, 'Formatting cells...');
         } else if (IMAGE_EXTS.includes(ext)) {
-            // ── Images: direct OCR ──
             setProg(15, 'Uploading...');
             const ctrl = new AbortController();
             const tid = setTimeout(() => ctrl.abort(), 120000);
@@ -1849,17 +1938,14 @@ goBtn.onclick = async () => {
             allText = result.result.full_text || '';
             allRaw = result.result.raw_text || allText;
         } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
-            // ── Text/RTF: read locally, zero server usage ──
             setProg(25, 'Reading text...');
             allText = await extractPlainTextFile(file);
             allRaw = allText;
         } else if (['docx','odt','pptx','odp'].includes(ext)) {
-            // ── Modern Word/PowerPoint/OpenDocument: extract locally with JSZip ──
             setProg(25, 'Reading Office document...');
             allText = await extractOfficeZipFile(file);
             allRaw = allText;
         } else {
-            // ── Legacy DOC/PPT only: free Worker text extraction, never AI fallback ──
             setProg(20, 'Reading legacy document...');
             const ctrl = new AbortController();
             const tid = setTimeout(() => ctrl.abort(), 120000);
@@ -1872,7 +1958,6 @@ goBtn.onclick = async () => {
 
         if (!allText.trim()) throw new Error('No text found in file');
 
-        // Show results
         const charCount = allText.length;
         let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
         $('statsBar').innerHTML = badges;
@@ -1887,8 +1972,10 @@ goBtn.onclick = async () => {
         resBox.classList.add('show');
         setProg(100, 'Done');
         setTimeout(() => prog.classList.remove('show'), 800);
-        // Refresh the public usage bar immediately after OCR activity.
         loadUsage();
+        if (window.matchMedia('(max-width: 479px)').matches) {
+            setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+        }
     } catch(e) {
         showErr(e.name==='AbortError' ? 'Timed out — try a smaller file.' : e.message);
     } finally {
