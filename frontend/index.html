@@ -2001,7 +2001,7 @@ async function fetchOcrEndpoint(path, options) {
     for (let i = 0; i < targets.length; i++) {
         try {
             const res = await fetch(targets[i], options);
-            if (i === 0 && [404, 502, 503, 504].includes(res.status)) continue;
+            if (i === 0 && (res.status === 404 || res.headers.get('X-PaperAI-Proxy-Error') === '1')) continue;
             return res;
         } catch (e) {
             lastError = e;
@@ -2074,8 +2074,8 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
             throw new Error('Daily free AI OCR limit reached. Try again after the daily reset.');
         }
 
-        if ((res.status === 413 || res.status >= 500) && attempt === 0) {
-            await wait(500);
+        if (res.status === 413 && attempt === 0) {
+            await wait(300);
             prepared = await prepareImageForOCR(sourceBlob, true);
             continue;
         }
