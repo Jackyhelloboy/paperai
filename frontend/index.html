@@ -2069,6 +2069,123 @@ function analyzeCanvasDifficulty(canvas, originalWidth, originalHeight) {
     };
 }
 
+function detectPaperBounds(source, originalWidth, originalHeight) {
+    const maxW = 360;
+    const maxH = 640;
+    const ratio = Math.min(1, maxW / Math.max(1, originalWidth), maxH / Math.max(1, originalHeight));
+    const w = Math.max(48, Math.round(originalWidth * ratio));
+    const h = Math.max(48, Math.round(originalHeight * ratio));
+
+    const probe = document.createElement('canvas');
+    probe.width = w;
+    probe.height = h;
+    const ctx = probe.getContext('2d', { willReadFrequently: true, alpha: false });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(source, 0, 0, w, h);
+
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const n = w * h;
+    const gray = new Uint8Array(n);
+    const chroma = new Uint8Array(n);
+    let sum = 0;
+
+    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        const y = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+        gray[p] = y;
+        chroma[p] = Math.max(r,g,b) - Math.min(r,g,b);
+        sum += y;
+    }
+
+    const mean = sum / Math.max(1, n);
+
+    // If almost the entire photo is already a bright page, cropping adds risk
+    // without useful gain.
+    if (mean > 188) return null;
+
+    const lightThreshold = Math.max(122, Math.min(176, mean + 20));
+    const mask = new Uint8Array(n);
+
+    for (let p = 0; p < n; p++) {
+        if (gray[p] >= lightThreshold && chroma[p] <= 70) mask[p] = 1;
+    }
+
+    const queue = new Int32Array(n);
+    let best = null;
+
+    for (let p = 0; p < n; p++) {
+        if (!mask[p]) continue;
+
+        let head = 0, tail = 0;
+        queue[tail++] = p;
+        mask[p] = 0;
+
+        let area = 0;
+        let minX = w, minY = h, maxX = 0, maxY = 0;
+
+        while (head < tail) {
+            const q = queue[head++];
+            const x = q % w;
+            const y = Math.floor(q / w);
+            area++;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+
+            const left = q - 1, right = q + 1, up = q - w, down = q + w;
+            if (x > 0 && mask[left]) { mask[left] = 0; queue[tail++] = left; }
+            if (x + 1 < w && mask[right]) { mask[right] = 0; queue[tail++] = right; }
+            if (y > 0 && mask[up]) { mask[up] = 0; queue[tail++] = up; }
+            if (y + 1 < h && mask[down]) { mask[down] = 0; queue[tail++] = down; }
+        }
+
+        const bw = maxX - minX + 1;
+        const bh = maxY - minY + 1;
+        const fill = area / Math.max(1, bw * bh);
+        const aspect = bw / Math.max(1, bh);
+
+        if (
+            area >= n * 0.08 &&
+            bw >= w * 0.32 &&
+            bh >= h * 0.32 &&
+            fill >= 0.34 &&
+            aspect >= 0.34 &&
+            aspect <= 1.55
+        ) {
+            if (!best || area > best.area) {
+                best = { area, minX, minY, maxX, maxY, bw, bh };
+            }
+        }
+    }
+
+    if (!best) return null;
+
+    const bboxArea = best.bw * best.bh;
+    if (bboxArea >= n * 0.93) return null;
+
+    const padX = Math.round(best.bw * 0.025);
+    const padY = Math.round(best.bh * 0.025);
+    const x0 = Math.max(0, best.minX - padX);
+    const y0 = Math.max(0, best.minY - padY);
+    const x1 = Math.min(w, best.maxX + padX + 1);
+    const y1 = Math.min(h, best.maxY + padY + 1);
+
+    const cropX = Math.max(0, Math.floor(x0 / ratio));
+    const cropY = Math.max(0, Math.floor(y0 / ratio));
+    const cropW = Math.min(originalWidth - cropX, Math.ceil((x1 - x0) / ratio));
+    const cropH = Math.min(originalHeight - cropY, Math.ceil((y1 - y0) / ratio));
+
+    return {
+        x: cropX,
+        y: cropY,
+        width: Math.max(1, cropW),
+        height: Math.max(1, cropH),
+        confidence: Math.round((best.area / Math.max(1, bboxArea)) * 1000) / 1000
+    };
+}
+
 function detectTextLineLayout(source, originalWidth, originalHeight) {
     const maxW = 900;
     const maxH = 1200;
@@ -2150,15 +2267,87 @@ function detectTextLineLayout(source, originalWidth, originalHeight) {
     }
 
     const minBand = Math.max(2, Math.round(h * 0.003));
-    const bands = merged
-        .filter(([y0,y1]) => y1 - y0 + 1 >= minBand)
-        .map(([y0,y1]) => {
-            const pad = Math.max(2, Math.round((y1 - y0 + 1) * 0.45));
-            return {
-                y0: Math.max(0, Math.floor((y0 - pad) / ratio)),
-                y1: Math.min(originalHeight, Math.ceil((y1 + pad + 1) / ratio))
-            };
-        });
+    const probeBands = merged.filter(([y0,y1]) => y1 - y0 + 1 >= minBand);
+
+    // Detect rows that contain two or more spatially separated text groups.
+    // These are common in matching questions, options, forms and answer columns.
+    // Such pages must keep their full geometry instead of being repacked into
+    // a simple one-line mosaic.
+    let multiColumnRows = 0;
+    let denseOptionRows = 0;
+
+    for (const [y0, y1] of probeBands) {
+        const bandH = Math.max(1, y1 - y0 + 1);
+        const density = new Float32Array(w);
+
+        for (let x = 0; x < w; x++) {
+            let ink = 0;
+            for (let y = y0; y <= y1; y++) {
+                if (gray[y * w + x] < threshold) ink++;
+            }
+            density[x] = ink / bandH;
+        }
+
+        const activeCols = new Uint8Array(w);
+        for (let x = 0; x < w; x++) {
+            let v = 0, n = 0;
+            for (let k = -2; k <= 2; k++) {
+                const xx = x + k;
+                if (xx >= 0 && xx < w) {
+                    v += density[xx];
+                    n++;
+                }
+            }
+            if ((v / Math.max(1, n)) > 0.055) activeCols[x] = 1;
+        }
+
+        const runs = [];
+        let runStart = -1;
+        for (let x = 0; x < w; x++) {
+            if (activeCols[x] && runStart < 0) runStart = x;
+            if (!activeCols[x] && runStart >= 0) {
+                runs.push([runStart, x - 1]);
+                runStart = -1;
+            }
+        }
+        if (runStart >= 0) runs.push([runStart, w - 1]);
+
+        const mergedRuns = [];
+        const smallGap = Math.max(3, Math.round(w * 0.018));
+        for (const run of runs) {
+            if (!mergedRuns.length || run[0] - mergedRuns[mergedRuns.length - 1][1] > smallGap) {
+                mergedRuns.push([...run]);
+            } else {
+                mergedRuns[mergedRuns.length - 1][1] = run[1];
+            }
+        }
+
+        const meaningful = mergedRuns.filter(([x0,x1]) => (x1 - x0 + 1) >= Math.max(8, w * 0.025));
+        let separatedGroups = 0;
+
+        for (let i = 1; i < meaningful.length; i++) {
+            const gap = meaningful[i][0] - meaningful[i - 1][1] - 1;
+            const leftW = meaningful[i - 1][1] - meaningful[i - 1][0] + 1;
+            const rightW = meaningful[i][1] - meaningful[i][0] + 1;
+            if (gap >= w * 0.075 && leftW >= w * 0.04 && rightW >= w * 0.04) {
+                separatedGroups++;
+            }
+        }
+
+        if (separatedGroups >= 1) multiColumnRows++;
+
+        const leftInk = meaningful.some(([x0,x1]) => x0 < w * 0.48 && x1 > w * 0.08);
+        const rightInk = meaningful.some(([x0,x1]) => x0 < w * 0.92 && x1 > w * 0.55);
+        if (leftInk && rightInk && separatedGroups >= 1) denseOptionRows++;
+    }
+
+    const bands = probeBands.map(([y0,y1]) => {
+        const pad = Math.max(2, Math.round((y1 - y0 + 1) * 0.45));
+        return {
+            y0: Math.max(0, Math.floor((y0 - pad) / ratio)),
+            y1: Math.min(originalHeight, Math.ceil((y1 + pad + 1) / ratio))
+        };
+    });
 
     let inkHeight = 0;
     for (const band of bands) inkHeight += Math.max(0, band.y1 - band.y0);
@@ -2166,7 +2355,15 @@ function detectTextLineLayout(source, originalWidth, originalHeight) {
 
     const longVerticalRules = Array.from(colInk).filter(v => v > 0.38).length;
     const longHorizontalRules = Array.from(rowInk).filter(v => v > 0.38).length;
-    const structured = longVerticalRules >= 2 || longHorizontalRules >= 3;
+    const multiColumnRatio = probeBands.length ? multiColumnRows / probeBands.length : 0;
+
+    const structured =
+        longVerticalRules >= 2 ||
+        longHorizontalRules >= 3 ||
+        multiColumnRows >= 2 ||
+        denseOptionRows >= 2 ||
+        multiColumnRatio >= 0.16;
+
     const lineFriendly =
         bands.length >= 3 &&
         bands.length <= 60 &&
@@ -2179,7 +2376,10 @@ function detectTextLineLayout(source, originalWidth, originalHeight) {
         lineCount: bands.length,
         coverage: Math.round(coverage * 1000) / 1000,
         structured,
-        lineFriendly
+        lineFriendly,
+        multiColumnRows,
+        multiColumnRatio: Math.round(multiColumnRatio * 1000) / 1000,
+        denseOptionRows
     };
 }
 
@@ -2254,28 +2454,58 @@ async function prepareImageForOCR(source, forceSafe = false) {
         };
     }
 
-    const originalWidth = decoded.width || decoded.naturalWidth || 0;
-    const originalHeight = decoded.height || decoded.naturalHeight || 0;
+    const cameraOriginalWidth = decoded.width || decoded.naturalWidth || 0;
+    const cameraOriginalHeight = decoded.height || decoded.naturalHeight || 0;
 
-    const analysis = analyzeCanvasDifficulty(decoded, originalWidth, originalHeight);
-    const layout = detectTextLineLayout(decoded, originalWidth, originalHeight);
+    const paperBounds = detectPaperBounds(decoded, cameraOriginalWidth, cameraOriginalHeight);
+    let workSource = decoded;
+    let croppedSource = null;
+    let originalWidth = cameraOriginalWidth;
+    let originalHeight = cameraOriginalHeight;
+
+    if (paperBounds) {
+        try {
+            if (typeof createImageBitmap === 'function') {
+                croppedSource = await createImageBitmap(
+                    decoded,
+                    paperBounds.x,
+                    paperBounds.y,
+                    paperBounds.width,
+                    paperBounds.height
+                );
+                workSource = croppedSource;
+                originalWidth = croppedSource.width;
+                originalHeight = croppedSource.height;
+            }
+        } catch (_) {
+            croppedSource = null;
+        }
+    }
+
+    const analysis = analyzeCanvasDifficulty(workSource, originalWidth, originalHeight);
+    const layout = detectTextLineLayout(workSource, originalWidth, originalHeight);
     const hard = analysis.difficulty === 'hard';
 
     let lineMosaic = null;
     if (layout.lineFriendly) {
         try {
-            lineMosaic = await makeLineMosaic(decoded, layout, originalWidth, originalHeight, forceSafe);
+            lineMosaic = await makeLineMosaic(workSource, layout, originalWidth, originalHeight, forceSafe);
         } catch (_) {}
     }
 
     if (lineMosaic) {
-        if (decoded.close) decoded.close();
+        if (croppedSource?.close) croppedSource.close();
+        if (decoded !== croppedSource && decoded.close) decoded.close();
         return {
             blob: lineMosaic.blob,
             difficulty: hard ? 'hard' : 'easy',
             meta: {
                 originalWidth,
                 originalHeight,
+                cameraOriginalWidth,
+                cameraOriginalHeight,
+                pageAutoCropped: Boolean(paperBounds && croppedSource),
+                paperCropConfidence: paperBounds?.confidence || 0,
                 width: lineMosaic.width,
                 height: lineMosaic.height,
                 originalBytes: source.size || 0,
@@ -2285,7 +2515,11 @@ async function prepareImageForOCR(source, forceSafe = false) {
                 scanStrategy: 'line-mosaic',
                 lineCount: layout.lineCount,
                 lineCoverage: layout.coverage,
-                structuredLayout: false
+                structuredLayout: false,
+                multiColumnRows: layout.multiColumnRows || 0,
+                multiColumnRatio: layout.multiColumnRatio || 0,
+                denseOptionRows: layout.denseOptionRows || 0,
+                difficulty: hard ? 'hard' : 'easy'
             }
         };
     }
@@ -2305,9 +2539,10 @@ async function prepareImageForOCR(source, forceSafe = false) {
     ctx.fillRect(0, 0, targetWidth, targetHeight);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(decoded, 0, 0, targetWidth, targetHeight);
+    ctx.drawImage(workSource, 0, 0, targetWidth, targetHeight);
 
-    if (decoded.close) decoded.close();
+    if (croppedSource?.close) croppedSource.close();
+    if (decoded !== croppedSource && decoded.close) decoded.close();
 
     const preferredType = hard && !forceSafe ? 'image/webp' : 'image/jpeg';
     const blob = await new Promise((resolve, reject) => {
@@ -2324,6 +2559,10 @@ async function prepareImageForOCR(source, forceSafe = false) {
         meta: {
             originalWidth,
             originalHeight,
+            cameraOriginalWidth,
+            cameraOriginalHeight,
+            pageAutoCropped: Boolean(paperBounds && croppedSource),
+            paperCropConfidence: paperBounds?.confidence || 0,
             width: targetWidth,
             height: targetHeight,
             originalBytes: source.size || 0,
@@ -2333,7 +2572,11 @@ async function prepareImageForOCR(source, forceSafe = false) {
             scanStrategy: layout.structured ? 'structured-full-page' : 'full-page',
             lineCount: layout.lineCount,
             lineCoverage: layout.coverage,
-            structuredLayout: layout.structured
+            structuredLayout: layout.structured,
+            multiColumnRows: layout.multiColumnRows || 0,
+            multiColumnRatio: layout.multiColumnRatio || 0,
+            denseOptionRows: layout.denseOptionRows || 0,
+            difficulty: forceSafe ? 'hard' : analysis.difficulty
         }
     };
 }
