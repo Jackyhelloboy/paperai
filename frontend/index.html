@@ -1948,21 +1948,11 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const originalWidth = decoded.width || decoded.naturalWidth || 0;
     const originalHeight = decoded.height || decoded.naturalHeight || 0;
 
-    const base = document.createElement('canvas');
-    base.width = originalWidth;
-    base.height = originalHeight;
-    const baseCtx = base.getContext('2d', { alpha: false });
-    baseCtx.fillStyle = '#fff';
-    baseCtx.fillRect(0, 0, base.width, base.height);
-    baseCtx.drawImage(decoded, 0, 0);
-
-    if (decoded.close) decoded.close();
-
-    const analysis = analyzeCanvasDifficulty(base, originalWidth, originalHeight);
+    const analysis = analyzeCanvasDifficulty(decoded, originalWidth, originalHeight);
     const hard = analysis.difficulty === 'hard';
 
-    let maxLongEdge = forceSafe ? 2000 : (hard ? 3000 : 2300);
-    let quality = forceSafe ? 0.84 : (hard ? 0.94 : 0.89);
+    const maxLongEdge = forceSafe ? 2000 : (hard ? 3000 : 2300);
+    const quality = forceSafe ? 0.84 : (hard ? 0.94 : 0.89);
     const longEdge = Math.max(originalWidth, originalHeight);
     const scale = Math.min(1, maxLongEdge / Math.max(1, longEdge));
     const targetWidth = Math.max(1, Math.round(originalWidth * scale));
@@ -1976,7 +1966,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
     ctx.fillRect(0, 0, targetWidth, targetHeight);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(base, 0, 0, targetWidth, targetHeight);
+    ctx.drawImage(decoded, 0, 0, targetWidth, targetHeight);
+
+    if (decoded.close) decoded.close();
 
     let blob = await new Promise((resolve, reject) => {
         canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not optimize image')), 'image/jpeg', quality);
@@ -2009,7 +2001,7 @@ async function fetchOcrEndpoint(path, options) {
     for (let i = 0; i < targets.length; i++) {
         try {
             const res = await fetch(targets[i], options);
-            if (res.status === 404 && i === 0) continue;
+            if (i === 0 && [404, 502, 503, 504].includes(res.status)) continue;
             return res;
         } catch (e) {
             lastError = e;
