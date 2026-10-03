@@ -1367,9 +1367,10 @@ async function loadUsage() {
         updateQuotaClock();
 
         const requests = Number(data.ocr_requests_tracked) || 0;
+        const trackingStarted = data.tracking_started_at ? formatLocalDateTime(data.tracking_started_at) : 'this deployment';
         quotaNote.textContent =
             'Tracks ' + requests + ' AI OCR request' + (requests === 1 ? '' : 's') +
-            ' today. Resets at 00:00 UTC. Usage is estimated from PaperAI model tokens; other Workers AI apps on the same Cloudflare account are not included.';
+            ' since ' + trackingStarted + '. Resets at 00:00 UTC. Usage is estimated from PaperAI model tokens; earlier usage and other Workers AI apps on the same Cloudflare account are not included.';
     } catch (e) {
         quotaBadgeText.textContent = 'Unavailable';
         quotaNote.textContent = 'Daily free limit: 10,000 Neurons. Live usage could not be loaded right now; OCR can still work normally.';
