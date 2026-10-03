@@ -1035,14 +1035,14 @@ STRICT TRANSCRIPTION RULES:
 6. Blank answer lines stay blank. Never fill a blank from the expected answer, nearby options, grammar, school subject knowledge, or faint erased/ghost writing.
 7. When a character is ambiguous, choose the closest visually supported character. Language context may break a tie only between characters that are BOTH visually plausible. Context must never override the pixels.
 8. Distinguish visually similar characters only from the image: 1/l/I, 0/O, 5/S, 2/Z, 6/G, x/×, +/t, -/−, ./,/:
-13. For Devanagari handwriting, verify each grapheme by its visible headline, stem, loop, lower stroke and matra. Re-check visually confusable forms such as द/स, ब/व, र/श, ड/ढ, म/भ, न/प, त/त्त, and short/long vowel marks. Do not choose the more common Hindi word unless its strokes support it.
-14. For Telugu and other Indic scripts, keep consonant+vowel signs and conjuncts attached to the visible base character. Never simplify a complex grapheme into a more common word.
-15. For bracketed answer choices such as "(word1 / word2)", read BOTH options independently from the pixels. Never replace an unclear option with a likely textbook answer.
-16. In matching exercises and two-column questions, preserve each visible row and column relationship. Do not pair an item with a nearby option just because it is semantically plausible.
-9. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
-10. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
-11. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
-12. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
+9. For Devanagari handwriting, verify each grapheme by its visible headline, stem, loop, lower stroke and matra. Re-check visually confusable forms such as द/स, ब/व, र/श, ड/ढ, म/भ, न/प, त/त्त, and short/long vowel marks. Do not choose the more common Hindi word unless its strokes support it.
+10. For Telugu and other Indic scripts, keep consonant+vowel signs and conjuncts attached to the visible base character. Never simplify a complex grapheme into a more common word.
+11. For bracketed answer choices such as "(word1 / word2)", read BOTH options independently from the pixels. Never replace an unclear option with a likely textbook answer.
+12. In matching exercises and two-column questions, preserve each visible row and column relationship. Do not pair an item with a nearby option just because it is semantically plausible.
+13. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
+14. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
+15. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
+16. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
 17. For diagrams, shapes, flowcharts, maps, or labelled drawings: transcribe visible labels, numbers, arrows, and symbols in reading order. Do not invent a description of the drawing.
 18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
 19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
