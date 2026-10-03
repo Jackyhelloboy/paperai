@@ -1035,29 +1035,33 @@ STRICT TRANSCRIPTION RULES:
 6. Blank answer lines stay blank. Never fill a blank from the expected answer, nearby options, grammar, school subject knowledge, or faint erased/ghost writing.
 7. When a character is ambiguous, choose the closest visually supported character. Language context may break a tie only between characters that are BOTH visually plausible. Context must never override the pixels.
 8. Distinguish visually similar characters only from the image: 1/l/I, 0/O, 5/S, 2/Z, 6/G, x/×, +/t, -/−, ./,/:
+13. For Devanagari handwriting, verify each grapheme by its visible headline, stem, loop, lower stroke and matra. Re-check visually confusable forms such as द/स, ब/व, र/श, ड/ढ, म/भ, न/प, त/त्त, and short/long vowel marks. Do not choose the more common Hindi word unless its strokes support it.
+14. For Telugu and other Indic scripts, keep consonant+vowel signs and conjuncts attached to the visible base character. Never simplify a complex grapheme into a more common word.
+15. For bracketed answer choices such as "(word1 / word2)", read BOTH options independently from the pixels. Never replace an unclear option with a likely textbook answer.
+16. In matching exercises and two-column questions, preserve each visible row and column relationship. Do not pair an item with a nearby option just because it is semantically plausible.
 9. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
 10. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
 11. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
 12. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
-13. For diagrams, shapes, flowcharts, maps, or labelled drawings: transcribe visible labels, numbers, arrows, and symbols in reading order. Do not invent a description of the drawing.
-14. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
-15. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
-16. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row, using " | " only as a column separator.
-17. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
-18. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
-19. Never invent page markers, filenames, headings, or text that is not visibly present.
-20. Detect human editing marks instead of throwing them away. Cross-outs, repeated mistakes, overwriting, caret insertions, circles, underlines, boxes, highlights, margin notes, ticks, crosses, and teacher corrections are part of the document.
-21. For a single legible strike-through use exactly: [[STRIKE: text]]
-22. If the same legible text has two or more clear strike lines or a heavy double-cancel mark, use exactly: [[DOUBLE-STRIKE: text]]
-23. If both the original and replacement are legible, use exactly: [[REPLACE: old -> new]]. Never guess an unreadable old word.
-24. For a clearly inserted word/number written with a caret or insertion mark, use exactly: [[INSERT: text]]
-25. For visible formatting/annotation use only when visually clear: [[CIRCLED: text]], [[UNDERLINE: text]], [[DOUBLE-UNDERLINE: text]], [[BOXED: text]], [[HIGHLIGHT: text]], [[MARGIN: text]], [[STAMP: text]]. Use [[SIGNATURE: text]] only when signature letters are actually readable; otherwise use [[SIGNATURE: [unreadable]]].
-26. If a writer makes multiple sequential mistakes, keep every visible stage in reading order. Example: [[STRIKE: first]] [[STRIKE: second]] final. Do not collapse them into only the final answer.
-27. If struck or overwritten text is partly readable, preserve the readable characters and use [unclear] only for the unreadable portion, for example [[STRIKE: ans[unclear]]].
-28. The [[...]] edit markers above are OCR metadata, not source text. Use them ONLY when the corresponding visual mark is genuinely present. Never invent a strike, correction, underline, circle, box, highlight, margin note, stamp, or signature from low image quality.
-29. Preserve teacher marks and grading notation such as ✓, ✗, ticks, crosses, circles around marks, "2/5", "+1", "-1", "Good", "Wrong", initials, and correction arrows when visible.
-30. Do not hallucinate text hidden by blur, glare, cropping, scribble, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
-31. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
+17. For diagrams, shapes, flowcharts, maps, or labelled drawings: transcribe visible labels, numbers, arrows, and symbols in reading order. Do not invent a description of the drawing.
+18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
+19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
+20. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row, using " | " only as a column separator.
+21. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
+22. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
+23. Never invent page markers, filenames, headings, or text that is not visibly present.
+24. Detect human editing marks instead of throwing them away. Cross-outs, repeated mistakes, overwriting, caret insertions, circles, underlines, boxes, highlights, margin notes, ticks, crosses, and teacher corrections are part of the document.
+25. For a single legible strike-through use exactly: [[STRIKE: text]]
+26. If the same legible text has two or more clear strike lines or a heavy double-cancel mark, use exactly: [[DOUBLE-STRIKE: text]]
+27. If both the original and replacement are legible, use exactly: [[REPLACE: old -> new]]. Never guess an unreadable old word.
+28. For a clearly inserted word/number written with a caret or insertion mark, use exactly: [[INSERT: text]]
+29. For visible formatting/annotation use only when visually clear: [[CIRCLED: text]], [[UNDERLINE: text]], [[DOUBLE-UNDERLINE: text]], [[BOXED: text]], [[HIGHLIGHT: text]], [[MARGIN: text]], [[STAMP: text]]. Use [[SIGNATURE: text]] only when signature letters are actually readable; otherwise use [[SIGNATURE: [unreadable]]].
+30. If a writer makes multiple sequential mistakes, keep every visible stage in reading order. Example: [[STRIKE: first]] [[STRIKE: second]] final. Do not collapse them into only the final answer.
+31. If struck or overwritten text is partly readable, preserve the readable characters and use [unclear] only for the unreadable portion, for example [[STRIKE: ans[unclear]]].
+32. The [[...]] edit markers above are OCR metadata, not source text. Use them ONLY when the corresponding visual mark is genuinely present. Never invent a strike, correction, underline, circle, box, highlight, margin note, stamp, or signature from low image quality.
+33. Preserve teacher marks and grading notation such as ✓, ✗, ticks, crosses, circles around marks, "2/5", "+1", "-1", "Good", "Wrong", initials, and correction arrows when visible.
+34. Do not hallucinate text hidden by blur, glare, cropping, scribble, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
+35. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
 
 Return only the final transcription plus the allowed [[...]] edit markers when needed.`;
 
@@ -1123,6 +1127,9 @@ VERIFICATION RULES:
 - Do not fill answer blanks from context or options.
 - Correct a character only when the image itself supports that correction.
 - Preserve mathematics, marks, punctuation, spacing relationships, and mixed scripts exactly.
+- Re-check every Devanagari grapheme that changed between the first OCR and your proposed result. Only change it when the visible stroke pattern supports the new grapheme.
+- Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
+- When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
 
     try {
@@ -1140,7 +1147,7 @@ VERIFICATION RULES:
             ]
           }
         ],
-        max_completion_tokens: 6144,
+        max_completion_tokens: 4096,
         temperature: 0,
         chat_template_kwargs: {
           enable_thinking: false
@@ -1156,7 +1163,7 @@ VERIFICATION RULES:
       }
     } catch (e) {
       if (!isDailyFreeLimitError(e) && !isPaidModelRequiredError(e)) {
-        console.log('[Handwriting rescue] skipped:', e?.message || e);
+        console.log('[Literal verification] skipped:', e?.message || e);
       }
     }
   }
@@ -1194,8 +1201,21 @@ function shouldVerifyOcr(text, imageMeta = {}) {
 
   const hasUnclear = /\[unclear(?::[^\]]*)?\]/i.test(visible);
   const hasEditMetadata = /\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/i.test(visible);
+  const structuredPage =
+    Boolean(imageMeta?.structuredLayout) ||
+    Number(imageMeta?.multiColumnRows || 0) >= 2 ||
+    Number(imageMeta?.denseOptionRows || 0) >= 2;
+  const hardPage =
+    imageMeta?.difficulty === 'hard' ||
+    Number(imageMeta?.score || 0) >= 2;
 
-  return emptyLike || lineMiss || hasUnclear || hasEditMetadata || (plain.length < 12 && likelyInk);
+  return emptyLike ||
+    lineMiss ||
+    hasUnclear ||
+    hasEditMetadata ||
+    structuredPage ||
+    hardPage ||
+    (plain.length < 12 && likelyInk);
 }
 
 function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
