@@ -4699,6 +4699,9 @@ function docxRun(text, options = {}) {
         options.strike ? '<w:strike/>' : '',
         options.doubleStrike ? '<w:dstrike/>' : '',
         options.underline ? '<w:u w:val="' + (options.underline === 'double' ? 'double' : 'single') + '"/>' : '',
+        options.highlight ? '<w:highlight w:val="' + xmlEscape(options.highlight) + '"/>' : '',
+        options.textBorder ? '<w:bdr w:val="single" w:sz="6" w:space="2" w:color="374151"/>' : '',
+        options.color ? '<w:color w:val="' + xmlEscape(options.color) + '"/>' : '',
         '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>',
         '<w:lang w:val="en-US" w:eastAsia="hi-IN"/>'
     ].join('');
@@ -4807,6 +4810,16 @@ function docxRichRuns(raw, options = {}) {
             out += docxTextRuns(content, { ...base, underline: 'double' });
         } else if (type === 'INSERT') {
             out += docxTextRuns(content, { ...base, underline: true, bold: true });
+        } else if (type === 'BOXED') {
+            out += docxTextRuns(content, { ...base, textBorder: true });
+        } else if (type === 'HIGHLIGHT') {
+            out += docxTextRuns(content, { ...base, highlight: 'yellow' });
+        } else if (type === 'MARGIN') {
+            out += docxTextRuns(content, { ...base, italic: true, color: '475569' });
+        } else if (type === 'STAMP') {
+            out += docxTextRuns(content, { ...base, bold: true, color: 'B91C1C' });
+        } else if (type === 'SIGNATURE') {
+            out += docxTextRuns(content, { ...base, italic: true });
         } else {
             out += docxTextRuns(content, base);
         }
@@ -4831,6 +4844,13 @@ function docxCell(contentXml, width, options = {}) {
     if (options.topBorder) {
         borders.push('<w:top w:val="single" w:sz="' + Number(options.borderSize || 6) +
             '" w:space="0" w:color="' + (options.borderColor || '596579') + '"/>');
+    }
+    if (options.fullBorder) {
+        const edge = '<w:top w:val="single" w:sz="5" w:space="0" w:color="9CA3AF"/>' +
+            '<w:left w:val="single" w:sz="5" w:space="0" w:color="9CA3AF"/>' +
+            '<w:bottom w:val="single" w:sz="5" w:space="0" w:color="9CA3AF"/>' +
+            '<w:right w:val="single" w:sz="5" w:space="0" w:color="9CA3AF"/>';
+        borders.push(edge);
     }
     const tcBorders = borders.length ? '<w:tcBorders>' + borders.join('') + '</w:tcBorders>' : '';
     const vMerge = options.vMerge
@@ -4857,13 +4877,20 @@ function docxTable(gridWidths, rowsXml, options = {}) {
     const total = gridWidths.reduce((sum, w) => sum + Number(w), 0);
     const align = options.center === false ? '' : '<w:jc w:val="center"/>';
     const indent = options.indent ? '<w:tblInd w:w="' + Number(options.indent) + '" w:type="dxa"/>' : '';
+    const tableBorders = options.borders
+        ? '<w:tblBorders><w:top w:val="single" w:sz="5" w:color="9CA3AF"/>' +
+          '<w:left w:val="single" w:sz="5" w:color="9CA3AF"/><w:bottom w:val="single" w:sz="5" w:color="9CA3AF"/>' +
+          '<w:right w:val="single" w:sz="5" w:color="9CA3AF"/><w:insideH w:val="single" w:sz="5" w:color="D1D5DB"/>' +
+          '<w:insideV w:val="single" w:sz="5" w:color="D1D5DB"/></w:tblBorders>'
+        : '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/>' +
+          '<w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>';
+
     return '<w:tbl><w:tblPr>' +
         '<w:tblW w:w="' + total + '" w:type="dxa"/>' +
         '<w:tblLayout w:type="fixed"/>' + align + indent +
         '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/>' +
         '<w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar>' +
-        '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/>' +
-        '<w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>' +
+        tableBorders +
         '</w:tblPr><w:tblGrid>' +
         gridWidths.map(w => '<w:gridCol w:w="' + Number(w) + '"/>').join('') +
         '</w:tblGrid>' + rowsXml + '</w:tbl>';
@@ -5518,6 +5545,150 @@ function docxVmlFlowDiagram(parts) {
         '</v:group></w:pict></w:r></w:p>';
 }
 
+function splitStructuredCells(value) {
+    return String(value || '')
+        .split(/\s*\|\|\s*/)
+        .map(cell => cell.trim());
+}
+
+function parseStructuredTableBlock(lines, startIndex) {
+    if (!/^\s*\[\[TABLE_START\]\]\s*$/i.test(String(lines[startIndex] || ''))) return null;
+    const rows = [];
+    let i = startIndex + 1;
+
+    while (i < lines.length) {
+        if (/^\s*\[\[TABLE_END\]\]\s*$/i.test(lines[i])) {
+            return { rows, nextIndex: i + 1 };
+        }
+        const row = String(lines[i] || '').match(/^\s*\[\[TABLE_ROW:\s*([\s\S]*?)\]\]\s*$/i);
+        if (row) rows.push(splitStructuredCells(row[1]));
+        i++;
+    }
+    return null;
+}
+
+function parseStructuredColumnsBlock(lines, startIndex) {
+    if (!/^\s*\[\[COLUMNS_START\]\]\s*$/i.test(String(lines[startIndex] || ''))) return null;
+    const rows = [];
+    let i = startIndex + 1;
+
+    while (i < lines.length) {
+        if (/^\s*\[\[COLUMNS_END\]\]\s*$/i.test(lines[i])) {
+            return { rows, nextIndex: i + 1 };
+        }
+        const row = String(lines[i] || '').match(/^\s*\[\[COLUMN_ROW:\s*([\s\S]*?)\]\]\s*$/i);
+        if (row) rows.push(splitStructuredCells(row[1]));
+        i++;
+    }
+    return null;
+}
+
+function parseLegacyPipeBlock(lines, startIndex) {
+    const first = String(lines[startIndex] || '');
+    if (!first.includes('|') || /\[\[/.test(first)) return null;
+
+    const rows = [];
+    let i = startIndex;
+    let expected = null;
+
+    while (i < lines.length) {
+        const line = String(lines[i] || '');
+        if (!line.includes('|') || /\[\[/.test(line)) break;
+        const cells = line.split('|').map(s => s.trim());
+        if (cells.length < 2 || cells.length > 10) break;
+        if (expected === null) expected = cells.length;
+        if (cells.length !== expected) break;
+        rows.push(cells);
+        i++;
+    }
+
+    if (rows.length < 2) return null;
+    return { rows, nextIndex: i };
+}
+
+function isGridLikeRows(rows) {
+    if (!rows?.length) return false;
+    const cells = rows.flat().filter(Boolean);
+    if (!cells.length) return false;
+    const short = cells.filter(cell => cell.length <= 8).length;
+    return rows.length >= 3 && short / cells.length >= 0.7;
+}
+
+function docxStructuredTable(rows, options = {}) {
+    if (!rows?.length) return '';
+    const colCount = Math.max(...rows.map(row => row.length));
+    if (colCount < 2) return '';
+
+    const totalWidth = 7900;
+    const widths = Array.from({ length: colCount }, () => Math.floor(totalWidth / colCount));
+    widths[widths.length - 1] += totalWidth - widths.reduce((a,b) => a+b, 0);
+    const showBorders = options.borders !== false;
+
+    const rowsXml = rows.map((row, rowIndex) => {
+        const cells = [];
+        for (let col = 0; col < colCount; col++) {
+            const raw = row[col] || '';
+            const content = docxRichParagraph(raw, {
+                size: 20,
+                bold: !!options.header && rowIndex === 0,
+                after: 0,
+                line: 255
+            });
+            cells.push(docxCell(content, widths[col], {
+                padTop: 35, padBottom: 35, padLeft: 55, padRight: 55,
+                shade: options.header && rowIndex === 0 ? 'F3F4F6' : null,
+                fullBorder: showBorders
+            }));
+        }
+        return '<w:tr><w:trPr><w:cantSplit/></w:trPr>' + cells.join('') + '</w:tr>';
+    }).join('');
+
+    return docxTable(widths, rowsXml, {
+        center: true,
+        borders: showBorders
+    });
+}
+
+function looksLikeHeaderRow(rows) {
+    if (!rows?.length || rows[0].length < 2) return false;
+    const first = rows[0];
+    const later = rows.slice(1).flat();
+    const firstAlpha = first.filter(x => /\p{L}/u.test(x)).length;
+    const laterNumeric = later.filter(x => /^[-+]?\d+(?:[.,]\d+)?$/.test(x)).length;
+    return firstAlpha >= Math.ceil(first.length / 2) && (laterNumeric > 0 || rows.length >= 3);
+}
+
+function parseSimpleListLine(raw) {
+    const text = stripDocxMetadataForDetection(raw);
+    let m = text.match(/^([•●▪◦*-])\s+(.+)$/);
+    if (m) return { marker: '•', text: m[2], ordered: false };
+    m = text.match(/^(\d+)[.)]\s+(.+)$/);
+    if (m) return { marker: m[1] + '.', text: m[2], ordered: true };
+    m = text.match(/^([A-Za-z])[.)]\s+(.+)$/);
+    if (m) return { marker: m[1] + '.', text: m[2], ordered: true };
+    m = text.match(/^([☐☑✓✗])\s*(.+)$/);
+    if (m) return { marker: m[1], text: m[2], ordered: false, checkbox: true };
+    return null;
+}
+
+function docxEditableListItem(item) {
+    const markerWidth = item.checkbox ? 520 : 600;
+    const widths = [markerWidth, 7900 - markerWidth];
+    return docxTable(widths,
+        '<w:tr>' +
+        docxCell(docxParagraph(item.marker, {
+            size: 20, after: 0, rightAlign: true,
+            font: item.checkbox ? 'Segoe UI Symbol' : undefined,
+            eastAsia: item.checkbox ? 'Segoe UI Symbol' : undefined
+        }), widths[0], { padLeft: 0, padRight: 80 }) +
+        docxCell(docxRichParagraph(item.text, { size: 20, after: 0 }), widths[1], {
+            padLeft: 0, padRight: 0
+        }) +
+        '</w:tr>',
+        { center: false, borders: false }
+    );
+}
+
 function buildDocxBody(structuredText) {
     const lines = repairLegacyBranchDiagram(String(structuredText || '')).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
@@ -5525,6 +5696,37 @@ function buildDocxBody(structuredText) {
     let i = 0;
 
     while (i < lines.length) {
+        const structuredTable = parseStructuredTableBlock(lines, i);
+        if (structuredTable) {
+            body.push(docxStructuredTable(structuredTable.rows, {
+                borders: true,
+                header: looksLikeHeaderRow(structuredTable.rows)
+            }));
+            body.push(docxParagraph('', { after: 25 }));
+            i = structuredTable.nextIndex;
+            continue;
+        }
+
+        const structuredColumns = parseStructuredColumnsBlock(lines, i);
+        if (structuredColumns) {
+            body.push(docxStructuredTable(structuredColumns.rows, { borders: false, header: false }));
+            body.push(docxParagraph('', { after: 18 }));
+            i = structuredColumns.nextIndex;
+            continue;
+        }
+
+        const legacyPipe = parseLegacyPipeBlock(lines, i);
+        if (legacyPipe) {
+            const gridLike = isGridLikeRows(legacyPipe.rows);
+            body.push(docxStructuredTable(legacyPipe.rows, {
+                borders: gridLike,
+                header: looksLikeHeaderRow(legacyPipe.rows)
+            }));
+            body.push(docxParagraph('', { after: 18 }));
+            i = legacyPipe.nextIndex;
+            continue;
+        }
+
         const branch = parseDocxBranchBlock(lines, i);
         if (branch) {
             body.push(docxBranchTable(branch.root, branch.items));
@@ -5585,6 +5787,13 @@ function buildDocxBody(structuredText) {
 
         if (isPredominantlyMathFormula(raw)) {
             body.push(docxOmmlEquation(raw, { size: 22 }));
+            i++;
+            continue;
+        }
+
+        const listItem = parseSimpleListLine(raw);
+        if (listItem) {
+            body.push(docxEditableListItem(listItem));
             i++;
             continue;
         }
