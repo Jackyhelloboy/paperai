@@ -238,6 +238,29 @@ A failed validation automatically falls back to the legacy exporter instead of r
 - `frontend/vendor/paperai-word-engine.js` — modern DrawingML/DOCX renderer and quality gate
 - `frontend/index.html` — Extracted UI, Teach, and legacy DOCX fallback
 
+
+
+### Word-search / letter-grid layout
+
+A bordered word-search/letter grid beside numbered answer blanks is represented as one canonical `wordSearch` node with two independent children:
+
+- `rows`: the exact visible grid matrix, preserving row count, column count, empty cells and Indic grapheme clusters
+- `answers`: the separate numbered answer list
+
+OCR metadata:
+- `[[WORDSEARCH_START]]`
+- `[[WORDSEARCH_ROW: cell || cell || ...]]`
+- `[[WORDSEARCH_ANSWER: 1]]`
+- `[[WORDSEARCH_END]]`
+
+Critical invariant: answer numbers and answer blanks outside the bordered grid must never become grid cells. The grid dimensions come from the visible grid itself, never from the number of answers.
+
+Renderers:
+- Extracted HTML: bordered square grid on the left + aligned answer rules on the right
+- Modern DOCX: native editable nested Word tables, with the grid and answer list as separate side-by-side structures
+- Legacy DOCX fallback: the same side-by-side structure in OOXML
+- Plain text: readable grid rows plus numbered blanks, with no internal metadata
+
 ### Rule for future development
 
 Do not add a new visual structure independently to HTML and DOCX. First add it to the canonical document model, then implement renderer support. Preserve literal OCR content and never infer semantic content merely to make a layout look complete.
