@@ -134,14 +134,56 @@
         };
     }
 
+    function parsePageProfileLine(line) {
+        const m = String(line || '').match(/^\s*\[\[PAGE_PROFILE:\s*([\s\S]*?)\]\]\s*$/i);
+        if (!m) return null;
+
+        const profile = {};
+        String(m[1] || '').split(';').forEach(part => {
+            const pair = part.split('=');
+            if (pair.length < 2) return;
+            const key = pair.shift().trim();
+            const value = pair.join('=').trim();
+            if (!key) return;
+            profile[key] = value;
+        });
+
+        const number = (key, min, max, fallback) => {
+            const n = Number(profile[key]);
+            return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+        };
+
+        return {
+            kind: ['question-paper','worksheet','form','table','general'].includes(profile.kind) ? profile.kind : 'general',
+            orientation: profile.orientation === 'landscape' ? 'landscape' : 'portrait',
+            density: ['compact','normal','spacious'].includes(profile.density) ? profile.density : 'normal',
+            titleAlign: ['left','center','right'].includes(profile.title_align) ? profile.title_align : 'left',
+            titleWeight: profile.title_weight === 'bold' ? 'bold' : 'normal',
+            columns: Math.max(1, Math.min(3, Number(profile.columns) || 1)),
+            titleSize: number('title_size', 12, 20, 16),
+            headingSize: number('heading_size', 10, 16, 12),
+            bodySize: number('body_size', 9, 14, 10),
+            englishFont: 'Tahoma',
+            confidence: ['high','medium','low'].includes(profile.confidence) ? profile.confidence : 'low'
+        };
+    }
+
     function parse(text) {
         const source = String(text || '').normalize('NFC');
         const lines = source.split('\n');
         const nodes = [];
+        let profile = null;
         let i = 0;
 
         while (i < lines.length) {
             const line = lines[i];
+
+            const pageProfile = parsePageProfileLine(line);
+            if (pageProfile) {
+                profile = pageProfile;
+                i++;
+                continue;
+            }
 
             if (/^\s*\[\[PAGE_BREAK\]\]\s*$/i.test(line)) {
                 nodes.push({ type: 'pageBreak' });
@@ -180,7 +222,24 @@
             i++;
         }
 
-        return { type: 'document', nodes, source };
+        return {
+            type: 'document',
+            nodes,
+            source,
+            profile: profile || {
+                kind: 'general',
+                orientation: 'portrait',
+                density: 'normal',
+                titleAlign: 'left',
+                titleWeight: 'normal',
+                columns: 1,
+                titleSize: 16,
+                headingSize: 12,
+                bodySize: 10,
+                englishFont: 'Tahoma',
+                confidence: 'low'
+            }
+        };
     }
 
     global.PaperAIDocumentModel = Object.freeze({
