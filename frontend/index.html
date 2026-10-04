@@ -7272,8 +7272,14 @@ function combineLocalPageRecords(records) {
     return { text, plain, raw };
 }
 
-async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, previousPageTail = '') {
+async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, previousPageTail = '', options = {}) {
     const ext = inputFile.name.split('.').pop().toLowerCase();
+    const requestSignal = options?.signal || null;
+    if (requestSignal?.aborted) {
+        const abortError = new Error('Extraction cancelled');
+        abortError.name = 'AbortError';
+        throw abortError;
+    }
     const batchLabel = batchTotal > 1 ? 'File ' + (batchIndex + 1) + '/' + batchTotal + ' · ' : '';
     const records = [];
     let localTail = previousPageTail || '';
@@ -7315,11 +7321,15 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
                 batchLabel + 'AI reconstructing page ' + (i+1) + '/' + pages.length
             );
 
-            const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 240000);
+            if (requestSignal?.aborted) {
+                const abortError = new Error('Extraction cancelled');
+                abortError.name = 'AbortError';
+                throw abortError;
+            }
+
             const result = await sendToOCR(
                 pages[i].blob,
-                ctrl.signal,
+                requestSignal,
                 batchLabel + 'Preparing page ' + (i+1) + '/' + pages.length,
                 {
                     previous_page_tail: localTail,
@@ -7329,7 +7339,6 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
                     batch_total: batchTotal
                 }
             );
-            clearTimeout(tid);
 
             if (result.status === 'completed' && result.result) {
                 const annotated = result.result.annotated_text || result.result.full_text || '';
@@ -7361,11 +7370,9 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
 
     if (IMAGE_EXTS.includes(ext)) {
         setProg(12, batchLabel + 'AI analyzing image...');
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 240000);
         const result = await sendToOCR(
             inputFile,
-            ctrl.signal,
+            requestSignal,
             batchLabel + 'Preparing image',
             {
                 previous_page_tail: localTail,
@@ -7375,7 +7382,6 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
                 batch_total: batchTotal
             }
         );
-        clearTimeout(tid);
 
         if (result.status !== 'completed' || !result.result) {
             throw new Error('No results for ' + inputFile.name);
@@ -7408,10 +7414,13 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
     }
 
     setProg(20, batchLabel + 'Reading document...');
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 120000);
-    const result = await sendFileToWorker(inputFile, ctrl.signal);
-    clearTimeout(tid);
+    const docControl = linkedAttemptSignal(requestSignal, 120000);
+    let result;
+    try {
+        result = await sendFileToWorker(inputFile, docControl.signal);
+    } finally {
+        docControl.cleanup();
+    }
 
     if (result.status !== 'completed' || !result.result) {
         throw new Error('No results for ' + inputFile.name);
@@ -7440,12 +7449,15 @@ goBtn.onclick = async () => {
 
     try {
         let totalPages = 0;
-        let previousTail = '';
         const pageRecords = [];
 
         for (let index = 0; index < files.length; index++) {
             const current = files[index];
-            const result = await extractOneInputFile(current, index, files.length, previousTail);
+            setProg(
+                Math.min(82, 10 + Math.round((index / Math.max(1, files.length)) * 65)),
+                'Finishing ' + (index + 1) + '/' + files.length + '...'
+            );
+            const result = await getSmartExtractionResult(current, index, files.length);
             const resultPages = Array.isArray(result?.pages) ? result.pages : [];
 
             for (const page of resultPages) {
@@ -7456,7 +7468,6 @@ goBtn.onclick = async () => {
             }
 
             totalPages += Number(result?.pageCount) || resultPages.length || 1;
-            previousTail = result?.contextTail || previousTail;
 
             setProg(
                 Math.min(90, 18 + Math.round(((index + 1) / files.length) * 68)),
