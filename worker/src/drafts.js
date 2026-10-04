@@ -1,17 +1,26 @@
-// PaperAI drafts: build one document page by page over many sessions.
+// PaperAI drafts: build one document page by page inside a single sitting.
 //
 // A draft is a list of pages. Each page holds the OCR text plus a copy of the
-// page photo in R2. A draft and its photos are always deleted together 24 hours
-// after the draft was created. Nothing is kept longer, so the stored photos never
-// accumulate and the free storage allowance is effectively unlimited.
+// page photo in R2.
+//
+// Retention is deliberately short. The browser asks the server to delete its
+// drafts when the tab closes or refreshes, but that request is best effort: a
+// crash, a killed mobile tab or a lost connection sends nothing. So the server
+// also deletes any draft that has been idle for IDLE_MINUTES, which is the
+// guarantee; the browser request is only the fast path.
 //
 // There is no login. A draft is reachable only by its unguessable id, and every
 // read and write must present the same owner key. That keeps a draft private
 // without accounts, but it is not a password: anyone who obtains both the draft
 // id and the owner key can read it. Do not treat a draft link as a secret.
 
-const TTL_DAYS = 1;
+const IDLE_MINUTES = 30;
+const MS_PER_MINUTE = 60 * 1000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+// Backstop only, for pages whose draft row vanished. Matches the R2 lifecycle
+// rule so nothing is ever counted before R2 would have dropped it anyway.
+const ORPHAN_GRACE_MS = MS_PER_DAY;
+
 const MAX_PAGES_PER_DRAFT = 200;
 const MAX_DRAFTS_PER_OWNER = 40;
 const OWNER_PATTERN = /^[A-Za-z0-9_-]{20,64}$/;
@@ -53,7 +62,7 @@ function newId() {
 }
 
 function expiresAt() {
-  return now() + TTL_DAYS * MS_PER_DAY;
+  return now() + IDLE_MINUTES * MS_PER_MINUTE;
 }
 
 // ── reads ────────────────────────────────────────────────────────────────────
@@ -103,12 +112,13 @@ async function listPages(env, draftId) {
   return result.results || [];
 }
 
-// Marks the draft as just used without moving its expiry date. The 24 hours run
-// from the moment the draft was created, because R2 deletes each photo a day
-// after it is uploaded and that timer cannot be restarted.
+// Marks the draft as just used and pushes its deadline out. Because we now
+// delete the R2 objects ourselves the moment a draft expires, the deadline can
+// slide on activity instead of being pinned to the creation time.
 async function touchDraft(env, draftId) {
-  await env.DB.prepare('UPDATE drafts SET updated_at = ? WHERE id = ?')
-    .bind(now(), draftId).run();
+  const stamp = now();
+  await env.DB.prepare('UPDATE drafts SET updated_at = ?, expires_at = ? WHERE id = ?')
+    .bind(stamp, stamp + IDLE_MINUTES * MS_PER_MINUTE, draftId).run();
 }
 
 async function nextPosition(env, draftId) {
@@ -239,7 +249,7 @@ async function getDraft(request, env, corsHeaders, url, draftId) {
     limits: {
       max_pages: MAX_PAGES_PER_DRAFT,
       max_drafts: MAX_DRAFTS_PER_OWNER,
-      ttl_days: TTL_DAYS,
+      idle_minutes: IDLE_MINUTES,
       max_image_bytes: PAGE_IMAGE_MAX_BYTES,
       owner_storage_cap_bytes: OWNER_STORAGE_CAP_BYTES,
       storage_cap_bytes: STORAGE_CAP_BYTES
@@ -262,10 +272,12 @@ async function renameDraft(request, env, corsHeaders, url, draftId) {
     return fail('Expected a JSON body with a title.', 400, corsHeaders);
   }
 
-  await env.DB.prepare('UPDATE drafts SET title = ?, updated_at = ? WHERE id = ?')
-    .bind(title, now(), draftId).run();
+  await touchDraft(env, draftId);
+  await env.DB.prepare('UPDATE drafts SET title = ? WHERE id = ?')
+    .bind(title, draftId).run();
 
-  return json({ draft: { id: draftId, title, status: draft.status, page_count: 0, created_at: draft.created_at, updated_at: now(), expires_at: draft.expires_at } }, 200, corsHeaders);
+  const fresh = await loadDraft(env, draftId, owner.key);
+  return json({ draft: { ...fresh, title } }, 200, corsHeaders);
 }
 
 async function deleteDraft(request, env, corsHeaders, url, draftId) {
@@ -283,6 +295,38 @@ async function deleteDraft(request, env, corsHeaders, url, draftId) {
   await deleteDraftImages(env, draftId);
 
   return json({ deleted: true, pages_removed: pages.length }, 200, corsHeaders);
+}
+
+// Deletes every draft belonging to one browser. This is what the close and
+// refresh handler calls, so it takes the owner key from the body rather than a
+// header: sendBeacon cannot set headers.
+async function discardOwnerDrafts(request, env, corsHeaders) {
+  let ownerKey = '';
+  try {
+    const body = await request.json();
+    ownerKey = String((body || {}).owner || '').trim();
+  } catch (_) {
+    return fail('Expected a JSON body with an owner key.', 400, corsHeaders);
+  }
+
+  if (!OWNER_PATTERN.test(ownerKey)) {
+    return fail('Missing or invalid owner key.', 401, corsHeaders, 'OWNER_REQUIRED');
+  }
+
+  const drafts = await env.DB.prepare('SELECT id FROM drafts WHERE owner_key = ?').bind(ownerKey).all();
+  const ids = (drafts.results || []).map(d => d.id);
+
+  for (const id of ids) await deleteDraftImages(env, id);
+
+  if (ids.length) {
+    const placeholders = ids.map(() => '?').join(',');
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM draft_pages WHERE draft_id IN (' + placeholders + ')').bind(...ids),
+      env.DB.prepare('DELETE FROM drafts WHERE id IN (' + placeholders + ')').bind(...ids)
+    ]);
+  }
+
+  return json({ discarded: ids.length }, 200, corsHeaders);
 }
 
 async function addPage(request, env, corsHeaders, url, draftId) {
@@ -465,7 +509,7 @@ export async function purgeExpiredDrafts(env) {
 
   const orphanPages = await env.DB.prepare(
     'SELECT p.id, p.image_key FROM draft_pages p LEFT JOIN drafts d ON d.id = p.draft_id WHERE d.id IS NULL OR p.updated_at < ? LIMIT 500'
-  ).bind(stamp - TTL_DAYS * MS_PER_DAY).all();
+  ).bind(stamp - ORPHAN_GRACE_MS).all();
   for (const page of (orphanPages.results || [])) await deleteImage(env, page.image_key);
 
   if (stale.length) {
@@ -493,6 +537,12 @@ export async function handleDrafts(request, env, corsHeaders, url) {
   if (url.pathname === '/api/drafts' && request.method === 'POST') return createDraft(request, env, corsHeaders);
   if (url.pathname === '/api/drafts' && request.method === 'GET') return listDrafts(request, env, corsHeaders, url);
   if (url.pathname === '/api/drafts/purge' && request.method === 'POST') return purgeRoute(request, env, corsHeaders);
+
+  // Called from navigator.sendBeacon when the tab closes or refreshes. POST
+  // because beacons cannot send DELETE, and the owner key travels in the body
+  // so no custom header is needed. Best effort by nature: the idle timeout in
+  // purgeExpiredDrafts is what actually guarantees deletion.
+  if (url.pathname === '/api/drafts/discard' && request.method === 'POST') return discardOwnerDrafts(request, env, corsHeaders);
 
   let match = url.pathname.match(/^\/api\/drafts\/([A-Za-z0-9-]{8,64})$/);
   if (match) {

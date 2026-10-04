@@ -106,6 +106,9 @@ function makeEnv({ drafts = [], pages = [], orphans = [], expiredDrafts = [] } =
                         }
                         if (/FROM drafts WHERE expires_at < \?/.test(sql)) return { results: expiredDrafts };
                         if (/LEFT JOIN drafts/.test(sql)) return { results: orphans };
+                        if (/SELECT id FROM drafts WHERE owner_key = \?/.test(sql)) {
+                            return { results: state.drafts.filter(d => d.owner_key === args[0]).map(d => ({ id: d.id })) };
+                        }
                         return { results: [] };
                     },
                     async run() {
@@ -197,7 +200,7 @@ const pageRow = {
     assert.equal(body.pages.length, 1);
     assert.equal(body.pages[0].text, '1. गिनो');
     assert.equal(body.pages[0].has_image, true);
-    assert.equal(body.limits.ttl_days, 1, 'Drafts must expire after one day');
+    assert.equal(body.limits.idle_minutes, 30, 'Drafts must expire after 30 idle minutes');
     assert(!('image_key' in body.pages[0]), 'Internal storage keys must stay private');
 
     // 4. A Teach correction for one page wins over the raw OCR text.
@@ -232,8 +235,9 @@ const pageRow = {
     body = await res.json();
     assert.equal(body.pages.find(p => p.id === pageRow.id).text, pageRow.ocr_text, 'Other pages must keep their own text');
 
-    // 8. Working on a draft must not move its next-day deletion date, because the
-    // photos are removed by R2 a day after upload and that timer cannot restart.
+    // 8. Retention is a 30 minute idle window. The browser asks for a delete when
+// the tab closes, but that is best effort, so every use must push the deadline
+// out and the server must never keep a draft longer than the window allows.
 
     // 8a. The per-browser photo allowance must be enforced before anything is
     // stored, so storage can never grow past the cap the account is billed on.
@@ -245,16 +249,18 @@ const pageRow = {
     res = await call(request('/api/drafts/' + draftRow.id + '/pages', { method: 'POST', form: capForm }), env);
     assert.equal(res.status, 409, 'A browser at its photo allowance must be refused');
     assert.equal(env.calls.put.length, 0, 'Nothing may be stored once the allowance is reached');
+
+    env = makeEnv({ drafts: [draftRow], pages: [pageRow, secondPage] });
     const expiresBefore = body.draft.expires_at;
     res = await call(request('/api/drafts/' + draftRow.id, { method: 'PATCH', json: { title: 'Renamed' } }), env);
     body = await res.json();
     assert.equal(res.status, 200, 'Renaming a draft must work');
-    assert.equal(body.draft.expires_at, expiresBefore, 'Renaming must not extend the draft lifetime');
+    assert(body.draft.expires_at > expiresBefore, 'Using a draft must push its deletion back');
     await call(request('/api/drafts/' + draftRow.id + '/pages/' + secondPage.id, { method: 'PUT', json: { edited_text: 'और बदलाव' } }), env);
     res = await call(request('/api/drafts/' + draftRow.id), env);
     body = await res.json();
-    assert.equal(body.draft.expires_at, expiresBefore, 'Editing a page must not extend the draft lifetime');
-    assert(body.draft.expires_at <= draftRow.created_at + DAY + 1000, 'A draft must never live longer than one day');
+    assert(body.draft.expires_at > expiresBefore, 'Editing a page must push its deletion back too');
+    assert(body.draft.expires_at <= Date.now() + 30 * 60 * 1000, 'A draft must never be kept beyond the idle window');
 
     // 9. Adding a page stores one photo and one row, at the end of the draft.
     env = makeEnv({ drafts: [draftRow], pages: [] });
@@ -313,9 +319,23 @@ const pageRow = {
     assert.equal(purged.pages_removed, 1);
     assert(env.calls.delete.includes('stale/old.jpg'), 'An orphaned photo must be deleted');
 
-    // 11. Unknown draft routes still answer with a JSON 404.
+    // 11. The close/refresh hook can wipe every draft for one browser, and only
+    // that browser's. It takes the key in the body because beacons cannot send
+    // headers, so a missing or malformed body must be refused.
+    env = makeEnv({ drafts: [draftRow], pages: [pageRow] });
+    res = await call(request('/api/drafts/discard', { method: 'POST', json: { owner: OTHER_OWNER } }), env);
+    assert.equal(res.status, 200, 'The discard hook must answer a beacon');
+    assert.equal((await res.json()).discarded, 0, 'Drafts belonging to another browser must survive');
+    res = await call(request('/api/drafts/discard', { method: 'POST', json: { owner: OWNER } }), env);
+    assert.equal((await res.json()).discarded, 1, 'Every draft for the calling browser must be discarded');
+    assert(env.calls.deleteMany.some(keys => keys.includes(pageRow.image_key)),
+    'Discarding must delete the stored photos too');
+    res = await call(request('/api/drafts/discard', { method: 'POST', json: { owner: 'nope' } }), makeEnv());
+    assert.equal(res.status, 401, 'A malformed owner key must be refused');
+
+    // 12. Unknown draft routes still answer with a JSON 404.
     res = await call(request('/api/drafts/unknown-route'), makeEnv());
     assert.equal(res.status, 404);
 
-    console.log('Draft paging, ownership, 3 MB page limit and next-day cleanup checks passed.');
+    console.log('Draft paging, ownership, 3 MB page limit, 30 minute idle cleanup and discard checks passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

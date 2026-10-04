@@ -3422,7 +3422,7 @@
             <div class="drafts-head">
                 <div>
                     <div class="drafts-title">My drafts</div>
-                    <div class="drafts-sub">Build one document page by page. Deleted the next day, automatically.</div>
+                    <div class="drafts-sub">Build one document page by page. Drafts are deleted when you close this tab.</div>
                 </div>
                 <button class="draft-btn" id="draftNewBtn" type="button">+ New draft</button>
             </div>
@@ -9450,6 +9450,9 @@ const DRAFT_PAGE_BREAK = '\n[[PAGE_BREAK]]\n';
 let draftItems = [];
 let activeDraft = null;
 let draftBusy = false;
+// Set while this browser holds at least one draft, so the unload hook stays
+// quiet for people who never made one.
+let draftHasAnything = false;
 
 function draftOwnerKey() {
     let key = '';
@@ -9462,6 +9465,31 @@ function draftOwnerKey() {
     }
     return key;
 }
+
+// Drafts are meant to disappear with the tab. Closing a page cannot be relied on
+// to report itself, so this is only the fast path: pagehide covers close,
+// refresh and navigation, and the server's idle timeout is the real guarantee.
+(function discardDraftsOnUnload() {
+    if (window.__paperaiDiscardHooked) return;
+    window.__paperaiDiscardHooked = true;
+
+    const discard = () => {
+        let key = '';
+        try { key = localStorage.getItem(DRAFT_OWNER_STORAGE) || ''; } catch (_) { return; }
+        if (!/^[A-Za-z0-9_-]{20,64}$/.test(key)) return;
+        if (!draftHasAnything) return;
+
+        const body = new Blob([JSON.stringify({ owner: key })], { type: 'application/json' });
+        // Beacon survives the unload; a plain fetch usually does not.
+        try {
+            if (navigator.sendBeacon && navigator.sendBeacon(API_LOCAL + '/api/drafts/discard', body)) return;
+        } catch (_) {}
+        try { fetch(API_LOCAL + '/api/drafts/discard', { method: 'POST', body, keepalive: true }); } catch (_) {}
+    };
+
+    addEventListener('pagehide', discard);
+    addEventListener('beforeunload', discard);
+})();
 
 async function fetchDraftEndpoint(path, options = {}) {
     const headers = { 'X-PaperAI-Owner': draftOwnerKey(), ...(options.headers || {}) };
@@ -9509,8 +9537,8 @@ function draftDate(stamp) {
     }
 }
 
-function draftHoursLeft(draft) {
-    const left = Math.ceil((Number(draft?.expires_at || 0) - Date.now()) / 3600000);
+function draftMinutesLeft(draft) {
+    const left = Math.ceil((Number(draft?.expires_at || 0) - Date.now()) / 60000);
     return left > 0 ? left : 0;
 }
 
@@ -9530,6 +9558,7 @@ function setDraftBusy(busy) {
 }
 
 function renderDraftList() {
+    draftHasAnything = draftItems.length > 0;
     $('draftList').innerHTML = draftItems.map(draft => {
         const count = Number(draft.page_count) || 0;
         return '<button class="draft-item" type="button" data-draft-open="' + esc(draft.id) + '">' +
@@ -9579,8 +9608,9 @@ function renderDraftPages() {
     if (!draft) return;
 
     $('draftTitleInput').value = draft.title || '';
+    const mins = draftMinutesLeft(draft);
     $('draftMeta').textContent = pages.length + (pages.length === 1 ? ' page' : ' pages')
-        + ' · deleted in ' + draftHoursLeft(draft) + (draftHoursLeft(draft) === 1 ? ' hour' : ' hours');
+        + (mins ? ' · deleted in ' + mins + (mins === 1 ? ' minute' : ' minutes') : ' · deleting now');
     $('draftWordBtn').disabled = draftBusy || !pages.length;
     $('draftTeachBtn').disabled = draftBusy || !pages.length;
 }
