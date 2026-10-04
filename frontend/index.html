@@ -2898,6 +2898,7 @@ function transliterateHindiWord(input) {
 function renderTeachPreview() {
     if (!lastResult || showingRaw) return;
     const preview = teachEditor.value.normalize('NFC');
+    lastResult.preview_text = preview;
     textOut.innerHTML = formatOutput(preview);
     textOut.className = 'output-body';
 }
@@ -3008,7 +3009,7 @@ function openTeachPanel() {
     teachHistory = [teachOriginalText];
     teachHistoryIndex = 0;
     hindiComposition = null;
-    hindiPhoneticOn = languageSelect.value === 'hi';
+    hindiPhoneticOn = languageSelect.value === 'hi' || /[\u0900-\u097F]/.test(teachOriginalText);
     teachPanel.classList.add('show');
     updateTeachButtons();
     renderTeachPreview();
@@ -3018,6 +3019,8 @@ function openTeachPanel() {
 function closeTeachPanel() {
     teachPanel.classList.remove('show');
     hindiComposition = null;
+
+    if (lastResult) delete lastResult.preview_text;
 
     if (lastResult && !showingRaw) {
         textOut.innerHTML = formatOutput(lastResult.text || '');
@@ -3082,6 +3085,7 @@ function saveLearning() {
 
     lastResult.plain_text = corrected;
     lastResult.text = corrected;
+    lastResult.preview_text = corrected;
     textOut.innerHTML = formatOutput(corrected);
     textOut.className = 'output-body';
     closeTeachPanel();
@@ -3241,10 +3245,24 @@ function formatVisibleText(value) {
 }
 
 function portableText(value) {
-    return String(value || '').replace(/[⓪①-⑳❶-❿]/g, ch => {
+    let out = String(value || '');
+
+    out = out
+        .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
+            return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
+        })
+        .replace(/\[\[CIRCLED:\s*([\s\S]*?)\]\]/gi, (_, content) => {
+            const t = String(content || '').trim();
+            return /^\d+$/.test(t) ? t + '.' : t;
+        })
+        .replace(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):\s*([\s\S]*?)\]\]/gi, (_, content) => String(content || '').trim());
+
+    out = out.replace(/[⓪①-⑳❶-❿]/g, ch => {
         const n = circledNumberValue(ch);
-        return n === null ? ch : '(' + n + ')';
+        return n === null ? ch : n + '.';
     });
+
+    return out;
 }
 
 function formatOcrAnnotation(type, content) {
@@ -3272,6 +3290,80 @@ function formatOcrAnnotation(type, content) {
     }
 
     return '[[' + esc(type) + ': ' + safe + ']]';
+}
+
+function repairLegacyBranchDiagram(text) {
+    const lines = String(text || '').split('\n');
+    const out = [];
+    let i = 0;
+
+    const cells = line => String(line || '')
+        .split('|')
+        .map(x => x.trim());
+
+    while (i < lines.length) {
+        const first = cells(lines[i]);
+        const firstLooksLikeRoot = first.length >= 3 && first[0] && first[1] && first[2];
+
+        if (!firstLooksLikeRoot) {
+            out.push(lines[i]);
+            i++;
+            continue;
+        }
+
+        const rows = [{ left: first[0], mid: first[1], right: first.slice(2).join(' | ').trim() }];
+        let j = i + 1;
+        let pipeOnlyCount = 0;
+
+        while (j < lines.length) {
+            const raw = lines[j].trim();
+
+            if (/^\|\s*\|$/.test(raw)) {
+                pipeOnlyCount++;
+                j++;
+                continue;
+            }
+
+            const row = cells(lines[j]);
+            const hasLeadingEmpty = row.length >= 3 && !row[0] && row[1] && row[2];
+
+            if (hasLeadingEmpty) {
+                rows.push({ left: '', mid: row[1], right: row.slice(2).join(' | ').trim() });
+                j++;
+                continue;
+            }
+
+            break;
+        }
+
+        if (rows.length >= 3 && pipeOnlyCount >= 2) {
+            const root = rows[0].left;
+            const center = Math.floor(rows.length / 2);
+            const pad = '      ';
+
+            for (let r = 0; r < rows.length; r++) {
+                const item = rows[r];
+                const connector =
+                    r < center ? (r === center - 1 ? '↗ ' : '  ') :
+                    r === center ? '→ ' :
+                    (r === center + 1 ? '↘ ' : '  ');
+
+                if (r === center) {
+                    out.push('○ ' + root + ' ' + connector + item.mid + ' ───────── ' + item.right);
+                } else {
+                    out.push(pad + connector + item.mid + ' ───────── ' + item.right);
+                }
+            }
+
+            i = j;
+            continue;
+        }
+
+        out.push(lines[i]);
+        i++;
+    }
+
+    return out.join('\n');
 }
 
 function isOutputHeadingLine(line, index, firstNonEmptyIndex) {
@@ -3306,7 +3398,7 @@ function formatOutputLine(line) {
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
-    const lines = String(text).split('\n');
+    const lines = repairLegacyBranchDiagram(String(text)).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
 
     return lines.map((line, index) => {
@@ -3398,6 +3490,9 @@ goBtn.onclick = async () => {
         if (!allPlain) allPlain = allText;
         if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in file');
 
+        allText = repairLegacyBranchDiagram(allText);
+        allPlain = repairLegacyBranchDiagram(allPlain);
+
         const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
@@ -3427,8 +3522,13 @@ goBtn.onclick = async () => {
 };
 
 function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();URL.revokeObjectURL(a.href)}
-function dlTxt(){if(!lastResult)return;dlBlob(new Blob([portableText(lastResult.plain_text || lastResult.text)],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
-function copyText(btn){if(!lastResult)return;navigator.clipboard.writeText(portableText(lastResult.plain_text || lastResult.text)).then(()=>{btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)})}
+function currentExportText(){
+    if(!lastResult) return '';
+    const live = teachPanel.classList.contains('show') ? (lastResult.preview_text || teachEditor.value) : '';
+    return portableText(live || lastResult.text || lastResult.plain_text || '');
+}
+function dlTxt(){if(!lastResult)return;dlBlob(new Blob([currentExportText()],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
+function copyText(btn){if(!lastResult)return;navigator.clipboard.writeText(currentExportText()).then(()=>{btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)})}
 </script>
 </body>
 </html>
