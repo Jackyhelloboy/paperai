@@ -12,6 +12,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
     <script src="vendor/indic-transliterate.js"></script>
+    <script src="vendor/paperai-document-model.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
+    <script src="vendor/paperai-word-engine.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -6108,7 +6112,7 @@ function docxDocumentXml(structuredText) {
     '</w:document>';
 }
 
-async function makeExtractedDocx(structuredText) {
+async function makeExtractedDocxLegacy(structuredText) {
     if (typeof JSZip === 'undefined') {
         throw new Error('Word export library failed to load. Refresh and try again.');
     }
@@ -6144,6 +6148,17 @@ async function makeExtractedDocx(structuredText) {
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         compression: 'DEFLATE'
     });
+}
+
+async function makeExtractedDocx(structuredText) {
+    if (window.PaperAIWordEngine?.available?.()) {
+        try {
+            return await window.PaperAIWordEngine.makeDocx(structuredText);
+        } catch (error) {
+            console.warn('PaperAI modern Word engine failed; using legacy exporter.', error);
+        }
+    }
+    return await makeExtractedDocxLegacy(structuredText);
 }
 
 function currentStructuredWordText() {
