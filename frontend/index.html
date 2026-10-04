@@ -2613,7 +2613,375 @@
         }
 
 
-    </style>
+    
+        /* v24 FINAL MOBILE LAYOUT
+           This block intentionally overrides all earlier phone rules so Android
+           has one simple, non-overlapping document flow. */
+        @media (max-width: 640px) {
+            html, body {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden;
+            }
+
+            body {
+                padding-bottom: 0 !important;
+                overscroll-behavior-y: auto !important;
+            }
+
+            .header {
+                min-height: 52px;
+            }
+
+            .main {
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 0.72rem 0.72rem 1.5rem !important;
+                box-sizing: border-box;
+            }
+
+            .hero {
+                margin-bottom: 0.65rem !important;
+                text-align: left;
+            }
+
+            .hero h1 {
+                margin: 0 !important;
+                font-size: 1.18rem !important;
+                line-height: 1.2;
+            }
+
+            .hero p {
+                display: none !important;
+            }
+
+            .quota-card {
+                margin-bottom: 0.65rem !important;
+                padding: 0.62rem 0.7rem !important;
+                border-radius: 12px !important;
+            }
+
+            .quota-subtitle,
+            .quota-chart,
+            .quota-times,
+            .quota-scale {
+                display: none !important;
+            }
+
+            .quota-head {
+                margin-bottom: 0.4rem !important;
+            }
+
+            .quota-title {
+                font-size: 0.68rem !important;
+            }
+
+            .quota-stats {
+                gap: 0.45rem !important;
+                margin-bottom: 0.35rem !important;
+            }
+
+            .quota-stat {
+                padding: 0.38rem 0.5rem !important;
+                border-radius: 9px !important;
+            }
+
+            .quota-stat-label {
+                font-size: 0.52rem !important;
+            }
+
+            .quota-stat-value {
+                font-size: 0.72rem !important;
+            }
+
+            .upload-card {
+                width: 100% !important;
+                padding: 0.62rem !important;
+                border-radius: 14px !important;
+                box-sizing: border-box;
+            }
+
+            .upload-zone {
+                min-height: 102px !important;
+                padding: 0.82rem 0.6rem !important;
+                border-radius: 11px !important;
+            }
+
+            .upload-icon {
+                width: 38px !important;
+                height: 38px !important;
+                margin-bottom: 0.36rem !important;
+                border-radius: 10px !important;
+            }
+
+            .upload-icon svg {
+                width: 18px !important;
+                height: 18px !important;
+            }
+
+            .upload-title {
+                font-size: 0.78rem !important;
+                margin-bottom: 0.08rem !important;
+            }
+
+            .upload-sub {
+                max-width: 270px !important;
+                font-size: 0.58rem !important;
+                line-height: 1.25 !important;
+            }
+
+            /* Everything is automatic, so do not spend phone space explaining it. */
+            .auto-detect-card,
+            .language-row,
+            .layout-controls,
+            .layout-review-head,
+            .layout-toggle {
+                display: none !important;
+            }
+
+            .layout-review {
+                display: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+            }
+
+            .batch-preview {
+                display: none;
+                width: 100% !important;
+                grid-template-columns: none !important;
+                grid-auto-flow: column !important;
+                grid-auto-columns: 88px !important;
+                gap: 0.34rem !important;
+                margin: 0.48rem 0 0 !important;
+                padding: 0 0 0.2rem !important;
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                scroll-snap-type: x proximity;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                box-sizing: border-box;
+            }
+
+            .batch-preview.show {
+                display: grid !important;
+            }
+
+            .batch-preview::-webkit-scrollbar {
+                display: none;
+            }
+
+            .batch-preview-card {
+                width: 88px !important;
+                min-width: 88px !important;
+                padding: 0.22rem !important;
+                border-radius: 9px !important;
+                scroll-snap-align: start;
+                box-sizing: border-box;
+            }
+
+            .batch-preview-media {
+                width: 100% !important;
+                height: 58px !important;
+                border-radius: 6px !important;
+            }
+
+            .batch-preview-name {
+                margin-top: 0.18rem !important;
+                font-size: 0.52rem !important;
+                line-height: 1.1 !important;
+            }
+
+            .batch-preview-meta {
+                display: none !important;
+            }
+
+            .batch-preview-order {
+                display: none !important;
+            }
+
+            .batch-preview-remove {
+                top: 0.1rem !important;
+                right: 0.1rem !important;
+                width: 26px !important;
+                height: 26px !important;
+                font-size: 0.88rem !important;
+            }
+
+            .batch-preview-zoom {
+                right: 0.16rem !important;
+                bottom: 0.16rem !important;
+                padding: 0.12rem 0.24rem !important;
+                font-size: 0.42rem !important;
+            }
+
+            /* Normal document flow only: nothing fixed or sticky. */
+            .btn-extract {
+                position: static !important;
+                inset: auto !important;
+                display: none;
+                width: 100% !important;
+                max-width: none !important;
+                height: 48px !important;
+                margin: 0.5rem 0 0 !important;
+                border-radius: 12px !important;
+                box-shadow: none !important;
+                font-size: 0.8rem !important;
+            }
+
+            .btn-extract.show {
+                display: flex !important;
+            }
+
+            .progress-wrap {
+                margin: 0.55rem 0 0 !important;
+            }
+
+            .results {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin-top: 0.8rem !important;
+                scroll-margin-top: 0 !important;
+            }
+
+            .results-header {
+                margin-bottom: 0.45rem !important;
+                gap: 0.3rem !important;
+            }
+
+            .results-badges {
+                max-width: 100%;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            .results-badges::-webkit-scrollbar {
+                display: none;
+            }
+
+            .results-actions {
+                position: static !important;
+                top: auto !important;
+                z-index: auto !important;
+                display: grid !important;
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+                gap: 0.32rem !important;
+                padding: 0 !important;
+                margin-bottom: 0.45rem !important;
+                overflow: visible !important;
+                background: transparent !important;
+            }
+
+            .results-actions .action-btn {
+                width: 100% !important;
+                min-width: 0 !important;
+                height: 42px !important;
+                min-height: 42px !important;
+                padding: 0 0.25rem !important;
+                border-radius: 10px !important;
+                font-size: 0.67rem !important;
+                gap: 0.2rem !important;
+                flex: initial !important;
+            }
+
+            .results-actions .action-btn svg {
+                width: 14px !important;
+                height: 14px !important;
+            }
+
+            /* Good audit messages are hidden. Only show an actual review warning. */
+            .layout-audit.good {
+                display: none !important;
+            }
+
+            .layout-audit.review {
+                margin-bottom: 0.45rem !important;
+                padding: 0.5rem 0.58rem !important;
+                border-radius: 9px !important;
+                font-size: 0.58rem !important;
+                line-height: 1.35 !important;
+            }
+
+            .output-card,
+            .output-wrap,
+            .output-panel {
+                max-width: 100% !important;
+                overflow: hidden !important;
+            }
+
+            /* One page scroll on Android; no nested scrolling inside extracted text. */
+            .output-body {
+                width: 100% !important;
+                max-width: 100% !important;
+                max-height: none !important;
+                overflow: visible !important;
+                padding: 0.78rem !important;
+                box-sizing: border-box;
+            }
+
+            .output-tabs {
+                position: static !important;
+            }
+
+            .output-tab {
+                min-height: 40px !important;
+                padding: 0.65rem 0.5rem !important;
+            }
+
+            .teach-panel {
+                padding: 0.6rem !important;
+                border-radius: 10px !important;
+            }
+
+            .preview-lightbox {
+                padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) !important;
+            }
+
+            .preview-lightbox-top {
+                min-height: 52px !important;
+                padding: 0.45rem 0.6rem !important;
+            }
+
+            .preview-lightbox-close {
+                width: 44px !important;
+                height: 44px !important;
+                flex-basis: 44px !important;
+            }
+
+            .preview-lightbox-stage {
+                padding: 0.2rem 0.35rem 0.55rem !important;
+            }
+
+            .footer {
+                padding: 0.8rem 0.7rem calc(0.8rem + env(safe-area-inset-bottom)) !important;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .main {
+                padding-left: 0.55rem !important;
+                padding-right: 0.55rem !important;
+            }
+
+            .batch-preview {
+                grid-auto-columns: 82px !important;
+            }
+
+            .batch-preview-card {
+                width: 82px !important;
+                min-width: 82px !important;
+            }
+
+            .batch-preview-media {
+                height: 54px !important;
+            }
+
+            .results-actions .action-btn {
+                font-size: 0.62rem !important;
+            }
+        }
+
+</style>
 </head>
 <body>
     <header class="header">
@@ -2784,7 +3152,7 @@
                 </button>
                 <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Download Word
+                    Word
                 </button>
                 <button class="action-btn" onclick="openTeachPanel()">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
