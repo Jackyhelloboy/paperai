@@ -143,3 +143,13 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Known names such as jawad still transliterate to जवाद.
 - Full Roman phrases are handled locally first with the bundled Indic transliteration library; difficult cases can receive AI phonetic alternatives.
 - AI suggestions are explicitly instructed to preserve pronunciation and never translate sentence meaning.
+
+
+## v18 pronunciation-based English transliteration
+
+- English-to-Indian-script Teach conversion now follows actual English pronunciation, not raw spelling.
+- Example: "i love you" -> Hindi "आई लव यू"; "love" -> "लव"; "you" -> "यू"; "I" -> "आई".
+- Known high-confidence Hindi pronunciation phrases can be applied locally.
+- Unknown English phrases use the AI fallback first for pronunciation-based transliteration.
+- Other Indian scripts avoid blindly converting a Hindi-script pronunciation; AI handles their pronunciation rendering directly.
+- Semantic translation remains disabled in Teach.

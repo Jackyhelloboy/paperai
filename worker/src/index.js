@@ -30,7 +30,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v17',
+        architecture: 'production-literal-ocr-v18',
       }, { headers: corsHeaders });
     }
 
@@ -38,7 +38,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v17',
+        architecture: 'production-literal-ocr-v18',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -595,7 +595,9 @@ async function handleWordSuggestion(request, env, corsHeaders) {
       '- Preserve the spoken words, names, and phrase meaning exactly.',
       '- Change only the writing script so the result sounds like the source when read aloud.',
       '- Never replace an English phrase with its Hindi/Telugu/etc. meaning.',
-      '- Example: English "i love you" to Hindi must remain a phonetic rendering such as "इ लोवे योउ", not "मैं तुमसे प्यार करता हूँ".',
+      '- Use PRONUNCIATION-BASED transliteration for English: transliterate how the English sounds, not how its letters are spelled.',
+      '- Example: English "i love you" to Hindi should be "आई लव यू". Do NOT output spelling-based "इ लोवे योउ" and do NOT semantically translate it.',
+      '- Example: English "love" to Hindi should be "लव"; "you" should be "यू"; "I" should be "आई".',
       '- Example: English name "jawad" to Hindi should be "जवाद".',
       '- Preserve names, brands, acronyms and technical identifiers phonetically.'
     ].join('\n');
@@ -622,7 +624,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
 
   const response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
     messages: [
-      { role: 'system', content: 'Return only compact JSON phonetic transliteration suggestions. Preserve the spoken words; never semantically translate them.' },
+      { role: 'system', content: 'Return only compact JSON pronunciation-based transliteration suggestions. For English, convert the actual spoken pronunciation into the target script, not the raw spelling. Preserve the spoken words and never semantically translate them.' },
       { role: 'user', content: prompt },
     ],
     max_completion_tokens: 240,
@@ -877,7 +879,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v17',
+        architecture: 'production-literal-ocr-v18',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,

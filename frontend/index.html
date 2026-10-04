@@ -1702,7 +1702,7 @@
 
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
-                <div class="teach-sub">Google Input-style phonetic typing: keep the same spoken words and change only the script. Example: English → Hindi turns <strong>jawad</strong> into <strong>जवाद</strong> and <strong>i love you</strong> into <strong>इ लोवे योउ</strong>. Difficult spellings can receive AI phonetic suggestions.</div>
+                <div class="teach-sub">Pronunciation-based script typing: keep the same spoken English words and write how they sound in the target script. Example: <strong>jawad</strong> → <strong>जवाद</strong> and <strong>i love you</strong> → <strong>आई लव यू</strong>. Difficult spellings can receive AI phonetic suggestions.</div>
                 <div class="teach-language-bar">
                     <label class="teach-lang-field">
                         <span class="teach-lang-label">From</span>
@@ -3006,6 +3006,24 @@ const CANONICAL_PHONETIC_OVERRIDES = Object.freeze({
     beerbal: 'बीरबल'
 });
 
+const CANONICAL_PHONETIC_PHRASES = Object.freeze({
+    'i love you': 'आई लव यू',
+    'thank you': 'थैंक यू',
+    'good morning': 'गुड मॉर्निंग',
+    'good night': 'गुड नाइट',
+    'how are you': 'हाउ आर यू'
+});
+
+function getCanonicalPhraseOverride(phrase, script) {
+    const devanagari = CANONICAL_PHONETIC_PHRASES[String(phrase || '').toLowerCase().replace(/\s+/g, ' ').trim()];
+    if (!devanagari || script !== 'devanagari') return '';
+
+    // Keep these fixed forms only for Devanagari. Converting a Hindi-script
+    // pronunciation mechanically into Telugu/Tamil/etc. can distort English
+    // sounds, so other target scripts use the AI pronunciation fallback.
+    return devanagari;
+}
+
 function getCanonicalPhoneticOverride(roman, script) {
     const devanagari = CANONICAL_PHONETIC_OVERRIDES[String(roman || '').toLowerCase()];
     if (!devanagari || script === 'latin') return '';
@@ -3280,28 +3298,41 @@ function showSmartSuggestions() {
     const targetScript = currentTeachScript();
     const sourceLanguage = currentTeachSourceLanguage(sourceText);
     const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
+    const isPhrase = sourceText.split(/\s+/).filter(Boolean).length >= 2;
 
     let localChoices = [];
-    if (isRomanSource && targetScript !== 'latin') {
-        localChoices = getLocalSmartSuggestions(sourceText)
-            .filter(choice => choice.toLowerCase() !== sourceText.toLowerCase());
+
+    // Known phrases use pronunciation-based forms, not spelling-based forms.
+    // Example: "i love you" -> "आई लव यू", not "इ लोवे योउ".
+    if (isRomanSource && targetScript !== 'latin' && isPhrase) {
+        const knownPhrase = getCanonicalPhraseOverride(sourceText, targetScript);
+        if (knownPhrase) localChoices.push(knownPhrase);
     }
 
+    // Single words/names can still use the fast local transliterator.
+    if (isRomanSource && targetScript !== 'latin' && !isPhrase) {
+        localChoices.push(
+            ...getLocalSmartSuggestions(sourceText)
+                .filter(choice => choice.toLowerCase() !== sourceText.toLowerCase())
+        );
+    }
+
+    localChoices = uniqueStrings(localChoices);
     renderSuggestionChips(localChoices, [], localChoices.length === 0);
 
     const sequence = ++aiSuggestionSequence;
 
-    // Fast local Google-Input-style behavior: keep pronunciation and convert
-    // only the script. This intentionally does NOT translate sentence meaning.
+    // Known pronunciation forms can be safely applied locally.
     if (isRomanSource && targetScript !== 'latin' && localChoices[0]) {
         aiSuggestionTimer = setTimeout(() => {
             autoApplySmartSuggestion(sourceText, localChoices[0], sequence);
-        }, 550);
+        }, 500);
         return;
     }
 
-    // Difficult/non-Roman cases use AI only as a phonetic transliteration
-    // fallback. AI must preserve the spoken words, not translate semantics.
+    // For unknown English phrases, AI is preferred because English spelling
+    // does not map reliably to pronunciation (love -> लव, you -> यू, I -> आई).
+    // The AI returns phonetic script, never a semantic translation.
     aiSuggestionTimer = setTimeout(async () => {
         const aiChoices = await fetchAiTextSuggestions(
             sourceText,
@@ -3313,7 +3344,11 @@ function showSmartSuggestions() {
 
         if (sequence !== aiSuggestionSequence || !smartComposition) return;
         renderSuggestionChips(localChoices, aiChoices, false);
-    }, 900);
+
+        if (isRomanSource && targetScript !== 'latin' && isPhrase && aiChoices[0]) {
+            autoApplySmartSuggestion(sourceText, aiChoices[0], sequence);
+        }
+    }, isPhrase ? 650 : 900);
 }
 
 function chooseSmartSuggestion(choice) {
