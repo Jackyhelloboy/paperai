@@ -3332,7 +3332,8 @@ function resetSmartExtraction() {
     }
     smartExtractionJobs.clear();
     smartExtractionQueue = [];
-    smartExtractionWorkers = 0;
+    // Do not zero the running-worker count here. Aborted requests unwind
+    // asynchronously and decrement themselves in their finally blocks.
 }
 
 function queueSmartExtraction(file) {
@@ -3818,6 +3819,7 @@ function setFiles(inputFiles, append = false) {
     }
 
     let next = append ? [...files, ...valid] : valid;
+    let selectionNotice = '';
 
     if (hasPdfIncoming || currentHasPdf) {
         if (next.length > SMART_MAX_PDFS) {
@@ -3829,10 +3831,10 @@ function setFiles(inputFiles, append = false) {
             const available = Math.max(0, SMART_MAX_IMAGES - (append ? files.length : 0));
             if (append && available > 0) {
                 next = [...files, ...valid.slice(0, available)];
-                showErr('Maximum 5 images at a time. Added the first ' + available + '.');
+                selectionNotice = 'Maximum 5 images at a time. Added the first ' + available + '.';
             } else if (!append) {
                 next = valid.slice(0, SMART_MAX_IMAGES);
-                showErr('Maximum 5 images at a time. Using the first 5.');
+                selectionNotice = 'Maximum 5 images at a time. Using the first 5.';
             } else {
                 showErr('Maximum 5 images at a time.');
                 return;
@@ -3850,7 +3852,8 @@ function setFiles(inputFiles, append = false) {
     dropZone.style.display = '';
     goBtn.classList.add('show');
     goBtn.disabled = false;
-    hideErr();
+    if (selectionNotice) showErr(selectionNotice);
+    else hideErr();
     resBox.classList.remove('show');
     renderBatchPreview();
 
@@ -3920,7 +3923,10 @@ batchPreview.onclick = e => {
         files.splice(index, 1);
         file = files[0] || null;
         if (!files.length) clearFile();
-        else renderBatchPreview();
+        else {
+            renderBatchPreview();
+            updateSmartExtractionUI();
+        }
         return;
     }
 
