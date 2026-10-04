@@ -5214,6 +5214,118 @@ function docxSingleExerciseTable(item) {
     );
 }
 
+function stripDocxMetadataForDetection(raw) {
+    return docxVisibleText(String(raw || ''))
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function isPredominantlyMathFormula(raw) {
+    const text = stripDocxMetadataForDetection(raw);
+    if (!text || text.length > 180) return false;
+
+    // Avoid turning prose/headings that merely contain a marks expression
+    // such as "प्रयोग करो। 5x2=10" into an equation.
+    const words = text.match(/[A-Za-z\p{L}]+/gu) || [];
+    const devanagariWords = text.match(/[\u0900-\u097F]{2,}/g) || [];
+    const operatorCount = (text.match(/[=+\-−×÷*/^√<>≤≥≈≠±∑∫π%]/g) || []).length;
+    const digitCount = (text.match(/[0-9०-९]/g) || []).length;
+
+    if (operatorCount === 0) return false;
+    if (devanagariWords.length >= 2) return false;
+
+    // Strong formula signals.
+    if (/^[\s(\[{]*[A-Za-z0-9०-९π√∑∫][\s\S]*[=≈≠≤≥][\s\S]+$/.test(text)) {
+        return words.length <= 8;
+    }
+    if (/^(?:[A-Za-z]\w*|\d+(?:\.\d+)?)\s*[+\-−×*/^]\s*(?:[A-Za-z]\w*|\d)/.test(text)) {
+        return words.length <= 6;
+    }
+    if (/^(?:√|∫|∑|lim\b|sin\b|cos\b|tan\b|log\b)/i.test(text)) return true;
+
+    // Require a high math-to-prose ratio for anything else.
+    return operatorCount >= 2 && (digitCount + operatorCount) >= Math.max(4, Math.floor(text.length * 0.28)) && words.length <= 5;
+}
+
+function normalizeMathForWord(raw) {
+    return stripDocxMetadataForDetection(raw)
+        .replace(/\u00D7/g, '×')
+        .replace(/\u2212/g, '−')
+        .replace(/\*\*/g, '^')
+        .normalize('NFC');
+}
+
+function docxOmmlEquation(raw, options = {}) {
+    const equation = normalizeMathForWord(raw);
+    const size = Number(options.size || 22);
+
+    // OMML makes this a native editable Microsoft Word equation. We keep the
+    // source literal rather than algebraically rewriting it.
+    return '<m:oMathPara><m:oMath>' +
+        '<m:r><m:rPr><m:sty m:val="p"/><w:rPr>' +
+            '<w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math" w:eastAsia="Cambria Math" w:cs="Cambria Math"/>' +
+            '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>' +
+        '</w:rPr></m:rPr><m:t xml:space="preserve">' + xmlEscape(equation) + '</m:t></m:r>' +
+        '</m:oMath></m:oMathPara>';
+}
+
+function parseSimpleFlowLine(raw) {
+    const text = stripDocxMetadataForDetection(raw);
+    if (!text || text.length > 120) return null;
+    if (!/[→⇒⟶]/.test(text)) return null;
+
+    const parts = text.split(/\s*(?:→|⇒|⟶)\s*/).map(s => s.trim()).filter(Boolean);
+    if (parts.length < 2 || parts.length > 6) return null;
+    if (parts.some(p => p.length > 28)) return null;
+
+    // Do not treat equations or prose arrows as a flow diagram.
+    if (parts.some(p => /[=+×÷*/]/.test(p))) return null;
+    return parts;
+}
+
+function docxVmlFlowDiagram(parts) {
+    const width = 430;
+    const boxW = Math.max(58, Math.min(95, 330 / parts.length));
+    const boxH = 28;
+    const gap = Math.max(22, Math.floor((width - 20 - parts.length * boxW) / Math.max(1, parts.length - 1)));
+    const y = 12;
+    const shapes = [];
+
+    parts.forEach((label, index) => {
+        const x = 10 + index * (boxW + gap);
+        shapes.push(
+            '<v:roundrect id="paperai_flow_box_' + (index + 1) + '" arcsize="12%" ' +
+              'style="position:absolute;left:' + x + 'pt;top:' + y + 'pt;width:' + boxW + 'pt;height:' + boxH + 'pt;z-index:2" ' +
+              'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827">' +
+              '<v:textbox inset="2pt,4pt,2pt,2pt"><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/>' +
+                '<w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:rPr>' +
+                  '<w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
+                  '<w:sz w:val="20"/><w:szCs w:val="20"/>' +
+                '</w:rPr><w:t>' + xmlEscape(label) + '</w:t></w:r></w:p></w:txbxContent></v:textbox>' +
+            '</v:roundrect>'
+        );
+
+        if (index < parts.length - 1) {
+            const x1 = x + boxW;
+            const x2 = x + boxW + gap;
+            const cy = y + boxH / 2;
+            shapes.push(
+                '<v:line id="paperai_flow_arrow_' + (index + 1) + '" ' +
+                  'from="' + x1 + 'pt,' + cy + 'pt" to="' + x2 + 'pt,' + cy + 'pt" ' +
+                  'strokecolor="#111827" strokeweight="1pt">' +
+                  '<v:stroke endarrow="block" endarrowwidth="narrow" endarrowlength="short"/>' +
+                '</v:line>'
+            );
+        }
+    });
+
+    return '<w:p><w:pPr><w:spacing w:before="35" w:after="55"/></w:pPr><w:r><w:pict>' +
+        '<v:group id="paperai_flow_group" style="position:relative;width:' + width + 'pt;height:54pt" ' +
+        'coordorigin="0,0" coordsize="' + width + ',54">' +
+        shapes.join('') +
+        '</v:group></w:pict></w:r></w:p>';
+}
+
 function buildDocxBody(structuredText) {
     const lines = repairLegacyBranchDiagram(String(structuredText || '')).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
@@ -5254,6 +5366,19 @@ function buildDocxBody(structuredText) {
         const singleExercise = parseDocxSingleExerciseLine(raw);
         if (singleExercise) {
             body.push(docxSingleExerciseTable(singleExercise));
+            i++;
+            continue;
+        }
+
+        const flowParts = parseSimpleFlowLine(raw);
+        if (flowParts) {
+            body.push(docxVmlFlowDiagram(flowParts));
+            i++;
+            continue;
+        }
+
+        if (isPredominantlyMathFormula(raw)) {
+            body.push(docxOmmlEquation(raw, { size: 22 }));
             i++;
             continue;
         }
@@ -5303,7 +5428,8 @@ function docxDocumentXml(structuredText) {
       'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
       'xmlns:v="urn:schemas-microsoft-com:vml" ' +
       'xmlns:o="urn:schemas-microsoft-com:office:office" ' +
-      'xmlns:w10="urn:schemas-microsoft-com:office:word">' +
+      'xmlns:w10="urn:schemas-microsoft-com:office:word" ' +
+      'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">' +
       '<w:body>' + buildDocxBody(structuredText) +
         '<w:sectPr>' +
           '<w:pgSz w:w="11906" w:h="16838"/>' +
