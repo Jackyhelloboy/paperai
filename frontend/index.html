@@ -1217,11 +1217,14 @@
         }
 
         .output-body {
+            --paper-body-size: 11px;
+            --paper-heading-size: 12px;
+            --paper-title-size: 16px;
             padding: 1.25rem;
             max-height: 400px;
             overflow-y: auto;
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
-            font-size: 11px;
+            font-size: var(--paper-body-size);
             font-weight: 400;
             font-style: normal;
             line-height: 1.65;
@@ -1237,6 +1240,28 @@
             min-height: 1.65em;
             white-space: pre-wrap;
         }
+
+        .output-body[data-paper-density="compact"] .output-line,
+        .output-body[data-paper-density="compact"] .output-answer-line {
+            min-height: 1.42em;
+            line-height: 1.42;
+        }
+
+        .output-body[data-paper-density="spacious"] .output-line,
+        .output-body[data-paper-density="spacious"] .output-answer-line {
+            min-height: 1.9em;
+            line-height: 1.82;
+        }
+
+        .output-title {
+            font-size: var(--paper-title-size) !important;
+            line-height: 1.32 !important;
+            margin-bottom: 0.18rem;
+        }
+
+        .output-body[data-title-align="center"] .output-title { text-align: center; }
+        .output-body[data-title-align="right"] .output-title { text-align: right; }
+        .output-body[data-title-weight="normal"] .output-title { font-weight: 400; }
 
         .output-answer-line {
             display: flex;
@@ -1377,7 +1402,7 @@
 
         .output-heading {
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
-            font-size: 12px;
+            font-size: var(--paper-heading-size);
             font-weight: 700;
             font-style: normal;
             line-height: 1.55;
@@ -4734,6 +4759,8 @@ function showTab(tab) {
                 ? (lastResult.preview_layout_text || lastResult.text || '')
                 : (lastResult.text || '');
 
+            const outputModel = window.PaperAIDocumentModel?.parse?.(extractedText);
+            applyOutputProfile(outputModel?.profile || lastResult?.layout_profile || {});
             textOut.innerHTML = formatOutput(extractedText);
             textOut.className = 'output-body';
         }
@@ -5118,6 +5145,22 @@ function renderWordSearchBlock(rows, answers) {
     return '<div class="ocr-wordsearch-layout">' + grid + answerHtml + '</div>';
 }
 
+function applyOutputProfile(profile) {
+    const p = profile || {};
+    const bodyPt = Math.max(9, Math.min(14, Number(p.bodySize) || 10));
+    const headingPt = Math.max(10, Math.min(16, Number(p.headingSize) || 12));
+    const titlePt = Math.max(12, Math.min(20, Number(p.titleSize) || 16));
+
+    textOut.style.setProperty('--paper-body-size', Math.round(bodyPt * 1.08) + 'px');
+    textOut.style.setProperty('--paper-heading-size', Math.round(headingPt * 1.08) + 'px');
+    textOut.style.setProperty('--paper-title-size', Math.round(titlePt * 1.08) + 'px');
+
+    textOut.dataset.paperKind = p.kind || 'general';
+    textOut.dataset.paperDensity = ['compact','normal','spacious'].includes(p.density) ? p.density : 'normal';
+    textOut.dataset.titleAlign = ['left','center','right'].includes(p.titleAlign) ? p.titleAlign : 'left';
+    textOut.dataset.titleWeight = p.titleWeight === 'normal' ? 'normal' : 'bold';
+}
+
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
@@ -5167,7 +5210,10 @@ function formatOutput(text) {
             }
             if (node.type === 'text') {
                 const heading = isOutputHeadingLine(node.text, index, firstTextIndex);
-                const cls = heading ? 'output-line output-heading' : 'output-line';
+                const isTitle = heading && index === firstTextIndex;
+                const cls = isTitle
+                    ? 'output-line output-heading output-title'
+                    : (heading ? 'output-line output-heading' : 'output-line');
                 html += '<span class="' + cls + '">' + formatOutputLine(node.text) + '</span>';
             }
         });
@@ -5398,10 +5444,8 @@ goBtn.onclick = async () => {
         textOut.innerHTML = formatOutput(lastResult.text || '');
         textOut.className = 'output-body';
 
-        // Make the final Extracted view follow the AI reconstruction profile.
-        textOut.dataset.paperKind = profile?.kind || 'general';
-        textOut.dataset.paperDensity = profile?.density || getLayoutOptions().density || 'normal';
-        textOut.dataset.titleAlign = profile?.titleAlign || 'left';
+        // Make the final Extracted view follow the same AI profile as Word.
+        applyOutputProfile(profile || {});
 
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
