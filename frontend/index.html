@@ -823,11 +823,78 @@
             border-color: var(--accent);
         }
 
+        .teach-language-bar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            gap: 0.45rem;
+            align-items: end;
+            margin-bottom: 0.55rem;
+        }
+
+        .teach-lang-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.22rem;
+            min-width: 0;
+        }
+
+        .teach-lang-label {
+            font-size: 0.58rem;
+            font-weight: 700;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .teach-lang-select {
+            width: 100%;
+            min-height: 36px;
+            padding: 0.38rem 1.9rem 0.38rem 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            font: 600 0.72rem/1.2 Tahoma, 'Hind', 'Noto Sans Devanagari', 'Noto Sans Telugu', sans-serif;
+            outline: none;
+        }
+
+        .teach-lang-select:focus {
+            border-color: var(--accent);
+        }
+
+        .teach-lang-arrow {
+            align-self: center;
+            color: var(--text3);
+            font-size: 1rem;
+            font-weight: 700;
+            padding-bottom: 0.5rem;
+        }
+
+        .teach-language-status {
+            grid-column: 1 / -1;
+            font-size: 0.6rem;
+            color: var(--text3);
+            min-height: 1.2em;
+        }
+
         .teach-toolbar {
             display: flex;
             flex-wrap: wrap;
             gap: 0.4rem;
             margin-bottom: 0.5rem;
+        }
+
+        @media (max-width: 520px) {
+            .teach-language-bar {
+                grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+                gap: 0.3rem;
+            }
+
+            .teach-lang-select {
+                font-size: 0.66rem;
+                padding-left: 0.45rem;
+                padding-right: 1.35rem;
+            }
         }
 
         .teach-tool {
@@ -1635,7 +1702,36 @@
 
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
-                <div class="teach-sub">Smart multilingual typing is automatic. Roman phonetic typing is converted for the document language, and difficult words can receive AI suggestions. Edits preview instantly below.</div>
+                <div class="teach-sub">Choose where your Roman/English typing should go. Example: English → Hindi turns <strong>jawad</strong> into suggestions such as <strong>जवाद</strong>. Difficult words can also receive AI suggestions.</div>
+                <div class="teach-language-bar">
+                    <label class="teach-lang-field">
+                        <span class="teach-lang-label">From</span>
+                        <select class="teach-lang-select" id="teachFromSelect">
+                            <option value="roman" selected>English / Roman</option>
+                        </select>
+                    </label>
+                    <span class="teach-lang-arrow">→</span>
+                    <label class="teach-lang-field">
+                        <span class="teach-lang-label">To</span>
+                        <select class="teach-lang-select" id="teachToSelect">
+                            <option value="auto">Auto from document</option>
+                            <option value="en">English</option>
+                            <option value="hi">Hindi</option>
+                            <option value="mr">Marathi</option>
+                            <option value="te">Telugu</option>
+                            <option value="ta">Tamil</option>
+                            <option value="kn">Kannada</option>
+                            <option value="ml">Malayalam</option>
+                            <option value="bn">Bengali</option>
+                            <option value="gu">Gujarati</option>
+                            <option value="pa">Punjabi</option>
+                            <option value="or">Odia</option>
+                            <option value="ur">Urdu</option>
+                            <option value="ks">Kashmiri</option>
+                        </select>
+                    </label>
+                    <div class="teach-language-status" id="teachLanguageStatus"></div>
+                </div>
                 <div class="teach-toolbar">
                     <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                     <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
@@ -1683,6 +1779,7 @@ const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaN
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
+const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let file=null, lastResult=null, showingRaw=false;
 let teachOriginalText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
@@ -2880,23 +2977,36 @@ function extractLearningPairs(before, after) {
     return pairs;
 }
 
-const PHONETIC_OVERRIDES = Object.freeze({
-    devanagari: Object.freeze({
-        allah: 'अल्लाह',
-        allaah: 'अल्लाह',
-        jawad: 'जवाद',
-        jawaad: 'जवाद',
-        rupaya: 'रुपया',
-        rupayaa: 'रुपया',
-        rupaye: 'रुपये',
-        aadmi: 'आदमी',
-        aadamii: 'आदमी',
-        gaadi: 'गाड़ी',
-        gaadii: 'गाड़ी',
-        birbal: 'बीरबल',
-        beerbal: 'बीरबल'
-    })
+const CANONICAL_PHONETIC_OVERRIDES = Object.freeze({
+    allah: 'अल्लाह',
+    allaah: 'अल्लाह',
+    jawad: 'जवाद',
+    jawaad: 'जवाद',
+    rupaya: 'रुपया',
+    rupayaa: 'रुपया',
+    rupaye: 'रुपये',
+    aadmi: 'आदमी',
+    aadamii: 'आदमी',
+    gaadi: 'गाड़ी',
+    gaadii: 'गाड़ी',
+    birbal: 'बीरबल',
+    beerbal: 'बीरबल'
 });
+
+function getCanonicalPhoneticOverride(roman, script) {
+    const devanagari = CANONICAL_PHONETIC_OVERRIDES[String(roman || '').toLowerCase()];
+    if (!devanagari || script === 'latin') return '';
+
+    if (script === 'devanagari') return devanagari;
+
+    try {
+        if (window.IndicTransliterate?.convertScript) {
+            return window.IndicTransliterate.convertScript(devanagari, script);
+        }
+    } catch (_) {}
+
+    return '';
+}
 
 const TEACH_LANGUAGE_META = Object.freeze({
     en: { label: 'English', script: 'latin' },
@@ -2923,39 +3033,74 @@ function uniqueStrings(values) {
     });
 }
 
-function detectTeachLanguage(text) {
-    const selected = languageSelect.value || 'auto';
-    if (selected !== 'auto' && TEACH_LANGUAGE_META[selected]) return selected;
-
+function countTeachScripts(text) {
     const source = String(text || '');
-    const scripts = [
-        ['hi', /[\u0900-\u097F]/g],
-        ['bn', /[\u0980-\u09FF]/g],
-        ['pa', /[\u0A00-\u0A7F]/g],
-        ['gu', /[\u0A80-\u0AFF]/g],
-        ['or', /[\u0B00-\u0B7F]/g],
-        ['ta', /[\u0B80-\u0BFF]/g],
-        ['te', /[\u0C00-\u0C7F]/g],
-        ['kn', /[\u0C80-\u0CFF]/g],
-        ['ml', /[\u0D00-\u0D7F]/g],
-        ['ur', /[\u0600-\u06FF]/g],
-        ['en', /[A-Za-z]/g]
+    return [
+        ['hi', (source.match(/[\u0900-\u097F]/g) || []).length],
+        ['bn', (source.match(/[\u0980-\u09FF]/g) || []).length],
+        ['pa', (source.match(/[\u0A00-\u0A7F]/g) || []).length],
+        ['gu', (source.match(/[\u0A80-\u0AFF]/g) || []).length],
+        ['or', (source.match(/[\u0B00-\u0B7F]/g) || []).length],
+        ['ta', (source.match(/[\u0B80-\u0BFF]/g) || []).length],
+        ['te', (source.match(/[\u0C00-\u0C7F]/g) || []).length],
+        ['kn', (source.match(/[\u0C80-\u0CFF]/g) || []).length],
+        ['ml', (source.match(/[\u0D00-\u0D7F]/g) || []).length],
+        ['ur', (source.match(/[\u0600-\u06FF]/g) || []).length],
+        ['en', (source.match(/[A-Za-z]/g) || []).length]
     ];
+}
 
-    let best = ['en', 0];
-    for (const [code, re] of scripts) {
-        const count = (source.match(re) || []).length;
-        if (count > best[1]) best = [code, count];
+function detectTeachLanguage(text) {
+    const selectedDocumentLanguage = languageSelect.value || 'auto';
+    if (selectedDocumentLanguage !== 'auto' && TEACH_LANGUAGE_META[selectedDocumentLanguage]) {
+        return selectedDocumentLanguage;
     }
-    return best[0];
+
+    // Prefer the nearest native-script context to the caret. This fixes mixed
+    // exam pages where a large English header previously overruled Hindi/Telugu.
+    const caret = teachEditor?.selectionStart || 0;
+    const value = String(text || '');
+    const nearby = value.slice(Math.max(0, caret - 180), Math.min(value.length, caret + 180));
+    const nearbyCounts = countTeachScripts(nearby)
+        .filter(([code]) => code !== 'en')
+        .sort((a,b) => b[1] - a[1]);
+
+    if (nearbyCounts[0]?.[1] >= 2) return nearbyCounts[0][0];
+
+    const allCounts = countTeachScripts(value);
+    const native = allCounts
+        .filter(([code]) => code !== 'en')
+        .sort((a,b) => b[1] - a[1]);
+
+    // If an Indian script is meaningfully present, prefer it over a Latin-heavy
+    // school header. Otherwise this is an English document.
+    if (native[0]?.[1] >= 3) return native[0][0];
+
+    return 'en';
 }
 
 function currentTeachLanguage() {
-    return detectTeachLanguage(teachOriginalText || lastResult?.plain_text || '');
+    const chosenTarget = teachToSelect?.value || 'auto';
+    if (chosenTarget !== 'auto' && TEACH_LANGUAGE_META[chosenTarget]) return chosenTarget;
+    return detectTeachLanguage(teachEditor?.value || teachOriginalText || lastResult?.plain_text || '');
 }
 
 function currentTeachScript() {
     return TEACH_LANGUAGE_META[currentTeachLanguage()]?.script || 'latin';
+}
+
+function updateTeachLanguageStatus() {
+    const language = currentTeachLanguage();
+    const meta = TEACH_LANGUAGE_META[language] || TEACH_LANGUAGE_META.en;
+    const targetLabel = teachToSelect?.value === 'auto'
+        ? 'Auto → ' + meta.label
+        : meta.label;
+
+    teachLanguageStatus.textContent =
+        'English / Roman → ' + targetLabel +
+        (language === 'en'
+            ? ' · spelling & proper-name suggestions'
+            : ' · phonetic script conversion + AI suggestions');
 }
 
 function getLocalSmartSuggestions(input) {
@@ -2966,7 +3111,7 @@ function getLocalSmartSuggestions(input) {
     if (script === 'latin') return [roman];
 
     const suggestions = [];
-    const override = PHONETIC_OVERRIDES[script]?.[roman];
+    const override = getCanonicalPhoneticOverride(roman, script);
     if (override) suggestions.push(override);
 
     try {
@@ -3028,11 +3173,11 @@ function shouldAskAiForWord(roman, localSuggestions) {
     const language = currentTeachLanguage();
     const script = currentTeachScript();
 
-    if (script !== 'latin' && PHONETIC_OVERRIDES[script]?.[roman.toLowerCase()]) return false;
+    if (script !== 'latin' && getCanonicalPhoneticOverride(roman, script)) return false;
     if (language === 'en') return roman.length >= 4;
 
     const nonRoman = localSuggestions.filter(x => x.toLowerCase() !== roman.toLowerCase());
-    return roman.length >= 5 && nonRoman.length >= 1;
+    return roman.length >= 4 && nonRoman.length >= 1;
 }
 
 function renderSuggestionChips(choices, aiChoices = []) {
@@ -3221,7 +3366,14 @@ function openTeachPanel() {
     smartComposition = null;
     aiSuggestionCalls = 0;
     aiSuggestionSequence++;
+
+    const selectedDocumentLanguage = languageSelect.value || 'auto';
+    teachToSelect.value = selectedDocumentLanguage !== 'auto'
+        ? selectedDocumentLanguage
+        : detectTeachLanguage(teachOriginalText);
+
     teachPanel.classList.add('show');
+    updateTeachLanguageStatus();
     showSmartSuggestions();
     updateTeachButtons();
     renderTeachPreview();
@@ -3242,6 +3394,27 @@ function closeTeachPanel() {
         textOut.className = 'output-body';
     }
 }
+
+teachToSelect.addEventListener('change', () => {
+    aiSuggestionSequence++;
+    if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
+
+    // If a Roman word is currently being composed, immediately re-render that
+    // same word in the newly selected target language.
+    if (smartComposition?.roman) {
+        const converted = transliterateSmartWord(smartComposition.roman);
+        const newEnd = replaceTeachRange(smartComposition.start, smartComposition.end, converted);
+        smartComposition.end = newEnd;
+        pushTeachHistory(teachEditor.value);
+        renderTeachPreview();
+    } else {
+        smartComposition = null;
+    }
+
+    updateTeachLanguageStatus();
+    showSmartSuggestions();
+    teachEditor.focus();
+});
 
 teachEditor.addEventListener('keydown', event => {
     if (handleSmartPhoneticKey(event)) return;
@@ -3275,6 +3448,7 @@ teachEditor.addEventListener('input', () => {
 teachEditor.addEventListener('click', () => {
     if (phoneticSelectionLock) return;
     smartComposition = currentTeachScript() === 'latin' ? findRomanWordAtCaret() : null;
+    updateTeachLanguageStatus();
     showSmartSuggestions();
 });
 
