@@ -3016,17 +3016,12 @@ const CANONICAL_PHONETIC_PHRASES = Object.freeze({
 
 function getCanonicalPhraseOverride(phrase, script) {
     const devanagari = CANONICAL_PHONETIC_PHRASES[String(phrase || '').toLowerCase().replace(/\s+/g, ' ').trim()];
-    if (!devanagari || script === 'latin') return '';
+    if (!devanagari || script !== 'devanagari') return '';
 
-    if (script === 'devanagari') return devanagari;
-
-    try {
-        if (window.IndicTransliterate?.convertScript) {
-            return window.IndicTransliterate.convertScript(devanagari, script);
-        }
-    } catch (_) {}
-
-    return '';
+    // Keep these fixed forms only for Devanagari. Converting a Hindi-script
+    // pronunciation mechanically into Telugu/Tamil/etc. can distort English
+    // sounds, so other target scripts use the AI pronunciation fallback.
+    return devanagari;
 }
 
 function getCanonicalPhoneticOverride(roman, script) {
