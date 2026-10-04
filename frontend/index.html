@@ -5054,13 +5054,11 @@ function parseDocxBranchBlock(lines, startIndex) {
 
 function docxVmlTextBox(id, text, x, y, width, height, options = {}) {
     const fontSizePt = Number(options.fontSize || 10);
-    const bold = options.bold ? 'font-weight:bold;' : '';
-    const align = options.center ? 'text-align:center;' : '';
     const border = options.border || 'none';
     const fill = options.fill || 'none';
 
     return '<v:shape id="' + xmlEscape(id) + '" type="#_x0000_t202" ' +
-        'style="position:absolute;left:' + x + 'pt;top:' + y + 'pt;width:' + width + 'pt;height:' + height + 'pt;z-index:2" ' +
+        'style="position:absolute;left:' + x + ';top:' + y + ';width:' + width + ';height:' + height + ';z-index:2" ' +
         'stroked="' + (border === 'none' ? 'f' : 't') + '" filled="' + (fill === 'none' ? 'f' : 't') + '">' +
         (fill !== 'none' ? '<v:fill color="' + xmlEscape(fill) + '"/>' : '') +
         '<v:textbox inset="0,0,0,0">' +
@@ -5102,7 +5100,7 @@ function docxVmlBranchDiagram(root, items) {
 
     shapes.push(
         '<v:oval id="paperai_root" ' +
-          'style="position:absolute;left:' + rootX + 'pt;top:' + rootY + 'pt;width:' + rootSize + 'pt;height:' + rootSize + 'pt;z-index:3" ' +
+          'style="position:absolute;left:' + rootX + ';top:' + rootY + ';width:' + rootSize + ';height:' + rootSize + ';z-index:3" ' +
           'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827">' +
           '<v:textbox inset="0,7pt,0,0"><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/>' +
             '<w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:rPr>' +
@@ -5118,8 +5116,8 @@ function docxVmlBranchDiagram(root, items) {
 
         shapes.push(
             '<v:line id="paperai_branch_' + (index + 1) + '" ' +
-              'from="' + rootCenterX + 'pt,' + rootCenterY + 'pt" ' +
-              'to="' + (labelX - 8) + 'pt,' + lineEndY + 'pt" ' +
+              'from="' + rootCenterX + ',' + rootCenterY + '" ' +
+              'to="' + (labelX - 8) + ',' + lineEndY + '" ' +
               'strokecolor="#111827" strokeweight="1pt">' +
               '<v:stroke endarrow="block" endarrowwidth="narrow" endarrowlength="short"/>' +
             '</v:line>'
@@ -5140,8 +5138,8 @@ function docxVmlBranchDiagram(root, items) {
         if (item.right) {
             shapes.push(
                 '<v:line id="paperai_rule_' + (index + 1) + '" ' +
-                  'from="' + ruleX1 + 'pt,' + lineEndY + 'pt" ' +
-                  'to="' + ruleX2 + 'pt,' + lineEndY + 'pt" ' +
+                  'from="' + ruleX1 + ',' + lineEndY + '" ' +
+                  'to="' + ruleX2 + ',' + lineEndY + '" ' +
                   'strokecolor="#64748B" strokeweight="0.75pt"/>'
             );
 
@@ -5533,12 +5531,12 @@ function docxVmlGeometryFigure(figure) {
     if (figure.type === 'circle') {
         shapeXml =
             '<v:oval id="paperai_geometry_shape" ' +
-            'style="position:absolute;left:' + shapeX + 'pt;top:' + shapeY + 'pt;width:' + shapeW + 'pt;height:' + shapeH + 'pt;z-index:2" ' +
+            'style="position:absolute;left:' + shapeX + ';top:' + shapeY + ';width:' + shapeW + ';height:' + shapeH + ';z-index:2" ' +
             'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827"/>';
     } else if (figure.type === 'rect') {
         shapeXml =
             '<v:rect id="paperai_geometry_shape" ' +
-            'style="position:absolute;left:' + shapeX + 'pt;top:' + shapeY + 'pt;width:' + shapeW + 'pt;height:' + shapeH + 'pt;z-index:2" ' +
+            'style="position:absolute;left:' + shapeX + ';top:' + shapeY + ';width:' + shapeW + ';height:' + shapeH + ';z-index:2" ' +
             'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827"/>';
     } else {
         const paths = {
@@ -5551,7 +5549,7 @@ function docxVmlGeometryFigure(figure) {
         shapeXml =
             '<v:shape id="paperai_geometry_shape" coordorigin="0,0" coordsize="21600,21600" ' +
             'path="' + (paths[figure.type] || paths.triangle) + '" ' +
-            'style="position:absolute;left:' + shapeX + 'pt;top:' + shapeY + 'pt;width:' + shapeW + 'pt;height:' + shapeH + 'pt;z-index:2" ' +
+            'style="position:absolute;left:' + shapeX + ';top:' + shapeY + ';width:' + shapeW + ';height:' + shapeH + ';z-index:2" ' +
             'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827"/>';
     }
 
@@ -5617,7 +5615,7 @@ function docxVmlVerticalFlowDiagram(parts) {
         const y = 10 + index * (boxH + gap);
         shapes.push(
             '<v:roundrect id="paperai_vflow_box_' + (index + 1) + '" arcsize="10%" ' +
-              'style="position:absolute;left:' + x + 'pt;top:' + y + 'pt;width:' + boxW + 'pt;height:' + boxH + 'pt;z-index:2" ' +
+              'style="position:absolute;left:' + x + ';top:' + y + ';width:' + boxW + ';height:' + boxH + ';z-index:2" ' +
               'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827">' +
               '<v:textbox inset="2pt,4pt,2pt,2pt"><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/>' +
                 '<w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:rPr>' +
@@ -5633,7 +5631,7 @@ function docxVmlVerticalFlowDiagram(parts) {
             const y2 = y + boxH + gap;
             shapes.push(
                 '<v:line id="paperai_vflow_arrow_' + (index + 1) + '" ' +
-                  'from="' + xMid + 'pt,' + y1 + 'pt" to="' + xMid + 'pt,' + y2 + 'pt" ' +
+                  'from="' + xMid + ',' + y1 + '" to="' + xMid + ',' + y2 + '" ' +
                   'strokecolor="#111827" strokeweight="1pt">' +
                   '<v:stroke endarrow="block" endarrowwidth="narrow" endarrowlength="short"/>' +
                 '</v:line>'
@@ -5660,7 +5658,7 @@ function docxVmlFlowDiagram(parts) {
         const x = 10 + index * (boxW + gap);
         shapes.push(
             '<v:roundrect id="paperai_flow_box_' + (index + 1) + '" arcsize="12%" ' +
-              'style="position:absolute;left:' + x + 'pt;top:' + y + 'pt;width:' + boxW + 'pt;height:' + boxH + 'pt;z-index:2" ' +
+              'style="position:absolute;left:' + x + ';top:' + y + ';width:' + boxW + ';height:' + boxH + ';z-index:2" ' +
               'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827">' +
               '<v:textbox inset="2pt,4pt,2pt,2pt"><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/>' +
                 '<w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:rPr>' +
@@ -5676,7 +5674,7 @@ function docxVmlFlowDiagram(parts) {
             const cy = y + boxH / 2;
             shapes.push(
                 '<v:line id="paperai_flow_arrow_' + (index + 1) + '" ' +
-                  'from="' + x1 + 'pt,' + cy + 'pt" to="' + x2 + 'pt,' + cy + 'pt" ' +
+                  'from="' + x1 + ',' + cy + '" to="' + x2 + ',' + cy + '" ' +
                   'strokecolor="#111827" strokeweight="1pt">' +
                   '<v:stroke endarrow="block" endarrowwidth="narrow" endarrowlength="short"/>' +
                 '</v:line>'
