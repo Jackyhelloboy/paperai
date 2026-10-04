@@ -33,6 +33,87 @@
         return false;
     }
 
+    let inlineShapeSequence = 0;
+
+    function circledNumberShapeRun(value, options = {}) {
+        const d = DX();
+        const s = SH();
+        const id = 'inline-circle-' + (++inlineShapeSequence);
+        const size = 20;
+
+        return new s.ShapeCanvasRun({
+            children: [
+                {
+                    id,
+                    type: 'ellipse',
+                    transformation: {
+                        offset: { left: 0, top: 0 },
+                        width: size,
+                        height: size
+                    },
+                    fill: 'none',
+                    line: { color: '111827', width: 1 },
+                    children: [
+                        new d.Paragraph({
+                            alignment: d.AlignmentType.CENTER,
+                            spacing: { before: 0, after: 0, line: 200 },
+                            children: [
+                                new d.TextRun({
+                                    text: String(value ?? ''),
+                                    bold: true,
+                                    size: Math.max(15, (options.size || 20) - 3),
+                                    font: 'Tahoma'
+                                })
+                            ]
+                        })
+                    ]
+                }
+            ]
+        });
+    }
+
+    function inlineRuns(value, options = {}) {
+        const d = DX();
+        const source = String(value || '');
+        const runs = [];
+        const token = /\[\[CIRCLED:\s*(\d+)\s*\]\]|([⓪①-⑳❶-❿])/g;
+        let last = 0;
+        let match;
+
+        const pushText = (text) => {
+            if (!text) return;
+            runs.push(new d.TextRun({
+                text: stripMarkup(text),
+                bold: !!options.bold,
+                italics: !!options.italics,
+                size: options.size ?? 21,
+                font: options.font || 'Tahoma',
+                color: options.color
+            }));
+        };
+
+        while ((match = token.exec(source)) !== null) {
+            pushText(source.slice(last, match.index));
+            const number = match[1]
+                ? Number(match[1])
+                : circledNumberValue(match[2]);
+            runs.push(circledNumberShapeRun(number, options));
+            last = token.lastIndex;
+        }
+
+        pushText(source.slice(last));
+        return runs.length ? runs : [
+            new d.TextRun({
+                text: stripMarkup(source),
+                bold: !!options.bold,
+                italics: !!options.italics,
+                size: options.size ?? 21,
+                font: options.font || 'Tahoma',
+                color: options.color
+            })
+        ];
+    }
+
     function para(text, options = {}) {
         const d = DX();
         return new d.Paragraph({
@@ -43,16 +124,7 @@
                 line: options.line ?? 276,
             },
             keepNext: !!options.keepNext,
-            children: [
-                new d.TextRun({
-                    text: stripMarkup(text),
-                    bold: !!options.bold,
-                    italics: !!options.italics,
-                    size: options.size ?? 21,
-                    font: options.font || 'Tahoma',
-                    color: options.color,
-                })
-            ]
+            children: inlineRuns(text, options)
         });
     }
 
