@@ -58,7 +58,13 @@ jobs:
           fi
           echo "Using D1 database $DB_ID"
 
-          npx wrangler@4 d1 migrations apply "$DB_NAME" --remote
+          # The checked-in config carries a placeholder id, so build the real config first
+          # and let the migration run against it. Migrations must never target the
+          # placeholder, or the tables are never created.
+          sed "s/00000000-0000-0000-0000-000000000000/$DB_ID/" wrangler.toml > wrangler.deploy.toml
+          grep -q "$DB_ID" wrangler.deploy.toml
+
+          npx wrangler@4 d1 migrations apply "$DB_NAME" --remote --config wrangler.deploy.toml
 
           BUCKETS="$(npx wrangler@4 r2 bucket list)"
           if ! grep -q "$BUCKET" <<<"$BUCKETS"; then
@@ -76,9 +82,6 @@ jobs:
           grep -q "expire-draft-pages" <<<"$RULES"
           grep -Eq "60" <<<"$RULES"
           echo "Page photos expire after 60 days"
-
-          sed "s/00000000-0000-0000-0000-000000000000/$DB_ID/" wrangler.toml > wrangler.deploy.toml
-          grep -q "$DB_ID" wrangler.deploy.toml
           echo "Generated worker/wrangler.deploy.toml"
 
       - name: Deploy to Cloudflare Workers
