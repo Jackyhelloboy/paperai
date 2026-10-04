@@ -595,7 +595,9 @@ async function handleWordSuggestion(request, env, corsHeaders) {
       '- Preserve the spoken words, names, and phrase meaning exactly.',
       '- Change only the writing script so the result sounds like the source when read aloud.',
       '- Never replace an English phrase with its Hindi/Telugu/etc. meaning.',
-      '- Example: English "i love you" to Hindi must remain a phonetic rendering such as "इ लोवे योउ", not "मैं तुमसे प्यार करता हूँ".',
+      '- Use pronunciation-based transliteration, not spelling-based letter mapping.',
+      '- Example: English "i love you" to Hindi should be "आई लव यू". Do NOT output spelling-based "इ लोवे योउ" and do NOT semantically translate it.',
+      '- Example: English "love" to Hindi should be "लव"; "you" should be "यू"; "I" should be "आई".',
       '- Example: English name "jawad" to Hindi should be "जवाद".',
       '- Preserve names, brands, acronyms and technical identifiers phonetically.'
     ].join('\n');
