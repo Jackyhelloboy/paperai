@@ -5387,6 +5387,11 @@ function portableText(value) {
     out = out
         .replace(/^\s*\[\[PAGE_PROFILE:\s*[\s\S]*?\]\]\s*$/gmi, '')
         .replace(/^\s*\[\[LINE_STYLE:\s*[^\]]*?\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi, (_, text) => String(text || '').trim())
+        .replace(/^\s*\[\[QUESTION_SECTION:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,
+            (_, label, instruction, marks) => [String(label || '').trim() + '.', String(instruction || '').trim(), String(marks || '').trim()].filter(Boolean).join(' '))
+        .replace(/^\s*\[\[QUESTION_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,
+            (_, number, question) => String(number || '').trim() + '. ' + String(question || '').trim())
+        .replace(/^\s*\[\[ANSWER_RULE\]\]\s*$/gmi, '___________________________________________________________________________')
         .replace(/^\s*\[\[WORDSEARCH_START\]\]\s*$/gmi, '')
         .replace(/^\s*\[\[WORDSEARCH_END\]\]\s*$/gmi, '')
         .replace(/^\s*\[\[WORDSEARCH_ROW:\s*([\s\S]*?)\]\]\s*$/gmi, (_, row) =>
@@ -7851,8 +7856,18 @@ function docxEditableListItem(item) {
     );
 }
 
+function normalizeQuestionMetadataForLegacy(value) {
+    return String(value || '')
+        .replace(/^\s*\[\[QUESTION_SECTION:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,
+            (_, label, instruction, marks) => [String(label || '').trim() + '.', String(instruction || '').trim(), String(marks || '').trim()].filter(Boolean).join(' '))
+        .replace(/^\s*\[\[QUESTION_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,
+            (_, number, question) => String(number || '').trim() + '. ' + String(question || '').trim())
+        .replace(/^\s*\[\[ANSWER_RULE\]\]\s*$/gmi,
+            '___________________________________________________________________________');
+}
+
 function buildDocxBody(structuredText) {
-    const lines = repairLegacyBranchDiagram(String(structuredText || '')).split('\n');
+    const lines = repairLegacyBranchDiagram(normalizeQuestionMetadataForLegacy(String(structuredText || ''))).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     const body = [];
     let i = 0;
@@ -7931,6 +7946,12 @@ function buildDocxBody(structuredText) {
             body.push(docxFullAnswerLine(number));
             i++;
             while (i < lines.length && /^\s*_{2,}\s*$/.test(lines[i])) i++;
+            continue;
+        }
+
+        if (/^\s*_{8,}\s*$/.test(raw)) {
+            body.push(docxFullAnswerLine(''));
+            i++;
             continue;
         }
 
