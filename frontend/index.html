@@ -1132,6 +1132,77 @@
             background: var(--bg);
         }
 
+        .ocr-wordsearch-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 0.47fr) minmax(0, 0.53fr);
+            gap: 0.9rem;
+            align-items: stretch;
+            width: 100%;
+            margin: 0.6rem 0 0.8rem;
+        }
+
+        .ocr-wordsearch-grid {
+            display: grid;
+            width: 100%;
+            border-left: 1px solid var(--text2);
+            border-top: 1px solid var(--text2);
+            align-self: start;
+        }
+
+        .ocr-wordsearch-cell {
+            min-width: 0;
+            min-height: 30px;
+            aspect-ratio: 1 / 0.82;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.12rem;
+            border-right: 1px solid var(--text2);
+            border-bottom: 1px solid var(--text2);
+            font-family: 'Hind', 'Noto Sans Devanagari', Tahoma, sans-serif;
+            font-size: 0.83rem;
+            font-weight: 500;
+            line-height: 1;
+            overflow: hidden;
+        }
+
+        .ocr-wordsearch-answers {
+            display: grid;
+            align-content: stretch;
+            min-width: 0;
+        }
+
+        .ocr-wordsearch-answer {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: center;
+            gap: 0.4rem;
+            min-height: 32px;
+        }
+
+        .ocr-wordsearch-answer-rule {
+            height: 0;
+            border-bottom: 1px solid var(--text2);
+            min-width: 0;
+        }
+
+        @media (max-width: 380px) {
+            .ocr-wordsearch-layout {
+                gap: 0.55rem;
+                grid-template-columns: minmax(0, 0.49fr) minmax(0, 0.51fr);
+            }
+
+            .ocr-wordsearch-cell {
+                min-height: 25px;
+                font-size: 0.74rem;
+            }
+
+            .ocr-wordsearch-answer {
+                min-height: 27px;
+                gap: 0.3rem;
+            }
+        }
+
         .output-page-break {
             display: block;
             height: 1px;
@@ -4174,6 +4245,46 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
 }
 
 function publicPlainTextFromStructured(value) {
+    if (window.PaperAIDocumentModel?.parse) {
+        const model = window.PaperAIDocumentModel.parse(String(value || ''));
+        const out = [];
+
+        model.nodes.forEach(node => {
+            if (node.type === 'blank' || node.type === 'pageBreak') {
+                out.push('');
+            } else if (node.type === 'text') {
+                out.push(node.text || '');
+            } else if (node.type === 'table') {
+                node.rows.forEach(row => out.push(row.join(' | ')));
+            } else if (node.type === 'columns') {
+                node.rows.forEach(row => out.push(row.join('    ')));
+            } else if (node.type === 'wordSearch') {
+                const maxRows = Math.max(node.rows.length, node.answers.length);
+                for (let i = 0; i < maxRows; i++) {
+                    const grid = node.rows[i] ? node.rows[i].join(' | ') : '';
+                    const ans = i < node.answers.length
+                        ? String(node.answers[i]) + '. ____________________'
+                        : '';
+                    out.push([grid, ans].filter(Boolean).join('    '));
+                }
+            } else if (node.type === 'branch') {
+                const center = Math.floor(node.items.length / 2);
+                node.items.forEach((item, i) => {
+                    const relation = i < center ? '↗' : i > center ? '↘' : '→';
+                    const rootPart = i === center ? '○ ' + node.root + ' ' : '     ';
+                    const right = item.right ? ' ───────── ' + item.right : '';
+                    out.push(rootPart + relation + ' ' + item.left + right);
+                });
+            } else if (node.type === 'answerBlank') {
+                out.push(String(node.number ?? '') + '. ____________________');
+            } else if (node.type === 'twoColumnExercise' || node.type === 'singleExercise') {
+                out.push(node.raw || '');
+            }
+        });
+
+        return portableText(out.join('\n'));
+    }
+
     const lines = String(value || '').split('\n');
     const out = [];
 
@@ -4619,6 +4730,47 @@ function renderStructuredHtmlTable(rows, mode = 'grid') {
     return html;
 }
 
+function renderWordSearchBlock(rows, answers) {
+    const cleanRows = Array.isArray(rows) ? rows : [];
+    const cleanAnswers = Array.isArray(answers) ? answers : [];
+    if (!cleanRows.length && !cleanAnswers.length) return '';
+
+    const cols = Math.max(1, ...cleanRows.map(row => row.length || 0));
+    const visualRows = Math.max(cleanRows.length, cleanAnswers.length, 1);
+
+    let grid = '<div class="ocr-wordsearch-grid" style="grid-template-columns:repeat(' +
+        cols + ',minmax(0,1fr))">';
+
+    cleanRows.forEach(row => {
+        for (let col = 0; col < cols; col++) {
+            grid += '<div class="ocr-wordsearch-cell">' +
+                formatOutputLine(row[col] || '') +
+                '</div>';
+        }
+    });
+    grid += '</div>';
+
+    let answerHtml = '<div class="ocr-wordsearch-answers" style="grid-template-rows:repeat(' +
+        visualRows + ',minmax(0,1fr))">';
+
+    for (let i = 0; i < visualRows; i++) {
+        if (i < cleanAnswers.length) {
+            const n = cleanAnswers[i];
+            answerHtml += '<div class="ocr-wordsearch-answer">' +
+                '<span class="output-number-circle" aria-label="' + esc(String(n)) + '">' +
+                esc(String(n)) +
+                '</span>' +
+                '<span class="ocr-wordsearch-answer-rule" aria-hidden="true"></span>' +
+                '</div>';
+        } else {
+            answerHtml += '<div class="ocr-wordsearch-answer" aria-hidden="true"></div>';
+        }
+    }
+    answerHtml += '</div>';
+
+    return '<div class="ocr-wordsearch-layout">' + grid + answerHtml + '</div>';
+}
+
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
@@ -4648,6 +4800,10 @@ function formatOutput(text) {
             }
             if (node.type === 'branch') {
                 html += renderBranchDiagram(node.root, node.items);
+                return;
+            }
+            if (node.type === 'wordSearch') {
+                html += renderWordSearchBlock(node.rows, node.answers);
                 return;
             }
             if (node.type === 'answerBlank') {
