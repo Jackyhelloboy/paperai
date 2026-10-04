@@ -1,5 +1,9 @@
 # Run full Unlimited-OCR on Kaggle's free GPU
 
+**To upload papers on your website instead**, use [the website API notebook](WEBSITE.md).
+That flow needs no Kaggle input dataset and connects through the existing Worker adapter
+for a temporary authenticated GPU test. This guide describes the separate manual batch flow.
+
 Import `PaperAI-Unlimited-OCR.ipynb` into a new Kaggle notebook. Choose a GPU accelerator,
 enable Internet, add the paper images as a **private** input dataset, and run the cells
 in order. Check the printed page sequence before running inference. GPU eligibility,

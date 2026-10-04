@@ -5,11 +5,13 @@ on:
     paths:
       - 'inference/kaggle/**'
       - 'tests/kaggle_compat.py'
+      - 'tests/kaggle_website_api.py'
       - '.github/workflows/check-kaggle.yml'
   pull_request:
     paths:
       - 'inference/kaggle/**'
       - 'tests/kaggle_compat.py'
+      - 'tests/kaggle_website_api.py'
       - '.github/workflows/check-kaggle.yml'
 
 permissions:
@@ -25,3 +27,5 @@ jobs:
           python-version: '3.12'
       - name: Verify full-model compatibility helper and notebook
         run: python tests/kaggle_compat.py
+      - name: Verify authenticated website API and notebook
+        run: python tests/kaggle_website_api.py
