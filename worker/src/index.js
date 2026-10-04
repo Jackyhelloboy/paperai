@@ -3,6 +3,12 @@ import { handleDrafts, purgeExpiredDrafts } from './drafts.js';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
 
 const DAILY_FREE_NEURONS = 10000;
+// The free allowance is shared by everyone using the site, so one browser must
+// not be able to use it all. Each browser gets its own daily share, and the
+// shared total stays as the outer ceiling.
+const PER_USER_DAILY_NEURONS = 1000;
+// Guard against an unbounded owner map in a single day.
+const MAX_TRACKED_OWNERS = 600;
 const GEMMA4_INPUT_NEURONS_PER_MILLION = 9091;
 const GEMMA4_OUTPUT_NEURONS_PER_MILLION = 27273;
 
@@ -55,10 +61,20 @@ export default {
 
     // Public daily free-AI quota dashboard. This is a PaperAI-side estimate
     // calculated from Workers AI token usage returned after each OCR request.
-    if (url.pathname === '/api/usage' && request.method === 'GET') {
+if (url.pathname === '/api/usage' && request.method === 'GET') {
       try {
         const usage = await getUsageStatus(env);
-        return Response.json(usage, {
+        const owner = String(request.headers.get('X-PaperAI-Owner') || '').slice(0, 64);
+        const check = /^[A-Za-z0-9_-]{20,64}$/.test(owner)
+          ? await checkOwnerAllowance(env, new Request(request.url, { headers: { 'X-PaperAI-Owner': owner } }))
+          : null;
+        return Response.json({
+          ...usage,
+          per_user_limit: PER_USER_DAILY_NEURONS,
+          owner_remaining: check?.ok === false ? 0 : (check?.status?.owner_remaining ?? PER_USER_DAILY_NEURONS),
+          owner_allowed: check ? check.ok : true,
+          owner_blocked_reason: check && !check.ok ? (check.code || '') : '',
+        }, {
           headers: {
             ...corsHeaders,
             'Cache-Control': 'no-store, max-age=0',
@@ -69,6 +85,7 @@ export default {
           error: 'Usage tracker unavailable',
           detail: e.message,
           free_limit: DAILY_FREE_NEURONS,
+          per_user_limit: PER_USER_DAILY_NEURONS,
         }, { status: 503, headers: corsHeaders });
       }
     }
@@ -415,10 +432,21 @@ export class UsageTracker extends DurableObject {
     if (request.method === 'POST' && url.pathname === '/add') {
       const body = await request.json();
       const neurons = Number(body.neurons) || 0;
+      const owner = String(body.owner || '').slice(0, 64);
 
       if (Number.isFinite(neurons) && neurons > 0) {
         state.used = Math.min(DAILY_FREE_NEURONS, state.used + neurons);
         state.requests += 1;
+        if (owner) {
+          const owners = state.owners || (state.owners = {});
+          owners[owner] = Math.round(((Number(owners[owner]) || 0) + neurons) * 100) / 100;
+          const keys = Object.keys(owners);
+          if (keys.length > MAX_TRACKED_OWNERS) {
+            // Drop the smallest consumers first, so heavy users stay counted.
+            keys.sort((a, b) => (owners[b] || 0) - (owners[a] || 0));
+            for (const key of keys.slice(MAX_TRACKED_OWNERS)) delete owners[key];
+          }
+        }
         state.history.push({
           at: now.toISOString(),
           used: Math.round(state.used * 100) / 100,
@@ -436,6 +464,23 @@ export class UsageTracker extends DurableObject {
       }
 
       await this.ctx.storage.put('daily', state);
+    }
+
+    if (request.method === 'POST' && url.pathname === '/owner-check') {
+      const owner = String((await request.json())?.owner || '').slice(0, 64);
+      const used = owner ? Number((state.owners || {})[owner]) || 0 : 0;
+      const remaining = Math.max(0, PER_USER_DAILY_NEURONS - used);
+      const sharedRemaining = Math.max(0, DAILY_FREE_NEURONS - (Number(state.used) || 0));
+      return Response.json({
+        owner_tracked: Boolean(owner),
+        per_user_limit: PER_USER_DAILY_NEURONS,
+        owner_used: Math.round(used * 100) / 100,
+        owner_remaining: Math.round(remaining * 100) / 100,
+        shared_remaining: Math.round(sharedRemaining * 100) / 100,
+        // Either ceiling stops the request, so nobody can take the shared pool.
+        allowed: Boolean(owner) && remaining > 0 && sharedRemaining > 0,
+        reason: remaining <= 0 ? 'PER_USER_LIMIT' : (sharedRemaining <= 0 ? 'SHARED_LIMIT' : ''),
+      }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     if (request.method === 'POST' && url.pathname === '/exhausted') {
@@ -528,14 +573,14 @@ function estimateGemma4Neurons(usage) {
   );
 }
 
-async function recordAiUsage(env, usage) {
+async function recordAiUsage(env, usage, owner) {
   const neurons = estimateGemma4Neurons(usage);
   if (!(neurons > 0)) return;
 
   await getUsageStub(env).fetch('https://usage.internal/add', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ neurons }),
+    body: JSON.stringify({ neurons, owner: String(owner || '') }),
   });
 }
 
@@ -543,6 +588,41 @@ async function markUsageExhausted(env) {
   await getUsageStub(env).fetch('https://usage.internal/exhausted', {
     method: 'POST',
   });
+}
+
+// Fair use: the daily allowance is shared, so check the caller's own daily
+// share before spending any of it. The browser key is not a security token, it
+// simply stops one visitor using up everyone else's allowance.
+async function checkOwnerAllowance(env, request) {
+  const owner = String(request.headers.get('X-PaperAI-Owner') || '').slice(0, 64);
+  if (!/^[A-Za-z0-9_-]{20,64}$/.test(owner)) {
+    return { ok: false, status: 400, error: 'Missing browser key.', code: 'OWNER_REQUIRED' };
+  }
+
+  try {
+    const res = await getUsageStub(env).fetch('https://usage.internal/owner-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner }),
+    });
+    const status = await res.json();
+    if (status?.allowed) return { ok: true, owner, status };
+
+    const perUser = status?.reason === 'PER_USER_LIMIT';
+    return {
+      ok: false,
+      owner,
+      status,
+      status_code: perUser ? 429 : 503,
+      error: perUser
+        ? 'You have used your ' + PER_USER_DAILY_NEURONS + ' free Neurons for today. The shared daily free limit resets at 00:00 UTC.'
+        : 'The shared daily free AI limit has been reached today. It resets at 00:00 UTC.',
+      code: perUser ? 'PER_USER_AI_LIMIT_REACHED' : 'FREE_AI_LIMIT_REACHED',
+    };
+  } catch (e) {
+    // If the tracker cannot answer, do not silently spend the shared pool.
+    return { ok: false, owner, status_code: 503, error: 'Usage check unavailable. Please try again.', code: 'USAGE_CHECK_FAILED' };
+  }
 }
 
 const SUGGESTION_LANGUAGES = Object.freeze({
@@ -1148,6 +1228,17 @@ async function handleOCR(request, env, corsHeaders) {
     return Response.json({ error: 'Image too large (max ~10MB base64)' }, { status: 400, headers: corsHeaders });
   }
 
+  // Fair use: refuse before spending any shared allowance.
+  const allowance = await checkOwnerAllowance(env, request);
+  if (!allowance.ok) {
+    return Response.json({
+      error: allowance.error,
+      code: allowance.code,
+      per_user_limit: PER_USER_DAILY_NEURONS,
+      resets_at: '00:00 UTC daily',
+    }, { status: allowance.status_code || 429, headers: corsHeaders });
+  }
+
   let aiResult;
   try {
     aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions, paperContext, detailImages);
@@ -1180,7 +1271,7 @@ async function handleOCR(request, env, corsHeaders) {
   // Record this successful inference for the public daily usage graph.
   // Failure to write analytics must never block the OCR result.
   try {
-    await recordAiUsage(env, aiResult.usage || null);
+    await recordAiUsage(env, aiResult.usage || null, allowance.owner);
   } catch (e) {
     console.log('[Usage tracker] Could not record usage:', e.message);
   }
