@@ -364,8 +364,15 @@
     function buildChildren(structuredText) {
         const d = DX();
         const model = MODEL().parse(structuredText);
+        const profile = model.profile || {};
         const firstTextIndex = model.nodes.findIndex(n => n.type === 'text' && String(n.text || '').trim());
         const children = [];
+        const density = profile.density || 'normal';
+        const bodyAfter = density === 'compact' ? 18 : density === 'spacious' ? 42 : 28;
+        const blankAfter = density === 'compact' ? 10 : density === 'spacious' ? 34 : 20;
+        const bodySize = Math.round((Number(profile.bodySize) || 10) * 2);
+        const headingSize = Math.round((Number(profile.headingSize) || 12) * 2);
+        const titleSize = Math.round((Number(profile.titleSize) || 16) * 2);
 
         model.nodes.forEach((node, index) => {
             if (node.type === 'pageBreak') {
@@ -373,7 +380,7 @@
                 return;
             }
             if (node.type === 'blank') {
-                children.push(para('', { after: 20, line: 200 }));
+                children.push(para('', { after: blankAfter, line: density === 'compact' ? 180 : 200 }));
                 return;
             }
             if (node.type === 'branch') {
@@ -407,12 +414,17 @@
             if (node.type === 'text') {
                 const heading = headingLike(node.text, index, firstTextIndex);
                 const formLike = /_{3,}/.test(node.text) && /(?:Name|Class|Date|Roll|Sub|Marks|Examination|नाम|कक्षा|दिनांक)/i.test(node.text);
+                const isTitle = heading && index === firstTextIndex;
+                const titleAlign = profile.titleAlign || 'left';
                 children.push(para(node.text, {
-                    bold: heading,
-                    size: heading ? (index === firstTextIndex ? 27 : 23) : (formLike ? 19 : 20),
-                    after: formLike ? 18 : (heading ? 50 : 28),
+                    bold: isTitle ? profile.titleWeight !== 'normal' : heading,
+                    size: isTitle ? titleSize : (heading ? headingSize : (formLike ? Math.max(18, bodySize - 1) : bodySize)),
+                    after: formLike ? Math.max(12, bodyAfter - 8) : (heading ? (density === 'compact' ? 32 : 50) : bodyAfter),
                     keepNext: heading,
-                    line: 260,
+                    line: density === 'compact' ? 235 : density === 'spacious' ? 290 : 260,
+                    center: isTitle && titleAlign === 'center',
+                    right: isTitle && titleAlign === 'right',
+                    font: 'Tahoma'
                 }));
             }
         });
@@ -460,6 +472,11 @@
     async function makeDocx(structuredText) {
         if (!available()) throw new Error('Modern Word engine is not available.');
         const d = DX();
+        const model = MODEL().parse(structuredText);
+        const profile = model.profile || {};
+        const landscape = profile.orientation === 'landscape';
+        const density = profile.density || 'normal';
+        const margin = density === 'compact' ? 520 : density === 'spacious' ? 760 : 620;
 
         const doc = new d.Document({
             styles: {
@@ -474,8 +491,10 @@
                 {
                     properties: {
                         page: {
-                            size: { width: 11906, height: 16838 },
-                            margin: { top: 620, right: 620, bottom: 620, left: 620, header: 300, footer: 300 }
+                            size: landscape
+                                ? { width: 16838, height: 11906, orientation: d.PageOrientation.LANDSCAPE }
+                                : { width: 11906, height: 16838, orientation: d.PageOrientation.PORTRAIT },
+                            margin: { top: margin, right: margin, bottom: margin, left: margin, header: 300, footer: 300 }
                         }
                     },
                     children: buildChildren(structuredText)
