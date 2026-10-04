@@ -2386,88 +2386,29 @@
                 <input type="file" id="fileInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
             </div>
 
-            <div class="language-row">
-                <label class="language-label" for="languageSelect">Document language</label>
-                <select id="languageSelect" class="language-select">
-                    <option value="auto" selected>Auto detect (recommended)</option>
-                    <option value="en">English</option>
-                    <option value="hi">Hindi</option>
-                    <option value="te">Telugu</option>
-                    <option value="ta">Tamil</option>
-                    <option value="kn">Kannada</option>
-                    <option value="ml">Malayalam</option>
-                    <option value="mr">Marathi</option>
-                    <option value="bn">Bengali</option>
-                    <option value="gu">Gujarati</option>
-                    <option value="pa">Punjabi</option>
-                    <option value="or">Odia</option>
-                    <option value="ur">Urdu</option>
-                    <option value="ks">Kashmiri</option>
-                </select>
-            </div>
+            <select id="languageSelect" aria-hidden="true" tabindex="-1" style="display:none">
+                <option value="auto" selected>Auto detect</option>
+            </select>
 
-            <div class="layout-review" id="layoutReview">
-                <div class="layout-review-head">
-                    <div>
-                        <div class="layout-review-title">AI paper reconstruction</div>
-                        <div class="layout-review-sub">Preview pages first, then PaperAI checks structure, alignment, relative font sizes and shapes before export.</div>
+            <div class="layout-review auto-detect-card" id="layoutReview">
+                <div class="auto-detect-main">
+                    <div class="auto-detect-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3l1.35 3.65L17 8l-3.65 1.35L12 13l-1.35-3.65L7 8l3.65-1.35L12 3zM18.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2zM5.5 13l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z"/>
+                        </svg>
                     </div>
-                    <label class="layout-toggle">
-                        <input type="checkbox" id="aiLayoutToggle" checked>
-                        <span>AI check</span>
-                    </label>
+                    <div class="auto-detect-copy">
+                        <div class="auto-detect-title">AI Auto Detection</div>
+                        <div class="auto-detect-sub">PaperAI detects language, question pattern, layout and formatting automatically.</div>
+                    </div>
+                    <div class="auto-detect-badge">AUTO</div>
                 </div>
-                <div class="layout-controls">
-                    <label class="layout-field">
-                        <span>Paper type</span>
-                        <select id="pagePresetSelect">
-                            <option value="auto" selected>Auto detect</option>
-                            <option value="question-paper">Question paper</option>
-                            <option value="worksheet">Worksheet</option>
-                            <option value="form">Form</option>
-                            <option value="table">Table / grid</option>
-                            <option value="preserve">Preserve source</option>
-                        </select>
-                    </label>
-                    <label class="layout-field">
-                        <span>Spacing</span>
-                        <select id="densitySelect">
-                            <option value="auto" selected>AI / source</option>
-                            <option value="compact">Compact</option>
-                            <option value="normal">Normal</option>
-                            <option value="spacious">Spacious</option>
-                        </select>
-                    </label>
-                    <label class="layout-field">
-                        <span>Title align</span>
-                        <select id="titleAlignSelect">
-                            <option value="auto" selected>AI / source</option>
-                            <option value="left">Left</option>
-                            <option value="center">Center</option>
-                            <option value="right">Right</option>
-                        </select>
-                    </label>
-                    <label class="layout-field">
-                        <span>Text size</span>
-                        <select id="fontScaleSelect">
-                            <option value="auto" selected>AI / source</option>
-                            <option value="small">Smaller</option>
-                            <option value="normal">Normal</option>
-                            <option value="large">Larger</option>
-                        </select>
-                    </label>
-                    <label class="layout-field">
-                        <span>Heading weight</span>
-                        <select id="headingWeightSelect">
-                            <option value="auto" selected>AI / source</option>
-                            <option value="bold">Bold</option>
-                            <option value="normal">Normal</option>
-                        </select>
-                    </label>
-                    <label class="layout-field">
-                        <span>English font</span>
-                        <input value="Tahoma" disabled>
-                    </label>
+                <div class="auto-detect-features" aria-label="Automatically detected features">
+                    <span>Language</span>
+                    <span>Questions</span>
+                    <span>Layout</span>
+                    <span>Tables</span>
+                    <span>Shapes</span>
                 </div>
             </div>
 
@@ -2834,12 +2775,12 @@ function validateUploadFile(f) {
 
 function getLayoutOptions() {
     return {
-        preset: pagePresetSelect?.value || 'auto',
-        density: densitySelect?.value || 'auto',
-        titleAlign: titleAlignSelect?.value || 'auto',
-        fontScale: fontScaleSelect?.value || 'auto',
-        headingWeight: headingWeightSelect?.value || 'auto',
-        aiLayoutCheck: aiLayoutToggle?.checked !== false,
+        preset: 'auto',
+        density: 'auto',
+        titleAlign: 'auto',
+        fontScale: 'auto',
+        headingWeight: 'auto',
+        aiLayoutCheck: true,
         englishFont: 'Tahoma'
     };
 }
@@ -2851,27 +2792,8 @@ function saveLayoutPreferences() {
 }
 
 function loadLayoutPreferences() {
-    try {
-        const pref = JSON.parse(localStorage.getItem('paperai_layout_preferences_v1') || '{}');
-        if (pagePresetSelect && ['auto','question-paper','worksheet','form','table','preserve'].includes(pref.preset)) {
-            pagePresetSelect.value = pref.preset;
-        }
-        if (densitySelect && ['auto','compact','normal','spacious'].includes(pref.density)) {
-            densitySelect.value = pref.density;
-        }
-        if (titleAlignSelect && ['auto','left','center','right'].includes(pref.titleAlign)) {
-            titleAlignSelect.value = pref.titleAlign;
-        }
-        if (fontScaleSelect && ['auto','small','normal','large'].includes(pref.fontScale)) {
-            fontScaleSelect.value = pref.fontScale;
-        }
-        if (headingWeightSelect && ['auto','bold','normal'].includes(pref.headingWeight)) {
-            headingWeightSelect.value = pref.headingWeight;
-        }
-        if (aiLayoutToggle && typeof pref.aiLayoutCheck === 'boolean') {
-            aiLayoutToggle.checked = pref.aiLayoutCheck;
-        }
-    } catch (_) {}
+    // v24: upload reconstruction is fully automatic.
+    // Older manual UI preferences are intentionally ignored.
 }
 
 async function renderPdfPreviewCard(f, container) {
@@ -3098,15 +3020,6 @@ batchPreview.onclick = e => {
     }
 };
 
-[pagePresetSelect, densitySelect, titleAlignSelect, fontScaleSelect, headingWeightSelect, aiLayoutToggle].forEach(control => {
-    control?.addEventListener('change', () => {
-        saveLayoutPreferences();
-        if (lastResult?.layout_profile?.kind) {
-            learnLayoutPreference(lastResult.layout_profile.kind, getLayoutOptions());
-        }
-        refreshLayoutFromControls();
-    });
-});
 loadLayoutPreferences();
 
 function median(values) {
