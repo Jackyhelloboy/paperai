@@ -5988,7 +5988,9 @@ function buildDocxBody(structuredText) {
         const branch = parseDocxBranchBlock(lines, i);
         if (branch) {
             body.push(docxBranchTable(branch.root, branch.items));
-            body.push(docxParagraph('', { after: 35 }));
+            // Do not add a synthetic blank paragraph here. If the source has
+            // a blank line after the branch, the normal line loop preserves it.
+            // This keeps Word spacing close to the Extracted view.
             i = branch.nextIndex;
             continue;
         }
