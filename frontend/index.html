@@ -1104,6 +1104,13 @@
             background: var(--bg);
         }
 
+        .output-page-break {
+            display: block;
+            height: 1px;
+            margin: 1rem 0;
+            border-top: 1px dashed var(--border2);
+        }
+
         .output-heading {
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
             font-size: 12px;
@@ -4147,6 +4154,11 @@ function publicPlainTextFromStructured(value) {
     const out = [];
 
     for (let i = 0; i < lines.length; i++) {
+        if (/^\s*\[\[PAGE_BREAK\]\]\s*$/i.test(lines[i])) {
+            out.push('');
+            continue;
+        }
+
         const table = parseStructuredTableBlock(lines, i);
         if (table) {
             for (const row of table.rows) out.push(row.join(' | '));
@@ -4598,6 +4610,12 @@ function formatOutput(text) {
     let i = 0;
 
     while (i < lines.length) {
+        if (/^\s*\[\[PAGE_BREAK\]\]\s*$/i.test(lines[i])) {
+            html += '<span class="output-page-break" aria-hidden="true"></span>';
+            i++;
+            continue;
+        }
+
         const structuredTable = parseStructuredHtmlBlock(lines, i, 'table');
         if (structuredTable) {
             html += renderStructuredHtmlTable(structuredTable.rows, 'grid');
@@ -4664,12 +4682,14 @@ goBtn.onclick = async () => {
             setProg(8, 'Loading PDF...');
             const pages = await pdfToPages(file);
             for (let i = 0; i < pages.length; i++) {
-                const prefix = allText ? '\n\n' : '';
+                const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
+                const plainPrefix = allPlain ? '\n\n' : '';
+                const rawPrefix = allRaw ? '\n\n' : '';
                 if (pages[i].type === 'text') {
                     setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
                     allText += prefix + pages[i].text;
-                    allPlain += prefix + pages[i].text;
-                    allRaw += prefix + pages[i].text;
+                    allPlain += plainPrefix + pages[i].text;
+                    allRaw += rawPrefix + pages[i].text;
                     continue;
                 }
 
@@ -4682,8 +4702,8 @@ goBtn.onclick = async () => {
                     const annotated = result.result.annotated_text || result.result.full_text || '';
                     const plain = result.result.full_text || annotated;
                     allText += prefix + annotated;
-                    allPlain += prefix + plain;
-                    allRaw += prefix + (result.result.raw_text || annotated);
+                    allPlain += plainPrefix + plain;
+                    allRaw += rawPrefix + (result.result.raw_text || annotated);
                 }
             }
         } else if (XLS_EXTS.includes(ext)) {
@@ -5811,6 +5831,12 @@ function buildDocxBody(structuredText) {
     let i = 0;
 
     while (i < lines.length) {
+        if (/^\s*\[\[PAGE_BREAK\]\]\s*$/i.test(lines[i])) {
+            body.push('<w:p><w:r><w:br w:type="page"/></w:r></w:p>');
+            i++;
+            continue;
+        }
+
         const structuredTable = parseStructuredTableBlock(lines, i);
         if (structuredTable) {
             body.push(docxStructuredTable(structuredTable.rows, {
