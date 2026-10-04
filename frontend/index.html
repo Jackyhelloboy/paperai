@@ -3099,8 +3099,8 @@ function updateTeachLanguageStatus() {
     teachLanguageStatus.textContent =
         'English / Roman → ' + targetLabel +
         (language === 'en'
-            ? ' · spelling & proper-name suggestions'
-            : ' · phonetic script conversion + AI suggestions');
+            ? ' · spelling & grammar suggestions'
+            : ' · names transliterate · phrases translate meaning');
 }
 
 function getLocalSmartSuggestions(input) {
@@ -3137,8 +3137,31 @@ function getTeachContext(position) {
     return text.slice(start, end).replace(/\s+/g, ' ').trim();
 }
 
-async function fetchAiWordSuggestions(roman, language, localSuggestions, sequence) {
-    const cacheKey = language + '\u0000' + roman.toLowerCase();
+function findRomanSegmentAtCaret() {
+    const value = teachEditor.value || '';
+    const caret = teachEditor.selectionStart;
+    const lineStart = value.lastIndexOf('\n', Math.max(0, caret - 1)) + 1;
+    const before = value.slice(lineStart, caret);
+    const match = before.match(/([A-Za-z][A-Za-z'’\-]*(?:[ \t]+[A-Za-z][A-Za-z'’\-]*)*)$/);
+
+    if (!match) return null;
+
+    const roman = match[1].replace(/[ \t]+/g, ' ').trim();
+    if (!roman || roman.length > 120) return null;
+
+    const start = caret - match[1].length;
+    return {
+        start,
+        end: caret,
+        roman,
+        words: roman.split(/\s+/).filter(Boolean).length
+    };
+}
+
+async function fetchAiTextSuggestions(romanText, language, localSuggestions, sequence) {
+    const normalized = String(romanText || '').replace(/\s+/g, ' ').trim();
+    const cacheKey = language + '\u0000smart\u0000' + normalized.toLowerCase();
+
     if (aiSuggestionCache.has(cacheKey)) return aiSuggestionCache.get(cacheKey);
     if (aiSuggestionCalls >= MAX_AI_SUGGESTIONS_PER_TEACH) return [];
 
@@ -3149,10 +3172,11 @@ async function fetchAiWordSuggestions(roman, language, localSuggestions, sequenc
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                word: roman,
+                text: normalized,
                 language,
                 context: getTeachContext(smartComposition?.start || teachEditor.selectionStart),
-                local_suggestions: localSuggestions.slice(0, 5)
+                local_suggestions: localSuggestions.slice(0, 5),
+                mode: 'smart'
             })
         });
 
@@ -3168,63 +3192,114 @@ async function fetchAiWordSuggestions(roman, language, localSuggestions, sequenc
     }
 }
 
-function shouldAskAiForWord(roman, localSuggestions) {
-    if (!roman || roman.length < 4) return false;
-    const language = currentTeachLanguage();
-    const script = currentTeachScript();
-
-    if (script !== 'latin' && getCanonicalPhoneticOverride(roman, script)) return false;
-    if (language === 'en') return roman.length >= 4;
-
-    const nonRoman = localSuggestions.filter(x => x.toLowerCase() !== roman.toLowerCase());
-    return roman.length >= 4 && nonRoman.length >= 1;
-}
-
-function renderSuggestionChips(choices, aiChoices = []) {
+function renderSuggestionChips(choices, aiChoices = [], loading = false) {
     const merged = uniqueStrings([...(choices || []), ...(aiChoices || [])]).slice(0, 8);
-    translitSuggestions.innerHTML = merged.map((choice, index) =>
-        '<button class="translit-chip" type="button" data-choice="' + index + '">' + esc(choice) + '</button>'
-    ).join('');
-    translitSuggestions.classList.toggle('show', merged.length > 0);
+    const loadingChip = loading ? '<span class="translit-chip" style="cursor:default;opacity:.65">AI suggesting…</span>' : '';
 
-    translitSuggestions.querySelectorAll('.translit-chip').forEach((button, index) => {
+    translitSuggestions.innerHTML =
+        merged.map((choice, index) =>
+            '<button class="translit-chip" type="button" data-choice="' + index + '">' + esc(choice) + '</button>'
+        ).join('') + loadingChip;
+
+    translitSuggestions.classList.toggle('show', merged.length > 0 || loading);
+
+    translitSuggestions.querySelectorAll('button.translit-chip').forEach((button, index) => {
         button.addEventListener('mousedown', event => event.preventDefault());
         button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));
     });
 }
 
+function autoApplySmartSuggestion(expectedRoman, choice, sequence) {
+    if (!choice || sequence !== aiSuggestionSequence || !smartComposition) return;
+
+    const current = findRomanSegmentAtCaret();
+    if (!current) return;
+    if (current.start !== smartComposition.start || current.end !== smartComposition.end) return;
+    if (current.roman.toLowerCase() !== String(expectedRoman).toLowerCase()) return;
+
+    const newEnd = replaceTeachRange(current.start, current.end, choice);
+    pushTeachHistory(teachEditor.value);
+    renderTeachPreview();
+
+    smartComposition = null;
+    translitSuggestions.classList.remove('show');
+    translitSuggestions.innerHTML = '';
+    teachEditor.setSelectionRange(newEnd, newEnd);
+}
+
 function showSmartSuggestions() {
+    if (aiSuggestionTimer) {
+        clearTimeout(aiSuggestionTimer);
+        aiSuggestionTimer = null;
+    }
+
     if (!smartComposition?.roman) {
         translitSuggestions.classList.remove('show');
         translitSuggestions.innerHTML = '';
-        if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
         return;
     }
 
-    const roman = smartComposition.roman;
+    const roman = smartComposition.roman.replace(/\s+/g, ' ').trim();
+    const words = roman.split(/\s+/).filter(Boolean);
     const language = currentTeachLanguage();
-    const localChoices = getLocalSmartSuggestions(roman);
-    renderSuggestionChips(localChoices);
+    const script = currentTeachScript();
+    const isPhrase = words.length >= 2;
 
-    if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
-    if (!shouldAskAiForWord(roman, localChoices)) return;
+    let localChoices = [];
+    if (!isPhrase) {
+        localChoices = getLocalSmartSuggestions(roman);
+        if (script !== 'latin') {
+            localChoices = localChoices.filter(choice => choice.toLowerCase() !== roman.toLowerCase());
+        }
+    }
+
+    renderSuggestionChips(localChoices, [], isPhrase || roman.length >= 2);
 
     const sequence = ++aiSuggestionSequence;
+
+    // Known names/spellings can be safely applied locally after the user pauses.
+    if (!isPhrase && script !== 'latin') {
+        const canonical = getCanonicalPhoneticOverride(roman, script);
+        if (canonical) {
+            aiSuggestionTimer = setTimeout(() => {
+                autoApplySmartSuggestion(roman, canonical, sequence);
+            }, 500);
+            return;
+        }
+    }
+
+    // For phrases, use AI for meaning translation rather than phonetic
+    // letter-by-letter conversion. For single words AI decides whether the
+    // token is an English word to translate or a name to transliterate.
     aiSuggestionTimer = setTimeout(async () => {
-        const aiChoices = await fetchAiWordSuggestions(roman, language, localChoices, sequence);
-        if (sequence !== aiSuggestionSequence || smartComposition?.roman !== roman) return;
-        renderSuggestionChips(localChoices, aiChoices);
-    }, 850);
+        const aiChoices = await fetchAiTextSuggestions(roman, language, localChoices, sequence);
+        if (sequence !== aiSuggestionSequence || !smartComposition) return;
+
+        renderSuggestionChips(localChoices, aiChoices, false);
+
+        // A multi-word English phrase with a non-English target is a meaning
+        // translation request. Apply the best result automatically after pause.
+        if (isPhrase && script !== 'latin' && aiChoices[0]) {
+            autoApplySmartSuggestion(roman, aiChoices[0], sequence);
+        }
+    }, isPhrase ? 700 : 900);
 }
 
 function chooseSmartSuggestion(choice) {
-    if (!smartComposition) return;
-    const newEnd = replaceTeachRange(smartComposition.start, smartComposition.end, choice);
-    smartComposition.end = newEnd;
+    if (!smartComposition || !choice) return;
+
+    const current = findRomanSegmentAtCaret();
+    const start = current?.start ?? smartComposition.start;
+    const end = current?.end ?? smartComposition.end;
+    const newEnd = replaceTeachRange(start, end, choice);
+
     pushTeachHistory(teachEditor.value);
     renderTeachPreview();
-    showSmartSuggestions();
-    teachEditor.focus();
+
+    smartComposition = null;
+    translitSuggestions.classList.remove('show');
+    translitSuggestions.innerHTML = '';
+    teachEditor.setSelectionRange(newEnd, newEnd);
 }
 
 function renderTeachPreview() {
@@ -3291,69 +3366,9 @@ function replaceTeachRange(start, end, replacement) {
     return caret;
 }
 
-function handleSmartPhoneticKey(event) {
-    if (event.ctrlKey || event.metaKey || event.altKey) return false;
-
-    const script = currentTeachScript();
-
-    if (/^[a-zA-Z]$/.test(event.key) && script !== 'latin') {
-        event.preventDefault();
-
-        const caret = teachEditor.selectionStart;
-        const selectionEnd = teachEditor.selectionEnd;
-
-        if (!smartComposition || smartComposition.end !== caret || selectionEnd !== caret) {
-            smartComposition = { start: caret, end: selectionEnd, roman: '' };
-        }
-
-        smartComposition.roman += event.key.toLowerCase();
-        const converted = transliterateSmartWord(smartComposition.roman);
-        const newEnd = replaceTeachRange(smartComposition.start, smartComposition.end, converted);
-        smartComposition.end = newEnd;
-        pushTeachHistory(teachEditor.value);
-        renderTeachPreview();
-        showSmartSuggestions();
-        return true;
-    }
-
-    if (event.key === 'Backspace' && smartComposition?.roman && script !== 'latin') {
-        event.preventDefault();
-        smartComposition.roman = smartComposition.roman.slice(0, -1);
-        const converted = transliterateSmartWord(smartComposition.roman);
-        const newEnd = replaceTeachRange(smartComposition.start, smartComposition.end, converted);
-        smartComposition.end = newEnd;
-
-        if (!smartComposition.roman) smartComposition = null;
-        pushTeachHistory(teachEditor.value);
-        renderTeachPreview();
-        showSmartSuggestions();
-        return true;
-    }
-
-    if (/^[\s.,;:!?()\[\]{}\-_/\\]$/.test(event.key)) {
-        smartComposition = null;
-        showSmartSuggestions();
-    }
-
-    return false;
-}
-
-function findRomanWordAtCaret() {
-    const value = teachEditor.value || '';
-    const caret = teachEditor.selectionStart;
-    let start = caret;
-    let end = caret;
-
-    while (start > 0 && /[A-Za-z]/.test(value[start - 1])) start--;
-    while (end < value.length && /[A-Za-z]/.test(value[end])) end++;
-
-    const roman = value.slice(start, end);
-    return /^[A-Za-z]{2,}$/.test(roman) ? { start, end, roman: roman.toLowerCase() } : null;
-}
-
-function refreshEnglishSmartSuggestions() {
-    if (currentTeachScript() !== 'latin') return;
-    smartComposition = findRomanWordAtCaret();
+function refreshSmartComposition() {
+    smartComposition = findRomanSegmentAtCaret();
+    updateTeachLanguageStatus();
     showSmartSuggestions();
 }
 
@@ -3398,27 +3413,12 @@ function closeTeachPanel() {
 teachToSelect.addEventListener('change', () => {
     aiSuggestionSequence++;
     if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
-
-    // If a Roman word is currently being composed, immediately re-render that
-    // same word in the newly selected target language.
-    if (smartComposition?.roman) {
-        const converted = transliterateSmartWord(smartComposition.roman);
-        const newEnd = replaceTeachRange(smartComposition.start, smartComposition.end, converted);
-        smartComposition.end = newEnd;
-        pushTeachHistory(teachEditor.value);
-        renderTeachPreview();
-    } else {
-        smartComposition = null;
-    }
-
+    refreshSmartComposition();
     updateTeachLanguageStatus();
-    showSmartSuggestions();
     teachEditor.focus();
 });
 
 teachEditor.addEventListener('keydown', event => {
-    if (handleSmartPhoneticKey(event)) return;
-
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         if (event.shiftKey) teachRedo();
@@ -3435,33 +3435,19 @@ teachEditor.addEventListener('keydown', event => {
 teachEditor.addEventListener('input', () => {
     if (teachHistoryLock) return;
 
-    if (currentTeachScript() === 'latin') {
-        refreshEnglishSmartSuggestions();
-    } else if (!smartComposition) {
-        showSmartSuggestions();
-    }
-
+    refreshSmartComposition();
     pushTeachHistory(teachEditor.value);
     renderTeachPreview();
 });
 
 teachEditor.addEventListener('click', () => {
     if (phoneticSelectionLock) return;
-    smartComposition = currentTeachScript() === 'latin' ? findRomanWordAtCaret() : null;
-    updateTeachLanguageStatus();
-    showSmartSuggestions();
+    refreshSmartComposition();
 });
 
 teachEditor.addEventListener('select', () => {
     if (phoneticSelectionLock) return;
-
-    const start = teachEditor.selectionStart;
-    const end = teachEditor.selectionEnd;
-
-    if (smartComposition && start === end && end === smartComposition.end) return;
-
-    smartComposition = currentTeachScript() === 'latin' ? findRomanWordAtCaret() : null;
-    showSmartSuggestions();
+    refreshSmartComposition();
 });
 
 function saveLearning() {
