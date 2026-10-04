@@ -882,14 +882,37 @@
             padding: 1.25rem;
             max-height: 400px;
             overflow-y: auto;
-            font-family: 'Inter', 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
-            font-size: 0.85rem;
-            line-height: 1.75;
+            font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
+            font-size: 11px;
+            font-weight: 400;
+            font-style: italic;
+            line-height: 1.65;
             color: var(--text);
             font-variant-numeric: tabular-nums;
             unicode-bidi: plaintext;
             -webkit-overflow-scrolling: touch;
             overflow-wrap: anywhere;
+        }
+
+        .output-line {
+            display: block;
+            min-height: 1.65em;
+            white-space: pre-wrap;
+        }
+
+        .output-heading {
+            font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            font-style: normal;
+            line-height: 1.55;
+        }
+
+        .output-raw {
+            font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
+            font-size: 11px;
+            font-weight: 400;
+            font-style: italic;
         }
 
         .ocr-strike {
@@ -2942,22 +2965,46 @@ function formatOcrAnnotation(type, content) {
     return '[[' + esc(type) + ': ' + safe + ']]';
 }
 
-function formatOutput(text) {
-    if(!text) return '<span style="color:var(--text3)">No text detected</span>';
+function isOutputHeadingLine(line, index, firstNonEmptyIndex) {
+    const t = String(line || '').trim();
+    if (!t) return false;
 
+    if (index === firstNonEmptyIndex) return true;
+    if (/^[A-Z][A-Z0-9 .\-/&]{5,}$/.test(t)) return true;
+    if (/^(?:I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)[.)\s]+\S+/i.test(t)) return true;
+    if (/^[क-ह][.)\s]+\S+/.test(t) && t.length >= 12) return true;
+    if (/^(?:SECTION|PART|CHAPTER|QUESTION|प्रश्न|खंड|भाग)\b/i.test(t)) return true;
+
+    return false;
+}
+
+function formatOutputLine(line) {
     const token = /\[\[(DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):\s*([\s\S]*?)\]\]/g;
     let html = '';
     let last = 0;
     let match;
 
-    while ((match = token.exec(text)) !== null) {
-        html += esc(text.slice(last, match.index)).replace(/\n/g, '<br>');
+    while ((match = token.exec(line)) !== null) {
+        html += esc(line.slice(last, match.index));
         html += formatOcrAnnotation(match[1], match[2]);
         last = token.lastIndex;
     }
 
-    html += esc(text.slice(last)).replace(/\n/g, '<br>');
+    html += esc(line.slice(last));
     return html;
+}
+
+function formatOutput(text) {
+    if(!text) return '<span style="color:var(--text3)">No text detected</span>';
+
+    const lines = String(text).split('\n');
+    const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
+
+    return lines.map((line, index) => {
+        const heading = isOutputHeadingLine(line, index, firstNonEmptyIndex);
+        const cls = heading ? 'output-line output-heading' : 'output-line';
+        return '<span class="' + cls + '">' + formatOutputLine(line) + '</span>';
+    }).join('');
 }
 
 goBtn.onclick = async () => {
