@@ -566,12 +566,14 @@ async function handleWordSuggestion(request, env, corsHeaders) {
 
   const body = await request.json().catch(() => ({}));
   const input = String(body?.text ?? body?.word ?? '').replace(/\s+/g, ' ').trim();
+  const sourceLanguage = SUGGESTION_LANGUAGES[body?.source_language] ? body.source_language : 'en';
   const language = SUGGESTION_LANGUAGES[body?.language] ? body.language : 'en';
+  const sourceMeta = SUGGESTION_LANGUAGES[sourceLanguage];
   const meta = SUGGESTION_LANGUAGES[language];
   const context = String(body?.context || '').replace(/[\r\n]+/g, ' ').slice(0, 260);
   const localSuggestions = cleanSuggestionArray(body?.local_suggestions || [], 5);
 
-  if (!input || input.length > 120 || !/^[A-Za-z][A-Za-z'’\- ]*$/.test(input)) {
+  if (!input || input.length > 120 || !/^[\p{L}\p{M}][\p{L}\p{M}'’\- ]*$/u.test(input)) {
     return Response.json({ suggestions: [] }, { headers: corsHeaders });
   }
 
@@ -579,18 +581,22 @@ async function handleWordSuggestion(request, env, corsHeaders) {
   const isPhrase = wordCount >= 2;
 
   let targetInstruction;
-  if (language === 'en') {
-    targetInstruction = isPhrase
-      ? 'The input is English. Suggest natural corrected English phrasing, spelling and grammar. Do not translate it.'
-      : 'The input is English or a proper name. Suggest the most likely correctly spelled English word or proper-name spelling. Do not translate it.';
+  if (sourceLanguage === language) {
+    targetInstruction = [
+      'Source and target are both ' + meta.label + '.',
+      'Suggest corrected spelling, grammar or proper-name spelling in the same language.',
+      'Do not translate into a different language.'
+    ].join('\n');
   } else {
     targetInstruction = [
+      'Source language: ' + sourceMeta.label + ' (' + sourceMeta.script + ' script).',
       'Target language: ' + meta.label + ' (' + meta.script + ' script).',
       'Use SMART conversion:',
-      '- If the input is a meaningful English phrase or sentence, TRANSLATE its meaning naturally into ' + meta.label + '.',
-      '- If the input is a proper name, place name, acronym, brand, or phonetic name with no sentence meaning, TRANSLITERATE its pronunciation into ' + meta.script + '.',
-      '- Never transliterate a clear English sentence word-by-word.',
-      '- Prefer gender-neutral natural wording when the English phrase does not specify gender and the target language allows it.'
+      '- If the input has lexical meaning in the source language, TRANSLATE that meaning naturally into the target language.',
+      '- If the input is a proper name, place name, acronym, brand, or phonetic name rather than a translatable phrase, TRANSLITERATE its pronunciation into the target script.',
+      '- Never transliterate a meaningful phrase word-by-word when a real translation is possible.',
+      '- Preserve names and technical identifiers rather than translating their meaning.',
+      '- Prefer gender-neutral natural wording when the source does not specify gender and the target language allows it.'
     ].join('\n');
   }
 
@@ -599,7 +605,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     '',
     targetInstruction,
     '',
-    'English/Roman input: "' + input + '"',
+    'Input text: "' + input + '"',
     'Nearby document context: "' + (context || 'none') + '"',
     'Local offline candidates: ' + JSON.stringify(localSuggestions),
     '',
@@ -615,7 +621,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
 
   const response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
     messages: [
-      { role: 'system', content: 'Return only compact JSON suggestions. Choose translation for meaningful phrases and transliteration for names.' },
+      { role: 'system', content: 'Return only compact JSON suggestions. Translate meaning across languages; transliterate proper names and identifiers.' },
       { role: 'user', content: prompt },
     ],
     max_completion_tokens: 240,
@@ -628,6 +634,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
   const suggestions = parseSuggestionJson(extractAiText(response));
   return Response.json({
     suggestions,
+    source_language: sourceLanguage,
     language,
     mode: isPhrase ? 'smart_phrase' : 'smart_word',
     source: 'workers-ai',
