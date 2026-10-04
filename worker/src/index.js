@@ -694,6 +694,9 @@ async function handleOCR(request, env, corsHeaders) {
     preset: 'auto',
     density: 'auto',
     aiLayoutCheck: true,
+    titleAlign: 'auto',
+    fontScale: 'auto',
+    headingWeight: 'auto',
     englishFont: 'Tahoma',
   };
 
@@ -723,6 +726,9 @@ async function handleOCR(request, env, corsHeaders) {
       layoutOptions = {
         preset: ['auto','question-paper','worksheet','form','table','preserve'].includes(requested?.preset) ? requested.preset : 'auto',
         density: ['auto','compact','normal','spacious'].includes(requested?.density) ? requested.density : 'auto',
+        titleAlign: ['auto','left','center','right'].includes(requested?.titleAlign) ? requested.titleAlign : 'auto',
+        fontScale: ['auto','small','normal','large'].includes(requested?.fontScale) ? requested.fontScale : 'auto',
+        headingWeight: ['auto','bold','normal'].includes(requested?.headingWeight) ? requested.headingWeight : 'auto',
         aiLayoutCheck: requested?.aiLayoutCheck !== false,
         englishFont: 'Tahoma',
       };
@@ -743,6 +749,9 @@ async function handleOCR(request, env, corsHeaders) {
     layoutOptions = {
       preset: ['auto','question-paper','worksheet','form','table','preserve'].includes(requestedLayout?.preset) ? requestedLayout.preset : 'auto',
       density: ['auto','compact','normal','spacious'].includes(requestedLayout?.density) ? requestedLayout.density : 'auto',
+      titleAlign: ['auto','left','center','right'].includes(requestedLayout?.titleAlign) ? requestedLayout.titleAlign : 'auto',
+      fontScale: ['auto','small','normal','large'].includes(requestedLayout?.fontScale) ? requestedLayout.fontScale : 'auto',
+      headingWeight: ['auto','bold','normal'].includes(requestedLayout?.headingWeight) ? requestedLayout.headingWeight : 'auto',
       aiLayoutCheck: requestedLayout?.aiLayoutCheck !== false,
       englishFont: 'Tahoma',
     };
@@ -1261,8 +1270,11 @@ Before the visible transcription, output exactly ONE line in this format:
 [[PAGE_PROFILE: kind=<question-paper|worksheet|form|table|general>; orientation=<portrait|landscape>; density=<compact|normal|spacious>; title_align=<left|center|right>; title_weight=<normal|bold>; columns=<1|2|3>; title_size=<12-20>; heading_size=<10-16>; body_size=<9-14>; english_font=Tahoma; confidence=<high|medium|low>]]
 Estimate ONLY relative layout/style that is clearly visible. Do not guess an exact source font name. PaperAI always uses Tahoma for English output. Do not put source text inside PAGE_PROFILE.
 User layout preset: ${layoutPreset}. Requested density: ${requestedDensity}.
+Requested title alignment: ${layoutOptions?.titleAlign || "auto"}.
+Requested text scale: ${layoutOptions?.fontScale || "auto"}.
+Requested heading weight: ${layoutOptions?.headingWeight || "auto"}.
 If preset is not "auto", use it as a reconstruction preference unless it contradicts the source geometry.
-If density is not "auto", use it as the final reconstruction density.
+If density/title alignment/text scale/heading weight are not "auto", treat them as final reconstruction preferences while keeping the visible text literal.
 `
     : '';
 
