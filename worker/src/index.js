@@ -31,7 +31,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v24',
+        architecture: 'production-literal-ocr-v25',
       }, { headers: corsHeaders });
     }
 
@@ -39,7 +39,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v24',
+        architecture: 'production-literal-ocr-v25',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -795,7 +795,9 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
     '- A shared school name alone is NOT enough to group pages.',
     '- Prefer visible class/subject/exam header identity.',
     '- A continuation page may have no header; attach it only when section numbering/content pattern strongly continues another page.',
-    '- A page beginning with later items of section IV and then sections V/VI is likely a continuation of a header page that ended in section IV.',
+    '- Match continuation pages using the open section signature: section label, marks formula, last visible item number on the header page, first visible item number on the continuation page, and the next section label. Item-number continuation is stronger evidence than school name.',
+    '- A page beginning with later items of section IV and then sections V/VI is likely a continuation only of a header page whose last open section is IV and whose numbering can continue into those items.',
+    '- If two candidate header pages have different exam labels or incompatible open-section/marks signatures, keep their continuation pages separate rather than guessing.',
     '- If two header pages show different exam labels/classes, keep them in separate documents even if both are Hindi and from the same school.',
     '- Every input page index must appear exactly once.',
     '- If uncertain, keep a page separate rather than forcing a match.',
@@ -1216,7 +1218,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v24',
+        architecture: 'production-literal-ocr-v25',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1646,16 +1648,15 @@ Use one TABLE_ROW per visible row, cells strictly left-to-right. Preserve empty 
 [[COLUMNS_END]]
 Use the actual visible number of columns. Do not use this for ordinary prose merely because lines contain spaces.
 20C. The "||" separator inside TABLE_ROW/COLUMN_ROW is structural metadata, not source punctuation. Never use these markers unless the row/column relationship is visibly clear.
-20D. QUESTION / ANSWER SHEETS: when a clearly visible section heading is followed by numbered questions and ruled answer lines, preserve the structure explicitly:
-[[QUESTION_SECTION: visible Roman/section label || exact visible instruction || exact visible marks formula]]
-[[QUESTION_ITEM: exact visible question number || exact visible question text]]
-[[ANSWER_RULE]]
-[[ANSWER_RULE]]
-...repeat one ANSWER_RULE for each clearly visible blank answer line belonging to that question...
+20D. QUESTION / ANSWER SHEETS: when a real visible section heading is followed by numbered questions and ruled answer lines, use QUESTION_SECTION / QUESTION_ITEM / ANSWER_RULE metadata.
+QUESTION_SECTION has exactly three fields separated by || in this order: the ACTUAL visible section label, the ACTUAL visible instruction, and the ACTUAL visible marks formula. QUESTION_ITEM has exactly two fields: the ACTUAL visible question number and the ACTUAL visible question text.
+Every field must contain transcription from the image itself. If a field is partly unreadable, use [unclear] only for that unreadable part. If the section label itself is unreadable, use [unclear] for the label rather than guessing from sequence.
+NEVER output instructional phrases such as "visible Roman/section label", "exact visible instruction", "exact visible marks formula", "exact visible question number", or "exact visible question text". Those phrases are prompt descriptions and are forbidden in OCR output.
+After each question, emit one [[ANSWER_RULE]] for each clearly visible ruled blank that belongs to that question.
 Use QUESTION_SECTION only for a real visible section/bit heading. Use QUESTION_ITEM only when a question/item number is visibly present. Do not invent a number from sequence context.
 If a numbered question is partly unreadable, preserve the visible number and use [unclear] only inside the unreadable part of the question text. NEVER drop the entire question merely because the ruled answer line below is clearer.
 Do not include the question's answer in QUESTION_ITEM. Student answers, ticks/crosses, choices and annotations remain literal visible content after the question text.
-For sections such as word meanings, singular/plural, antonyms, fill-in-the-blanks, true/false or matching, preserve the exact visible item count. Marks patterns may help you CHECK the count, but never create a missing item.
+For sections such as word meanings, singular/plural, antonyms, fill-in-the-blanks, true/false or matching, preserve the exact visible item count. Marks patterns may help you CHECK the count, but never create or delete an item.
 21. WORD-SEARCH / LETTER-GRID WITH SIDE ANSWERS: if a bordered letter/word-search grid appears beside a separate numbered answer list or answer blanks, NEVER merge the answer numbers/lines into the grid rows. Treat these as two adjacent structures and output exactly:
 [[WORDSEARCH_START]]
 [[WORDSEARCH_ROW: cell 1 || cell 2 || cell 3 || ...]]
@@ -1753,6 +1754,8 @@ VERIFICATION RULES:
 - Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
 - On question/answer sheets, count every visible numbered question before accepting the verification result. Do not let long ruled answer lines replace or suppress the shorter question text above them.
 - Preserve QUESTION_SECTION, QUESTION_ITEM and ANSWER_RULE metadata when the corresponding structure is visibly present. Never add a missing question from expected marks or sequence.
+- Prompt/template descriptions are NEVER document text. Remove or replace with [unclear] any accidental phrases such as "visible Roman/section label", "exact visible instruction", "exact visible marks formula", "exact visible question number", or "exact visible question text".
+- For a section heading, re-read the actual Roman label from the pixels (I, II, III, IV, V, VI, VII, VIII, etc.). Do not substitute a generic label description.
 - When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
 
@@ -1792,9 +1795,32 @@ VERIFICATION RULES:
     }
   }
 
+  text = sanitizePromptTemplateLeakage(text);
   return { text, raw: text, model, usage, scanMode, rescued };
 }
 
+const FORBIDDEN_OCR_TEMPLATE_PHRASES = [
+  'visible Roman/section label',
+  'exact visible instruction',
+  'exact visible marks formula',
+  'exact visible question number',
+  'exact visible question text'
+];
+
+function containsPromptTemplateLeakage(text) {
+  const source = String(text || '').toLowerCase();
+  return FORBIDDEN_OCR_TEMPLATE_PHRASES.some(phrase => source.includes(phrase.toLowerCase()));
+}
+
+function sanitizePromptTemplateLeakage(text) {
+  let out = String(text || '');
+  for (const phrase of FORBIDDEN_OCR_TEMPLATE_PHRASES) {
+    out = out.split(phrase).join('[unclear]');
+    const lowerPhrase = phrase.toLowerCase();
+    if (lowerPhrase !== phrase) out = out.split(lowerPhrase).join('[unclear]');
+  }
+  return out;
+}
 function expectedItemsFromMarks(value) {
   const m = String(value || '').match(/(\d+|[०-९]+)\s*[x×X]\s*(\d+|[०-९]+)\s*=\s*(\d+|[०-९]+)/);
   if (!m) return null;
@@ -1902,6 +1928,7 @@ function shouldVerifyOcr(text, imageMeta = {}) {
       structuredPageNeedsVerification(visible, imageMeta)
     );
   const questionStructureRisk = questionStructureNeedsVerification(visible);
+  const templateLeakage = containsPromptTemplateLeakage(visible);
 
   return emptyLike ||
     lineMiss ||
@@ -1910,6 +1937,7 @@ function shouldVerifyOcr(text, imageMeta = {}) {
     structuredRisk ||
     hardPage ||
     questionStructureRisk ||
+    templateLeakage ||
     (plain.length < 12 && likelyInk);
 }
 
