@@ -561,6 +561,33 @@
             background: #fff;
         }
 
+        .pdf-mini-pages {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-auto-rows: minmax(0, 1fr);
+            gap: 2px;
+            padding: 2px;
+            box-sizing: border-box;
+            background: #eef2f7;
+        }
+
+        .pdf-mini-pages img {
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            object-fit: cover;
+            background: #fff;
+            border: 0;
+        }
+
+        .pdf-mini-pages .batch-preview-type {
+            grid-column: 1 / -1;
+            align-self: center;
+            justify-self: center;
+        }
+
         .batch-preview-type {
             font-size: 0.72rem;
             font-weight: 800;
@@ -2505,27 +2532,42 @@ function loadLayoutPreferences() {
     } catch (_) {}
 }
 
-async function renderPdfPreviewCard(f, img) {
+async function renderPdfPreviewCard(f, container) {
     try {
         const data = await f.arrayBuffer();
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         const pdf = await pdfjsLib.getDocument({ data }).promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 0.55 });
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.ceil(viewport.width);
-        canvas.height = Math.ceil(viewport.height);
-        const ctx = canvas.getContext('2d', { alpha: false });
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        img.src = canvas.toDataURL('image/jpeg', 0.78);
-        img.style.display = 'block';
-        const typeLabel = img.parentElement?.querySelector('.batch-preview-type');
-        if (typeLabel) typeLabel.style.display = 'none';
-        const index = Number(String(img.id || '').replace('pdfPreview_', ''));
+        const limit = Math.min(pdf.numPages, 6);
+        const fragment = document.createDocumentFragment();
+
+        for (let pageNumber = 1; pageNumber <= limit; pageNumber++) {
+            const page = await pdf.getPage(pageNumber);
+            const viewport = page.getViewport({ scale: 0.32 });
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.ceil(viewport.width);
+            canvas.height = Math.ceil(viewport.height);
+            const ctx = canvas.getContext('2d', { alpha: false });
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
+            const img = document.createElement('img');
+            img.alt = 'PDF page ' + pageNumber;
+            img.src = canvas.toDataURL('image/jpeg', 0.72);
+            fragment.appendChild(img);
+        }
+
+        container.innerHTML = '';
+        container.appendChild(fragment);
+
+        const index = Number(String(container.id || '').replace('pdfPreview_', ''));
         const meta = Number.isInteger(index) ? $('batchMeta_' + index) : null;
-        if (meta) meta.textContent = fmtSize(f.size) + ' · PDF · ' + pdf.numPages + ' page' + (pdf.numPages === 1 ? '' : 's') + ' · item ' + (index + 1);
+        if (meta) {
+            meta.textContent = fmtSize(f.size) + ' · PDF · ' + pdf.numPages + ' page' +
+                (pdf.numPages === 1 ? '' : 's') +
+                (pdf.numPages > limit ? ' · showing first ' + limit : '') +
+                ' · item ' + (index + 1);
+        }
     } catch (_) {}
 }
 
@@ -2551,7 +2593,7 @@ function renderBatchPreview() {
             previewObjectUrls.push(url);
             media = '<img src="' + esc(url) + '" alt="">';
         } else if (isPdf) {
-            media = '<img id="pdfPreview_' + index + '" src="" alt="PDF preview" style="display:none"><div class="batch-preview-type">PDF</div>';
+            media = '<div id="pdfPreview_' + index + '" class="pdf-mini-pages"><div class="batch-preview-type">PDF</div></div>';
         }
 
         return '<div class="batch-preview-card" data-index="' + index + '">' +
@@ -2572,8 +2614,8 @@ function renderBatchPreview() {
     files.forEach((f, index) => {
         const ext = f.name.split('.').pop().toLowerCase();
         if (ext === 'pdf') {
-            const img = $('pdfPreview_' + index);
-            if (img) renderPdfPreviewCard(f, img);
+            const pdfContainer = $('pdfPreview_' + index);
+            if (pdfContainer) renderPdfPreviewCard(f, pdfContainer);
         }
     });
 }
