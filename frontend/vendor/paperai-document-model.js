@@ -134,6 +134,33 @@
         };
     }
 
+    function parseStyledLine(line) {
+        const m = String(line || '').match(
+            /^\s*\[\[LINE_STYLE:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i
+        );
+        if (!m) return null;
+
+        const meta = {};
+        String(m[1] || '').split(';').forEach(part => {
+            const pieces = part.split('=');
+            if (pieces.length < 2) return;
+            const key = pieces.shift().trim();
+            const value = pieces.join('=').trim();
+            if (key) meta[key] = value;
+        });
+
+        return {
+            type: 'styledText',
+            text: String(m[2] || '').trim(),
+            style: {
+                role: ['title','heading','body'].includes(meta.role) ? meta.role : 'body',
+                align: ['left','center','right'].includes(meta.align) ? meta.align : 'left',
+                weight: meta.weight === 'bold' ? 'bold' : 'normal',
+                size: ['small','body','heading','title'].includes(meta.size) ? meta.size : 'body'
+            }
+        };
+    }
+
     function parsePageProfileLine(line) {
         const m = String(line || '').match(/^\s*\[\[PAGE_PROFILE:\s*([\s\S]*?)\]\]\s*$/i);
         if (!m) return null;
@@ -181,6 +208,13 @@
             const pageProfile = parsePageProfileLine(line);
             if (pageProfile) {
                 profile = pageProfile;
+                i++;
+                continue;
+            }
+
+            const styledLine = parseStyledLine(line);
+            if (styledLine) {
+                nodes.push(styledLine);
                 i++;
                 continue;
             }
