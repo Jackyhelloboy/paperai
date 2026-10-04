@@ -5255,17 +5255,70 @@ function normalizeMathForWord(raw) {
         .normalize('NFC');
 }
 
+function ommlMathRun(text, size = 22) {
+    return '<m:r><m:rPr><m:sty m:val="p"/><w:rPr>' +
+        '<w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math" w:eastAsia="Cambria Math" w:cs="Cambria Math"/>' +
+        '<w:sz w:val="' + Number(size) + '"/><w:szCs w:val="' + Number(size) + '"/>' +
+        '</w:rPr></m:rPr><m:t xml:space="preserve">' + xmlEscape(text) + '</m:t></m:r>';
+}
+
+function ommlSimpleAtom(source, size = 22) {
+    const text = String(source || '').trim();
+    if (!text) return ommlMathRun('', size);
+
+    const root = text.match(/^√\s*(?:\(([^()]*)\)|([A-Za-z0-9π]+))$/);
+    if (root) {
+        const value = root[1] ?? root[2] ?? '';
+        return '<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr>' +
+            '<m:deg/>' +
+            '<m:e>' + ommlSimpleAtom(value, size) + '</m:e>' +
+            '</m:rad>';
+    }
+
+    const power = text.match(/^([A-Za-z0-9π]+)\s*\^\s*([A-Za-z0-9+\-−]+)$/);
+    if (power) {
+        return '<m:sSup><m:e>' + ommlMathRun(power[1], size) + '</m:e>' +
+            '<m:sup>' + ommlMathRun(power[2], Math.max(16, size - 4)) + '</m:sup></m:sSup>';
+    }
+
+    const subscript = text.match(/^([A-Za-z]+)_([A-Za-z0-9]+)$/);
+    if (subscript) {
+        return '<m:sSub><m:e>' + ommlMathRun(subscript[1], size) + '</m:e>' +
+            '<m:sub>' + ommlMathRun(subscript[2], Math.max(16, size - 4)) + '</m:sub></m:sSub>';
+    }
+
+    const fraction = text.match(/^([^/\s]+)\s*\/\s*([^/\s]+)$/);
+    if (fraction) {
+        return '<m:f><m:fPr><m:type m:val="bar"/></m:fPr>' +
+            '<m:num>' + ommlSimpleAtom(fraction[1], size) + '</m:num>' +
+            '<m:den>' + ommlSimpleAtom(fraction[2], size) + '</m:den>' +
+            '</m:f>';
+    }
+
+    return ommlMathRun(text, size);
+}
+
+function ommlFormulaBody(equation, size = 22) {
+    const text = String(equation || '').trim();
+
+    // Parse common equations into editable native math objects while
+    // preserving every literal operator and term.
+    const tokens = text.split(/(\s*(?:=|≈|≠|≤|≥|<|>|\+|−|-|×|÷)\s*)/).filter(Boolean);
+    return tokens.map(token => {
+        const trimmed = token.trim();
+        if (/^(?:=|≈|≠|≤|≥|<|>|\+|−|-|×|÷)$/.test(trimmed)) {
+            return ommlMathRun(' ' + trimmed + ' ', size);
+        }
+        return ommlSimpleAtom(trimmed, size);
+    }).join('');
+}
+
 function docxOmmlEquation(raw, options = {}) {
     const equation = normalizeMathForWord(raw);
     const size = Number(options.size || 22);
 
-    // OMML makes this a native editable Microsoft Word equation. We keep the
-    // source literal rather than algebraically rewriting it.
     return '<m:oMathPara><m:oMath>' +
-        '<m:r><m:rPr><m:sty m:val="p"/><w:rPr>' +
-            '<w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math" w:eastAsia="Cambria Math" w:cs="Cambria Math"/>' +
-            '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>' +
-        '</w:rPr></m:rPr><m:t xml:space="preserve">' + xmlEscape(equation) + '</m:t></m:r>' +
+        ommlFormulaBody(equation, size) +
         '</m:oMath></m:oMathPara>';
 }
 
@@ -5281,6 +5334,82 @@ function parseSimpleFlowLine(raw) {
     // Do not treat equations or prose arrows as a flow diagram.
     if (parts.some(p => /[=+×÷*/]/.test(p))) return null;
     return parts;
+}
+
+function parseVerticalFlowBlock(lines, startIndex) {
+    const nodes = [];
+    let i = startIndex;
+    let expectNode = true;
+    let sawArrow = false;
+
+    while (i < lines.length && nodes.length < 6) {
+        const raw = stripDocxMetadataForDetection(lines[i]);
+        if (!raw) break;
+
+        if (expectNode) {
+            if (raw.length > 28 || /[=+×÷*/]/.test(raw) || /^[↓↑⇩⇧]+$/.test(raw)) break;
+            nodes.push(raw);
+            expectNode = false;
+            i++;
+            continue;
+        }
+
+        if (/^(?:↓|⇩|→|⇒|⟶)+$/.test(raw)) {
+            sawArrow = true;
+            expectNode = true;
+            i++;
+            continue;
+        }
+
+        break;
+    }
+
+    if (!sawArrow || nodes.length < 2 || expectNode) return null;
+    return { nodes, nextIndex: i };
+}
+
+function docxVmlVerticalFlowDiagram(parts) {
+    const width = 250;
+    const boxW = 150;
+    const boxH = 28;
+    const gap = 28;
+    const x = (width - boxW) / 2;
+    const height = 16 + parts.length * boxH + Math.max(0, parts.length - 1) * gap + 12;
+    const shapes = [];
+
+    parts.forEach((label, index) => {
+        const y = 10 + index * (boxH + gap);
+        shapes.push(
+            '<v:roundrect id="paperai_vflow_box_' + (index + 1) + '" arcsize="10%" ' +
+              'style="position:absolute;left:' + x + 'pt;top:' + y + 'pt;width:' + boxW + 'pt;height:' + boxH + 'pt;z-index:2" ' +
+              'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827">' +
+              '<v:textbox inset="2pt,4pt,2pt,2pt"><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/>' +
+                '<w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:rPr>' +
+                  '<w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
+                  '<w:sz w:val="20"/><w:szCs w:val="20"/>' +
+                '</w:rPr><w:t>' + xmlEscape(label) + '</w:t></w:r></w:p></w:txbxContent></v:textbox>' +
+            '</v:roundrect>'
+        );
+
+        if (index < parts.length - 1) {
+            const xMid = width / 2;
+            const y1 = y + boxH;
+            const y2 = y + boxH + gap;
+            shapes.push(
+                '<v:line id="paperai_vflow_arrow_' + (index + 1) + '" ' +
+                  'from="' + xMid + 'pt,' + y1 + 'pt" to="' + xMid + 'pt,' + y2 + 'pt" ' +
+                  'strokecolor="#111827" strokeweight="1pt">' +
+                  '<v:stroke endarrow="block" endarrowwidth="narrow" endarrowlength="short"/>' +
+                '</v:line>'
+            );
+        }
+    });
+
+    return '<w:p><w:pPr><w:spacing w:before="35" w:after="55"/><w:jc w:val="center"/></w:pPr><w:r><w:pict>' +
+        '<v:group id="paperai_vflow_group" style="position:relative;width:' + width + 'pt;height:' + height + 'pt" ' +
+        'coordorigin="0,0" coordsize="' + width + ',' + height + '">' +
+        shapes.join('') +
+        '</v:group></w:pict></w:r></w:p>';
 }
 
 function docxVmlFlowDiagram(parts) {
@@ -5367,6 +5496,13 @@ function buildDocxBody(structuredText) {
         if (singleExercise) {
             body.push(docxSingleExerciseTable(singleExercise));
             i++;
+            continue;
+        }
+
+        const verticalFlow = parseVerticalFlowBlock(lines, i);
+        if (verticalFlow) {
+            body.push(docxVmlVerticalFlowDiagram(verticalFlow.nodes));
+            i = verticalFlow.nextIndex;
             continue;
         }
 
