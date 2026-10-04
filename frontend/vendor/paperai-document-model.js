@@ -3,6 +3,25 @@
 
     const CIRCLED = /[⓪①-⑳❶-❿]/;
 
+    // Older results may include generated audit copy. It is not paper content.
+    // Keep an ordinary source line beginning with "Review:" unless it belongs
+    // to the specific generated block.
+    function cleanOutputText(value) {
+        let inAudit = false;
+        return String(value || '').split('\n').filter(line => {
+            if (/^\s*(?:\*\*)?(?:AI reconstruction check|Paper pattern):(?:\*\*)?/i.test(line)) {
+                inAudit = true;
+                return false;
+            }
+            if (inAudit && /^\s*(?:\*\*)?Review:(?:\*\*)?/i.test(line)) return false;
+            if (line.trim()) inAudit = false;
+            return true;
+        }).join('\n').replace(
+            /visible Roman\/section label|exact visible (?:instruction|marks formula|question number|question text)/gi,
+            '[unclear]'
+        );
+    }
+
     function circledNumberValue(ch) {
         if (!ch) return null;
         const cp = ch.codePointAt(0);
@@ -308,7 +327,7 @@
     }
 
     function parse(text) {
-        const source = String(text || '').normalize('NFC');
+        const source = cleanOutputText(text).normalize('NFC');
         const lines = source.split('\n');
         const nodes = [];
         let profile = null;
@@ -412,6 +431,7 @@
 
     global.PaperAIDocumentModel = Object.freeze({
         parse,
+        cleanOutputText,
         splitCells,
         circledNumberValue,
         readNumber,

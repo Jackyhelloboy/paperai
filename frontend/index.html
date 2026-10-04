@@ -6255,7 +6255,7 @@ function collapsePortableAnswerBlankContinuations(value) {
 }
 
 function portableText(value) {
-    let out = String(value || '');
+    let out = window.PaperAIDocumentModel?.cleanOutputText?.(value) ?? String(value || '');
 
     out = out
         .replace(/^\s*\[\[PAGE_PROFILE:\s*[\s\S]*?\]\]\s*$/gmi, '')
@@ -6863,7 +6863,8 @@ function applyOutputProfile(profile) {
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
-    const repaired = repairLegacyBranchDiagram(String(text));
+    const clean = window.PaperAIDocumentModel?.cleanOutputText?.(text) ?? String(text);
+    const repaired = repairLegacyBranchDiagram(clean);
 
     // One canonical parser now feeds both Extracted HTML and the modern Word
     // exporter. Keep the older line parser as a fallback for cached clients.
@@ -8812,7 +8813,8 @@ function docxEditableListItem(item) {
 }
 
 function normalizeQuestionMetadataForLegacy(value) {
-    return String(value || '')
+    const clean = window.PaperAIDocumentModel?.cleanOutputText?.(value) ?? String(value || '');
+    return clean
         .replace(/^\s*\[\[QUESTION_SECTION:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,
             (_, label, instruction, marks) => [String(label || '').trim() + '.', String(instruction || '').trim(), String(marks || '').trim()].filter(Boolean).join(' '))
         .replace(/^\s*\[\[QUESTION_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,

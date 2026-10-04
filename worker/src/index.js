@@ -1817,9 +1817,7 @@ function containsPromptTemplateLeakage(text) {
 function sanitizePromptTemplateLeakage(text) {
   let out = String(text || '');
   for (const phrase of FORBIDDEN_OCR_TEMPLATE_PHRASES) {
-    out = out.split(phrase).join('[unclear]');
-    const lowerPhrase = phrase.toLowerCase();
-    if (lowerPhrase !== phrase) out = out.split(lowerPhrase).join('[unclear]');
+    out = out.replace(new RegExp(phrase, 'gi'), '[unclear]');
   }
   return out;
 }
@@ -1864,7 +1862,12 @@ function questionStructureNeedsVerification(text) {
       continue;
     }
 
-    if (/^\s*\[\[QUESTION_ITEM:/i.test(line)) found++;
+    if (/^\s*\[\[QUESTION_ITEM:/i.test(line)) {
+      // A numbered item with no transcribed wording still needs a pixel check,
+      // even when its section's item count matches the marks formula.
+      if (/^\s*\[\[QUESTION_ITEM:\s*[^|]*\|\|\s*\]\]\s*$/i.test(line)) return true;
+      found++;
+    }
   }
 
   return flush();
