@@ -4813,7 +4813,10 @@ async function prepareImageForOCR(source, forceSafe = false) {
 }
 
 async function fetchOcrEndpoint(path, options) {
-    const targets = [API_LOCAL + path, API_DIRECT + path];
+    const heavyAiRequest = path === '/api/ocr' || path === '/api/analyze-paper';
+    const targets = heavyAiRequest
+        ? [API_DIRECT + path, API_LOCAL + path]
+        : [API_LOCAL + path, API_DIRECT + path];
     let lastError = null;
 
     for (let i = 0; i < targets.length; i++) {
