@@ -66,13 +66,18 @@ function makeEnv({ drafts = [], pages = [], orphans = [], expiredDrafts = [] } =
                     args,
                     async first() {
                         if (/COALESCE\(SUM\(/.test(sql)) {
+                            // The real column is drafts.owner_key, so a query using any
+                            // other name would pass a loose fake but fail in production.
+                            if (/JOIN drafts/.test(sql) && !/d\.owner_key = \?/.test(sql)) {
+                                throw new Error('Storage query must filter on drafts.owner_key: ' + sql);
+                            }
                             const owner = /JOIN drafts/.test(sql) ? String(args[0]) : null;
                             const total = state.pages
                                 .filter(p => Number(p.image_bytes) > 0)
                                 .filter(p => {
                                     if (!owner) return true;
                                     const d = state.drafts.find(x => x.id === p.draft_id);
-                                    return d && String(d.owner ?? d.owner_key) === owner;
+                                    return d && String(d.owner_key) === owner;
                                 })
                                 .reduce((sum, p) => sum + Number(p.image_bytes || 0), 0);
                             return { total };

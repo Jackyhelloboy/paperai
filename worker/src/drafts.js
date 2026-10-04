@@ -127,7 +127,7 @@ function imageKeyFor(draftId, pageId) {
 // soon as their row is cleaned up, so the number tracks what R2 still holds.
 async function storedPhotoBytes(env, owner) {
   const sql = 'SELECT COALESCE(SUM(p.image_bytes), 0) AS total FROM draft_pages p'
-    + (owner ? ' JOIN drafts d ON d.id = p.draft_id WHERE p.image_bytes IS NOT NULL AND d.owner = ?'
+    + (owner ? ' JOIN drafts d ON d.id = p.draft_id WHERE p.image_bytes IS NOT NULL AND d.owner_key = ?'
       : ' WHERE p.image_bytes IS NOT NULL');
   const stmt = env.DB.prepare(sql);
   const row = owner ? await stmt.bind(owner).first() : await stmt.first();
