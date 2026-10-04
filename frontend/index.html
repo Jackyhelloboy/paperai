@@ -4894,7 +4894,7 @@ function docxBranchTable(root, items) {
     if (!items.length) return docxParagraph(root);
 
     const center = Math.floor(items.length / 2);
-    const widths = [1120, 980, 1080, 2250, 2470];
+    const widths = [1050, 900, 1050, 2050, 2250];
     const rows = items.map((item, index) => {
         const relation = index < center ? '╱──>' : index > center ? '╲──>' : '──>';
         const rootCell = index === 0
@@ -4923,7 +4923,7 @@ function docxBranchTable(root, items) {
             '</w:tr>';
     }).join('');
 
-    return docxTable(widths, rows);
+    return docxTable(widths, rows, { center: true });
 }
 
 function parseDocxFormFieldsLine(raw) {
@@ -4982,7 +4982,7 @@ function docxFormTable(fields) {
 function docxFullAnswerLine(number) {
     const widths = [520, 7380];
     return docxTable(widths,
-        '<w:tr><w:trPr><w:trHeight w:val="355" w:hRule="atLeast"/></w:trPr>' +
+        '<w:tr><w:trPr><w:trHeight w:val="325" w:hRule="atLeast"/></w:trPr>' +
         docxCell(
             docxParagraphRuns(
                 docxRun(circledWordNumber(number), { symbol: true, size: 21 }),
@@ -5033,65 +5033,92 @@ function parseDocxSingleExerciseLine(raw) {
     return { number, content };
 }
 
-function docxExerciseHalfTable(item, width) {
-    const visible = docxVisibleText(item.content || '');
-    const hasBlank = /_{3,}\s*$/.test(visible);
-    const text = visible.replace(/_{3,}\s*$/, '').trim();
-    const numberWidth = 430;
-    const textWidth = Math.min(1450, Math.max(650, text.length * 115));
-    const blankWidth = Math.max(550, width - numberWidth - textWidth);
-    const widths = [numberWidth, textWidth, blankWidth];
+function docxExerciseParts(item) {
+    const visible = docxVisibleText(item?.content || '');
+    return {
+        number: item?.number || '',
+        text: visible.replace(/_{3,}\s*$/, '').trim(),
+        hasBlank: /_{3,}\s*$/.test(visible)
+    };
+}
 
-    const cells = [
-        docxCell(
-            docxParagraphRuns(
-                docxRun(circledWordNumber(item.number), { symbol: true, size: 20 }),
-                { after: 0, center: true }
-            ),
-            widths[0],
-            { padLeft: 0, padRight: 15 }
+function docxExerciseNumberCell(number, width) {
+    return docxCell(
+        docxParagraphRuns(
+            docxRun(circledWordNumber(number), { symbol: true, size: 20 }),
+            { after: 0, center: true, line: 250 }
         ),
-        docxCell(
-            docxParagraph(text, { size: 20, after: 0 }),
-            widths[1],
-            { padLeft: 0, padRight: 20 }
-        ),
-        docxCell(
-            docxParagraph('', { after: 0 }),
-            widths[2],
-            { bottomBorder: hasBlank, padBottom: 75, padLeft: 0, padRight: 0, borderColor: '4B5563' }
-        )
-    ];
+        width,
+        { padLeft: 0, padRight: 15, padTop: 10, padBottom: 10 }
+    );
+}
 
-    return docxTable(widths, '<w:tr><w:trPr><w:trHeight w:val="320" w:hRule="atLeast"/></w:trPr>' +
-        cells.join('') + '</w:tr>', { center: false });
+function docxExerciseTextCell(text, width) {
+    return docxCell(
+        docxParagraph(text, { size: 20, after: 0, line: 250 }),
+        width,
+        { padLeft: 0, padRight: 25, padTop: 10, padBottom: 10 }
+    );
+}
+
+function docxExerciseBlankCell(hasBlank, width, rightPadding = 40) {
+    return docxCell(
+        docxParagraph('', { after: 0, line: 250 }),
+        width,
+        {
+            bottomBorder: hasBlank,
+            padBottom: 70,
+            padLeft: 0,
+            padRight: rightPadding,
+            padTop: 10,
+            borderColor: '4B5563'
+        }
+    );
 }
 
 function docxTwoColumnExerciseTable(row) {
-    const widths = [3950, 3950];
-    return docxTable(widths,
-        '<w:tr>' +
-        docxCell(docxExerciseHalfTable(row.left, widths[0] - 80), widths[0], {
-            padLeft: 0, padRight: 60, padTop: 0, padBottom: 0
-        }) +
-        docxCell(docxExerciseHalfTable(row.right, widths[1] - 80), widths[1], {
-            padLeft: 60, padRight: 0, padTop: 0, padBottom: 0
-        }) +
+    const left = docxExerciseParts(row.left);
+    const right = docxExerciseParts(row.right);
+
+    // One flat Word table row is much more stable than nested tables.
+    // number | word | blank || number | word | blank
+    const widths = [420, 920, 2610, 420, 920, 2610];
+
+    const cells = [
+        docxExerciseNumberCell(left.number, widths[0]),
+        docxExerciseTextCell(left.text, widths[1]),
+        docxExerciseBlankCell(left.hasBlank, widths[2], 70),
+        docxExerciseNumberCell(right.number, widths[3]),
+        docxExerciseTextCell(right.text, widths[4]),
+        docxExerciseBlankCell(right.hasBlank, widths[5], 0)
+    ];
+
+    return docxTable(
+        widths,
+        '<w:tr><w:trPr><w:trHeight w:val="315" w:hRule="atLeast"/></w:trPr>' +
+        cells.join('') +
         '</w:tr>',
         { center: false }
     );
 }
 
 function docxSingleExerciseTable(item) {
-    const widths = [3950, 3950];
-    return docxTable(widths,
-        '<w:tr>' +
-        docxCell(docxExerciseHalfTable(item, widths[0] - 80), widths[0], {
-            padLeft: 0, padRight: 60, padTop: 0, padBottom: 0
-        }) +
-        docxCell(docxParagraph('', { after: 0 }), widths[1], {
-            padLeft: 60, padRight: 0, padTop: 0, padBottom: 0
-        }) +
+    const left = docxExerciseParts(item);
+    const widths = [420, 920, 2610, 3950];
+
+    const cells = [
+        docxExerciseNumberCell(left.number, widths[0]),
+        docxExerciseTextCell(left.text, widths[1]),
+        docxExerciseBlankCell(left.hasBlank, widths[2], 70),
+        docxCell(docxParagraph('', { after: 0 }), widths[3], {
+            padLeft: 0, padRight: 0, padTop: 0, padBottom: 0
+        })
+    ];
+
+    return docxTable(
+        widths,
+        '<w:tr><w:trPr><w:trHeight w:val="315" w:hRule="atLeast"/></w:trPr>' +
+        cells.join('') +
         '</w:tr>',
         { center: false }
     );
