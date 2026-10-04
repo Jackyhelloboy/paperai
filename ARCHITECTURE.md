@@ -113,3 +113,12 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Local transliteration runs first. After a short typing pause, difficult/ambiguous words can receive a same-model Workers AI suggestion pass.
 - AI word suggestions are cached and capped per Teach session so they do not waste the daily free AI allocation. If free AI is exhausted or unavailable, local suggestions continue working.
 - Suggestion AI usage is recorded in the same daily usage tracker; there is still no paid fallback.
+
+
+## v15 explicit language routing
+
+- Teach now shows a Google-IME-style From/To bar. Source typing is English/Roman and the user can explicitly choose the target language/script.
+- Auto mode is still available, but mixed school pages now prefer nearby Indian-script context instead of letting a large English header force English.
+- Changing the target language while a Roman word is being composed immediately re-renders that same word in the newly selected script.
+- Local phonetic candidates appear immediately; ambiguous words can add capped Workers AI candidates after a short pause.
+- Canonical known spellings such as jawad, allah and rupayaa are converted across supported scripts, not only Devanagari.
