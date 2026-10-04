@@ -996,6 +996,35 @@
             }
         }
 
+        .layout-audit {
+            display: none;
+            margin-bottom: 0.625rem;
+            padding: 0.6rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg);
+            font-size: 0.65rem;
+            line-height: 1.45;
+            color: var(--text2);
+        }
+
+        .layout-audit.show { display: block; }
+
+        .layout-audit strong {
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        .layout-audit.good {
+            border-color: #bbf7d0;
+            background: #f0fdf4;
+        }
+
+        .layout-audit.review {
+            border-color: #fde68a;
+            background: #fffbeb;
+        }
+
         .teach-panel {
             display: none;
             margin-bottom: 0.625rem;
@@ -2147,6 +2176,8 @@
                 </button>
             </div>
 
+            <div class="layout-audit" id="layoutAudit"></div>
+
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
                 <div class="teach-sub">Pronunciation-based script typing: keep the same spoken English words and write how they sound in the target script. Example: <strong>jawad</strong> → <strong>जवाद</strong> and <strong>i love you</strong> → <strong>आई लव यू</strong>. Difficult spellings can receive AI phonetic suggestions.</div>
@@ -2236,7 +2267,7 @@ const batchPreview=$('batchPreview'),layoutReview=$('layoutReview');
 const pagePresetSelect=$('pagePresetSelect'),densitySelect=$('densitySelect'),aiLayoutToggle=$('aiLayoutToggle');
 const titleAlignSelect=$('titleAlignSelect'),fontScaleSelect=$('fontScaleSelect'),headingWeightSelect=$('headingWeightSelect');
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
-const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
+const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut'),layoutAudit=$('layoutAudit');
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
 const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
@@ -4841,6 +4872,7 @@ function showTab(tab) {
 
     if(lastResult) {
         if(showingRaw) {
+            if (layoutAudit) layoutAudit.classList.remove('show');
             // Public plain-text view only. Never expose internal OCR structure
             // such as [[BRANCH_*]] / [[CIRCLED:*]] to normal users.
             textOut.textContent = currentPlainText();
@@ -4856,6 +4888,7 @@ function showTab(tab) {
             applyOutputProfile(outputModel?.profile || lastResult?.layout_profile || {});
             textOut.innerHTML = formatOutput(adjustedText);
             textOut.className = 'output-body';
+            updateLayoutAudit(adjustedText);
         }
     }
 }
@@ -5345,6 +5378,88 @@ function refreshLayoutFromControls() {
     applyOutputProfile(lastResult.layout_profile);
     textOut.innerHTML = formatOutput(adjusted);
     textOut.className = 'output-body';
+    updateLayoutAudit(adjusted);
+}
+
+function auditStructuredPaper(value) {
+    const model = window.PaperAIDocumentModel?.parse?.(String(value || ''));
+    if (!model) return { score: 50, status: 'review', summary: 'Layout model unavailable', issues: [] };
+
+    let pages = 1;
+    let tables = 0;
+    let columns = 0;
+    let branches = 0;
+    let grids = 0;
+    let answerLines = 0;
+    const issues = [];
+
+    model.nodes.forEach(node => {
+        if (node.type === 'pageBreak') pages++;
+        if (node.type === 'table') {
+            tables++;
+            const widths = (node.rows || []).map(row => row.length);
+            if (widths.length && new Set(widths).size > 1) issues.push('table rows have different cell counts');
+        }
+        if (node.type === 'columns') columns++;
+        if (node.type === 'branch') {
+            branches++;
+            if ((node.items || []).length < 2) issues.push('branch diagram has too few detected branches');
+        }
+        if (node.type === 'wordSearch') {
+            grids++;
+            const widths = (node.rows || []).map(row => row.length);
+            if (widths.length && new Set(widths).size > 1) issues.push('letter grid rows have different column counts');
+            if (!(node.rows || []).length) issues.push('letter grid has no detected rows');
+        }
+        if (node.type === 'answerBlank') answerLines++;
+    });
+
+    const confidence = model.profile?.confidence || 'low';
+    if (confidence === 'low') issues.push('AI layout confidence is low');
+
+    let score = 100;
+    score -= issues.length * 15;
+    if (confidence === 'medium') score -= 5;
+    score = Math.max(35, Math.min(100, score));
+
+    return {
+        score,
+        status: score >= 75 ? 'good' : 'review',
+        profile: model.profile || {},
+        pages,
+        tables,
+        columns,
+        branches,
+        grids,
+        answerLines,
+        issues,
+        summary: [
+            pages + ' page' + (pages === 1 ? '' : 's'),
+            grids ? grids + ' grid' + (grids === 1 ? '' : 's') : '',
+            tables ? tables + ' table' + (tables === 1 ? '' : 's') : '',
+            branches ? branches + ' branch diagram' + (branches === 1 ? '' : 's') : '',
+            answerLines ? answerLines + ' answer line' + (answerLines === 1 ? '' : 's') : ''
+        ].filter(Boolean).join(' · ')
+    };
+}
+
+function updateLayoutAudit(value) {
+    if (!layoutAudit) return null;
+    const audit = auditStructuredPaper(value);
+    const profile = audit.profile || {};
+    const kind = String(profile.kind || 'general').replace(/-/g, ' ');
+    const confidence = profile.confidence || 'low';
+
+    layoutAudit.className = 'layout-audit show ' + audit.status;
+    layoutAudit.innerHTML =
+        '<strong>AI reconstruction check:</strong> ' +
+        esc(kind) + ' · ' + esc(confidence) + ' confidence · ' +
+        audit.score + '/100' +
+        (audit.summary ? ' · ' + esc(audit.summary) : '') +
+        (audit.issues.length ? '<br>Review: ' + esc(audit.issues.join('; ')) : ' · structure looks consistent');
+
+    if (lastResult) lastResult.layout_audit = audit;
+    return audit;
 }
 
 function applyOutputProfile(profile) {
@@ -5670,6 +5785,7 @@ goBtn.onclick = async () => {
         const adjustedInitialText = applyLayoutOverridesToStructuredText(lastResult.text || '');
         textOut.innerHTML = formatOutput(adjustedInitialText);
         textOut.className = 'output-body';
+        updateLayoutAudit(adjustedInitialText);
 
         // Make the final Extracted view follow the same AI profile as Word.
         applyOutputProfile(profile || {});
@@ -7223,6 +7339,7 @@ async function createExtractedWordFile() {
     const structuredText = currentStructuredWordText();
     if (!structuredText.trim()) throw new Error('Nothing was available to export.');
 
+    updateLayoutAudit(structuredText);
     const blob = await makeExtractedDocx(structuredText);
     return new File([blob], extractedWordFilename(), {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
