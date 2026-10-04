@@ -25,11 +25,12 @@ export default {
         status: 'running',
         endpoints: [
           'POST /api/ocr',
+          'POST /api/suggest-word',
           'GET /api/usage',
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v11',
+        architecture: 'production-literal-ocr-v14',
       }, { headers: corsHeaders });
     }
 
@@ -37,7 +38,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v12',
+        architecture: 'production-literal-ocr-v14',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -74,6 +75,21 @@ export default {
         return await handleOCR(request, env, corsHeaders);
       } catch (e) {
         return Response.json({ error: e.message || 'OCR request failed' }, { status: 500, headers: corsHeaders });
+      }
+    }
+
+    if (url.pathname === '/api/suggest-word' && request.method === 'POST') {
+      try {
+        return await handleWordSuggestion(request, env, corsHeaders);
+      } catch (e) {
+        if (isDailyFreeLimitError(e)) {
+          try { await markUsageExhausted(env); } catch (_) {}
+          return Response.json({ suggestions: [], code: 'FREE_AI_LIMIT_REACHED' }, { status: 429, headers: corsHeaders });
+        }
+        if (isPaidModelRequiredError(e)) {
+          return Response.json({ suggestions: [], code: 'FREE_MODEL_UNAVAILABLE' }, { status: 503, headers: corsHeaders });
+        }
+        return Response.json({ suggestions: [], error: 'Suggestion service unavailable' }, { status: 503, headers: corsHeaders });
       }
     }
 
@@ -495,6 +511,107 @@ async function markUsageExhausted(env) {
   });
 }
 
+const SUGGESTION_LANGUAGES = Object.freeze({
+  en: { label: 'English', script: 'Latin' },
+  hi: { label: 'Hindi', script: 'Devanagari' },
+  mr: { label: 'Marathi', script: 'Devanagari' },
+  te: { label: 'Telugu', script: 'Telugu' },
+  ta: { label: 'Tamil', script: 'Tamil' },
+  kn: { label: 'Kannada', script: 'Kannada' },
+  ml: { label: 'Malayalam', script: 'Malayalam' },
+  bn: { label: 'Bengali', script: 'Bengali' },
+  gu: { label: 'Gujarati', script: 'Gujarati' },
+  pa: { label: 'Punjabi', script: 'Gurmukhi' },
+  or: { label: 'Odia', script: 'Odia' },
+  ur: { label: 'Urdu', script: 'Perso-Arabic' },
+  ks: { label: 'Kashmiri', script: 'Perso-Arabic' },
+});
+
+function cleanSuggestionArray(value, max = 5) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of value) {
+    const candidate = String(item || '').normalize('NFC').trim();
+    if (!candidate || candidate.length > 60 || /[\r\n<>]/.test(candidate) || seen.has(candidate)) continue;
+    seen.add(candidate);
+    out.push(candidate);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function parseSuggestionJson(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+  const candidates = [raw];
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) candidates.unshift(fenced[1].trim());
+  const objectMatch = raw.match(/\{[\s\S]*\}/);
+  if (objectMatch) candidates.unshift(objectMatch[0]);
+  const arrayMatch = raw.match(/\[[\s\S]*\]/);
+  if (arrayMatch) candidates.unshift(arrayMatch[0]);
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (Array.isArray(parsed)) return cleanSuggestionArray(parsed);
+      if (Array.isArray(parsed?.suggestions)) return cleanSuggestionArray(parsed.suggestions);
+    } catch (_) {}
+  }
+  return [];
+}
+
+async function handleWordSuggestion(request, env, corsHeaders) {
+  if (!env.AI) return Response.json({ suggestions: [] }, { headers: corsHeaders });
+  const body = await request.json().catch(() => ({}));
+  const word = String(body?.word || '').trim();
+  const language = SUGGESTION_LANGUAGES[body?.language] ? body.language : 'en';
+  const meta = SUGGESTION_LANGUAGES[language];
+  const context = String(body?.context || '').replace(/[\r\n]+/g, ' ').slice(0, 220);
+  const localSuggestions = cleanSuggestionArray(body?.local_suggestions || [], 5);
+  if (!/^[A-Za-z][A-Za-z'’-]{1,39}$/.test(word)) {
+    return Response.json({ suggestions: [] }, { headers: corsHeaders });
+  }
+
+  const targetInstruction = language === 'en'
+    ? 'Suggest the most likely correctly spelled English word or proper-name spelling. Do not translate it.'
+    : 'The user typed a Roman phonetic spelling. Suggest the intended ' + meta.label + ' spelling in ' + meta.script + ' script. This is transliteration, not translation.';
+
+  const prompt = [
+    'You are a multilingual typing suggestion engine inside an OCR correction editor.',
+    '',
+    targetInstruction,
+    '',
+    'Roman input: "' + word + '"',
+    'Nearby document context: "' + (context || 'none') + '"',
+    'Local offline candidates: ' + JSON.stringify(localSuggestions),
+    '',
+    'Rules:',
+    '- Return 1 to 5 short candidate strings only.',
+    '- Put the best candidate first.',
+    '- Preserve names and intended pronunciation.',
+    '- For Indian-language targets, return the target native script, not Roman letters, unless the input is clearly an English word that should remain English.',
+    '- For English, return English only.',
+    '- Do not explain, translate sentences, or add punctuation around candidates.',
+    '- Output strict JSON exactly like {"suggestions":["candidate1","candidate2"]}.',
+  ].join('\n');
+
+  const response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
+    messages: [
+      { role: 'system', content: 'Return only compact JSON word suggestions. Never include commentary.' },
+      { role: 'user', content: prompt },
+    ],
+    max_completion_tokens: 160,
+    temperature: 0.1,
+    chat_template_kwargs: { enable_thinking: false },
+  }, { rejectIfBusy: true });
+
+  try { await recordAiUsage(env, response?.usage || null); } catch (_) {}
+  const suggestions = parseSuggestionJson(extractAiText(response));
+  return Response.json({ suggestions, language, source: 'workers-ai' }, {
+    headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' },
+  });
+}
 async function handleOCR(request, env, corsHeaders) {
   const contentType = request.headers.get('content-type') || '';
 
@@ -1049,7 +1166,9 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
     bn: 'Main language: Bengali. Preserve English, numbers and mixed scripts exactly.',
     gu: 'Main language: Gujarati. Preserve English, numbers and mixed scripts exactly.',
     pa: 'Main language: Punjabi/Gurmukhi. Preserve English, numbers and mixed scripts exactly.',
-    ur: 'Main language: Urdu. Preserve English, numbers and mixed scripts exactly.'
+    ur: 'Main language: Urdu. Preserve English, numbers and mixed scripts exactly.',
+    or: 'Main language: Odia. Preserve English, numbers and mixed scripts exactly.',
+    ks: 'Main language: Kashmiri. Preserve English, numbers and mixed scripts exactly.'
   }[language] || 'Auto-detect every visible language and preserve the original scripts exactly.';
 
   const prompt = `You are PaperAI, a high-accuracy visual OCR and handwriting transcription engine.
@@ -1419,6 +1538,7 @@ function detectLanguageFromText(text) {
     ['bn', /[\u0980-\u09FF]/g],
     ['gu', /[\u0A80-\u0AFF]/g],
     ['pa', /[\u0A00-\u0A7F]/g],
+    ['or', /[\u0B00-\u0B7F]/g],
     ['ur', /[\u0600-\u06FF]/g],
   ];
 

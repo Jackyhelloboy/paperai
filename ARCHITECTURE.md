@@ -102,3 +102,14 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Teach uses a vendored offline Indic phonetic transliteration engine with candidate suggestions and local high-confidence overrides for common spellings such as allah -> अल्लाह, jawad -> जवाद and rupayaa -> रुपया.
 - The Teach editor shows selectable transliteration candidates while typing and keeps all processing local to the browser.
 - The OCR/Teach font stack now includes Hind, Mukta, Noto Sans Devanagari, Noto Sans Telugu and Tiro Devanagari Hindi as script-appropriate fallbacks.
+
+
+## v14 automatic multilingual Teach
+
+- The Hindi phonetic on/off control is removed. Smart typing is always active inside Teach.
+- PaperAI chooses the target script from the selected document language or, in Auto mode, from the dominant script already present in the OCR result.
+- Offline phonetic suggestions support Devanagari (Hindi/Marathi), Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam, Urdu and Kashmiri.
+- English stays in Latin script and receives spelling/proper-name suggestions rather than transliteration.
+- Local transliteration runs first. After a short typing pause, difficult/ambiguous words can receive a same-model Workers AI suggestion pass.
+- AI word suggestions are cached and capped per Teach session so they do not waste the daily free AI allocation. If free AI is exhausted or unavailable, local suggestions continue working.
+- Suggestion AI usage is recorded in the same daily usage tracker; there is still no paid fallback.
