@@ -5505,7 +5505,7 @@ function updateLayoutAudit(value) {
 }
 
 function applyOutputProfile(profile) {
-    const p = getEffectiveLayoutProfile(profile || {});
+    const p = profile || {};
     const bodyPt = Math.max(9, Math.min(14, Number(p.bodySize) || 10));
     const headingPt = Math.max(10, Math.min(16, Number(p.headingSize) || 12));
     const titlePt = Math.max(12, Math.min(20, Number(p.titleSize) || 16));
@@ -5829,8 +5829,9 @@ goBtn.onclick = async () => {
         textOut.className = 'output-body';
         updateLayoutAudit(adjustedInitialText);
 
-        // Make the final Extracted view follow the same AI profile as Word.
-        applyOutputProfile(profile || {});
+        // Make the final Extracted view follow the same effective profile as Word.
+        const adjustedInitialModel = window.PaperAIDocumentModel?.parse?.(adjustedInitialText);
+        applyOutputProfile(adjustedInitialModel?.profile || profile || {});
 
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
