@@ -216,7 +216,7 @@
     function parseSectionHeadingLine(text, style = null) {
         const source = String(text || '').trim();
         if (!source) return null;
-        const m = source.match(/^\s*([IVXivx]{1,6})\s*[.)।:-]?\s+(.+)$/);
+        const m = source.match(/^\s*([IVXivx]{1,8})\s*[.)।:;\-]{0,3}\s+(.+)$/);
         if (!m) return null;
 
         const body = m[2].trim();
@@ -237,7 +237,7 @@
         const source = String(text || '').trim();
         if (!source) return null;
 
-        const m = source.match(/^\s*((?:\d+|[०-९]+|[⓪①-⑳❶-❿]))\s*[.)।:-]\s*(.+)$/u);
+        const m = source.match(/^\s*((?:\d+|[०-९]+|[⓪①-⑳❶-❿]))\s*[.)।:;\-]{1,3}\s*(.+)$/u);
         if (!m) return null;
 
         const number = CIRCLED.test(m[1])
