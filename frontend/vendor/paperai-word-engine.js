@@ -73,7 +73,7 @@
         return new d.TableCell({
             children,
             width: { size: width, type: d.WidthType.DXA },
-            verticalAlign: d.VerticalAlign.CENTER,
+            verticalAlign: (d.VerticalAlignTable || d.VerticalAlign).CENTER,
             rowSpan: options.rowSpan,
             columnSpan: options.columnSpan,
             borders,
@@ -295,6 +295,43 @@
         return children;
     }
 
+    async function validateDocxBlob(blob, structuredText) {
+        if (!global.JSZip) return { ok: true, checks: ['zip-validation-unavailable'] };
+
+        const zip = await global.JSZip.loadAsync(blob);
+        const file = zip.file('word/document.xml');
+        if (!file) throw new Error('Generated Word package is missing document.xml.');
+
+        const xml = await file.async('string');
+        if (/\[\[(?:BRANCH_|TABLE_|COLUMN_|CIRCLED:)/i.test(xml)) {
+            throw new Error('Internal PaperAI structure metadata leaked into the Word document.');
+        }
+
+        const model = MODEL().parse(structuredText);
+        const required = [];
+        model.nodes.forEach(node => {
+            if (node.type === 'branch') {
+                required.push(node.root, ...node.items.flatMap(item => [item.left, item.right]));
+            }
+        });
+
+        for (const token of required.filter(Boolean)) {
+            const plain = String(token).trim();
+            if (plain && !/[<>&]/.test(plain) && !xml.includes(plain)) {
+                throw new Error('Word export validation lost branch text: ' + plain);
+            }
+        }
+
+        return {
+            ok: true,
+            checks: [
+                'valid-docx-package',
+                'no-internal-markers',
+                required.length ? 'branch-text-preserved' : 'no-branch-required'
+            ]
+        };
+    }
+
     async function makeDocx(structuredText) {
         if (!available()) throw new Error('Modern Word engine is not available.');
         const d = DX();
@@ -321,11 +358,15 @@
             ]
         });
 
-        return await d.Packer.toBlob(doc);
+        const blob = await d.Packer.toBlob(doc);
+        const diagnostics = await validateDocxBlob(blob, structuredText);
+        global.__paperAIWordDiagnostics = diagnostics;
+        return blob;
     }
 
     global.PaperAIWordEngine = Object.freeze({
         available,
-        makeDocx
+        makeDocx,
+        validateDocxBlob
     });
 })(window);
