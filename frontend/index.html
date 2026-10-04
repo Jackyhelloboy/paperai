@@ -885,7 +885,7 @@
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
             font-size: 11px;
             font-weight: 400;
-            font-style: italic;
+            font-style: normal;
             line-height: 1.65;
             color: var(--text);
             font-variant-numeric: tabular-nums;
@@ -909,10 +909,21 @@
         }
 
         .output-raw {
-            font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
+            font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Segoe UI Symbol', 'Noto Sans Symbols 2', 'Noto Sans', Arial, sans-serif;
             font-size: 11px;
             font-weight: 400;
-            font-style: italic;
+            font-style: normal;
+        }
+
+        .output-symbol {
+            display: inline-block;
+            font-family: 'Segoe UI Symbol', 'Arial Unicode MS', 'Noto Sans Symbols 2', 'Noto Sans Symbols', Arial, sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            font-style: normal;
+            line-height: 1;
+            vertical-align: -0.02em;
+            letter-spacing: 0;
         }
 
         .ocr-strike {
@@ -2938,8 +2949,12 @@ function showTab(tab) {
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
+function formatVisibleText(value) {
+    return esc(value || '').replace(/([①-⑳⓪❶-❿])/g, '<span class="output-symbol">$1</span>');
+}
+
 function formatOcrAnnotation(type, content) {
-    const safe = esc(content || '').replace(/\n/g, '<br>');
+    const safe = formatVisibleText(content || '').replace(/\n/g, '<br>');
     if (type === 'STRIKE') return '<span class="ocr-strike">' + safe + '</span>';
     if (type === 'DOUBLE-STRIKE') return '<span class="ocr-double-strike">' + safe + '</span>';
     if (type === 'INSERT') return '<span class="ocr-insert">' + safe + '</span>';
@@ -2955,8 +2970,8 @@ function formatOcrAnnotation(type, content) {
     if (type === 'REPLACE') {
         const parts = String(content || '').split(/\s*(?:->|→|=>)\s*/);
         if (parts.length >= 2) {
-            const oldText = esc(parts.shift());
-            const newText = esc(parts.join(' → '));
+            const oldText = formatVisibleText(parts.shift());
+            const newText = formatVisibleText(parts.join(' → '));
             return '<span class="ocr-replace"><span class="ocr-replace-old">' + oldText + '</span> → <span class="ocr-replace-new">' + newText + '</span></span>';
         }
         return '<span class="ocr-replace">' + safe + '</span>';
@@ -2985,12 +3000,12 @@ function formatOutputLine(line) {
     let match;
 
     while ((match = token.exec(line)) !== null) {
-        html += esc(line.slice(last, match.index));
+        html += formatVisibleText(line.slice(last, match.index));
         html += formatOcrAnnotation(match[1], match[2]);
         last = token.lastIndex;
     }
 
-    html += esc(line.slice(last));
+    html += formatVisibleText(line.slice(last));
     return html;
 }
 
