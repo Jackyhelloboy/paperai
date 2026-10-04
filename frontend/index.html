@@ -2035,6 +2035,32 @@
                         </select>
                     </label>
                     <label class="layout-field">
+                        <span>Title align</span>
+                        <select id="titleAlignSelect">
+                            <option value="auto" selected>AI / source</option>
+                            <option value="left">Left</option>
+                            <option value="center">Center</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </label>
+                    <label class="layout-field">
+                        <span>Text size</span>
+                        <select id="fontScaleSelect">
+                            <option value="auto" selected>AI / source</option>
+                            <option value="small">Smaller</option>
+                            <option value="normal">Normal</option>
+                            <option value="large">Larger</option>
+                        </select>
+                    </label>
+                    <label class="layout-field">
+                        <span>Heading weight</span>
+                        <select id="headingWeightSelect">
+                            <option value="auto" selected>AI / source</option>
+                            <option value="bold">Bold</option>
+                            <option value="normal">Normal</option>
+                        </select>
+                    </label>
+                    <label class="layout-field">
                         <span>English font</span>
                         <input value="Tahoma" disabled>
                     </label>
@@ -2184,6 +2210,7 @@ const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageS
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
 const batchPreview=$('batchPreview'),layoutReview=$('layoutReview');
 const pagePresetSelect=$('pagePresetSelect'),densitySelect=$('densitySelect'),aiLayoutToggle=$('aiLayoutToggle');
+const titleAlignSelect=$('titleAlignSelect'),fontScaleSelect=$('fontScaleSelect'),headingWeightSelect=$('headingWeightSelect');
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
@@ -2385,6 +2412,9 @@ function getLayoutOptions() {
     return {
         preset: pagePresetSelect?.value || 'auto',
         density: densitySelect?.value || 'auto',
+        titleAlign: titleAlignSelect?.value || 'auto',
+        fontScale: fontScaleSelect?.value || 'auto',
+        headingWeight: headingWeightSelect?.value || 'auto',
         aiLayoutCheck: aiLayoutToggle?.checked !== false,
         englishFont: 'Tahoma'
     };
@@ -2404,6 +2434,15 @@ function loadLayoutPreferences() {
         }
         if (densitySelect && ['auto','compact','normal','spacious'].includes(pref.density)) {
             densitySelect.value = pref.density;
+        }
+        if (titleAlignSelect && ['auto','left','center','right'].includes(pref.titleAlign)) {
+            titleAlignSelect.value = pref.titleAlign;
+        }
+        if (fontScaleSelect && ['auto','small','normal','large'].includes(pref.fontScale)) {
+            fontScaleSelect.value = pref.fontScale;
+        }
+        if (headingWeightSelect && ['auto','bold','normal'].includes(pref.headingWeight)) {
+            headingWeightSelect.value = pref.headingWeight;
         }
         if (aiLayoutToggle && typeof pref.aiLayoutCheck === 'boolean') {
             aiLayoutToggle.checked = pref.aiLayoutCheck;
@@ -2555,8 +2594,11 @@ batchPreview.onclick = e => {
     else renderBatchPreview();
 };
 
-[pagePresetSelect, densitySelect, aiLayoutToggle].forEach(control => {
-    control?.addEventListener('change', saveLayoutPreferences);
+[pagePresetSelect, densitySelect, titleAlignSelect, fontScaleSelect, headingWeightSelect, aiLayoutToggle].forEach(control => {
+    control?.addEventListener('change', () => {
+        saveLayoutPreferences();
+        refreshLayoutFromControls();
+    });
 });
 loadLayoutPreferences();
 
@@ -4758,10 +4800,11 @@ function showTab(tab) {
             const extractedText = teachIsOpen
                 ? (lastResult.preview_layout_text || lastResult.text || '')
                 : (lastResult.text || '');
+            const adjustedText = applyLayoutOverridesToStructuredText(extractedText);
 
-            const outputModel = window.PaperAIDocumentModel?.parse?.(extractedText);
+            const outputModel = window.PaperAIDocumentModel?.parse?.(adjustedText);
             applyOutputProfile(outputModel?.profile || lastResult?.layout_profile || {});
-            textOut.innerHTML = formatOutput(extractedText);
+            textOut.innerHTML = formatOutput(adjustedText);
             textOut.className = 'output-body';
         }
     }
@@ -5145,8 +5188,73 @@ function renderWordSearchBlock(rows, answers) {
     return '<div class="ocr-wordsearch-layout">' + grid + answerHtml + '</div>';
 }
 
+function getEffectiveLayoutProfile(baseProfile = {}) {
+    const options = getLayoutOptions();
+    const profile = { ...baseProfile };
+
+    if (options.preset !== 'auto' && options.preset !== 'preserve') {
+        profile.kind = options.preset;
+    }
+    if (options.density !== 'auto') profile.density = options.density;
+    if (options.titleAlign !== 'auto') profile.titleAlign = options.titleAlign;
+    if (options.headingWeight !== 'auto') profile.titleWeight = options.headingWeight;
+
+    const factor = options.fontScale === 'small' ? 0.9 :
+        options.fontScale === 'large' ? 1.12 :
+        options.fontScale === 'normal' ? 1 : null;
+
+    if (factor) {
+        profile.bodySize = Math.max(9, Math.min(14, Math.round((Number(profile.bodySize) || 10) * factor)));
+        profile.headingSize = Math.max(10, Math.min(16, Math.round((Number(profile.headingSize) || 12) * factor)));
+        profile.titleSize = Math.max(12, Math.min(20, Math.round((Number(profile.titleSize) || 16) * factor)));
+    }
+
+    profile.englishFont = 'Tahoma';
+    return profile;
+}
+
+function serializePageProfile(profile = {}) {
+    const p = getEffectiveLayoutProfile(profile);
+    return '[[PAGE_PROFILE: ' +
+        'kind=' + (p.kind || 'general') + '; ' +
+        'orientation=' + (p.orientation || 'portrait') + '; ' +
+        'density=' + (p.density || 'normal') + '; ' +
+        'title_align=' + (p.titleAlign || 'left') + '; ' +
+        'title_weight=' + (p.titleWeight || 'bold') + '; ' +
+        'columns=' + Math.max(1, Math.min(3, Number(p.columns) || 1)) + '; ' +
+        'title_size=' + Math.max(12, Math.min(20, Number(p.titleSize) || 16)) + '; ' +
+        'heading_size=' + Math.max(10, Math.min(16, Number(p.headingSize) || 12)) + '; ' +
+        'body_size=' + Math.max(9, Math.min(14, Number(p.bodySize) || 10)) + '; ' +
+        'english_font=Tahoma; ' +
+        'confidence=' + (p.confidence || 'medium') +
+    ']]';
+}
+
+function applyLayoutOverridesToStructuredText(value) {
+    const source = String(value || '');
+    const parsed = window.PaperAIDocumentModel?.parse?.(source);
+    const profileLine = serializePageProfile(parsed?.profile || {});
+    const re = /^\s*\[\[PAGE_PROFILE:\s*[\s\S]*?\]\]\s*$/mi;
+
+    if (re.test(source)) return source.replace(re, profileLine);
+    return profileLine + '\n' + source;
+}
+
+function refreshLayoutFromControls() {
+    if (!lastResult || showingRaw || !resBox.classList.contains('show')) return;
+    const source = teachPanel.classList.contains('show')
+        ? (lastResult.preview_layout_text || lastResult.text || '')
+        : (lastResult.text || '');
+    const adjusted = applyLayoutOverridesToStructuredText(source);
+    const model = window.PaperAIDocumentModel?.parse?.(adjusted);
+    lastResult.layout_profile = model?.profile || lastResult.layout_profile || {};
+    applyOutputProfile(lastResult.layout_profile);
+    textOut.innerHTML = formatOutput(adjusted);
+    textOut.className = 'output-body';
+}
+
 function applyOutputProfile(profile) {
-    const p = profile || {};
+    const p = getEffectiveLayoutProfile(profile || {});
     const bodyPt = Math.max(9, Math.min(14, Number(p.bodySize) || 10));
     const headingPt = Math.max(10, Math.min(16, Number(p.headingSize) || 12));
     const titlePt = Math.max(12, Math.min(20, Number(p.titleSize) || 16));
@@ -5441,7 +5549,8 @@ goBtn.onclick = async () => {
         $('tabVerified').classList.add('active');
         $('tabRaw').classList.remove('active');
         updateResultActionsForTab();
-        textOut.innerHTML = formatOutput(lastResult.text || '');
+        const adjustedInitialText = applyLayoutOverridesToStructuredText(lastResult.text || '');
+        textOut.innerHTML = formatOutput(adjustedInitialText);
         textOut.className = 'output-body';
 
         // Make the final Extracted view follow the same AI profile as Word.
@@ -6978,9 +7087,10 @@ async function makeExtractedDocx(structuredText) {
 
 function currentStructuredWordText() {
     if (!lastResult) return '';
-    return teachPanel.classList.contains('show')
+    const source = teachPanel.classList.contains('show')
         ? (lastResult.preview_layout_text || lastResult.text || '')
         : (lastResult.text || '');
+    return applyLayoutOverridesToStructuredText(source);
 }
 
 function extractedWordFilename() {
