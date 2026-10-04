@@ -153,3 +153,14 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Unknown English phrases use the AI fallback first for pronunciation-based transliteration.
 - Other Indian scripts avoid blindly converting a Hindi-script pronunciation; AI handles their pronunciation rendering directly.
 - Semantic translation remains disabled in Teach.
+
+
+
+## v19 learned suggestions and layout-preserving Teach
+
+- Previously saved browser-local wrong→right corrections are now surfaced directly in Teach suggestions when they match the current source or a local phonetic candidate.
+- Learned corrections are ranked ahead of generic local and AI candidates, but are never forced when they do not match the current spoken form.
+- The AI suggestion endpoint receives both local candidates and relevant user-corrected candidates, validates returned candidates against the requested target script, and ranks learned → AI → local fallbacks.
+- Teach preview/save now keeps the original OCR layout/annotation structure and applies word-level corrections onto that structure instead of replacing the extracted result with a flattened textarea.
+- Branch diagrams, OCR annotations, line breaks and other extracted structure therefore remain stable while corrected words update inside the preserved layout.
+- Teach save preserves surrounding whitespace; only the corrected wording is intended to change.
