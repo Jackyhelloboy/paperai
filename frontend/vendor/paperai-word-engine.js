@@ -433,12 +433,71 @@
         });
     }
 
+    function questionLineTable(node, bodySize, density) {
+        const d = DX();
+        const widths = [520, 9330];
+        const rawNumber = node.rawNumber || (node.number != null ? String(node.number) : '');
+        const line = density === 'compact' ? 230 : density === 'spacious' ? 290 : 255;
+
+        return new d.Table({
+            width: { size: widths[0] + widths[1], type: d.WidthType.DXA },
+            columnWidths: widths,
+            borders: noBorder(),
+            rows: [
+                new d.TableRow({
+                    cantSplit: true,
+                    children: [
+                        tableCell(
+                            [para(rawNumber + '.', { size: bodySize, right: true, after: 0, line })],
+                            widths[0],
+                            { left: 0, right: 70, top: 0, bottomMargin: 0 }
+                        ),
+                        tableCell(
+                            [para(node.text || '', { size: bodySize, after: 0, line })],
+                            widths[1],
+                            { left: 0, right: 0, top: 0, bottomMargin: 0 }
+                        )
+                    ]
+                })
+            ]
+        });
+    }
+
+    function answerRuleTable(density) {
+        const d = DX();
+        const widths = [520, 9330];
+        const height = density === 'compact' ? 250 : density === 'spacious' ? 390 : 320;
+        return new d.Table({
+            width: { size: widths[0] + widths[1], type: d.WidthType.DXA },
+            columnWidths: widths,
+            borders: noBorder(),
+            rows: [
+                new d.TableRow({
+                    cantSplit: true,
+                    height: { value: height, rule: d.HeightRule.ATLEAST },
+                    children: [
+                        tableCell([para('', { after: 0 })], widths[0], { left: 0, right: 70, top: 0, bottomMargin: 0 }),
+                        tableCell([para('', { after: 0 })], widths[1], {
+                            bottom: true,
+                            bottomMargin: 70,
+                            left: 0,
+                            right: 0,
+                            top: 0,
+                            color: '64748B'
+                        })
+                    ]
+                })
+            ]
+        });
+    }
+
     function buildChildren(structuredText) {
         const d = DX();
         const model = MODEL().parse(structuredText);
         const profile = model.profile || {};
         const firstTextIndex = model.nodes.findIndex(n =>
-            (n.type === 'text' || n.type === 'styledText') && String(n.text || '').trim()
+            (n.type === 'text' || n.type === 'styledText' || n.type === 'sectionHeading' || n.type === 'questionLine') &&
+            String(n.text || '').trim()
         );
         const children = [];
         const density = profile.density || 'normal';
@@ -463,6 +522,28 @@
             }
             if (node.type === 'wordSearch') {
                 children.push(wordSearchBlock(node));
+                return;
+            }
+            if (node.type === 'sectionHeading') {
+                const style = node.style || {};
+                children.push(para(node.text || '', {
+                    bold: style.weight === 'normal' ? false : true,
+                    size: headingSize,
+                    after: density === 'compact' ? 24 : 38,
+                    keepNext: true,
+                    line: density === 'compact' ? 235 : density === 'spacious' ? 290 : 260,
+                    center: style.align === 'center',
+                    right: style.align === 'right',
+                    font: 'Tahoma'
+                }));
+                return;
+            }
+            if (node.type === 'questionLine') {
+                children.push(questionLineTable(node, bodySize, density));
+                return;
+            }
+            if (node.type === 'answerRule') {
+                children.push(answerRuleTable(density));
                 return;
             }
             if (node.type === 'answerBlank') {
