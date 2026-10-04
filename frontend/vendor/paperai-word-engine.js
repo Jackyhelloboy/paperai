@@ -509,7 +509,8 @@
 
         model.nodes.forEach((node, index) => {
             if (node.type === 'pageBreak') {
-                children.push(new d.Paragraph({ pageBreakBefore: true, children: [] }));
+                // Uploaded page boundaries do not dictate the exported page layout.
+                // Word fills each page and continues naturally onto the next.
                 return;
             }
             if (node.type === 'blank') {

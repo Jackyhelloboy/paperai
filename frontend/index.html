@@ -2047,10 +2047,7 @@
         }
 
         .output-page-break {
-            display: block;
-            height: 1px;
-            margin: 1rem 0;
-            border-top: 1px dashed var(--border2);
+            display: none;
         }
 
         .output-question-section {
@@ -6877,7 +6874,7 @@ function formatOutput(text) {
 
         model.nodes.forEach((node, index) => {
             if (node.type === 'pageBreak') {
-                html += '<span class="output-page-break" aria-hidden="true"></span>';
+                // Source boundaries are metadata; preview content flows continuously.
                 return;
             }
             if (node.type === 'table') {
@@ -6971,7 +6968,6 @@ function formatOutput(text) {
 
     while (i < lines.length) {
         if (/^\s*\[\[PAGE_BREAK\]\]\s*$/i.test(lines[i])) {
-            html += '<span class="output-page-break" aria-hidden="true"></span>';
             i++;
             continue;
         }
@@ -7181,7 +7177,7 @@ function orderedPaperPages(pageRecords, analysis) {
 }
 
 function assemblePaperPages(pageRecords, analysis) {
-    const { ordered, documentBreakAfter } = orderedPaperPages(pageRecords, analysis);
+    const { ordered } = orderedPaperPages(pageRecords, analysis);
     let text = '';
     let plain = '';
     let raw = '';
@@ -7197,12 +7193,7 @@ function assemblePaperPages(pageRecords, analysis) {
         plain += page.plain || page.text || '';
         raw += page.raw || page.text || page.plain || '';
 
-        // A new detected paper always starts on a fresh Word page. PAGE_BREAK
-        // already guarantees the physical separation; the analysis object
-        // retains the class/exam boundary without exposing private metadata.
-        if (documentBreakAfter.has(position)) {
-            // No synthetic visible label is inserted here.
-        }
+        // Preserve source-page identity for analysis without forcing output pagination.
     });
 
     return { text, plain, raw, ordered };
@@ -8831,7 +8822,6 @@ function buildDocxBody(structuredText) {
 
     while (i < lines.length) {
         if (/^\s*\[\[PAGE_BREAK\]\]\s*$/i.test(lines[i])) {
-            body.push('<w:p><w:r><w:br w:type="page"/></w:r></w:p>');
             i++;
             continue;
         }
