@@ -4919,6 +4919,15 @@ function portableText(value) {
     let out = String(value || '');
 
     out = out
+        .replace(/^\s*\[\[PAGE_PROFILE:\s*[\s\S]*?\]\]\s*$/gmi, '')
+        .replace(/^\s*\[\[WORDSEARCH_START\]\]\s*$/gmi, '')
+        .replace(/^\s*\[\[WORDSEARCH_END\]\]\s*$/gmi, '')
+        .replace(/^\s*\[\[WORDSEARCH_ROW:\s*([\s\S]*?)\]\]\s*$/gmi, (_, row) =>
+            String(row || '').split(/\s*\|\|\s*/).join(' | '))
+        .replace(/^\s*\[\[WORDSEARCH_ANSWER:\s*([^\]]+?)\s*\]\]\s*$/gmi, (_, n) =>
+            String(n || '').trim() + '. ____________________');
+
+    out = out
         .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
             return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
         })
