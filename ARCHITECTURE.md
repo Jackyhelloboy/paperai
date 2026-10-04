@@ -264,3 +264,61 @@ Renderers:
 ### Rule for future development
 
 Do not add a new visual structure independently to HTML and DOCX. First add it to the canonical document model, then implement renderer support. Preserve literal OCR content and never infer semantic content merely to make a layout look complete.
+
+## v22 AI paper reconstruction workflow
+
+PaperAI now treats OCR and visual reconstruction as separate responsibilities:
+
+1. **Literal OCR** reads the visible words/numbers/symbols without semantic correction.
+2. **AI layout profile** records only visual/reconstruction information in hidden metadata:
+   - paper type (question paper / worksheet / form / table / general)
+   - portrait/landscape
+   - compact/normal/spacious density
+   - title alignment and visible boldness
+   - relative title/heading/body sizes
+   - column count
+   - English output font fixed to Tahoma
+   - layout confidence
+3. **Optional line typography metadata** records clearly visible standalone title/heading style without rewriting its text:
+   - role
+   - left/center/right alignment
+   - normal/bold
+   - relative size
+4. The canonical PaperAI document model consumes the hidden metadata.
+5. Extracted HTML and editable DOCX render from the same model.
+6. A reconstruction audit checks structural consistency before Word generation.
+7. The DOCX package quality gate validates the generated Word file afterward.
+
+### Bulk import and preview
+
+The frontend accepts multiple files (up to 20 per batch), including images and PDFs.
+
+Before OCR:
+- image thumbnails are shown
+- PDF previews render up to the first six pages plus total page count
+- files can be removed or reordered
+- users can choose paper type, spacing/density, title alignment, text scale, heading weight and AI-layout checking
+- English output font is fixed to Tahoma
+
+All selected inputs are processed in their chosen order and combined with real page boundaries into one editable reconstructed document.
+
+### Post-OCR layout correction
+
+Layout options remain editable after OCR. Changing these options updates the Extracted view immediately and is applied to the Word export without re-running text recognition. This is intentional: visual reconstruction can change while literal OCR text remains protected.
+
+### Layout learning
+
+PaperAI stores layout preferences locally in the browser by detected paper type (paperai_layout_learning_v1). This is preference learning, not model fine-tuning. It does not upload a user's private corrections as global training data.
+
+### Hidden metadata
+
+Current internal layout metadata includes:
+- [[PAGE_PROFILE: ...]]
+- [[LINE_STYLE: ... || literal visible text]]
+- branch/table/columns/word-search structure metadata
+
+These markers are not shown in Extracted, Plain text, Copy, or Word output.
+
+### Invariant
+
+Never improve document appearance by changing the source wording. Layout, alignment, font size, borders, tables, shapes and spacing may be reconstructed; visible text content remains literal unless the user explicitly edits it in Teach.
