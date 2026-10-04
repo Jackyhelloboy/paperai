@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { handleDrafts, purgeExpiredDrafts } from './drafts.js';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
 
 const DAILY_FREE_NEURONS = 10000;
@@ -10,7 +11,7 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-PaperAI-Owner',
     };
 
     if (request.method === 'OPTIONS') {
@@ -339,7 +340,22 @@ export default {
       }
     }
 
+    // Drafts: build one document page by page across many sessions.
+    if (url.pathname.startsWith('/api/drafts')) {
+      try {
+        return await handleDrafts(request, env, corsHeaders, url);
+      } catch (e) {
+        return Response.json({ error: e?.message || 'Draft request failed' }, { status: 500, headers: corsHeaders });
+      }
+    }
+
     return Response.json({ error: 'Not found' }, { status: 404, headers: corsHeaders });
+  },
+
+  // Daily cleanup: R2 lifecycle rules delete page photos after 60 days, and this
+  // removes the drafts and rows that pointed at them.
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(purgeExpiredDrafts(env).catch(e => console.log('[Drafts] purge failed:', e?.message || e)));
   },
 };
 

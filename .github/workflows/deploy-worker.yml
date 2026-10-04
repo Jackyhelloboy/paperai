@@ -23,6 +23,63 @@ jobs:
           node tests/advanced-ocr.cjs
           node tests/output-sanitization.cjs
           node tests/continuous-flow.cjs
+          node tests/drafts.cjs
+
+      # Creates the drafts database and the page-photo bucket if they are missing,
+      # then writes the real database_id into a generated config for the deploy.
+      # Both steps are idempotent, so every run converges on the same setup.
+      - name: Provision drafts database and page-photo bucket
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: worker
+        run: |
+          set -euo pipefail
+          DB_NAME=paperai-drafts
+          BUCKET=paperai-pages
+
+          D1_JSON="$(npx wrangler@4 d1 list --json)"
+          if ! grep -q "\"$DB_NAME\"" <<<"$D1_JSON"; then
+            echo "Creating D1 database $DB_NAME"
+            npx wrangler@4 d1 create "$DB_NAME"
+            D1_JSON="$(npx wrangler@4 d1 list --json)"
+          fi
+
+          DB_ID="$(printf '%s' "$D1_JSON" | node -e '
+            let raw="";process.stdin.on("data",d=>raw+=d).on("end",()=>{
+              const rows=JSON.parse(raw);
+              const hit=rows.find(r=>r.name==="paperai-drafts");
+              if(!hit)process.exit(1);
+              process.stdout.write(hit.uuid||hit.database_id||"");
+            });')"
+          if [ -z "$DB_ID" ]; then
+            echo "Could not resolve the database id for $DB_NAME" >&2
+            exit 1
+          fi
+          echo "Using D1 database $DB_ID"
+
+          npx wrangler@4 d1 migrations apply "$DB_NAME" --remote
+
+          BUCKETS="$(npx wrangler@4 r2 bucket list)"
+          if ! grep -q "$BUCKET" <<<"$BUCKETS"; then
+            echo "Creating R2 bucket $BUCKET"
+            npx wrangler@4 r2 bucket create "$BUCKET"
+          fi
+
+          # Named rule with explicit flags, so it can never be mistaken for a prefix
+          # condition. Re-running with the same rule id updates the rule in place,
+          # and photos are removed 60 days after they are uploaded.
+          npx wrangler@4 r2 bucket lifecycle add "$BUCKET" \
+            --name expire-draft-pages --expire-days 60 --force
+
+          RULES="$(npx wrangler@4 r2 bucket lifecycle list "$BUCKET")"
+          grep -q "expire-draft-pages" <<<"$RULES"
+          grep -Eq "60" <<<"$RULES"
+          echo "Page photos expire after 60 days"
+
+          sed "s/00000000-0000-0000-0000-000000000000/$DB_ID/" wrangler.toml > wrangler.deploy.toml
+          grep -q "$DB_ID" wrangler.deploy.toml
+          echo "Generated worker/wrangler.deploy.toml"
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4
@@ -32,3 +89,4 @@ jobs:
           workingDirectory: worker
           wranglerVersion: "4"
           command: deploy
+          args: --config wrangler.deploy.toml
