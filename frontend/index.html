@@ -3662,7 +3662,7 @@ async function renderPdfPreviewCard(f, container) {
         const data = await f.arrayBuffer();
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         const pdf = await pdfjsLib.getDocument({ data }).promise;
-        const limit = Math.min(pdf.numPages, 6);
+        const limit = Math.min(pdf.numPages, 3);
         const fragment = document.createDocumentFragment();
 
         for (let pageNumber = 1; pageNumber <= limit; pageNumber++) {
@@ -3788,33 +3788,81 @@ function setFiles(inputFiles, append = false) {
         }
         valid.push(f);
     }
-
     if (!valid.length) return;
-    const combined = append ? [...files, ...valid] : valid;
-    files = combined.slice(0, 20);
+
+    const incomingKinds = valid.map(f => getFileCategory(f.name.split('.').pop().toLowerCase()));
+    const hasPdfIncoming = incomingKinds.includes('pdf');
+    const hasImageIncoming = incomingKinds.includes('img');
+    const hasOtherIncoming = incomingKinds.some(kind => kind !== 'img' && kind !== 'pdf');
+
+    // Keep batches simple: either images, one PDF, or one other document.
+    if ((hasPdfIncoming && (hasImageIncoming || hasOtherIncoming)) || (hasImageIncoming && hasOtherIncoming)) {
+        showErr('Upload either images, one PDF, or one document type at a time.');
+        return;
+    }
+
+    const currentKinds = files.map(f => getFileCategory(f.name.split('.').pop().toLowerCase()));
+    const currentHasPdf = currentKinds.includes('pdf');
+    const currentHasImage = currentKinds.includes('img');
+    const currentHasOther = currentKinds.some(kind => kind !== 'img' && kind !== 'pdf');
+
+    if (append && files.length) {
+        if (
+            (hasPdfIncoming && !currentHasPdf) ||
+            (hasImageIncoming && !currentHasImage) ||
+            (hasOtherIncoming && !currentHasOther)
+        ) {
+            showErr('Finish or clear the current batch before adding a different file type.');
+            return;
+        }
+    }
+
+    let next = append ? [...files, ...valid] : valid;
+
+    if (hasPdfIncoming || currentHasPdf) {
+        if (next.length > SMART_MAX_PDFS) {
+            showErr('Only 1 PDF can be processed at a time.');
+            return;
+        }
+    } else if (hasImageIncoming || currentHasImage) {
+        if (next.length > SMART_MAX_IMAGES) {
+            const available = Math.max(0, SMART_MAX_IMAGES - (append ? files.length : 0));
+            if (append && available > 0) {
+                next = [...files, ...valid.slice(0, available)];
+                showErr('Maximum 5 images at a time. Added the first ' + available + '.');
+            } else if (!append) {
+                next = valid.slice(0, SMART_MAX_IMAGES);
+                showErr('Maximum 5 images at a time. Using the first 5.');
+            } else {
+                showErr('Maximum 5 images at a time.');
+                return;
+            }
+        }
+    } else if (next.length > 1) {
+        showErr('Process one document file at a time.');
+        return;
+    }
+
+    files = next;
     file = files[0] || null;
 
-    // Keep the old single-file card out of the way; the new bulk preview is authoritative.
     filePreview.classList.remove('show');
     dropZone.style.display = '';
     goBtn.classList.add('show');
     goBtn.disabled = false;
-    const goLabel = $('goBtnLabel');
-    if (goLabel) goLabel.textContent = files.length > 1 ? 'Scan ' + files.length + ' files' : 'Scan & Rebuild';
     hideErr();
     resBox.classList.remove('show');
     renderBatchPreview();
 
-    if (incoming.length + (append ? files.length - valid.length : 0) > 20) {
-        showErr('PaperAI currently previews up to 20 files in one batch.');
-    }
+    // Start OCR immediately in the background while the user reviews previews.
+    startSmartExtractionForFiles();
 }
-
 function setFile(f) {
     setFiles([f], false);
 }
 
 function clearFile() {
+    resetSmartExtraction();
     files=[];
     file=null;
     previewObjectUrls.forEach(url => { try { URL.revokeObjectURL(url); } catch (_) {} });
@@ -3867,6 +3915,8 @@ batchPreview.onclick = e => {
     if (removeBtn) {
         const index = Number(removeBtn.dataset.removeIndex);
         if (!Number.isInteger(index)) return;
+        const removed = files[index];
+        if (removed) cancelSmartJob(removed);
         files.splice(index, 1);
         file = files[0] || null;
         if (!files.length) clearFile();
@@ -3883,6 +3933,7 @@ batchPreview.onclick = e => {
         [files[index], files[target]] = [files[target], files[index]];
         file = files[0] || null;
         renderBatchPreview();
+        updateSmartExtractionUI();
     }
 };
 
