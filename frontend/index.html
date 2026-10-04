@@ -5226,100 +5226,170 @@ function formatOutput(text) {
     return html;
 }
 
+async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1) {
+    const ext = inputFile.name.split('.').pop().toLowerCase();
+    const batchLabel = batchTotal > 1 ? 'File ' + (batchIndex + 1) + '/' + batchTotal + ' · ' : '';
+    let text = '';
+    let plain = '';
+    let raw = '';
+    let pageCount = 1;
+
+    if (ext === 'pdf') {
+        setProg(8, batchLabel + 'Loading PDF...');
+        const pages = await pdfToPages(inputFile);
+        pageCount = Math.max(1, pages.length);
+
+        for (let i = 0; i < pages.length; i++) {
+            const prefix = text ? '\n[[PAGE_BREAK]]\n' : '';
+            const plainPrefix = plain ? '\n\n' : '';
+            const rawPrefix = raw ? '\n\n' : '';
+
+            if (pages[i].type === 'text') {
+                setProg(
+                    20 + Math.round(((batchIndex + (i / Math.max(1,pages.length))) / Math.max(1,batchTotal)) * 68),
+                    batchLabel + 'Reading PDF page ' + (i+1) + '/' + pages.length
+                );
+                text += prefix + pages[i].text;
+                plain += plainPrefix + pages[i].text;
+                raw += rawPrefix + pages[i].text;
+                continue;
+            }
+
+            setProg(
+                20 + Math.round(((batchIndex + (i / Math.max(1,pages.length))) / Math.max(1,batchTotal)) * 68),
+                batchLabel + 'AI reconstructing page ' + (i+1) + '/' + pages.length
+            );
+
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 240000);
+            const result = await sendToOCR(
+                pages[i].blob,
+                ctrl.signal,
+                batchLabel + 'Preparing page ' + (i+1) + '/' + pages.length
+            );
+            clearTimeout(tid);
+
+            if (result.status === 'completed' && result.result) {
+                const annotated = result.result.annotated_text || result.result.full_text || '';
+                const pagePlain = result.result.full_text || annotated;
+                text += prefix + annotated;
+                plain += plainPrefix + pagePlain;
+                raw += rawPrefix + (result.result.raw_text || annotated);
+            }
+        }
+
+        return { text, plain, raw, pageCount };
+    }
+
+    if (XLS_EXTS.includes(ext)) {
+        setProg(25, batchLabel + 'Reading spreadsheet...');
+        text = await extractSpreadsheetFile(inputFile);
+        return { text, plain: text, raw: text, pageCount: 1 };
+    }
+
+    if (IMAGE_EXTS.includes(ext)) {
+        setProg(12, batchLabel + 'AI analyzing image...');
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 240000);
+        const result = await sendToOCR(inputFile, ctrl.signal, batchLabel + 'Preparing image');
+        clearTimeout(tid);
+        if (result.status !== 'completed' || !result.result) throw new Error('No results for ' + inputFile.name);
+
+        text = result.result.annotated_text || result.result.full_text || '';
+        plain = result.result.full_text || text;
+        raw = result.result.raw_text || text;
+        return { text, plain, raw, pageCount: 1 };
+    }
+
+    if (TXT_EXTS.includes(ext) || ext === 'rtf') {
+        setProg(25, batchLabel + 'Reading text...');
+        text = await extractPlainTextFile(inputFile);
+        return { text, plain: text, raw: text, pageCount: 1 };
+    }
+
+    if (['docx','odt','pptx','odp'].includes(ext)) {
+        setProg(25, batchLabel + 'Reading Office document...');
+        text = await extractOfficeZipFile(inputFile);
+        return { text, plain: text, raw: text, pageCount: 1 };
+    }
+
+    setProg(20, batchLabel + 'Reading document...');
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 120000);
+    const result = await sendFileToWorker(inputFile, ctrl.signal);
+    clearTimeout(tid);
+    if (result.status !== 'completed' || !result.result) throw new Error('No results for ' + inputFile.name);
+
+    text = result.result.annotated_text || result.result.full_text || '';
+    plain = result.result.full_text || text;
+    raw = result.result.raw_text || text;
+    return { text, plain, raw, pageCount: 1 };
+}
+
 goBtn.onclick = async () => {
-    if(!file) return;
+    if(!files.length) return;
+
     goBtn.disabled=true;
     hideErr();
     resBox.classList.remove('show');
     prog.classList.add('show');
-    setProg(5,'Reading file...');
-
-    const ext = file.name.split('.').pop().toLowerCase();
+    setProg(5, files.length > 1 ? 'Preparing ' + files.length + ' files...' : 'Reading file...');
 
     try {
         let allText = '';
         let allPlain = '';
         let allRaw = '';
+        let totalPages = 0;
 
-        if (ext === 'pdf') {
-            setProg(8, 'Loading PDF...');
-            const pages = await pdfToPages(file);
-            for (let i = 0; i < pages.length; i++) {
-                const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
-                const plainPrefix = allPlain ? '\n\n' : '';
-                const rawPrefix = allRaw ? '\n\n' : '';
-                if (pages[i].type === 'text') {
-                    setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
-                    allText += prefix + pages[i].text;
-                    allPlain += plainPrefix + pages[i].text;
-                    allRaw += rawPrefix + pages[i].text;
-                    continue;
-                }
+        for (let index = 0; index < files.length; index++) {
+            const current = files[index];
+            const result = await extractOneInputFile(current, index, files.length);
+            if (!result?.text && !result?.plain) continue;
 
-                setProg(48 + Math.round((i / pages.length) * 45), 'OCR scanned page ' + (i+1) + '/' + pages.length + '...');
-                const ctrl = new AbortController();
-                const tid = setTimeout(() => ctrl.abort(), 240000);
-                const result = await sendToOCR(pages[i].blob, ctrl.signal, 'Preparing page ' + (i+1) + '/' + pages.length);
-                clearTimeout(tid);
-                if (result.status === 'completed' && result.result) {
-                    const annotated = result.result.annotated_text || result.result.full_text || '';
-                    const plain = result.result.full_text || annotated;
-                    allText += prefix + annotated;
-                    allPlain += plainPrefix + plain;
-                    allRaw += rawPrefix + (result.result.raw_text || annotated);
-                }
-            }
-        } else if (XLS_EXTS.includes(ext)) {
-            setProg(20, 'Reading spreadsheet...');
-            allText = await extractSpreadsheetFile(file);
-            allPlain = allText;
-            allRaw = allText;
-            setProg(90, 'Formatting cells...');
-        } else if (IMAGE_EXTS.includes(ext)) {
-            setProg(12, 'Analyzing image...');
-            const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 240000);
-            const result = await sendToOCR(file, ctrl.signal, 'Preparing image');
-            clearTimeout(tid);
-            if (result.status !== 'completed' || !result.result) throw new Error('No results');
-            allText = result.result.annotated_text || result.result.full_text || '';
-            allPlain = result.result.full_text || allText;
-            allRaw = result.result.raw_text || allText;
-        } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
-            setProg(25, 'Reading text...');
-            allText = await extractPlainTextFile(file);
-            allPlain = allText;
-            allRaw = allText;
-        } else if (['docx','odt','pptx','odp'].includes(ext)) {
-            setProg(25, 'Reading Office document...');
-            allText = await extractOfficeZipFile(file);
-            allPlain = allText;
-            allRaw = allText;
-        } else {
-            setProg(20, 'Reading legacy document...');
-            const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 120000);
-            const result = await sendFileToWorker(file, ctrl.signal);
-            clearTimeout(tid);
-            if (result.status !== 'completed' || !result.result) throw new Error('No results');
-            allText = result.result.annotated_text || result.result.full_text || '';
-            allPlain = result.result.full_text || allText;
-            allRaw = result.result.raw_text || allText;
+            const pagePrefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
+            const plainPrefix = allPlain ? '\n\n' : '';
+            const rawPrefix = allRaw ? '\n\n' : '';
+
+            allText += pagePrefix + (result.text || result.plain || '');
+            allPlain += plainPrefix + (result.plain || result.text || '');
+            allRaw += rawPrefix + (result.raw || result.text || result.plain || '');
+            totalPages += Number(result.pageCount) || 1;
+
+            setProg(
+                Math.min(92, 20 + Math.round(((index + 1) / files.length) * 72)),
+                'Reconstructed ' + (index + 1) + '/' + files.length + ' file' + (files.length > 1 ? 's' : '')
+            );
         }
 
         if (!allPlain) allPlain = allText;
-        if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in file');
+        if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in selected files');
 
         allText = repairLegacyBranchDiagram(allText);
         allPlain = repairLegacyBranchDiagram(allPlain);
 
         const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
+        const model = window.PaperAIDocumentModel?.parse?.(allText);
+        const profile = model?.profile || null;
+
         let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
+        if (files.length > 1) badges += '<span class="badge badge-gray">' + files.length + ' files</span>';
+        if (totalPages > 1) badges += '<span class="badge badge-gray">' + totalPages + ' pages</span>';
+        if (profile?.kind && profile.kind !== 'general') {
+            badges += '<span class="badge badge-gray">' + esc(profile.kind.replace(/-/g,' ')) + '</span>';
+        }
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         $('statsBar').innerHTML = badges;
 
-        lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw };
+        lastResult = {
+            text: allText,
+            plain_text: allPlain,
+            raw_text: allRaw,
+            layout_profile: profile,
+            source_files: files.map(f => ({ name: f.name, size: f.size, type: f.type || '' })),
+            layout_options: getLayoutOptions()
+        };
+
         teachPanel.classList.remove('show');
         showingRaw = false;
         $('tabVerified').classList.add('active');
@@ -5327,16 +5397,27 @@ goBtn.onclick = async () => {
         updateResultActionsForTab();
         textOut.innerHTML = formatOutput(lastResult.text || '');
         textOut.className = 'output-body';
+
+        // Make the final Extracted view follow the AI reconstruction profile.
+        textOut.dataset.paperKind = profile?.kind || 'general';
+        textOut.dataset.paperDensity = profile?.density || getLayoutOptions().density || 'normal';
+        textOut.dataset.titleAlign = profile?.titleAlign || 'left';
+
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
-        setProg(100, 'Done');
-        setTimeout(() => prog.classList.remove('show'), 800);
+        setProg(100, 'Question paper reconstruction complete');
+        setTimeout(() => prog.classList.remove('show'), 900);
         loadUsage();
+
         if (window.matchMedia('(max-width: 479px)').matches) {
             setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
         }
     } catch(e) {
-        showErr(e.name==='AbortError' ? 'The network request took too long. PaperAI now retries AI timeouts automatically; please check your connection and try again.' : e.message);
+        showErr(
+            e.name==='AbortError'
+                ? 'The network request took too long. PaperAI retries AI timeouts automatically; check your connection and try again.'
+                : e.message
+        );
     } finally {
         goBtn.disabled=false;
     }
