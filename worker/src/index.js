@@ -31,7 +31,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v23',
+        architecture: 'production-literal-ocr-v24',
       }, { headers: corsHeaders });
     }
 
@@ -39,7 +39,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v23',
+        architecture: 'production-literal-ocr-v24',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -1216,7 +1216,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v23',
+        architecture: 'production-literal-ocr-v24',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1795,6 +1795,67 @@ VERIFICATION RULES:
   return { text, raw: text, model, usage, scanMode, rescued };
 }
 
+function expectedItemsFromMarks(value) {
+  const m = String(value || '').match(/(\d+|[०-९]+)\s*[x×X]\s*(\d+|[०-९]+)\s*=\s*(\d+|[०-९]+)/);
+  if (!m) return null;
+  const map = { '०':'0','१':'1','२':'2','३':'3','४':'4','५':'5','६':'6','७':'7','८':'8','९':'9' };
+  const n = Number(String(m[1]).replace(/[०-९]/g, ch => map[ch] || ch));
+  return Number.isFinite(n) ? n : null;
+}
+
+function questionStructureNeedsVerification(text) {
+  const source = String(text || '');
+  const questionLike =
+    /\[\[(?:QUESTION_SECTION|QUESTION_ITEM):/i.test(source) ||
+    /(?:^|\n)\s*[IVX]{1,6}\s*[.)।:-]?\s+/m.test(source) ||
+    /\b(?:\d+|[०-९]+)\s*[x×X]\s*(?:\d+|[०-९]+)\s*=\s*(?:\d+|[०-९]+)/i.test(source);
+
+  if (!questionLike) return false;
+
+  const hasStructuredItems = /\[\[QUESTION_ITEM:/i.test(source);
+  if (!hasStructuredItems) return true;
+
+  const lines = source.split('\n');
+  let expected = null;
+  let found = 0;
+  let sawSection = false;
+
+  const flush = () => {
+    if (!sawSection) return false;
+    if (Number.isFinite(expected) && expected > 0 && found !== expected) return true;
+    return false;
+  };
+
+  for (const line of lines) {
+    const section = line.match(/^\s*\[\[QUESTION_SECTION:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i);
+    if (section) {
+      if (flush()) return true;
+      sawSection = true;
+      expected = expectedItemsFromMarks(section[3]);
+      found = 0;
+      continue;
+    }
+
+    if (/^\s*\[\[QUESTION_ITEM:/i.test(line)) found++;
+  }
+
+  return flush();
+}
+
+function structuredPageNeedsVerification(text, imageMeta = {}) {
+  const source = String(text || '');
+  const hasStructuredMetadata =
+    /\[\[(?:TABLE_START|COLUMN_START|WORDSEARCH_START|BRANCH_ROOT|QUESTION_SECTION|QUESTION_ITEM):?/i.test(source);
+
+  if (imageMeta?.branchingLayout) return true;
+  if (Number(imageMeta?.denseOptionRows || 0) >= 4) return true;
+  if (Number(imageMeta?.multiColumnRows || 0) >= 5) return true;
+
+  // If the model returned explicit structure on a clear page, trust the first
+  // pass and reserve the expensive verification pass for evidence of risk.
+  return !hasStructuredMetadata;
+}
+
 function shouldVerifyOcr(text, imageMeta = {}) {
   const visible = String(text || '').trim();
   const emptyLike =
@@ -1832,18 +1893,23 @@ function shouldVerifyOcr(text, imageMeta = {}) {
   const hardPage =
     imageMeta?.difficulty === 'hard' ||
     Number(imageMeta?.score || 0) >= 2;
-  const questionPaperLike =
-    /\[\[(?:QUESTION_SECTION|QUESTION_ITEM):/i.test(visible) ||
-    /(?:^|\n)\s*[IVX]{1,6}\s*[.)।:-]?\s+/m.test(visible) ||
-    /\b\d+\s*[x×X]\s*\d+\s*=\s*\d+\s*M?\b/i.test(visible);
+  const structuredRisk =
+    structuredPage &&
+    (
+      hardPage ||
+      lineMiss ||
+      hasUnclear ||
+      structuredPageNeedsVerification(visible, imageMeta)
+    );
+  const questionStructureRisk = questionStructureNeedsVerification(visible);
 
   return emptyLike ||
     lineMiss ||
     hasUnclear ||
     hasEditMetadata ||
-    structuredPage ||
+    structuredRisk ||
     hardPage ||
-    questionPaperLike ||
+    questionStructureRisk ||
     (plain.length < 12 && likelyInk);
 }
 
