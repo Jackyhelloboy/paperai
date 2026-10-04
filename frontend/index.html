@@ -3165,6 +3165,67 @@
         .draft-tool:disabled { opacity: .4; cursor: not-allowed; }
         .draft-tool.rm { color: var(--red); }
 
+        /* Rare and destructive actions live behind one menu, so each page keeps
+           only the controls people actually reach for. */
+        .draft-more {
+            position: relative;
+            flex: 0 0 auto;
+        }
+
+        .draft-more > summary {
+            list-style: none;
+            border: 1px solid var(--border2);
+            background: var(--surface);
+            border-radius: 8px;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: var(--text2);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .draft-more > summary::-webkit-details-marker { display: none; }
+
+        .draft-more-menu {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 0.25rem);
+            z-index: 20;
+            min-width: 9rem;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            border-radius: 10px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, .18);
+            overflow: hidden;
+        }
+
+        .draft-more-menu button {
+            border: 0;
+            background: transparent;
+            padding: 0.5rem 0.7rem;
+            font-size: 0.74rem;
+            font-weight: 600;
+            color: var(--text);
+            text-align: left;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .draft-more-menu button:hover { background: var(--surface2); }
+        .draft-more-menu button.rm { color: var(--red); }
+
+        .draft-empty {
+            padding: 1rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text3);
+            border: 1px dashed var(--border2);
+            border-radius: 10px;
+        }
+
         .draft-add {
             display: flex;
             align-items: center;
@@ -3387,14 +3448,12 @@
                     </button>
                     <input type="file" id="draftAddInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
                     <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
-                    <span class="draft-hint">One photo per page · up to 200 pages · 3 MB each</span>
-                    <span class="draft-hint">Photos are saved straight away. Use a page's Read button to turn it into text — that step needs AI.</span>
+                    <span class="draft-hint">Up to 200 pages · 3 MB each · photos save first, Read adds the text</span>
                 </div>
 
                 <div class="draft-actions">
-                    <button class="draft-btn" id="draftTeachBtn" type="button">Correct for export</button>
+                    <button class="draft-btn" id="draftTeachBtn" type="button" title="Correct the whole document before exporting. Changes here affect the Word file only — use a page's Edit button to save a change for good.">Correct for export</button>
                     <button class="draft-btn primary" id="draftWordBtn" type="button">Combine &amp; export Word</button>
-                    <span class="draft-hint">Corrections made in Teach apply to the Word file only. To save a change to a page for good, use that page's Fix button.</span>
                 </div>
             </div>
         </div>
@@ -9484,26 +9543,37 @@ function renderDraftList() {
 function renderDraftPages() {
     const draft = activeDraft;
     const pages = draft?.pages || [];
-    $('draftPages').innerHTML = pages.map((page, index) =>
-        '<div class="draft-page">' +
+
+    if (draft && !pages.length) {
+        $('draftPages').innerHTML = '<div class="draft-empty">No pages yet. Add a photo of the first page below.</div>';
+    } else {
+        $('draftPages').innerHTML = pages.map((page, index) => {
+            const text = String(page.text || '');
+            return '<div class="draft-page">' +
         (page.has_image
             ? '<img class="draft-page-img" src="' + esc(draftImageUrl(draft.id, page.id)) + '" alt="Page ' + (index + 1) + '" loading="lazy">'
             : '<div class="draft-page-img"></div>') +
         '<div class="draft-page-index">Page ' + (index + 1) + '</div>' +
-        '<div class="draft-page-text">' + (esc(String(page.text || '').slice(0, 120)) || '<em>No text yet</em>') + '</div>' +
+        '<div class="draft-page-text">' + (esc(text.slice(0, 120)) || (page.has_image ? '<em>No text yet — press Read</em>' : '<em>No photo</em>')) + '</div>' +
+        // Three controls only: reorder, and the one action that page needs next.
         '<div class="draft-page-tools">' +
         '<button class="draft-tool" type="button" data-page-up="' + esc(page.id) + '"' + (index === 0 ? ' disabled' : '') + '>Up</button>' +
         '<button class="draft-tool" type="button" data-page-down="' + esc(page.id) + '"' + (index === pages.length - 1 ? ' disabled' : '') + '>Down</button>' +
-        '<button class="draft-tool" type="button" data-page-fix="' + esc(page.id) + '">Fix</button>' +
-        (page.has_image
-            ? '<button class="draft-tool" type="button" data-page-read="' + esc(page.id) + '">'
-                + (page.text ? 'Re-read' : 'Read') + '</button>'
-            : '') +
-        '<button class="draft-tool" type="button" data-page-replace="' + esc(page.id) + '">Photo</button>' +
-        '<button class="draft-tool rm" type="button" data-page-del="' + esc(page.id) + '">Remove</button>' +
+        (text
+            ? '<button class="draft-tool" type="button" data-page-fix="' + esc(page.id) + '">Edit</button>'
+            : '<button class="draft-tool" type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read</button>') +
+        '<details class="draft-more">' +
+        '<summary aria-label="More options for page ' + (index + 1) + '">More</summary>' +
+        '<div class="draft-more-menu">' +
+        (page.has_image ? '<button type="button" data-page-replace="' + esc(page.id) + '">Replace photo</button>' : '') +
+        '<button type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>' + (text ? 'Read again' : 'Read text') + '</button>' +
+        '<button type="button" class="rm" data-page-del="' + esc(page.id) + '">Remove page</button>' +
         '</div>' +
-        '</div>'
-    ).join('');
+        '</details>' +
+        '</div>' +
+        '</div>';
+        }).join('');
+    }
 
     $('draftEditor').hidden = !draft;
     if (!draft) return;
