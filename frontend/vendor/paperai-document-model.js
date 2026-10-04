@@ -260,6 +260,53 @@
         return { type: 'answerRule', raw: source };
     }
 
+    function parseQuestionPaperMarker(line) {
+        const source = String(line || '');
+
+        const section = source.match(
+            /^\s*\[\[QUESTION_SECTION:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i
+        );
+        if (section) {
+            const label = String(section[1] || '').trim();
+            const instruction = String(section[2] || '').trim();
+            const marksText = String(section[3] || '').trim();
+            const visible = [label ? label + '.' : '', instruction, marksText].filter(Boolean).join(' ');
+            return {
+                type: 'sectionHeading',
+                label: label.toUpperCase(),
+                title: instruction,
+                text: visible,
+                marks: parseMarksPattern(marksText || visible),
+                style: null
+            };
+        }
+
+        const item = source.match(
+            /^\s*\[\[QUESTION_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i
+        );
+        if (item) {
+            const rawNumber = String(item[1] || '').trim();
+            const questionText = String(item[2] || '').trim();
+            const number = CIRCLED.test(rawNumber)
+                ? circledNumberValue(rawNumber)
+                : devanagariDigitToNumber(rawNumber);
+            return {
+                type: 'questionLine',
+                number,
+                rawNumber,
+                text: questionText,
+                raw: rawNumber + '. ' + questionText,
+                style: null
+            };
+        }
+
+        if (/^\s*\[\[ANSWER_RULE\]\]\s*$/i.test(source)) {
+            return { type: 'answerRule', raw: '___________________________________________________________________________' };
+        }
+
+        return null;
+    }
+
     function parse(text) {
         const source = String(text || '').normalize('NFC');
         const lines = source.split('\n');
@@ -273,6 +320,13 @@
             const pageProfile = parsePageProfileLine(line);
             if (pageProfile) {
                 profile = pageProfile;
+                i++;
+                continue;
+            }
+
+            const questionMarker = parseQuestionPaperMarker(line);
+            if (questionMarker) {
+                nodes.push(questionMarker);
                 i++;
                 continue;
             }
