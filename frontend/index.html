@@ -9610,7 +9610,7 @@ async function addPageToDraft(imageFile) {
         const saved = await fetchDraftEndpoint('/api/drafts/' + activeDraft.id + '/pages', { method: 'POST', body });
         await refreshActiveDraft();
         setDraftStatus('Page added. Reading the text...');
-        await readDraftPage(saved.page.id, true);
+        await performDraftPageRead(saved.page.id, true);
     } catch (e) {
         setDraftStatus('Could not add that page: ' + (e.message || 'unknown error'), true);
     } finally {
@@ -9621,15 +9621,13 @@ async function addPageToDraft(imageFile) {
 
 // Turn the stored photo into text on demand. A page with no text can be read
 // later, so an exhausted AI quota never blocks building a document.
-async function readDraftPage(pageId, quiet) {
-    if (!activeDraft || draftBusy) return;
+async function performDraftPageRead(pageId, quiet) {
     const page = (activeDraft.pages || []).find(p => p.id === pageId);
     if (!page) return;
     if (!page.has_image) {
         if (!quiet) setDraftStatus('Add a photo to that page before reading it.', true);
         return;
     }
-    setDraftBusy(true);
     if (!quiet) setDraftStatus('Reading page...');
     try {
         const res = await fetch(draftImageUrl(activeDraft.id, pageId), { cache: 'no-store' });
@@ -9646,6 +9644,18 @@ async function readDraftPage(pageId, quiet) {
         // The photo is already saved, so the page is kept and can be read later.
         setDraftStatus('Photo saved, but the text could not be read: ' + (e.message || 'unknown error')
             + ' — use Read to try again.', true);
+    } finally {
+        renderDraftPages();
+    }
+}
+
+// Entry point for the per-page Read button. The add and replace flows call
+// performDraftPageRead directly, because they already hold the busy flag.
+async function readDraftPage(pageId) {
+    if (!activeDraft || draftBusy) return;
+    setDraftBusy(true);
+    try {
+        await performDraftPageRead(pageId, false);
     } finally {
         setDraftBusy(false);
         renderDraftPages();
@@ -9684,7 +9694,7 @@ async function replacePagePhoto(pageId, imageFile) {
         await fetchDraftEndpoint('/api/drafts/' + activeDraft.id + '/pages/' + pageId, { method: 'PUT', body });
         await refreshActiveDraft();
         setDraftStatus('Photo replaced. Reading the text...');
-        await readDraftPage(pageId, true);
+        await performDraftPageRead(pageId, true);
     } catch (e) {
         setDraftStatus('Could not replace that page: ' + (e.message || 'unknown error'), true);
     } finally {
