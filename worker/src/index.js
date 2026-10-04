@@ -25,11 +25,12 @@ export default {
         status: 'running',
         endpoints: [
           'POST /api/ocr',
+          'POST /api/suggest-word',
           'GET /api/usage',
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v11',
+        architecture: 'production-literal-ocr-v14',
       }, { headers: corsHeaders });
     }
 
@@ -37,7 +38,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v12',
+        architecture: 'production-literal-ocr-v14',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -74,6 +75,21 @@ export default {
         return await handleOCR(request, env, corsHeaders);
       } catch (e) {
         return Response.json({ error: e.message || 'OCR request failed' }, { status: 500, headers: corsHeaders });
+      }
+    }
+
+    if (url.pathname === '/api/suggest-word' && request.method === 'POST') {
+      try {
+        return await handleWordSuggestion(request, env, corsHeaders);
+      } catch (e) {
+        if (isDailyFreeLimitError(e)) {
+          try { await markUsageExhausted(env); } catch (_) {}
+          return Response.json({ suggestions: [], code: 'FREE_AI_LIMIT_REACHED' }, { status: 429, headers: corsHeaders });
+        }
+        if (isPaidModelRequiredError(e)) {
+          return Response.json({ suggestions: [], code: 'FREE_MODEL_UNAVAILABLE' }, { status: 503, headers: corsHeaders });
+        }
+        return Response.json({ suggestions: [], error: 'Suggestion service unavailable' }, { status: 503, headers: corsHeaders });
       }
     }
 
@@ -1049,7 +1065,9 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
     bn: 'Main language: Bengali. Preserve English, numbers and mixed scripts exactly.',
     gu: 'Main language: Gujarati. Preserve English, numbers and mixed scripts exactly.',
     pa: 'Main language: Punjabi/Gurmukhi. Preserve English, numbers and mixed scripts exactly.',
-    ur: 'Main language: Urdu. Preserve English, numbers and mixed scripts exactly.'
+    ur: 'Main language: Urdu. Preserve English, numbers and mixed scripts exactly.',
+    or: 'Main language: Odia. Preserve English, numbers and mixed scripts exactly.',
+    ks: 'Main language: Kashmiri. Preserve English, numbers and mixed scripts exactly.'
   }[language] || 'Auto-detect every visible language and preserve the original scripts exactly.';
 
   const prompt = `You are PaperAI, a high-accuracy visual OCR and handwriting transcription engine.
@@ -1419,6 +1437,7 @@ function detectLanguageFromText(text) {
     ['bn', /[\u0980-\u09FF]/g],
     ['gu', /[\u0A80-\u0AFF]/g],
     ['pa', /[\u0A00-\u0A7F]/g],
+    ['or', /[\u0B00-\u0B7F]/g],
     ['ur', /[\u0600-\u06FF]/g],
   ];
 
