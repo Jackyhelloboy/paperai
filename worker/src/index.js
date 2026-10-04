@@ -30,7 +30,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v18',
+        architecture: 'production-literal-ocr-v19',
       }, { headers: corsHeaders });
     }
 
@@ -38,7 +38,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v18',
+        architecture: 'production-literal-ocr-v19',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -541,6 +541,26 @@ function cleanSuggestionArray(value, max = 5) {
   return out;
 }
 
+function candidateMatchesSuggestionScript(value, language) {
+  const text = String(value || '');
+  const patterns = {
+    en: /[A-Za-z]/,
+    hi: /[\u0900-\u097F]/,
+    mr: /[\u0900-\u097F]/,
+    bn: /[\u0980-\u09FF]/,
+    pa: /[\u0A00-\u0A7F]/,
+    gu: /[\u0A80-\u0AFF]/,
+    or: /[\u0B00-\u0B7F]/,
+    ta: /[\u0B80-\u0BFF]/,
+    te: /[\u0C00-\u0C7F]/,
+    kn: /[\u0C80-\u0CFF]/,
+    ml: /[\u0D00-\u0D7F]/,
+    ur: /[\u0600-\u06FF]/,
+    ks: /[\u0600-\u06FF]/,
+  };
+  return patterns[language]?.test(text) ?? true;
+}
+
 function parseSuggestionJson(text) {
   const raw = String(text || '').trim();
   if (!raw) return [];
@@ -572,6 +592,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
   const meta = SUGGESTION_LANGUAGES[language];
   const context = String(body?.context || '').replace(/[\r\n]+/g, ' ').slice(0, 260);
   const localSuggestions = cleanSuggestionArray(body?.local_suggestions || [], 5);
+  const learnedSuggestions = cleanSuggestionArray(body?.learned_suggestions || [], 5);
 
   if (!input || input.length > 120 || !/^[\p{L}\p{M}][\p{L}\p{M}'’\- ]*$/u.test(input)) {
     return Response.json({ suggestions: [] }, { headers: corsHeaders });
@@ -611,12 +632,17 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     'Input text: "' + input + '"',
     'Nearby document context: "' + (context || 'none') + '"',
     'Local offline candidates: ' + JSON.stringify(localSuggestions),
+    'Previously user-corrected candidates: ' + JSON.stringify(learnedSuggestions),
     '',
     'Rules:',
     '- Return 1 to 5 candidate strings only.',
     '- Put the best candidate first.',
     '- Preserve the original pronunciation as closely as the target script allows.',
     '- Preserve the same phrase meaning by keeping the same spoken words; do not semantically translate.',
+    '- Treat previously user-corrected candidates as strong personal evidence when they match the same pronunciation.',
+    '- Never force a learned correction when it is unrelated to the current spoken form.',
+    '- Prefer natural target-script spellings over letter-by-letter Roman spelling.',
+    '- Reject candidates written mainly in the wrong script.',
     '- Do not explain your choice.',
     '- Do not add quotation marks around candidates.',
     '- Output strict JSON exactly like {"suggestions":["candidate1","candidate2"]}.',
@@ -634,7 +660,15 @@ async function handleWordSuggestion(request, env, corsHeaders) {
 
   try { await recordAiUsage(env, response?.usage || null); } catch (_) {}
 
-  const suggestions = parseSuggestionJson(extractAiText(response));
+  const aiSuggestions = parseSuggestionJson(extractAiText(response))
+    .filter(candidate => candidateMatchesSuggestionScript(candidate, language));
+
+  const suggestions = cleanSuggestionArray([
+    ...learnedSuggestions.filter(candidate => candidateMatchesSuggestionScript(candidate, language)),
+    ...aiSuggestions,
+    ...localSuggestions.filter(candidate => candidateMatchesSuggestionScript(candidate, language)),
+  ], 5);
+
   return Response.json({
     suggestions,
     source_language: sourceLanguage,
@@ -879,7 +913,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v18',
+        architecture: 'production-literal-ocr-v19',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
