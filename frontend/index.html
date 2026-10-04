@@ -4894,9 +4894,9 @@ function docxBranchTable(root, items) {
     if (!items.length) return docxParagraph(root);
 
     const center = Math.floor(items.length / 2);
-    const widths = [1250, 620, 1150, 2350, 2530];
+    const widths = [1120, 980, 1080, 2250, 2470];
     const rows = items.map((item, index) => {
-        const relation = index < center ? '↗' : index > center ? '↘' : '→';
+        const relation = index < center ? '╱──>' : index > center ? '╲──>' : '──>';
         const rootCell = index === 0
             ? docxCell(
                 docxParagraph('○ ' + root, { size: 22, bold: true, after: 0, center: true }),
@@ -4909,11 +4909,9 @@ function docxBranchTable(root, items) {
         return '<w:tr>' + rowHeight +
             rootCell +
             docxCell(docxParagraph(relation, {
-                size: 22,
+                size: 18,
                 after: 0,
-                center: true,
-                font: 'Segoe UI Symbol',
-                eastAsia: 'Segoe UI Symbol'
+                center: true
             }), widths[1]) +
             docxCell(docxParagraph(item.left, { size: 21, after: 0 }), widths[2]) +
             docxCell(docxParagraph('', { after: 0 }), widths[3], {
@@ -5116,13 +5114,6 @@ function buildDocxBody(structuredText) {
 
         const raw = lines[i];
 
-        const formFields = parseDocxFormFieldsLine(raw);
-        if (formFields) {
-            body.push(docxFormTable(formFields));
-            i++;
-            continue;
-        }
-
         const twoColumnRow = parseDocxTwoColumnExerciseLine(raw);
         if (twoColumnRow) {
             body.push(docxTwoColumnExerciseTable(twoColumnRow));
@@ -5159,12 +5150,14 @@ function buildDocxBody(structuredText) {
         const heading = isOutputHeadingLine(raw, i, firstNonEmptyIndex);
         const isFirstHeading = i === firstNonEmptyIndex;
         const nextIsBlank = !String(lines[i + 1] || '').trim();
+        const formLike = /_{3,}/.test(raw) &&
+            /(?:Name|Class|Date|Roll|Sub|Marks|Examination|नाम|कक्षा|दिनांक)/i.test(raw);
 
         body.push(docxRichParagraph(raw, {
             bold: heading,
-            size: isFirstHeading ? 27 : (heading ? 24 : 21),
+            size: isFirstHeading ? 27 : (heading ? 24 : (formLike ? 20 : 21)),
             before: heading && !isFirstHeading ? 80 : 0,
-            after: heading ? (nextIsBlank ? 55 : 35) : 25,
+            after: formLike ? 18 : (heading ? (nextIsBlank ? 55 : 35) : 25),
             keepNext: heading
         }));
         i++;
