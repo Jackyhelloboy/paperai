@@ -9632,7 +9632,12 @@ async function performDraftPageRead(pageId, quiet) {
     try {
         const res = await fetch(draftImageUrl(activeDraft.id, pageId), { cache: 'no-store' });
         if (!res.ok) throw new Error('could not load the photo');
-        const text = await runOcrForPage(await res.blob());
+        const blob = await res.blob();
+        // The reader works from the file extension in the name, so a bare blob
+        // is not enough.
+        const named = new File([blob], 'page.' + (blob.type === 'image/png' ? 'png' : 'jpg'),
+            { type: blob.type || 'image/jpeg' });
+        const text = await runOcrForPage(named);
         await fetchDraftEndpoint('/api/drafts/' + activeDraft.id + '/pages/' + pageId, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
