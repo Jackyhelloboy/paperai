@@ -1625,16 +1625,6 @@
             font-weight: 700;
         }
 
-        .layout-audit.good {
-            border-color: #bbf7d0;
-            background: #f0fdf4;
-        }
-
-        .layout-audit.review {
-            border-color: #fde68a;
-            background: #fffbeb;
-        }
-
         .teach-panel {
             display: none;
             margin-bottom: 0.625rem;
@@ -2890,17 +2880,6 @@
             }
 
             /* Good audit messages are hidden. Only show an actual review warning. */
-            .layout-audit.good {
-                display: none !important;
-            }
-
-            .layout-audit.review {
-                margin-bottom: 0.45rem !important;
-                padding: 0.5rem 0.58rem !important;
-                border-radius: 9px !important;
-                font-size: 0.58rem !important;
-                line-height: 1.35 !important;
-            }
 
             .output-card,
             .output-wrap,
@@ -3159,10 +3138,7 @@
                     Teach
                 </button>
             </div>
-
-            <div class="layout-audit" id="layoutAudit"></div>
-
-            <div class="teach-panel" id="teachPanel">
+<div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
                 <div class="teach-sub">Pronunciation-based script typing: keep the same spoken English words and write how they sound in the target script. Example: <strong>jawad</strong> → <strong>जवाद</strong> and <strong>i love you</strong> → <strong>आई लव यू</strong>. Difficult spellings can receive AI phonetic suggestions.</div>
                 <div class="teach-language-bar">
@@ -3253,7 +3229,7 @@ const previewLightboxTitle=$('previewLightboxTitle'),previewLightboxSub=$('previ
 const pagePresetSelect=$('pagePresetSelect'),densitySelect=$('densitySelect'),aiLayoutToggle=$('aiLayoutToggle');
 const titleAlignSelect=$('titleAlignSelect'),fontScaleSelect=$('fontScaleSelect'),headingWeightSelect=$('headingWeightSelect');
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
-const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut'),layoutAudit=$('layoutAudit');
+const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
 const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
@@ -6203,7 +6179,6 @@ function showTab(tab) {
 
     if(lastResult) {
         if(showingRaw) {
-            if (layoutAudit) layoutAudit.classList.remove('show');
             // Public plain-text view only. Never expose internal OCR structure
             // such as [[BRANCH_*]] / [[CIRCLED:*]] to normal users.
             textOut.textContent = currentPlainText();
@@ -6864,23 +6839,7 @@ function auditStructuredPaper(value) {
 }
 
 function updateLayoutAudit(value) {
-    if (!layoutAudit) return null;
     const audit = auditStructuredPaper(value);
-    const profile = audit.profile || {};
-    const kind = String(profile.kind || 'general').replace(/-/g, ' ');
-    const confidence = profile.confidence || 'low';
-
-    layoutAudit.className = 'layout-audit show ' + audit.status;
-    layoutAudit.innerHTML =
-        '<strong>AI reconstruction check:</strong> ' +
-        esc(kind) + ' · ' + esc(confidence) + ' confidence · ' +
-        audit.score + '/100' +
-        (audit.summary ? ' · ' + esc(audit.summary) : '') +
-        (audit.paperSummary ? '<br><strong>Paper pattern:</strong> ' + esc(audit.paperSummary) : '') +
-        (audit.issues.length
-            ? '<br><strong>Review:</strong> ' + esc(audit.issues.slice(0,8).join('; '))
-            : ' · structure looks consistent');
-
     if (lastResult) lastResult.layout_audit = audit;
     return audit;
 }
