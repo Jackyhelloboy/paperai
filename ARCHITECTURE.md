@@ -322,3 +322,74 @@ These markers are not shown in Extracted, Plain text, Copy, or Word output.
 ### Invariant
 
 Never improve document appearance by changing the source wording. Layout, alignment, font size, borders, tables, shapes and spacing may be reconstructed; visible text content remains literal unless the user explicitly edits it in Teach.
+
+## v23 class-wise question-paper continuity engine
+
+PaperAI now treats a bulk upload as a possible set of multiple school papers rather than blindly concatenating every uploaded page into one document.
+
+### Multi-page continuity
+
+Each image/PDF page is first OCR'd literally and retained as an independent page record. OCR receives only the previous page tail as a weak structural hint. The context may help identify continuation of section numbering, but it must never copy source wording from another page.
+
+After OCR, /api/analyze-paper analyzes the page records together and returns a structural plan:
+- paper grouping
+- page order inside each paper
+- visible class
+- visible subject
+- visible exam/test label
+- section/bit sequence
+- marks formulas
+- expected item counts
+- literally found item counts
+- continuation relationships
+- mismatch warnings
+
+A shared school name alone is not enough to group pages. Visible class/subject/exam identity is preferred. A continuation page with no header may attach to a header page only when section progression strongly supports the match.
+
+The continuity analyzer is structural only. It never rewrites or invents question wording.
+
+### Safe class-wise pattern learning
+
+The frontend stores only question-paper skeletons in paperai_question_patterns_v1:
+- class
+- subject
+- exam
+- section label
+- section title
+- marks formula
+- expected item count
+
+Actual private question wording is not stored in this pattern memory.
+
+Historical patterns are weak hints. They may improve grouping/order/count checks only when the current OCR visibly supports the same class/subject/exam. They may never create a missing question or answer.
+
+### Explicit question-paper OCR metadata
+
+On visible question/answer sheets, OCR may emit:
+- [[QUESTION_SECTION: label || exact visible instruction || exact visible marks formula]]
+- [[QUESTION_ITEM: exact visible number || exact visible question text]]
+- [[ANSWER_RULE]]
+
+This solves a recurring failure mode where long ruled answer lines were preserved but the shorter numbered question directly above them was omitted.
+
+Rules:
+- never invent a question number from sequence context
+- never reconstruct missing wording from marks formulas or remembered patterns
+- if question text is partly unreadable, preserve the visible number and use [unclear] only for the unreadable part
+- emit one ANSWER_RULE for each clearly visible blank answer rule
+- marks patterns are used for count validation only
+
+The canonical document model converts these markers into sectionHeading, questionLine, and answerRule nodes. Extracted HTML and editable Word render the same nodes.
+
+### Question-pattern audit
+
+The reconstruction audit now checks:
+- section sequence
+- numbered item count
+- expected item count derived from visible marks formulas
+- table/grid consistency
+- answer-line count
+- page/paper grouping
+- class/subject/exam continuity warnings
+
+A mismatch such as 4x1=4M with five detected numbered items is reported for review rather than silently deleting or inventing an item.
