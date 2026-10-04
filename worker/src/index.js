@@ -1,5 +1,4 @@
 import { DurableObject } from 'cloudflare:workers';
-import { getOCRProvider, runUnlimitedOCR, UNLIMITED_MODEL } from './unlimited-ocr.js';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
 
 const DAILY_FREE_NEURONS = 10000;
@@ -41,9 +40,8 @@ export default {
         status: 'healthy',
         platform: 'cloudflare-workers',
         architecture: 'production-literal-ocr-v26',
-        model: getOCRProvider(env) === 'unlimited-ocr' ? UNLIMITED_MODEL : '@cf/google/gemma-4-26b-a4b-it',
-        ocr_provider: getOCRProvider(env),
-        supported_ocr_providers: ['cloudflare-ai', 'unlimited-ocr'],
+        model: '@cf/google/gemma-4-26b-a4b-it',
+        ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
     }
 
@@ -1136,13 +1134,8 @@ async function handleOCR(request, env, corsHeaders) {
 
   let aiResult;
   try {
-    // A configured Unlimited-OCR server is authoritative; never silently switch models.
-    aiResult = await runOCR(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions, paperContext, detailImages);
+    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions, paperContext, detailImages);
   } catch (e) {
-    if (e.code?.startsWith('UNLIMITED_OCR_') || e.code === 'OCR_PROVIDER_CONFIGURATION') {
-      const status = e.code.endsWith('CONFIGURATION') ? 503 : e.code.endsWith('TIMEOUT') ? 408 : e.code.endsWith('IMAGE_REQUIRED') ? 400 : 502;
-      return Response.json({ error: e.message, code: e.code }, { status, headers: corsHeaders });
-    }
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
       return Response.json({
@@ -1171,8 +1164,7 @@ async function handleOCR(request, env, corsHeaders) {
   // Record this successful inference for the public daily usage graph.
   // Failure to write analytics must never block the OCR result.
   try {
-    // External GPU token usage does not consume Workers AI neurons.
-    if (aiResult.provider !== 'unlimited-ocr') await recordAiUsage(env, aiResult.usage || null);
+    await recordAiUsage(env, aiResult.usage || null);
   } catch (e) {
     console.log('[Usage tracker] Could not record usage:', e.message);
   }
@@ -1229,8 +1221,8 @@ async function handleOCR(request, env, corsHeaders) {
         layout_options: layoutOptions,
         paper_context_used: Boolean(paperContext && (paperContext.previous_page_tail || paperContext.page_index != null)),
         detected_language: detectedLanguage,
-        mode: aiResult.provider === 'unlimited-ocr' ? 'unlimited_ocr_document_parsing' : 'free_only_literal_transcription',
-        billing_safety: aiResult.provider === 'unlimited-ocr' ? 'external_gpu_host_billing' : 'free_only_conditional_verification_no_paid_fallback',
+        mode: 'free_only_literal_transcription',
+        billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
         architecture: 'production-literal-ocr-v26',
         scan_mode: aiResult.scanMode || difficulty,
@@ -1513,15 +1505,6 @@ function isTransientAiError(error) {
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function runOCR(base64Image, mimeType, env, ...options) {
-  const provider = getOCRProvider(env);
-  if (provider === 'unlimited-ocr') return runUnlimitedOCR(base64Image, mimeType, env);
-  if (provider !== 'cloudflare-ai') {
-    throw Object.assign(new Error('Unsupported OCR_PROVIDER. Use cloudflare-ai or unlimited-ocr.'), { code: 'OCR_PROVIDER_CONFIGURATION' });
-  }
-  return runAI(base64Image, mimeType, env, ...options);
 }
 
 async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], layoutOptions = {}, paperContext = {}, detailImages = []) {

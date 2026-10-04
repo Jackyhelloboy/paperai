@@ -20,7 +20,6 @@ jobs:
 
       - name: Verify OCR integration and output
         run: |
-          node tests/unlimited-ocr.cjs
           node tests/advanced-ocr.cjs
           node tests/output-sanitization.cjs
           node tests/continuous-flow.cjs

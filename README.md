@@ -85,7 +85,3 @@ python main.py
 |----------|-------------|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
-
-## Optional Unlimited-OCR model
-
-PaperAI now supports `baidu/Unlimited-OCR` through a dedicated vLLM GPU server. See [the serving and activation guide](inference/unlimited-ocr/README.md) for Docker setup, Python sample testing and Cloudflare secrets. The website uses its existing OCR until the external model endpoint is configured. The adapter has regression coverage; handwritten Hindi recognition still needs validation against the real model.
