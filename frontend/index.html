@@ -5190,7 +5190,7 @@ function docxBranchTable(root, items) {
     // Word/LibreOffice scale grouped VML differently. A hybrid layout is
     // much more stable: real editable root shape + native editable Word rows.
     const center = Math.floor(items.length / 2);
-    const widths = [900, 1050, 900, 1750, 1100];
+    const widths = [900, 1150, 950, 2100, 1400];
 
     const rows = items.map((item, index) => {
         const arrow = index < center ? '╱──>' : index > center ? '╲──>' : '──>';
@@ -5271,7 +5271,7 @@ function parseDocxFormFieldsLine(raw) {
 }
 
 function docxFormTable(fields) {
-    const totalWidth = 7900;
+    const totalWidth = 9900;
     const rawWeights = [];
     for (const field of fields) {
         rawWeights.push(Math.max(520, field.label.length * 105));
@@ -5303,7 +5303,7 @@ function docxFormTable(fields) {
 }
 
 function docxFullAnswerLine(number) {
-    const widths = [520, 7380];
+    const widths = [520, 9380];
     return docxTable(widths,
         '<w:tr><w:trPr><w:trHeight w:val="325" w:hRule="atLeast"/></w:trPr>' +
         docxCell(
@@ -5405,7 +5405,7 @@ function docxTwoColumnExerciseTable(row) {
 
     // One flat Word table row is much more stable than nested tables.
     // number | word | blank || number | word | blank
-    const widths = [420, 920, 2610, 420, 920, 2610];
+    const widths = [420, 1000, 3530, 420, 1000, 3530];
 
     const cells = [
         docxExerciseNumberCell(left.number, widths[0]),
@@ -5427,7 +5427,7 @@ function docxTwoColumnExerciseTable(row) {
 
 function docxSingleExerciseTable(item) {
     const left = docxExerciseParts(item);
-    const widths = [420, 920, 2610, 3950];
+    const widths = [420, 1000, 3530, 4950];
 
     const cells = [
         docxExerciseNumberCell(left.number, widths[0]),
@@ -5890,7 +5890,7 @@ function parseSimpleListLine(raw) {
 
 function docxEditableListItem(item) {
     const markerWidth = item.checkbox ? 520 : 600;
-    const widths = [markerWidth, 7900 - markerWidth];
+    const widths = [markerWidth, 9900 - markerWidth];
     return docxTable(widths,
         '<w:tr>' +
         docxCell(docxParagraph(item.marker, {
