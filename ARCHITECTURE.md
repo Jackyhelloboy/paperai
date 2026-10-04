@@ -82,3 +82,13 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Visual structure metadata now includes long horizontal/vertical rule counts, multi-column rows and likely branching layouts.
 - Structured OCR prompts receive those geometry hints so circles, arrows, branch diagrams, answer lines and two-column relationships are less likely to be flattened incorrectly.
 - Literal verification and anti-hallucination safeguards from v8 remain in force.
+
+
+## v11 layout and Teach fixes
+
+- Legacy OCR branch diagrams that were flattened into pipe rows are reconstructed into readable arrow relationships without changing recognized words.
+- The OCR prompt forbids fake "| |" connector rows and asks for actual arrows/circle metadata for visible branch diagrams.
+- Circled question numbers are rendered with CSS circles in the web UI; exported plain text uses universal numbering such as "1." instead of font-dependent circled Unicode.
+- Teach Hindi phonetic mode now turns on automatically when the extracted document contains Devanagari, even if OCR language was Auto.
+- Teach preview is live, and Copy/Download use the current unsaved Teach text while the editor is open.
+- Hindi verification explicitly rejects Roman transliteration when the image visibly contains Devanagari.
