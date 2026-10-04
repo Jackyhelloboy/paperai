@@ -10,7 +10,8 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
+    <script src="vendor/indic-transliterate.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -813,7 +814,7 @@
             border-radius: var(--radius-xs);
             background: var(--bg);
             color: var(--text);
-            font: 0.78rem/1.55 'Inter', 'Noto Sans Devanagari', 'Noto Sans Telugu', sans-serif;
+            font: 0.78rem/1.55 'Hind', 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Mukta', Tahoma, sans-serif;
             padding: 0.7rem;
             outline: none;
         }
@@ -851,10 +852,57 @@
             color: var(--accent);
         }
 
+        .translit-suggestions {
+            display: none;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.45rem;
+            padding: 0.45rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+        }
+
+        .translit-suggestions.show {
+            display: flex;
+        }
+
+        .translit-chip {
+            border: 1px solid var(--border2);
+            background: var(--surface);
+            color: var(--text);
+            border-radius: 999px;
+            padding: 0.28rem 0.6rem;
+            font: 600 0.78rem/1.2 'Hind', 'Noto Sans Devanagari', sans-serif;
+            cursor: pointer;
+        }
+
+        .translit-chip:first-child {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+
         .teach-actions {
             display: flex;
             gap: 0.5rem;
             margin-top: 0.5rem;
+        }
+
+        .ocr-branch-diagram {
+            display: block;
+            width: 100%;
+            min-width: 420px;
+            height: auto;
+            margin: 0.6rem 0;
+            overflow: visible;
+            font-family: 'Hind', 'Noto Sans Devanagari', Tahoma, sans-serif;
+        }
+
+        .ocr-branch-wrap {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .output-card {
@@ -1593,6 +1641,7 @@
                     <button class="teach-tool" id="teachHindiBtn" type="button" onclick="toggleHindiPhonetic()">हिंदी Phonetic: Off</button>
                 </div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
+                <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
                 <div class="teach-actions">
                     <button class="action-btn" onclick="saveLearning()">Save & apply</button>
                     <button class="action-btn" onclick="closeTeachPanel()">Cancel</button>
@@ -1632,7 +1681,7 @@ const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('q
 const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor'),teachHindiBtn=$('teachHindiBtn');
-const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn');
+const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
 
 let file=null, lastResult=null, showingRaw=false;
 let teachOriginalText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
@@ -2827,72 +2876,82 @@ function extractLearningPairs(before, after) {
     return pairs;
 }
 
-const DEVANAGARI_INDEPENDENT_VOWELS = {
-    a:'अ', aa:'आ', i:'इ', ii:'ई', ee:'ई', u:'उ', uu:'ऊ', oo:'ऊ',
-    e:'ए', ai:'ऐ', o:'ओ', au:'औ', ri:'ऋ'
-};
+const HINDI_PHONETIC_OVERRIDES = Object.freeze({
+    allah: 'अल्लाह',
+    allaah: 'अल्लाह',
+    jawad: 'जवाद',
+    jawaad: 'जवाद',
+    rupaya: 'रुपया',
+    rupayaa: 'रुपया',
+    rupaye: 'रुपये',
+    aadmi: 'आदमी',
+    aadamii: 'आदमी',
+    gaadi: 'गाड़ी',
+    gaadii: 'गाड़ी',
+    birbal: 'बीरबल',
+    beerbal: 'बीरबल'
+});
 
-const DEVANAGARI_MATRAS = {
-    a:'', aa:'ा', i:'ि', ii:'ी', ee:'ी', u:'ु', uu:'ू', oo:'ू',
-    e:'े', ai:'ै', o:'ो', au:'ौ', ri:'ृ'
-};
+function uniqueStrings(values) {
+    const seen = new Set();
+    return values.filter(value => {
+        const s = String(value || '').normalize('NFC').trim();
+        if (!s || seen.has(s)) return false;
+        seen.add(s);
+        return true;
+    });
+}
 
-const DEVANAGARI_CONSONANTS = {
-    k:'क', kh:'ख', g:'ग', gh:'घ', ng:'ङ',
-    ch:'च', chh:'छ', c:'च', j:'ज', jh:'झ', ny:'ञ',
-    t:'त', th:'थ', d:'द', dh:'ध', n:'न',
-    tt:'ट', tth:'ठ', dd:'ड', ddh:'ढ', nn:'ण',
-    p:'प', ph:'फ', f:'फ', b:'ब', bh:'भ', m:'म',
-    y:'य', r:'र', l:'ल', v:'व', w:'व',
-    sh:'श', ss:'ष', s:'स', h:'ह',
-    ksh:'क्ष', gy:'ज्ञ', tr:'त्र'
-};
+function getHindiPhoneticSuggestions(input) {
+    const roman = String(input || '').toLowerCase().trim();
+    if (!/^[a-z]+$/.test(roman)) return [input];
 
-const DEV_VOWEL_KEYS = ['aa','ii','ee','uu','oo','ai','au','ri','a','i','u','e','o'];
-const DEV_CONSONANT_KEYS = ['tth','ddh','ksh','chh','kh','gh','jh','th','dh','ph','bh','tt','dd','nn','sh','ss','ng','ny','gy','tr','ch','k','g','c','j','t','d','n','p','f','b','m','y','r','l','v','w','s','h'];
+    const suggestions = [];
+    if (HINDI_PHONETIC_OVERRIDES[roman]) suggestions.push(HINDI_PHONETIC_OVERRIDES[roman]);
 
-function matchRomanKey(word, pos, keys) {
-    for (const key of keys) {
-        if (word.startsWith(key, pos)) return key;
-    }
-    return null;
+    try {
+        if (window.IndicTransliterate?.suggest) {
+            suggestions.push(...window.IndicTransliterate.suggest(roman, 'devanagari'));
+        } else if (window.IndicTransliterate?.transliterate) {
+            suggestions.push(window.IndicTransliterate.transliterate(roman, 'devanagari'));
+        }
+    } catch (_) {}
+
+    suggestions.push(roman);
+    return uniqueStrings(suggestions).slice(0, 6);
 }
 
 function transliterateHindiWord(input) {
-    const source = String(input || '').toLowerCase();
-    if (!/^[a-z]+$/.test(source)) return input;
+    return getHindiPhoneticSuggestions(input)[0] || input;
+}
 
-    let out = '';
-    let i = 0;
-
-    while (i < source.length) {
-        const consonant = matchRomanKey(source, i, DEV_CONSONANT_KEYS);
-
-        if (consonant) {
-            out += DEVANAGARI_CONSONANTS[consonant];
-            i += consonant.length;
-
-            const vowel = matchRomanKey(source, i, DEV_VOWEL_KEYS);
-            if (vowel) {
-                out += DEVANAGARI_MATRAS[vowel];
-                i += vowel.length;
-            } else if (i < source.length) {
-                out += '्';
-            }
-            continue;
-        }
-
-        const vowel = matchRomanKey(source, i, DEV_VOWEL_KEYS);
-        if (vowel) {
-            out += DEVANAGARI_INDEPENDENT_VOWELS[vowel];
-            i += vowel.length;
-            continue;
-        }
-
-        out += source[i++];
+function showHindiSuggestions() {
+    if (!hindiPhoneticOn || !hindiComposition?.roman) {
+        translitSuggestions.classList.remove('show');
+        translitSuggestions.innerHTML = '';
+        return;
     }
 
-    return out.normalize('NFC');
+    const choices = getHindiPhoneticSuggestions(hindiComposition.roman);
+    translitSuggestions.innerHTML = choices.map((choice, index) =>
+        '<button class="translit-chip" type="button" data-choice="' + index + '">' + esc(choice) + '</button>'
+    ).join('');
+    translitSuggestions.classList.toggle('show', choices.length > 0);
+
+    translitSuggestions.querySelectorAll('.translit-chip').forEach((button, index) => {
+        button.addEventListener('mousedown', event => event.preventDefault());
+        button.addEventListener('click', () => chooseHindiSuggestion(choices[index]));
+    });
+}
+
+function chooseHindiSuggestion(choice) {
+    if (!hindiComposition) return;
+    const newEnd = replaceTeachRange(hindiComposition.start, hindiComposition.end, choice);
+    hindiComposition.end = newEnd;
+    pushTeachHistory(teachEditor.value);
+    renderTeachPreview();
+    showHindiSuggestions();
+    teachEditor.focus();
 }
 
 function renderTeachPreview() {
@@ -2950,6 +3009,7 @@ function teachRestoreOriginal() {
 function toggleHindiPhonetic() {
     hindiPhoneticOn = !hindiPhoneticOn;
     hindiComposition = null;
+    showHindiSuggestions();
     updateTeachButtons();
     teachEditor.focus();
 }
@@ -2982,6 +3042,7 @@ function handleHindiPhoneticKey(event) {
         hindiComposition.end = newEnd;
         pushTeachHistory(teachEditor.value);
         renderTeachPreview();
+        showHindiSuggestions();
         return true;
     }
 
@@ -2995,10 +3056,12 @@ function handleHindiPhoneticKey(event) {
         if (!hindiComposition.roman) hindiComposition = null;
         pushTeachHistory(teachEditor.value);
         renderTeachPreview();
+        showHindiSuggestions();
         return true;
     }
 
     hindiComposition = null;
+    showHindiSuggestions();
     return false;
 }
 
@@ -3011,6 +3074,7 @@ function openTeachPanel() {
     hindiComposition = null;
     hindiPhoneticOn = languageSelect.value === 'hi' || /[\u0900-\u097F]/.test(teachOriginalText);
     teachPanel.classList.add('show');
+    showHindiSuggestions();
     updateTeachButtons();
     renderTeachPreview();
     teachEditor.focus();
@@ -3019,6 +3083,7 @@ function openTeachPanel() {
 function closeTeachPanel() {
     teachPanel.classList.remove('show');
     hindiComposition = null;
+    showHindiSuggestions();
 
     if (lastResult) delete lastResult.preview_text;
 
@@ -3051,8 +3116,8 @@ teachEditor.addEventListener('input', () => {
     renderTeachPreview();
 });
 
-teachEditor.addEventListener('click', () => { hindiComposition = null; });
-teachEditor.addEventListener('select', () => { hindiComposition = null; });
+teachEditor.addEventListener('click', () => { hindiComposition = null; showHindiSuggestions(); });
+teachEditor.addEventListener('select', () => { hindiComposition = null; showHindiSuggestions(); });
 
 function saveLearning() {
     if (!lastResult) return;
