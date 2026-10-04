@@ -19,7 +19,7 @@
         }).join('\n').replace(
             /visible Roman\/section label|exact visible (?:instruction|marks formula|question number|question text)/gi,
             '[unclear]'
-        );
+        ).replace(/\[\[ANSWER_RULE:\s*\]\]/gi, '\n[[ANSWER_RULE]]\n');
     }
 
     function circledNumberValue(ch) {

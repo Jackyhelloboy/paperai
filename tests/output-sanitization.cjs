@@ -22,6 +22,7 @@ assert.equal(model.parse(audit + paper).nodes.filter(n => n.type === 'questionLi
 assert(!model.parse(audit + paper).source.includes('reconstruction check'));
 assert.equal(model.cleanOutputText('VISIBLE ROMAN/SECTION LABEL. हिंदी'), '[unclear]. हिंदी');
 assert.equal(model.cleanOutputText('Exact Visible Question Text'), '[unclear]');
+assert(model.parse('1. हिंदी [[ANSWER_RULE: ]]').nodes.some(n => n.type === 'answerRule'));
 
 const html = fs.readFileSync(path.join(root, 'frontend/index.html'), 'utf8');
 const inline = html.match(/<script>\s*([\s\S]*?)<\/script>/)[1];
@@ -46,4 +47,10 @@ assert.equal(context.sanitizePromptTemplateLeakage('VISIBLE ROMAN/SECTION LABEL 
 assert.equal(context.questionStructureNeedsVerification('[[QUESTION_SECTION: II || अर्थ लिखिए। || 1x1=1]]\n[[QUESTION_ITEM: 1 || ]]'), true);
 assert.equal(context.questionStructureNeedsVerification('[[QUESTION_SECTION: II || अर्थ लिखिए। || 1x1=1]]\n[[QUESTION_ITEM: 1 || कोयल]]'), false);
 assert.equal(context.questionStructureNeedsVerification(paper), true); // Check inconsistency, preserve all five source items.
+for (const name of ['hasDegenerateOcr', 'shouldAcceptVerifiedText']) loadFunction(worker, name);
+const runaway = Array.from({ length: 30 }, (_, i) => '[[TABLE_ROW: (' + 'a'.repeat(i + 1) + ') || ]]').join('\n');
+assert.equal(context.hasDegenerateOcr(runaway), true);
+assert.equal(context.hasDegenerateOcr('[[COLUMN_ROW: 1 फूल || (a) Dust]]'), false);
+assert.equal(context.shouldAcceptVerifiedText(runaway, 'I. निम्न लिखित प्रश्नों के उत्तर लिखिए।\n1. फूलों से हमें क्या मिलती है?'), true);
+assert.equal(context.shouldAcceptVerifiedText('1. फूल', runaway), false);
 console.log('Output sanitization, source preservation, missing-word verification, and JavaScript syntax checks passed.');

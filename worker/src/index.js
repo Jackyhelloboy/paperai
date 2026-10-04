@@ -1730,7 +1730,9 @@ Return only the final transcription plus the allowed [[...]] edit markers when n
   let rescued = false;
 
   if (shouldVerifyOcr(text, imageMeta)) {
-    const rescuePrompt = prompt + `
+    const rescuePrompt = hasDegenerateOcr(text)
+      ? 'Read the attached page again from the image alone. Return only its visible text, line by line, in reading order. Transcribe printed headers and every handwritten Hindi word independently from the pixels. Preserve visible question numbers, Roman section labels, marks, answer blanks and both columns of matching exercises. Never invent alphabet labels, missing words or repeated empty rows. Keep each source line on a separate output line. Use [unclear] only for the unreadable part. Do not copy or reconstruct another page. Do not explain the result.'
+      : prompt + `
 
 LITERAL VERIFICATION PASS:
 Below is the first OCR transcription. Re-check it against the image line-by-line and return the best literal transcription.
@@ -1797,6 +1799,10 @@ VERIFICATION RULES:
     }
   }
 
+  if (hasDegenerateOcr(text)) {
+    try { await recordAiUsage(env, usage); } catch (_) {}
+    throw new Error('The image read produced repetitive empty rows. Please retry with a clearer page image.');
+  }
   text = sanitizePromptTemplateLeakage(text);
   return { text, raw: text, model, usage, scanMode, rescued };
 }
@@ -1819,7 +1825,7 @@ function sanitizePromptTemplateLeakage(text) {
   for (const phrase of FORBIDDEN_OCR_TEMPLATE_PHRASES) {
     out = out.replace(new RegExp(phrase, 'gi'), '[unclear]');
   }
-  return out;
+  return out.replace(/\[\[ANSWER_RULE:\s*\]\]/gi, '\n[[ANSWER_RULE]]\n');
 }
 function expectedItemsFromMarks(value) {
   const m = String(value || '').match(/(\d+|[०-९]+)\s*[x×X]\s*(\d+|[०-९]+)\s*=\s*(\d+|[०-९]+)/);
@@ -1887,7 +1893,16 @@ function structuredPageNeedsVerification(text, imageMeta = {}) {
   return !hasStructuredMetadata;
 }
 
+function hasDegenerateOcr(text) {
+  const source = String(text || '');
+  // A runaway alphabet list is a model failure, not a detected table.
+  const emptyLabels = source.match(/\[\[(?:TABLE_ROW|COLUMN_ROW):\s*\([a-z]+\)\s*(?:\|\|\s*)?\]\]/gi) || [];
+  const repeatedLabels = emptyLabels.filter(row => /\(([a-z])\1{2,}\)/i.test(row));
+  return emptyLabels.length > 24 || repeatedLabels.length >= 8;
+}
+
 function shouldVerifyOcr(text, imageMeta = {}) {
+  if (hasDegenerateOcr(text)) return true;
   const visible = String(text || '').trim();
   const emptyLike =
     !visible ||
@@ -1951,6 +1966,9 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   const b = String(second || '').trim();
   if (!b) return false;
   if (/^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(b)) return false;
+  if (hasDegenerateOcr(b)) return false;
+  // A fresh image read can legitimately be far shorter than runaway output.
+  if (hasDegenerateOcr(a)) return true;
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
 
   const usefulLength = s => s
