@@ -1755,6 +1755,55 @@
             border-top: 1px dashed var(--border2);
         }
 
+        .output-question-section {
+            display: block;
+            margin-top: 0.42rem;
+            margin-bottom: 0.12rem;
+            font-size: var(--paper-heading-size);
+            line-height: 1.45;
+            font-weight: 700;
+            white-space: pre-wrap;
+        }
+
+        .output-question-row {
+            display: grid;
+            grid-template-columns: 1.65rem minmax(0, 1fr);
+            gap: 0.16rem;
+            align-items: start;
+            min-height: 1.7em;
+            line-height: 1.62;
+        }
+
+        .output-question-number {
+            text-align: right;
+            padding-right: 0.28rem;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .output-question-text {
+            min-width: 0;
+            white-space: pre-wrap;
+        }
+
+        .output-answer-rule {
+            display: block;
+            width: calc(100% - 1.8rem);
+            margin: 0.08rem 0 0.35rem 1.8rem;
+            height: 0.9rem;
+            border-bottom: 1px solid var(--text2);
+        }
+
+        .output-body[data-paper-density="compact"] .output-question-row {
+            min-height: 1.48em;
+            line-height: 1.45;
+        }
+
+        .output-body[data-paper-density="spacious"] .output-question-row {
+            min-height: 1.95em;
+            line-height: 1.85;
+        }
+
         .output-heading {
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
             font-size: var(--paper-heading-size);
@@ -5130,6 +5179,12 @@ function publicPlainTextFromStructured(value) {
                 node.rows.forEach(row => out.push(row.join(' | ')));
             } else if (node.type === 'columns') {
                 node.rows.forEach(row => out.push(row.join('    ')));
+            } else if (node.type === 'sectionHeading') {
+                out.push(node.text || '');
+            } else if (node.type === 'questionLine') {
+                out.push((node.rawNumber || node.number || '') + '. ' + (node.text || ''));
+            } else if (node.type === 'answerRule') {
+                out.push('___________________________________________________________________________');
             } else if (node.type === 'wordSearch') {
                 const maxRows = Math.max(node.rows.length, node.answers.length);
                 for (let i = 0; i < maxRows; i++) {
@@ -5888,6 +5943,25 @@ function formatOutput(text) {
             }
             if (node.type === 'wordSearch') {
                 html += renderWordSearchBlock(node.rows, node.answers);
+                return;
+            }
+            if (node.type === 'sectionHeading') {
+                const weight = node.style?.weight === 'normal' ? '400' : '700';
+                const align = node.style?.align || 'left';
+                html += '<span class="output-question-section" style="font-weight:' + weight + ';text-align:' + align + '">' +
+                    formatOutputLine(node.text || '') + '</span>';
+                return;
+            }
+            if (node.type === 'questionLine') {
+                const rawNumber = node.rawNumber || (node.number != null ? String(node.number) : '');
+                html += '<span class="output-question-row">' +
+                    '<span class="output-question-number">' + formatOutputLine(rawNumber + '.') + '</span>' +
+                    '<span class="output-question-text">' + formatOutputLine(node.text || '') + '</span>' +
+                    '</span>';
+                return;
+            }
+            if (node.type === 'answerRule') {
+                html += '<span class="output-answer-rule" aria-hidden="true"></span>';
                 return;
             }
             if (node.type === 'answerBlank') {
