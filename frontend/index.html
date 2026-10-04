@@ -442,6 +442,171 @@
         }
 
 
+        .layout-review {
+            display: none;
+            margin-top: 0.875rem;
+            padding: 0.85rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg);
+        }
+
+        .layout-review.show { display: block; }
+
+        .layout-review-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.8rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .layout-review-title {
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .layout-review-sub {
+            margin-top: 0.18rem;
+            font-size: 0.64rem;
+            line-height: 1.4;
+            color: var(--text3);
+        }
+
+        .layout-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            white-space: nowrap;
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: var(--text2);
+        }
+
+        .layout-toggle input { accent-color: var(--accent); }
+
+        .layout-controls {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.55rem;
+        }
+
+        .layout-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            min-width: 0;
+        }
+
+        .layout-field span {
+            font-size: 0.6rem;
+            font-weight: 600;
+            color: var(--text3);
+        }
+
+        .layout-field select,
+        .layout-field input {
+            width: 100%;
+            min-width: 0;
+            height: 34px;
+            border: 1px solid var(--border2);
+            border-radius: 9px;
+            background: var(--surface);
+            color: var(--text);
+            font: inherit;
+            font-size: 0.7rem;
+            padding: 0 0.5rem;
+            outline: none;
+        }
+
+        .layout-field input:disabled {
+            color: var(--text2);
+            background: var(--surface2);
+        }
+
+        .batch-preview {
+            display: none;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.55rem;
+            margin-top: 0.75rem;
+        }
+
+        .batch-preview.show { display: grid; }
+
+        .batch-preview-card {
+            position: relative;
+            min-width: 0;
+            padding: 0.55rem;
+            border: 1px solid var(--border);
+            border-radius: 11px;
+            background: var(--surface);
+        }
+
+        .batch-preview-media {
+            height: 112px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .batch-preview-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #fff;
+        }
+
+        .batch-preview-type {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: var(--text3);
+            letter-spacing: 0.05em;
+        }
+
+        .batch-preview-name {
+            margin-top: 0.4rem;
+            font-size: 0.68rem;
+            font-weight: 650;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .batch-preview-meta {
+            margin-top: 0.1rem;
+            font-size: 0.6rem;
+            color: var(--text3);
+        }
+
+        .batch-preview-remove {
+            position: absolute;
+            top: 0.35rem;
+            right: 0.35rem;
+            width: 25px;
+            height: 25px;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.94);
+            color: var(--text3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        @media (max-width: 420px) {
+            .layout-controls { grid-template-columns: 1fr; }
+            .batch-preview { grid-template-columns: 1fr 1fr; }
+            .batch-preview-media { height: 96px; }
+        }
+
         .file-preview {
             display: none;
             align-items: center;
@@ -1787,9 +1952,9 @@
                 <div class="upload-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 </div>
-                <div class="upload-title">Drop a file here</div>
-                <div class="upload-sub">or tap to browse · <strong>Images, PDF, Word, PPT, Excel, TXT</strong> · 50 MB max</div>
-                <input type="file" id="fileInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
+                <div class="upload-title">Drop files here</div>
+                <div class="upload-sub">or tap to browse · <strong>Bulk JPG, PNG, PDF + Office/text</strong> · 50 MB each</div>
+                <input type="file" id="fileInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
             </div>
 
             <div class="language-row">
@@ -1811,6 +1976,47 @@
                     <option value="ks">Kashmiri</option>
                 </select>
             </div>
+
+            <div class="layout-review" id="layoutReview">
+                <div class="layout-review-head">
+                    <div>
+                        <div class="layout-review-title">AI paper reconstruction</div>
+                        <div class="layout-review-sub">Preview pages first, then PaperAI checks structure, alignment, relative font sizes and shapes before export.</div>
+                    </div>
+                    <label class="layout-toggle">
+                        <input type="checkbox" id="aiLayoutToggle" checked>
+                        <span>AI check</span>
+                    </label>
+                </div>
+                <div class="layout-controls">
+                    <label class="layout-field">
+                        <span>Paper type</span>
+                        <select id="pagePresetSelect">
+                            <option value="auto" selected>Auto detect</option>
+                            <option value="question-paper">Question paper</option>
+                            <option value="worksheet">Worksheet</option>
+                            <option value="form">Form</option>
+                            <option value="table">Table / grid</option>
+                            <option value="preserve">Preserve source</option>
+                        </select>
+                    </label>
+                    <label class="layout-field">
+                        <span>Spacing</span>
+                        <select id="densitySelect">
+                            <option value="auto" selected>AI / source</option>
+                            <option value="compact">Compact</option>
+                            <option value="normal">Normal</option>
+                            <option value="spacious">Spacious</option>
+                        </select>
+                    </label>
+                    <label class="layout-field">
+                        <span>English font</span>
+                        <input value="Tahoma" disabled>
+                    </label>
+                </div>
+            </div>
+
+            <div class="batch-preview" id="batchPreview"></div>
 
             <div class="file-preview" id="filePreview">
                 <img class="file-thumb" id="fileThumb" src="" alt="" style="display:none">
