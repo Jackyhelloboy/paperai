@@ -3003,8 +3003,51 @@ const CANONICAL_PHONETIC_OVERRIDES = Object.freeze({
     gaadi: 'गाड़ी',
     gaadii: 'गाड़ी',
     birbal: 'बीरबल',
-    beerbal: 'बीरबल'
+    beerbal: 'बीरबल',
+    i: 'आई',
+    love: 'लव',
+    you: 'यू',
+    my: 'माय',
+    name: 'नेम',
+    is: 'इज़',
+    hello: 'हेलो',
+    hi: 'हाय',
+    good: 'गुड',
+    morning: 'मॉर्निंग',
+    night: 'नाइट',
+    thank: 'थैंक',
+    thanks: 'थैंक्स'
 });
+
+const CANONICAL_PHONETIC_PHRASES = Object.freeze({
+    'i love you': 'आई लव यू',
+    'thank you': 'थैंक यू',
+    'good morning': 'गुड मॉर्निंग',
+    'good night': 'गुड नाइट',
+    'my name is': 'माय नेम इज़'
+});
+
+function getCanonicalPhraseOverride(phrase, script) {
+    const normalized = String(phrase || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    let devanagari = CANONICAL_PHONETIC_PHRASES[normalized] || '';
+
+    if (!devanagari && normalized.includes(' ')) {
+        const words = normalized.split(' ');
+        const converted = words.map(word => CANONICAL_PHONETIC_OVERRIDES[word] || '');
+        if (converted.every(Boolean)) devanagari = converted.join(' ');
+    }
+
+    if (!devanagari || script === 'latin') return '';
+    if (script === 'devanagari') return devanagari;
+
+    try {
+        if (window.IndicTransliterate?.convertScript) {
+            return window.IndicTransliterate.convertScript(devanagari, script);
+        }
+    } catch (_) {}
+
+    return '';
+}
 
 function getCanonicalPhoneticOverride(roman, script) {
     const devanagari = CANONICAL_PHONETIC_OVERRIDES[String(roman || '').toLowerCase()];
@@ -3143,7 +3186,9 @@ function getLocalSmartSuggestions(input) {
 
     const suggestions = [];
     const isSingleWord = !roman.includes(' ');
+    const phraseOverride = !isSingleWord ? getCanonicalPhraseOverride(roman, script) : '';
     const override = isSingleWord ? getCanonicalPhoneticOverride(roman, script) : '';
+    if (phraseOverride) suggestions.push(phraseOverride);
     if (override) suggestions.push(override);
 
     try {
