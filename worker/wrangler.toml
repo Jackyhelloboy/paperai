@@ -3,6 +3,10 @@ main = "src/index.js"
 compatibility_date = "2026-09-08"
 account_id = "9195bc9144b0e1c8811dfae71e58c7e4"
 
+# Runtime connection settings are managed in the Cloudflare dashboard.
+# Preserve them across code deployments; keep API keys as encrypted secrets.
+keep_vars = true
+
 # Optional external Unlimited-OCR inference. Configure with `wrangler secret put`:
 # UNLIMITED_OCR_BASE_URL: https://your-gpu-host.example/v1
 # UNLIMITED_OCR_API_KEY: matching vLLM --api-key
