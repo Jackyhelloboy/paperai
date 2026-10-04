@@ -3263,6 +3263,191 @@ const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teac
 
 let files=[], file=null, lastResult=null, showingRaw=false;
 let previewObjectUrls=[];
+
+// Smart pre-extraction: OCR starts as soon as a supported upload is selected.
+// Keep concurrency deliberately low so the free Workers AI model is not flooded.
+const SMART_MAX_IMAGES = 5;
+const SMART_MAX_PDFS = 1;
+const smartExtractionJobs = new Map();
+let smartExtractionQueue = [];
+let smartExtractionWorkers = 0;
+
+function smartFileKey(f) {
+    return [
+        String(f?.name || ''),
+        Number(f?.size || 0),
+        Number(f?.lastModified || 0),
+        String(f?.type || '')
+    ].join('|');
+}
+
+function smartWorkerLimit() {
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const slow = connection?.saveData || /(?:^|-)2g$|3g/i.test(String(connection?.effectiveType || ''));
+    return slow ? 1 : 2;
+}
+
+function updateSmartExtractionUI() {
+    if (!files.length) return;
+
+    let ready = 0;
+    let running = 0;
+    let failed = 0;
+
+    for (const f of files) {
+        const job = smartExtractionJobs.get(smartFileKey(f));
+        if (job?.status === 'done') ready++;
+        else if (job?.status === 'running' || job?.status === 'queued') running++;
+        else if (job?.status === 'error') failed++;
+    }
+
+    const label = $('goBtnLabel');
+    if (!label) return;
+
+    if (ready === files.length) {
+        label.textContent = files.length > 1 ? 'Build result' : 'View result';
+    } else if (failed > 0 && running === 0) {
+        label.textContent = 'Retry & build';
+    } else if (running > 0 || ready > 0) {
+        label.textContent = 'Preparing ' + ready + '/' + files.length;
+    } else {
+        label.textContent = files.length > 1 ? 'Scan ' + files.length + ' files' : 'Scan & Rebuild';
+    }
+}
+
+function cancelSmartJob(file) {
+    const key = smartFileKey(file);
+    const job = smartExtractionJobs.get(key);
+    if (!job) return;
+    job.cancelled = true;
+    try { job.controller?.abort(); } catch (_) {}
+    smartExtractionJobs.delete(key);
+    smartExtractionQueue = smartExtractionQueue.filter(item => item.key !== key);
+}
+
+function resetSmartExtraction() {
+    for (const job of smartExtractionJobs.values()) {
+        job.cancelled = true;
+        try { job.controller?.abort(); } catch (_) {}
+    }
+    smartExtractionJobs.clear();
+    smartExtractionQueue = [];
+    smartExtractionWorkers = 0;
+}
+
+function queueSmartExtraction(file) {
+    const key = smartFileKey(file);
+    const existing = smartExtractionJobs.get(key);
+    if (existing && ['queued','running','done'].includes(existing.status)) return existing;
+
+    const controller = new AbortController();
+    let resolveJob;
+    const promise = new Promise(resolve => { resolveJob = resolve; });
+    const job = {
+        key,
+        file,
+        controller,
+        status: 'queued',
+        result: null,
+        error: null,
+        cancelled: false,
+        promise,
+        resolve: resolveJob
+    };
+
+    smartExtractionJobs.set(key, job);
+    smartExtractionQueue.push(job);
+    pumpSmartExtractionQueue();
+    updateSmartExtractionUI();
+    return job;
+}
+
+function startSmartExtractionForFiles() {
+    files.forEach(f => queueSmartExtraction(f));
+    updateSmartExtractionUI();
+}
+
+function pumpSmartExtractionQueue() {
+    const limit = smartWorkerLimit();
+
+    while (smartExtractionWorkers < limit && smartExtractionQueue.length) {
+        const job = smartExtractionQueue.shift();
+        if (!job || job.cancelled || !smartExtractionJobs.has(job.key)) continue;
+
+        smartExtractionWorkers++;
+        job.status = 'running';
+        updateSmartExtractionUI();
+
+        (async () => {
+            try {
+                const currentIndex = Math.max(0, files.findIndex(f => smartFileKey(f) === job.key));
+                const result = await extractOneInputFile(
+                    job.file,
+                    currentIndex,
+                    Math.max(1, files.length),
+                    '',
+                    { signal: job.controller.signal, background: true }
+                );
+
+                if (job.cancelled) {
+                    job.status = 'cancelled';
+                    job.resolve({ ok: false, cancelled: true });
+                    return;
+                }
+
+                job.result = result;
+                job.status = 'done';
+                job.resolve({ ok: true, result });
+            } catch (error) {
+                if (job.cancelled || error?.name === 'AbortError') {
+                    job.status = 'cancelled';
+                    job.resolve({ ok: false, cancelled: true });
+                } else {
+                    job.error = error;
+                    job.status = 'error';
+                    job.resolve({ ok: false, error });
+                }
+            } finally {
+                smartExtractionWorkers = Math.max(0, smartExtractionWorkers - 1);
+                updateSmartExtractionUI();
+                pumpSmartExtractionQueue();
+            }
+        })();
+    }
+}
+
+async function getSmartExtractionResult(file, index, total) {
+    const key = smartFileKey(file);
+    let job = smartExtractionJobs.get(key);
+
+    if (!job) {
+        job = queueSmartExtraction(file);
+    }
+
+    if (job.status === 'done' && job.result) {
+        return job.result;
+    }
+
+    if (job.status === 'queued' || job.status === 'running') {
+        const settled = await job.promise;
+        if (settled?.ok && settled.result) return settled.result;
+    }
+
+    // Only retry the failed file, not the whole batch.
+    smartExtractionJobs.delete(key);
+    const result = await extractOneInputFile(file, index, total, '', { background: false });
+    smartExtractionJobs.set(key, {
+        key,
+        file,
+        status: 'done',
+        result,
+        error: null,
+        cancelled: false,
+        promise: Promise.resolve({ ok: true, result })
+    });
+    updateSmartExtractionUI();
+    return result;
+}
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
