@@ -739,12 +739,13 @@
 
         .results-actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 0.5rem;
             margin-bottom: 0.625rem;
         }
 
         .action-btn {
-            flex: 1;
+            flex: 1 1 105px;
             height: 40px;
             border: 1px solid var(--border);
             border-radius: var(--radius-xs);
@@ -1715,6 +1716,10 @@
                 <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     Download Word
+                </button>
+                <button class="action-btn" id="shareWordBtn" onclick="shareExtractedWord(this)">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M12 16V3m0 0L7 8m5-5l5 5"/></svg>
+                    Share
                 </button>
                 <button class="action-btn" onclick="openTeachPanel()">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
@@ -4159,9 +4164,17 @@ function currentPlainText() {
 
 function updateResultActionsForTab() {
     const downloadBtn = $('downloadWordBtn');
-    if (!downloadBtn) return;
-    downloadBtn.style.display = showingRaw ? 'none' : '';
-    downloadBtn.disabled = showingRaw;
+    const shareBtn = $('shareWordBtn');
+
+    if (downloadBtn) {
+        downloadBtn.style.display = showingRaw ? 'none' : '';
+        downloadBtn.disabled = showingRaw;
+    }
+
+    if (shareBtn) {
+        shareBtn.style.display = showingRaw ? 'none' : '';
+        shareBtn.disabled = showingRaw;
+    }
 }
 
 function showTab(tab) {
@@ -4936,14 +4949,34 @@ async function makeExtractedDocx(structuredText) {
     });
 }
 
-async function downloadWord(btn) {
-    if (!lastResult || showingRaw) return;
-
-    const structuredText = teachPanel.classList.contains('show')
+function currentStructuredWordText() {
+    if (!lastResult) return '';
+    return teachPanel.classList.contains('show')
         ? (lastResult.preview_layout_text || lastResult.text || '')
         : (lastResult.text || '');
+}
 
-    if (!structuredText.trim()) return;
+function extractedWordFilename() {
+    const base = String(file?.name || 'paperai')
+        .replace(/\.[^.]+$/, '')
+        .replace(/[^\p{L}\p{N}_-]+/gu, '-')
+        .replace(/^-+|-+$/g, '') || 'paperai';
+    return base + '-extracted.docx';
+}
+
+async function createExtractedWordFile() {
+    const structuredText = currentStructuredWordText();
+    if (!structuredText.trim()) throw new Error('Nothing was available to export.');
+
+    const blob = await makeExtractedDocx(structuredText);
+    return new File([blob], extractedWordFilename(), {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        lastModified: Date.now()
+    });
+}
+
+async function downloadWord(btn) {
+    if (!lastResult || showingRaw) return;
 
     const original = btn?.innerHTML || '';
     if (btn) {
@@ -4952,14 +4985,54 @@ async function downloadWord(btn) {
     }
 
     try {
-        const blob = await makeExtractedDocx(structuredText);
-        const base = String(file?.name || 'paperai')
-            .replace(/\.[^.]+$/, '')
-            .replace(/[^\p{L}\p{N}_-]+/gu, '-')
-            .replace(/^-+|-+$/g, '') || 'paperai';
-        dlBlob(blob, base + '-extracted.docx');
+        const wordFile = await createExtractedWordFile();
+        dlBlob(wordFile, wordFile.name);
     } catch (error) {
         showErr(error?.message || 'Could not create Word file.');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    }
+}
+
+async function shareExtractedWord(btn) {
+    if (!lastResult || showingRaw) return;
+
+    const original = btn?.innerHTML || '';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Preparing...';
+    }
+
+    try {
+        const wordFile = await createExtractedWordFile();
+        const shareData = {
+            files: [wordFile],
+            title: 'PaperAI Extracted',
+            text: 'Editable Word document from PaperAI'
+        };
+
+        const canShareFile =
+            typeof navigator.share === 'function' &&
+            (!navigator.canShare || navigator.canShare({ files: [wordFile] }));
+
+        if (canShareFile) {
+            await navigator.share(shareData);
+        } else {
+            // Browsers without file-sharing support still get the same
+            // editable Word file so the user can share it from Downloads.
+            dlBlob(wordFile, wordFile.name);
+            if (btn) {
+                btn.textContent = 'Downloaded';
+                await new Promise(resolve => setTimeout(resolve, 1200));
+            }
+        }
+    } catch (error) {
+        if (error?.name !== 'AbortError') {
+            showErr(error?.message || 'Could not share the Word file.');
+        }
     } finally {
         if (btn) {
             btn.disabled = false;
