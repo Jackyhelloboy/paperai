@@ -3384,6 +3384,7 @@
                     <input type="file" id="draftAddInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
                     <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
                     <span class="draft-hint">One photo per page · up to 200 pages · 3 MB each</span>
+                    <span class="draft-hint">Photos are saved straight away. Use a page's Read button to turn it into text — that step needs AI.</span>
                 </div>
 
                 <div class="draft-actions">
@@ -9475,6 +9476,10 @@ function renderDraftPages() {
         '<button class="draft-tool" type="button" data-page-up="' + esc(page.id) + '"' + (index === 0 ? ' disabled' : '') + '>Up</button>' +
         '<button class="draft-tool" type="button" data-page-down="' + esc(page.id) + '"' + (index === pages.length - 1 ? ' disabled' : '') + '>Down</button>' +
         '<button class="draft-tool" type="button" data-page-fix="' + esc(page.id) + '">Fix</button>' +
+        (page.has_image
+            ? '<button class="draft-tool" type="button" data-page-read="' + esc(page.id) + '">'
+                + (page.text ? 'Re-read' : 'Read') + '</button>'
+            : '') +
         '<button class="draft-tool" type="button" data-page-replace="' + esc(page.id) + '">Photo</button>' +
         '<button class="draft-tool rm" type="button" data-page-del="' + esc(page.id) + '">Remove</button>' +
         '</div>' +
@@ -9580,6 +9585,8 @@ async function runOcrForPage(imageFile) {
     return result?.text || result?.plain || '';
 }
 
+// Store the photo first, so a page never depends on AI being available. Reading
+// the text is a separate, retryable step the user chooses to run.
 async function addPageToDraft(imageFile) {
     if (!activeDraft || draftBusy) return;
     if (imageFile.size > 3 * 1024 * 1024) {
@@ -9588,18 +9595,51 @@ async function addPageToDraft(imageFile) {
     }
 
     setDraftBusy(true);
-    setDraftStatus('Reading ' + imageFile.name + '...');
+    setDraftStatus('Saving ' + imageFile.name + '...');
     try {
-        const text = await runOcrForPage(imageFile);
         const body = new FormData();
         body.append('file', imageFile, imageFile.name);
-        body.append('text', text || '');
+        body.append('text', '');
         body.append('source_name', imageFile.name);
-        await fetchDraftEndpoint('/api/drafts/' + activeDraft.id + '/pages', { method: 'POST', body });
+        const saved = await fetchDraftEndpoint('/api/drafts/' + activeDraft.id + '/pages', { method: 'POST', body });
         await refreshActiveDraft();
-        setDraftStatus('');
+        setDraftStatus('Page added. Reading the text...');
+        await readDraftPage(saved.page.id, true);
     } catch (e) {
         setDraftStatus('Could not add that page: ' + (e.message || 'unknown error'), true);
+    } finally {
+        setDraftBusy(false);
+        renderDraftPages();
+    }
+}
+
+// Turn the stored photo into text on demand. A page with no text can be read
+// later, so an exhausted AI quota never blocks building a document.
+async function readDraftPage(pageId, quiet) {
+    if (!activeDraft || draftBusy) return;
+    const page = (activeDraft.pages || []).find(p => p.id === pageId);
+    if (!page) return;
+    if (!page.has_image) {
+        if (!quiet) setDraftStatus('Add a photo to that page before reading it.', true);
+        return;
+    }
+    setDraftBusy(true);
+    if (!quiet) setDraftStatus('Reading page...');
+    try {
+        const res = await fetch(draftImageUrl(activeDraft.id, pageId), { cache: 'no-store' });
+        if (!res.ok) throw new Error('could not load the photo');
+        const text = await runOcrForPage(await res.blob());
+        await fetchDraftEndpoint('/api/drafts/' + activeDraft.id + '/pages/' + pageId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ edited_text: text || '' })
+        });
+        await refreshActiveDraft();
+        setDraftStatus(text ? 'Page read.' : 'No text was found on that page.');
+    } catch (e) {
+        // The photo is already saved, so the page is kept and can be read later.
+        setDraftStatus('Photo saved, but the text could not be read: ' + (e.message || 'unknown error')
+            + ' — use Read to try again.', true);
     } finally {
         setDraftBusy(false);
         renderDraftPages();
@@ -9621,15 +9661,15 @@ async function replacePagePhoto(pageId, imageFile) {
         return;
     }
     setDraftBusy(true);
-    setDraftStatus('Re-reading ' + imageFile.name + '...');
+    setDraftStatus('Saving new photo...');
     try {
-        const text = await runOcrForPage(imageFile);
         const body = new FormData();
         body.append('file', imageFile, imageFile.name);
-        body.append('text', text || '');
+        body.append('text', '');
         await fetchDraftEndpoint('/api/drafts/' + activeDraft.id + '/pages/' + pageId, { method: 'PUT', body });
         await refreshActiveDraft();
-        setDraftStatus('');
+        setDraftStatus('Photo replaced. Reading the text...');
+        await readDraftPage(pageId, true);
     } catch (e) {
         setDraftStatus('Could not replace that page: ' + (e.message || 'unknown error'), true);
     } finally {
@@ -9811,6 +9851,7 @@ function wireDrafts() {
         else if (target.closest('[data-page-down]')) moveDraftPage(target.closest('[data-page-down]').getAttribute('data-page-down'), 1);
         else if (target.closest('[data-page-del]')) removeDraftPage(target.closest('[data-page-del]').getAttribute('data-page-del'));
         else if (target.closest('[data-page-fix]')) fixDraftPage(target.closest('[data-page-fix]').getAttribute('data-page-fix'));
+    else if (target.closest('[data-page-read]')) readDraftPage(target.closest('[data-page-read]').getAttribute('data-page-read'));
         else if (target.closest('[data-page-replace]')) {
             draftReplaceTarget = target.closest('[data-page-replace]').getAttribute('data-page-replace');
             $('draftReplaceInput').click();
