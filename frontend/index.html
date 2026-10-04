@@ -1573,7 +1573,9 @@
                     <option value="bn">Bengali</option>
                     <option value="gu">Gujarati</option>
                     <option value="pa">Punjabi</option>
+                    <option value="or">Odia</option>
                     <option value="ur">Urdu</option>
+                    <option value="ks">Kashmiri</option>
                 </select>
             </div>
 
@@ -1633,12 +1635,11 @@
 
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
-                <div class="teach-sub">Edits preview instantly below. Hindi Phonetic can turn Roman typing such as <strong>rupayaa</strong> into <strong>रुपया</strong>. Saved corrections become visual hints only; the image still decides future OCR.</div>
+                <div class="teach-sub">Smart multilingual typing is automatic. Roman phonetic typing is converted for the document language, and difficult words can receive AI suggestions. Edits preview instantly below.</div>
                 <div class="teach-toolbar">
                     <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                     <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
                     <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
-                    <button class="teach-tool" id="teachHindiBtn" type="button" onclick="toggleHindiPhonetic()">हिंदी Phonetic: Off</button>
                 </div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
@@ -1680,12 +1681,15 @@ const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('text
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
 const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
-const teachPanel=$('teachPanel'),teachEditor=$('teachEditor'),teachHindiBtn=$('teachHindiBtn');
+const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
 
 let file=null, lastResult=null, showingRaw=false;
 let teachOriginalText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
-let hindiPhoneticOn=false, hindiComposition=null, phoneticSelectionLock=false;
+let smartComposition=null, phoneticSelectionLock=false;
+let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
+const aiSuggestionCache = new Map();
+const MAX_AI_SUGGESTIONS_PER_TEACH = 8;
 
 const fmtSize = b => b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
 const showErr = m => { errText.textContent=m; errBox.classList.add('show'); };
@@ -2876,44 +2880,100 @@ function extractLearningPairs(before, after) {
     return pairs;
 }
 
-const HINDI_PHONETIC_OVERRIDES = Object.freeze({
-    allah: 'अल्लाह',
-    allaah: 'अल्लाह',
-    jawad: 'जवाद',
-    jawaad: 'जवाद',
-    rupaya: 'रुपया',
-    rupayaa: 'रुपया',
-    rupaye: 'रुपये',
-    aadmi: 'आदमी',
-    aadamii: 'आदमी',
-    gaadi: 'गाड़ी',
-    gaadii: 'गाड़ी',
-    birbal: 'बीरबल',
-    beerbal: 'बीरबल'
+const PHONETIC_OVERRIDES = Object.freeze({
+    devanagari: Object.freeze({
+        allah: 'अल्लाह',
+        allaah: 'अल्लाह',
+        jawad: 'जवाद',
+        jawaad: 'जवाद',
+        rupaya: 'रुपया',
+        rupayaa: 'रुपया',
+        rupaye: 'रुपये',
+        aadmi: 'आदमी',
+        aadamii: 'आदमी',
+        gaadi: 'गाड़ी',
+        gaadii: 'गाड़ी',
+        birbal: 'बीरबल',
+        beerbal: 'बीरबल'
+    })
+});
+
+const TEACH_LANGUAGE_META = Object.freeze({
+    en: { label: 'English', script: 'latin' },
+    hi: { label: 'Hindi', script: 'devanagari' },
+    mr: { label: 'Marathi', script: 'devanagari' },
+    te: { label: 'Telugu', script: 'telugu' },
+    ta: { label: 'Tamil', script: 'tamil' },
+    kn: { label: 'Kannada', script: 'kannada' },
+    ml: { label: 'Malayalam', script: 'malayalam' },
+    bn: { label: 'Bengali', script: 'bengali' },
+    gu: { label: 'Gujarati', script: 'gujarati' },
+    pa: { label: 'Punjabi', script: 'gurmukhi' },
+    or: { label: 'Odia', script: 'odia' },
+    ur: { label: 'Urdu', script: 'urdu' },
+    ks: { label: 'Kashmiri', script: 'kashmiri' }
 });
 
 function uniqueStrings(values) {
     const seen = new Set();
-    return values.filter(value => {
-        const s = String(value || '').normalize('NFC').trim();
-        if (!s || seen.has(s)) return false;
-        seen.add(s);
+    return values.map(value => String(value || '').normalize('NFC').trim()).filter(value => {
+        if (!value || seen.has(value)) return false;
+        seen.add(value);
         return true;
     });
 }
 
-function getHindiPhoneticSuggestions(input) {
+function detectTeachLanguage(text) {
+    const selected = languageSelect.value || 'auto';
+    if (selected !== 'auto' && TEACH_LANGUAGE_META[selected]) return selected;
+
+    const source = String(text || '');
+    const scripts = [
+        ['hi', /[\u0900-\u097F]/g],
+        ['bn', /[\u0980-\u09FF]/g],
+        ['pa', /[\u0A00-\u0A7F]/g],
+        ['gu', /[\u0A80-\u0AFF]/g],
+        ['or', /[\u0B00-\u0B7F]/g],
+        ['ta', /[\u0B80-\u0BFF]/g],
+        ['te', /[\u0C00-\u0C7F]/g],
+        ['kn', /[\u0C80-\u0CFF]/g],
+        ['ml', /[\u0D00-\u0D7F]/g],
+        ['ur', /[\u0600-\u06FF]/g],
+        ['en', /[A-Za-z]/g]
+    ];
+
+    let best = ['en', 0];
+    for (const [code, re] of scripts) {
+        const count = (source.match(re) || []).length;
+        if (count > best[1]) best = [code, count];
+    }
+    return best[0];
+}
+
+function currentTeachLanguage() {
+    return detectTeachLanguage(teachOriginalText || lastResult?.plain_text || '');
+}
+
+function currentTeachScript() {
+    return TEACH_LANGUAGE_META[currentTeachLanguage()]?.script || 'latin';
+}
+
+function getLocalSmartSuggestions(input) {
     const roman = String(input || '').toLowerCase().trim();
     if (!/^[a-z]+$/.test(roman)) return [input];
 
+    const script = currentTeachScript();
+    if (script === 'latin') return [roman];
+
     const suggestions = [];
-    if (HINDI_PHONETIC_OVERRIDES[roman]) suggestions.push(HINDI_PHONETIC_OVERRIDES[roman]);
+    const override = PHONETIC_OVERRIDES[script]?.[roman];
+    if (override) suggestions.push(override);
 
     try {
         if (window.IndicTransliterate?.suggest) {
-            suggestions.push(...window.IndicTransliterate.suggest(roman, 'devanagari'));
+            suggestions.push(...window.IndicTransliterate.suggest(roman, script));
         } else if (window.IndicTransliterate?.transliterate) {
-            suggestions.push(window.IndicTransliterate.transliterate(roman, 'devanagari'));
+            suggestions.push(window.IndicTransliterate.transliterate(roman, script));
         }
     } catch (_) {}
 
@@ -2921,36 +2981,104 @@ function getHindiPhoneticSuggestions(input) {
     return uniqueStrings(suggestions).slice(0, 6);
 }
 
-function transliterateHindiWord(input) {
-    return getHindiPhoneticSuggestions(input)[0] || input;
+function transliterateSmartWord(input) {
+    return getLocalSmartSuggestions(input)[0] || input;
 }
 
-function showHindiSuggestions() {
-    if (!hindiPhoneticOn || !hindiComposition?.roman) {
-        translitSuggestions.classList.remove('show');
-        translitSuggestions.innerHTML = '';
-        return;
-    }
+function getTeachContext(position) {
+    const text = teachEditor.value || '';
+    const start = Math.max(0, Number(position || 0) - 90);
+    const end = Math.min(text.length, Number(position || 0) + 90);
+    return text.slice(start, end).replace(/\s+/g, ' ').trim();
+}
 
-    const choices = getHindiPhoneticSuggestions(hindiComposition.roman);
-    translitSuggestions.innerHTML = choices.map((choice, index) =>
+async function fetchAiWordSuggestions(roman, language, localSuggestions, sequence) {
+    const cacheKey = language + '\u0000' + roman.toLowerCase();
+    if (aiSuggestionCache.has(cacheKey)) return aiSuggestionCache.get(cacheKey);
+    if (aiSuggestionCalls >= MAX_AI_SUGGESTIONS_PER_TEACH) return [];
+
+    aiSuggestionCalls++;
+
+    try {
+        const res = await fetchOcrEndpoint('/api/suggest-word', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                word: roman,
+                language,
+                context: getTeachContext(smartComposition?.start || teachEditor.selectionStart),
+                local_suggestions: localSuggestions.slice(0, 5)
+            })
+        });
+
+        if (!res.ok) return [];
+        const body = await res.json();
+        if (sequence !== aiSuggestionSequence) return [];
+
+        const suggestions = uniqueStrings(Array.isArray(body?.suggestions) ? body.suggestions : []).slice(0, 5);
+        aiSuggestionCache.set(cacheKey, suggestions);
+        return suggestions;
+    } catch (_) {
+        return [];
+    }
+}
+
+function shouldAskAiForWord(roman, localSuggestions) {
+    if (!roman || roman.length < 4) return false;
+    const language = currentTeachLanguage();
+    const script = currentTeachScript();
+
+    if (script !== 'latin' && PHONETIC_OVERRIDES[script]?.[roman.toLowerCase()]) return false;
+    if (language === 'en') return roman.length >= 4;
+
+    const nonRoman = localSuggestions.filter(x => x.toLowerCase() !== roman.toLowerCase());
+    return roman.length >= 5 && nonRoman.length >= 1;
+}
+
+function renderSuggestionChips(choices, aiChoices = []) {
+    const merged = uniqueStrings([...(choices || []), ...(aiChoices || [])]).slice(0, 8);
+    translitSuggestions.innerHTML = merged.map((choice, index) =>
         '<button class="translit-chip" type="button" data-choice="' + index + '">' + esc(choice) + '</button>'
     ).join('');
-    translitSuggestions.classList.toggle('show', choices.length > 0);
+    translitSuggestions.classList.toggle('show', merged.length > 0);
 
     translitSuggestions.querySelectorAll('.translit-chip').forEach((button, index) => {
         button.addEventListener('mousedown', event => event.preventDefault());
-        button.addEventListener('click', () => chooseHindiSuggestion(choices[index]));
+        button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));
     });
 }
 
-function chooseHindiSuggestion(choice) {
-    if (!hindiComposition) return;
-    const newEnd = replaceTeachRange(hindiComposition.start, hindiComposition.end, choice);
-    hindiComposition.end = newEnd;
+function showSmartSuggestions() {
+    if (!smartComposition?.roman) {
+        translitSuggestions.classList.remove('show');
+        translitSuggestions.innerHTML = '';
+        if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
+        return;
+    }
+
+    const roman = smartComposition.roman;
+    const language = currentTeachLanguage();
+    const localChoices = getLocalSmartSuggestions(roman);
+    renderSuggestionChips(localChoices);
+
+    if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
+    if (!shouldAskAiForWord(roman, localChoices)) return;
+
+    const sequence = ++aiSuggestionSequence;
+    aiSuggestionTimer = setTimeout(async () => {
+        const aiChoices = await fetchAiWordSuggestions(roman, language, localChoices, sequence);
+        if (sequence !== aiSuggestionSequence || smartComposition?.roman !== roman) return;
+        renderSuggestionChips(localChoices, aiChoices);
+    }, 850);
+}
+
+function chooseSmartSuggestion(choice) {
+    if (!smartComposition) return;
+    const newEnd = replaceTeachRange(smartComposition.start, smartComposition.end, choice);
+    smartComposition.end = newEnd;
     pushTeachHistory(teachEditor.value);
     renderTeachPreview();
-    showHindiSuggestions();
+    showSmartSuggestions();
     teachEditor.focus();
 }
 
@@ -2965,8 +3093,6 @@ function renderTeachPreview() {
 function updateTeachButtons() {
     teachUndoBtn.disabled = teachHistoryIndex <= 0;
     teachRedoBtn.disabled = teachHistoryIndex < 0 || teachHistoryIndex >= teachHistory.length - 1;
-    teachHindiBtn.classList.toggle('active', hindiPhoneticOn);
-    teachHindiBtn.textContent = 'हिंदी Phonetic: ' + (hindiPhoneticOn ? 'On' : 'Off');
 }
 
 function pushTeachHistory(value) {
@@ -2984,7 +3110,8 @@ function applyTeachSnapshot(value) {
     teachHistoryLock = true;
     teachEditor.value = value;
     teachHistoryLock = false;
-    hindiComposition = null;
+    smartComposition = null;
+    showSmartSuggestions();
     renderTeachPreview();
     updateTeachButtons();
 }
@@ -3006,23 +3133,12 @@ function teachRestoreOriginal() {
     applyTeachSnapshot(teachOriginalText);
 }
 
-function toggleHindiPhonetic() {
-    hindiPhoneticOn = !hindiPhoneticOn;
-    hindiComposition = null;
-    showHindiSuggestions();
-    updateTeachButtons();
-    teachEditor.focus();
-}
-
 function replaceTeachRange(start, end, replacement) {
     const before = teachEditor.value.slice(0, start);
     const after = teachEditor.value.slice(end);
     teachEditor.value = before + replacement + after;
     const caret = start + replacement.length;
 
-    // setSelectionRange fires a "select" event in some browsers/mobile WebViews.
-    // Without this guard, the active Roman word is cleared after every letter,
-    // so "allah" is transliterated as a + l + l + a + h -> "अललअह".
     phoneticSelectionLock = true;
     teachEditor.setSelectionRange(caret, caret);
     setTimeout(() => { phoneticSelectionLock = false; }, 0);
@@ -3030,46 +3146,70 @@ function replaceTeachRange(start, end, replacement) {
     return caret;
 }
 
-function handleHindiPhoneticKey(event) {
-    if (!hindiPhoneticOn || event.ctrlKey || event.metaKey || event.altKey) return false;
+function handleSmartPhoneticKey(event) {
+    if (event.ctrlKey || event.metaKey || event.altKey) return false;
 
-    if (/^[a-zA-Z]$/.test(event.key)) {
+    const script = currentTeachScript();
+
+    if (/^[a-zA-Z]$/.test(event.key) && script !== 'latin') {
         event.preventDefault();
 
         const caret = teachEditor.selectionStart;
         const selectionEnd = teachEditor.selectionEnd;
 
-        if (!hindiComposition || hindiComposition.end !== caret || selectionEnd !== caret) {
-            hindiComposition = { start: caret, end: selectionEnd, roman: '' };
+        if (!smartComposition || smartComposition.end !== caret || selectionEnd !== caret) {
+            smartComposition = { start: caret, end: selectionEnd, roman: '' };
         }
 
-        hindiComposition.roman += event.key.toLowerCase();
-        const converted = transliterateHindiWord(hindiComposition.roman);
-        const newEnd = replaceTeachRange(hindiComposition.start, hindiComposition.end, converted);
-        hindiComposition.end = newEnd;
+        smartComposition.roman += event.key.toLowerCase();
+        const converted = transliterateSmartWord(smartComposition.roman);
+        const newEnd = replaceTeachRange(smartComposition.start, smartComposition.end, converted);
+        smartComposition.end = newEnd;
         pushTeachHistory(teachEditor.value);
         renderTeachPreview();
-        showHindiSuggestions();
+        showSmartSuggestions();
         return true;
     }
 
-    if (event.key === 'Backspace' && hindiComposition?.roman) {
+    if (event.key === 'Backspace' && smartComposition?.roman && script !== 'latin') {
         event.preventDefault();
-        hindiComposition.roman = hindiComposition.roman.slice(0, -1);
-        const converted = transliterateHindiWord(hindiComposition.roman);
-        const newEnd = replaceTeachRange(hindiComposition.start, hindiComposition.end, converted);
-        hindiComposition.end = newEnd;
+        smartComposition.roman = smartComposition.roman.slice(0, -1);
+        const converted = transliterateSmartWord(smartComposition.roman);
+        const newEnd = replaceTeachRange(smartComposition.start, smartComposition.end, converted);
+        smartComposition.end = newEnd;
 
-        if (!hindiComposition.roman) hindiComposition = null;
+        if (!smartComposition.roman) smartComposition = null;
         pushTeachHistory(teachEditor.value);
         renderTeachPreview();
-        showHindiSuggestions();
+        showSmartSuggestions();
         return true;
     }
 
-    hindiComposition = null;
-    showHindiSuggestions();
+    if (/^[\s.,;:!?()\[\]{}\-_/\\]$/.test(event.key)) {
+        smartComposition = null;
+        showSmartSuggestions();
+    }
+
     return false;
+}
+
+function findRomanWordAtCaret() {
+    const value = teachEditor.value || '';
+    const caret = teachEditor.selectionStart;
+    let start = caret;
+    let end = caret;
+
+    while (start > 0 && /[A-Za-z]/.test(value[start - 1])) start--;
+    while (end < value.length && /[A-Za-z]/.test(value[end])) end++;
+
+    const roman = value.slice(start, end);
+    return /^[A-Za-z]{2,}$/.test(roman) ? { start, end, roman: roman.toLowerCase() } : null;
+}
+
+function refreshEnglishSmartSuggestions() {
+    if (currentTeachScript() !== 'latin') return;
+    smartComposition = findRomanWordAtCaret();
+    showSmartSuggestions();
 }
 
 function openTeachPanel() {
@@ -3078,10 +3218,11 @@ function openTeachPanel() {
     teachEditor.value = teachOriginalText;
     teachHistory = [teachOriginalText];
     teachHistoryIndex = 0;
-    hindiComposition = null;
-    hindiPhoneticOn = languageSelect.value === 'hi' || /[\u0900-\u097F]/.test(teachOriginalText);
+    smartComposition = null;
+    aiSuggestionCalls = 0;
+    aiSuggestionSequence++;
     teachPanel.classList.add('show');
-    showHindiSuggestions();
+    showSmartSuggestions();
     updateTeachButtons();
     renderTeachPreview();
     teachEditor.focus();
@@ -3089,8 +3230,10 @@ function openTeachPanel() {
 
 function closeTeachPanel() {
     teachPanel.classList.remove('show');
-    hindiComposition = null;
-    showHindiSuggestions();
+    smartComposition = null;
+    aiSuggestionSequence++;
+    if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
+    showSmartSuggestions();
 
     if (lastResult) delete lastResult.preview_text;
 
@@ -3101,7 +3244,7 @@ function closeTeachPanel() {
 }
 
 teachEditor.addEventListener('keydown', event => {
-    if (handleHindiPhoneticKey(event)) return;
+    if (handleSmartPhoneticKey(event)) return;
 
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
@@ -3118,15 +3261,21 @@ teachEditor.addEventListener('keydown', event => {
 
 teachEditor.addEventListener('input', () => {
     if (teachHistoryLock) return;
-    hindiComposition = null;
+
+    if (currentTeachScript() === 'latin') {
+        refreshEnglishSmartSuggestions();
+    } else if (!smartComposition) {
+        showSmartSuggestions();
+    }
+
     pushTeachHistory(teachEditor.value);
     renderTeachPreview();
 });
 
 teachEditor.addEventListener('click', () => {
     if (phoneticSelectionLock) return;
-    hindiComposition = null;
-    showHindiSuggestions();
+    smartComposition = currentTeachScript() === 'latin' ? findRomanWordAtCaret() : null;
+    showSmartSuggestions();
 });
 
 teachEditor.addEventListener('select', () => {
@@ -3135,12 +3284,10 @@ teachEditor.addEventListener('select', () => {
     const start = teachEditor.selectionStart;
     const end = teachEditor.selectionEnd;
 
-    // Keep phonetic composition alive when selection/caret remains exactly at
-    // the end of the word PaperAI is currently composing.
-    if (hindiComposition && start === end && end === hindiComposition.end) return;
+    if (smartComposition && start === end && end === smartComposition.end) return;
 
-    hindiComposition = null;
-    showHindiSuggestions();
+    smartComposition = currentTeachScript() === 'latin' ? findRomanWordAtCaret() : null;
+    showSmartSuggestions();
 });
 
 function saveLearning() {
