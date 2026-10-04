@@ -2157,6 +2157,8 @@ const API_LOCAL = location.origin;
 const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageSelect=$('languageSelect');
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
+const batchPreview=$('batchPreview'),layoutReview=$('layoutReview');
+const pagePresetSelect=$('pagePresetSelect'),densitySelect=$('densitySelect'),aiLayoutToggle=$('aiLayoutToggle');
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
@@ -2166,7 +2168,8 @@ const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
-let file=null, lastResult=null, showingRaw=false;
+let files=[], file=null, lastResult=null, showingRaw=false;
+let previewObjectUrls=[];
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
@@ -2341,45 +2344,159 @@ function getFileCategory(ext) {
     return 'txt';
 }
 
-function setFile(f) {
+function validateUploadFile(f) {
     const ext = f.name.split('.').pop().toLowerCase();
     if (BLOCKED_EXTS.includes(ext) || f.type.startsWith('video/') || f.type.startsWith('audio/') || f.type === 'image/vnd.adobe.photoshop') {
-        showErr('Video, audio and PSD/design files are intentionally not supported.');
-        return;
+        return 'Video, audio and PSD/design files are intentionally not supported.';
     }
     if (!ALLOWED_EXTS.includes(ext)) {
-        showErr('File type not supported: .' + ext + '. Use image, PDF, Word, PowerPoint, Excel or text files.');
+        return 'File type not supported: .' + ext + '. Use image, PDF, Word, PowerPoint, Excel or text files.';
+    }
+    if (f.size > 52428800) return 'File too large (max 50 MB each): ' + f.name;
+    return '';
+}
+
+function getLayoutOptions() {
+    return {
+        preset: pagePresetSelect?.value || 'auto',
+        density: densitySelect?.value || 'auto',
+        aiLayoutCheck: aiLayoutToggle?.checked !== false,
+        englishFont: 'Tahoma'
+    };
+}
+
+function saveLayoutPreferences() {
+    try {
+        localStorage.setItem('paperai_layout_preferences_v1', JSON.stringify(getLayoutOptions()));
+    } catch (_) {}
+}
+
+function loadLayoutPreferences() {
+    try {
+        const pref = JSON.parse(localStorage.getItem('paperai_layout_preferences_v1') || '{}');
+        if (pagePresetSelect && ['auto','question-paper','worksheet','form','table','preserve'].includes(pref.preset)) {
+            pagePresetSelect.value = pref.preset;
+        }
+        if (densitySelect && ['auto','compact','normal','spacious'].includes(pref.density)) {
+            densitySelect.value = pref.density;
+        }
+        if (aiLayoutToggle && typeof pref.aiLayoutCheck === 'boolean') {
+            aiLayoutToggle.checked = pref.aiLayoutCheck;
+        }
+    } catch (_) {}
+}
+
+async function renderPdfPreviewCard(f, img) {
+    try {
+        const data = await f.arrayBuffer();
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 0.55 });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        const ctx = canvas.getContext('2d', { alpha: false });
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        img.src = canvas.toDataURL('image/jpeg', 0.78);
+        img.style.display = 'block';
+    } catch (_) {}
+}
+
+function renderBatchPreview() {
+    previewObjectUrls.forEach(url => { try { URL.revokeObjectURL(url); } catch (_) {} });
+    previewObjectUrls = [];
+
+    if (!files.length) {
+        batchPreview.innerHTML = '';
+        batchPreview.classList.remove('show');
+        layoutReview.classList.remove('show');
         return;
     }
-    if (f.size > 52428800) { showErr('File too large (max 50 MB)'); return; }
-    file = f;
-    fileName.textContent = f.name;
-    const typeLabel = ext.toUpperCase();
-    fileMeta.textContent = fmtSize(f.size) + ' · ' + typeLabel;
-    const cat = getFileCategory(ext);
-    const isImage = IMAGE_EXTS.includes(ext);
-    if (isImage) {
-        const r = new FileReader();
-        r.onload = e => { fileThumb.src = e.target.result; fileThumb.style.display='block'; fileTypeIcon.style.display='none'; };
-        r.readAsDataURL(f);
-    } else {
-        fileThumb.style.display='none';
-        fileTypeIcon.textContent = typeLabel.length > 4 ? typeLabel.substring(0,4) : typeLabel;
-        fileTypeIcon.className = 'file-type-icon ' + cat;
-        fileTypeIcon.style.display='flex';
+
+    batchPreview.innerHTML = files.map((f, index) => {
+        const ext = f.name.split('.').pop().toLowerCase();
+        const isImage = IMAGE_EXTS.includes(ext);
+        const isPdf = ext === 'pdf';
+        let media = '<div class="batch-preview-type">' + esc(ext.toUpperCase()) + '</div>';
+
+        if (isImage) {
+            const url = URL.createObjectURL(f);
+            previewObjectUrls.push(url);
+            media = '<img src="' + esc(url) + '" alt="">';
+        } else if (isPdf) {
+            media = '<img id="pdfPreview_' + index + '" src="" alt="PDF preview" style="display:none"><div class="batch-preview-type">PDF</div>';
+        }
+
+        return '<div class="batch-preview-card" data-index="' + index + '">' +
+            '<button class="batch-preview-remove" data-remove-index="' + index + '" title="Remove">×</button>' +
+            '<div class="batch-preview-media">' + media + '</div>' +
+            '<div class="batch-preview-name">' + esc(f.name) + '</div>' +
+            '<div class="batch-preview-meta">' + fmtSize(f.size) + ' · ' + ext.toUpperCase() + ' · item ' + (index + 1) + '</div>' +
+        '</div>';
+    }).join('');
+
+    batchPreview.classList.add('show');
+    layoutReview.classList.add('show');
+
+    files.forEach((f, index) => {
+        const ext = f.name.split('.').pop().toLowerCase();
+        if (ext === 'pdf') {
+            const img = $('pdfPreview_' + index);
+            if (img) renderPdfPreviewCard(f, img);
+        }
+    });
+}
+
+function setFiles(inputFiles, append = false) {
+    const incoming = Array.from(inputFiles || []);
+    if (!incoming.length) return;
+
+    const valid = [];
+    for (const f of incoming) {
+        const error = validateUploadFile(f);
+        if (error) {
+            showErr(error);
+            continue;
+        }
+        valid.push(f);
     }
-    dropZone.style.display = 'none';
-    filePreview.classList.add('show');
+
+    if (!valid.length) return;
+    const combined = append ? [...files, ...valid] : valid;
+    files = combined.slice(0, 20);
+    file = files[0] || null;
+
+    // Keep the old single-file card out of the way; the new bulk preview is authoritative.
+    filePreview.classList.remove('show');
+    dropZone.style.display = '';
     goBtn.classList.add('show');
     goBtn.disabled = false;
     hideErr();
     resBox.classList.remove('show');
+    renderBatchPreview();
+
+    if (incoming.length + (append ? files.length - valid.length : 0) > 20) {
+        showErr('PaperAI currently previews up to 20 files in one batch.');
+    }
+}
+
+function setFile(f) {
+    setFiles([f], false);
 }
 
 function clearFile() {
+    files=[];
     file=null;
+    previewObjectUrls.forEach(url => { try { URL.revokeObjectURL(url); } catch (_) {} });
+    previewObjectUrls=[];
     dropZone.style.display = '';
     filePreview.classList.remove('show');
+    batchPreview.classList.remove('show');
+    batchPreview.innerHTML='';
+    layoutReview.classList.remove('show');
     goBtn.classList.remove('show');
     goBtn.disabled=true;
     hideErr();
@@ -2390,11 +2507,33 @@ function clearFile() {
 }
 
 dropZone.onclick = () => fileInput.click();
-fileInput.onchange = e => { if(e.target.files[0]) setFile(e.target.files[0]); };
+fileInput.onchange = e => {
+    if(e.target.files?.length) setFiles(e.target.files, false);
+};
 dropZone.ondragover = e => { e.preventDefault(); dropZone.classList.add('over'); };
 dropZone.ondragleave = () => dropZone.classList.remove('over');
-dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
+dropZone.ondrop = e => {
+    e.preventDefault();
+    dropZone.classList.remove('over');
+    if(e.dataTransfer.files?.length) setFiles(e.dataTransfer.files, false);
+};
 clearBtn.onclick = clearFile;
+
+batchPreview.onclick = e => {
+    const btn = e.target.closest('[data-remove-index]');
+    if (!btn) return;
+    const index = Number(btn.dataset.removeIndex);
+    if (!Number.isInteger(index)) return;
+    files.splice(index, 1);
+    file = files[0] || null;
+    if (!files.length) clearFile();
+    else renderBatchPreview();
+};
+
+[pagePresetSelect, densitySelect, aiLayoutToggle].forEach(control => {
+    control?.addEventListener('change', saveLayoutPreferences);
+});
+loadLayoutPreferences();
 
 function median(values) {
     if (!values.length) return 0;
@@ -4361,6 +4500,7 @@ async function sendFileToWorker(inputFile, signal) {
     const formData = new FormData();
     formData.append('file', inputFile);
     formData.append('language', languageSelect.value || 'auto');
+    formData.append('layout_options', JSON.stringify(getLayoutOptions()));
     appendLearningHints(formData);
 
     const res = await fetchOcrEndpoint('/api/ocr', {
@@ -4400,6 +4540,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         formData.append('engine', 'free-only');
         formData.append('difficulty', prepared.difficulty);
         formData.append('image_meta', JSON.stringify(prepared.meta || {}));
+        formData.append('layout_options', JSON.stringify(getLayoutOptions()));
         appendLearningHints(formData);
 
         let res;
