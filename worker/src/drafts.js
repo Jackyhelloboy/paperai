@@ -1,21 +1,21 @@
 // PaperAI drafts: build one document page by page over many sessions.
 //
 // A draft is a list of pages. Each page holds the OCR text plus a copy of the
-// page photo in R2. A draft and its photos are always deleted together 60 days
-// after the draft was created. Later edits do not push that date back, so a
-// draft can never end up holding text whose photos R2 has already removed.
+// page photo in R2. A draft and its photos are always deleted together 24 hours
+// after the draft was created. Nothing is kept longer, so the stored photos never
+// accumulate and the free storage allowance is effectively unlimited.
 //
 // There is no login. A draft is reachable only by its unguessable id, and every
 // read and write must present the same owner key. That keeps a draft private
 // without accounts, but it is not a password: anyone who obtains both the draft
 // id and the owner key can read it. Do not treat a draft link as a secret.
 
-const TTL_DAYS = 60;
+const TTL_DAYS = 1;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MAX_PAGES_PER_DRAFT = 200;
 const MAX_DRAFTS_PER_OWNER = 40;
 const OWNER_PATTERN = /^[A-Za-z0-9_-]{20,64}$/;
-const PAGE_IMAGE_MAX_BYTES = 6 * 1024 * 1024;
+const PAGE_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 
 const now = () => Date.now();
 
@@ -96,9 +96,9 @@ async function listPages(env, draftId) {
   return result.results || [];
 }
 
-// Marks the draft as just used without moving its expiry date. The 60 days run
-// from the moment the draft was created, because R2 deletes each photo 60 days
-// after it was uploaded and that timer cannot be restarted.
+// Marks the draft as just used without moving its expiry date. The 24 hours run
+// from the moment the draft was created, because R2 deletes each photo a day
+// after it is uploaded and that timer cannot be restarted.
 async function touchDraft(env, draftId) {
   await env.DB.prepare('UPDATE drafts SET updated_at = ? WHERE id = ?')
     .bind(now(), draftId).run();
@@ -124,7 +124,7 @@ async function storePageImage(env, draftId, pageId, file) {
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (bytes.byteLength > PAGE_IMAGE_MAX_BYTES) {
-    throw Object.assign(new Error('That page photo is larger than 6 MB. Please use a smaller photo.'), { status: 413 });
+    throw Object.assign(new Error('That page photo is larger than 3 MB. Please use a smaller photo.'), { status: 413 });
   }
   const key = imageKeyFor(draftId, pageId);
   await env.PAGES_BUCKET.put(key, bytes, {
@@ -418,8 +418,8 @@ async function getPageImage(request, env, corsHeaders, url, draftId, pageId) {
 
 // ── scheduled cleanup ────────────────────────────────────────────────────────
 
-// Runs once a day. R2 lifecycle rules remove the photos; this removes the rows
-// and drafts that pointed at them, so a draft never outlives its own photo.
+// Runs once a day. The R2 lifecycle rule removes the photos; this removes the
+// rows and drafts that pointed at them, so a draft never outlives its own photo.
 export async function purgeExpiredDrafts(env) {
   const stamp = now();
 

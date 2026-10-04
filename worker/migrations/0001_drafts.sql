@@ -1,5 +1,6 @@
 -- PaperAI drafts: a growing document built one page at a time.
--- Text and page order live here. Page photos live in R2 (auto-deleted after 60 days).
+-- Text and page order live here. Page photos live in R2 and are deleted a day
+-- after upload, so nothing accumulates and the free allowance is never reached.
 -- Everything is scoped to an unguessable owner key; there is no login.
 
 CREATE TABLE IF NOT EXISTS drafts (

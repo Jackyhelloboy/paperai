@@ -28,7 +28,8 @@ database_name = "paperai-drafts"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
-# Page photos for drafts. A lifecycle rule deletes each object after 60 days.
+# Page photos for drafts. A lifecycle rule deletes each object after a day, so
+# stored photos never accumulate.
 [[r2_buckets]]
 binding = "PAGES_BUCKET"
 bucket_name = "paperai-pages"

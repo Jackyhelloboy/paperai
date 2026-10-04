@@ -74,14 +74,14 @@ jobs:
 
           # Named rule with explicit flags, so it can never be mistaken for a prefix
           # condition. Re-running with the same rule id updates the rule in place,
-          # and photos are removed 60 days after they are uploaded.
+          # and photos are removed a day after they are uploaded.
           npx wrangler@4 r2 bucket lifecycle add "$BUCKET" \
-            --name expire-draft-pages --expire-days 60 --force
+            --name expire-draft-pages --expire-days 1 --force
 
           RULES="$(npx wrangler@4 r2 bucket lifecycle list "$BUCKET")"
           grep -q "expire-draft-pages" <<<"$RULES"
-          grep -Eq "60" <<<"$RULES"
-          echo "Page photos expire after 60 days"
+          grep -Eq "\b1\b" <<<"$RULES"
+          echo "Page photos expire after 1 day"
           echo "Generated worker/wrangler.deploy.toml"
 
       - name: Deploy to Cloudflare Workers

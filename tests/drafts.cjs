@@ -140,7 +140,7 @@ const draftRow = {
     status: 'building',
     created_at: 1000,
     updated_at: 2000,
-    expires_at: 1000 + 60 * DAY
+    expires_at: 1000 + DAY
 };
 const pageRow = {
     id: 'page-0000-2222',
@@ -181,7 +181,7 @@ const pageRow = {
     assert.equal(body.pages.length, 1);
     assert.equal(body.pages[0].text, '1. गिनो');
     assert.equal(body.pages[0].has_image, true);
-    assert.equal(body.limits.ttl_days, 60, 'Drafts must expire after 60 days');
+    assert.equal(body.limits.ttl_days, 1, 'Drafts must expire after one day');
     assert(!('image_key' in body.pages[0]), 'Internal storage keys must stay private');
 
     // 4. A Teach correction for one page wins over the raw OCR text.
@@ -216,8 +216,8 @@ const pageRow = {
     body = await res.json();
     assert.equal(body.pages.find(p => p.id === pageRow.id).text, pageRow.ocr_text, 'Other pages must keep their own text');
 
-    // 8. Working on a draft must not move its 60-day deletion date, because the
-    // photos are removed by R2 60 days after upload and that timer cannot restart.
+    // 8. Working on a draft must not move its next-day deletion date, because the
+    // photos are removed by R2 a day after upload and that timer cannot restart.
     const expiresBefore = body.draft.expires_at;
     res = await call(request('/api/drafts/' + draftRow.id, { method: 'PATCH', json: { title: 'Renamed' } }), env);
     body = await res.json();
@@ -227,7 +227,7 @@ const pageRow = {
     res = await call(request('/api/drafts/' + draftRow.id), env);
     body = await res.json();
     assert.equal(body.draft.expires_at, expiresBefore, 'Editing a page must not extend the draft lifetime');
-    assert(body.draft.expires_at <= draftRow.created_at + 60 * DAY + 1000, 'A draft must never live longer than 60 days');
+    assert(body.draft.expires_at <= draftRow.created_at + DAY + 1000, 'A draft must never live longer than one day');
 
     // 9. Adding a page stores one photo and one row, at the end of the draft.
     env = makeEnv({ drafts: [draftRow], pages: [] });
@@ -253,9 +253,17 @@ const pageRow = {
     env = makeEnv({ drafts: [draftRow], pages: [] });
     const hugeForm = new FormData();
     hugeForm.append('text', 'x');
-    hugeForm.append('file', new Blob([new Uint8Array(7 * 1024 * 1024)], { type: 'image/jpeg' }), 'huge.jpg');
+    hugeForm.append('file', new Blob([new Uint8Array(4 * 1024 * 1024)], { type: 'image/jpeg' }), 'huge.jpg');
     res = await call(request('/api/drafts/' + draftRow.id + '/pages', { method: 'POST', form: hugeForm }), env);
-    assert.equal(res.status, 413, 'An oversized photo must be refused');
+    assert.equal(res.status, 413, 'A photo over 3 MB must be refused');
+
+    // The limit is exactly 3 MB, so the boundary itself must still be accepted.
+    env = makeEnv({ drafts: [draftRow], pages: [] });
+    const edgeForm = new FormData();
+    edgeForm.append('text', 'x');
+    edgeForm.append('file', new Blob([new Uint8Array(3 * 1024 * 1024)], { type: 'image/jpeg' }), 'edge.jpg');
+    res = await call(request('/api/drafts/' + draftRow.id + '/pages', { method: 'POST', form: edgeForm }), env);
+    assert.equal(res.status, 201, 'A photo of exactly 3 MB must be accepted');
 
     // 8. Deleting a page removes its row and its photo.
     env = makeEnv({ drafts: [draftRow], pages: [pageRow] });
@@ -282,5 +290,5 @@ const pageRow = {
     res = await call(request('/api/drafts/unknown-route'), makeEnv());
     assert.equal(res.status, 404);
 
-    console.log('Draft paging, ownership, storage limits and 60-day cleanup checks passed.');
+    console.log('Draft paging, ownership, 3 MB page limit and next-day cleanup checks passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

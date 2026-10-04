@@ -3357,7 +3357,7 @@
             <div class="drafts-head">
                 <div>
                     <div class="drafts-title">My drafts</div>
-                    <div class="drafts-sub">Build one document page by page. Saved for 60 days, then deleted automatically.</div>
+                    <div class="drafts-sub">Build one document page by page. Deleted the next day, automatically.</div>
                 </div>
                 <button class="draft-btn" id="draftNewBtn" type="button">+ New draft</button>
             </div>
@@ -3383,7 +3383,7 @@
                     </button>
                     <input type="file" id="draftAddInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
                     <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
-                    <span class="draft-hint">One photo per page · up to 200 pages · 6 MB each</span>
+                    <span class="draft-hint">One photo per page · up to 200 pages · 3 MB each</span>
                 </div>
 
                 <div class="draft-actions">
@@ -9362,7 +9362,7 @@ function copyText(btn){
 // ── drafts ────────────────────────────────────────────────────────────────────
 // A draft is a document the user builds one photo at a time. Pages keep their own
 // OCR text and corrections in the Worker, so work survives closing the tab and can
-// continue days later. Photos and text are deleted 60 days after the draft is made.
+// continue days later. Photos and text are deleted the next day.
 
 const DRAFT_OWNER_STORAGE = 'paperai_owner_key_v1';
 const DRAFT_PAGE_BREAK = '\n[[PAGE_BREAK]]\n';
@@ -9429,8 +9429,8 @@ function draftDate(stamp) {
     }
 }
 
-function draftDaysLeft(draft) {
-    const left = Math.ceil((Number(draft?.expires_at || 0) - Date.now()) / 86400000);
+function draftHoursLeft(draft) {
+    const left = Math.ceil((Number(draft?.expires_at || 0) - Date.now()) / 3600000);
     return left > 0 ? left : 0;
 }
 
@@ -9485,7 +9485,7 @@ function renderDraftPages() {
 
     $('draftTitleInput').value = draft.title || '';
     $('draftMeta').textContent = pages.length + (pages.length === 1 ? ' page' : ' pages')
-        + ' · deleted in ' + draftDaysLeft(draft) + ' days';
+        + ' · deleted in ' + draftHoursLeft(draft) + (draftHoursLeft(draft) === 1 ? ' hour' : ' hours');
     $('draftWordBtn').disabled = draftBusy || !pages.length;
     $('draftTeachBtn').disabled = draftBusy || !pages.length;
 }
@@ -9581,8 +9581,8 @@ async function runOcrForPage(imageFile) {
 
 async function addPageToDraft(imageFile) {
     if (!activeDraft || draftBusy) return;
-    if (imageFile.size > 6 * 1024 * 1024) {
-        setDraftStatus('That photo is larger than 6 MB. Please use a smaller photo.', true);
+    if (imageFile.size > 3 * 1024 * 1024) {
+        setDraftStatus('That photo is larger than 3 MB. Please use a smaller photo.', true);
         return;
     }
 
@@ -9615,8 +9615,8 @@ async function refreshActiveDraft() {
 
 async function replacePagePhoto(pageId, imageFile) {
     if (!activeDraft || draftBusy) return;
-    if (imageFile.size > 6 * 1024 * 1024) {
-        setDraftStatus('That photo is larger than 6 MB. Please use a smaller photo.', true);
+    if (imageFile.size > 3 * 1024 * 1024) {
+        setDraftStatus('That photo is larger than 3 MB. Please use a smaller photo.', true);
         return;
     }
     setDraftBusy(true);
