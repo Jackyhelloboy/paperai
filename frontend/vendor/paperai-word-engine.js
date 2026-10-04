@@ -437,7 +437,9 @@
         const d = DX();
         const model = MODEL().parse(structuredText);
         const profile = model.profile || {};
-        const firstTextIndex = model.nodes.findIndex(n => n.type === 'text' && String(n.text || '').trim());
+        const firstTextIndex = model.nodes.findIndex(n =>
+            (n.type === 'text' || n.type === 'styledText') && String(n.text || '').trim()
+        );
         const children = [];
         const density = profile.density || 'normal';
         const bodyAfter = density === 'compact' ? 18 : density === 'spacious' ? 42 : 28;
@@ -483,6 +485,28 @@
                 children.push(structuredTable(node, false));
                 return;
             }
+            if (node.type === 'styledText') {
+                const style = node.style || {};
+                const role = style.role || 'body';
+                const styledSize = style.size === 'title' ? titleSize :
+                    style.size === 'heading' ? headingSize :
+                    style.size === 'small' ? Math.max(16, bodySize - 2) :
+                    bodySize;
+                children.push(para(node.text, {
+                    bold: style.weight === 'bold',
+                    size: styledSize,
+                    after: role === 'title' ? (density === 'compact' ? 30 : 48) :
+                        role === 'heading' ? (density === 'compact' ? 24 : 38) :
+                        bodyAfter,
+                    keepNext: role === 'title' || role === 'heading',
+                    line: density === 'compact' ? 235 : density === 'spacious' ? 290 : 260,
+                    center: style.align === 'center',
+                    right: style.align === 'right',
+                    font: 'Tahoma'
+                }));
+                return;
+            }
+
             if (node.type === 'text') {
                 const heading = headingLike(node.text, index, firstTextIndex);
                 const formLike = /_{3,}/.test(node.text) && /(?:Name|Class|Date|Roll|Sub|Marks|Examination|नाम|कक्षा|दिनांक)/i.test(node.text);
@@ -512,7 +536,7 @@
         if (!file) throw new Error('Generated Word package is missing document.xml.');
 
         const xml = await file.async('string');
-        if (/\[\[(?:BRANCH_|TABLE_|COLUMN_|CIRCLED:)/i.test(xml)) {
+        if (/\[\[(?:PAGE_PROFILE:|LINE_STYLE:|WORDSEARCH_|BRANCH_|TABLE_|COLUMN_|CIRCLED:)/i.test(xml)) {
             throw new Error('Internal PaperAI structure metadata leaked into the Word document.');
         }
 
