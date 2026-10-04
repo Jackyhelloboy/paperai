@@ -37,7 +37,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v8',
+        architecture: 'production-literal-ocr-v12',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -1083,8 +1083,16 @@ STRICT TRANSCRIPTION RULES:
 10. For Telugu and other Indic scripts, keep consonant+vowel signs and conjuncts attached to the visible base character. Never simplify a complex grapheme into a more common word.
 11. For bracketed answer choices such as "(word1 / word2)", read BOTH options independently from the pixels. Never replace an unclear option with a likely textbook answer.
 12. In matching exercises and two-column questions, preserve each visible row and column relationship. Do not pair an item with a nearby option just because it is semantically plausible.
-12A. For branching word diagrams, mind maps, or one central item connected to several rows, NEVER fake the branches with separator-only lines like "| |". Use the visible directional arrows (→, ↗, ↘, ←, ↑, ↓) and circle metadata when present. The "|" symbol is reserved only for genuine table/column separation.
-12B. If a question number is visibly circled, prefer [[CIRCLED: 1]], [[CIRCLED: 2]], etc. instead of relying on special Unicode circled-number glyphs. Do not mark an ordinary uncircled number as circled.
+12A. For a branching word diagram, mind map, or one central item connected to several rows, NEVER fake branches with separator-only lines like "| |". Do not draw the branch with spaces. Instead output this exact machine-readable structure:
+[[BRANCH_ROOT: visible central text]]
+[[BRANCH_ITEM: visible branch label || visible right-side label]]
+[[BRANCH_ITEM: visible branch label || visible right-side label]]
+...one BRANCH_ITEM for each visible branch, strictly top-to-bottom...
+[[BRANCH_END]]
+Use only text actually visible in the image. If there is no right-side label, leave the text after || empty.
+12B. The central/root token is separate from every branch label. NEVER concatenate the root with a branch label just because together they form a meaningful word. Example rule: if the root is "बा" and a branch visibly contains only "दाम", the branch label must remain "दाम"; do not turn it into "बादाम".
+12C. The "|" symbol is reserved only for genuine table/column separation. Do not use it to simulate arrows or connector lines.
+12D. If a question number is visibly circled, prefer [[CIRCLED: 1]], [[CIRCLED: 2]], etc. instead of relying on special Unicode circled-number glyphs. Do not mark an ordinary uncircled number as circled.
 13. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
 14. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
 15. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
@@ -1175,7 +1183,8 @@ VERIFICATION RULES:
 - Preserve mathematics, marks, punctuation, spacing relationships, and mixed scripts exactly.
 - Re-check every Devanagari grapheme that changed between the first OCR and your proposed result. Only change it when the visible stroke pattern supports the new grapheme.
 - On Hindi-dominant pages, inspect every Latin-letter token again. Keep it Latin only when the source itself is visibly English; never romanize a Devanagari word during verification.
-- For branch diagrams, remove fake "| |" connector rows. Preserve actual arrows/circles and the original row relationships instead.
+- For branch diagrams, remove fake "| |" connector rows and return the exact [[BRANCH_ROOT]], [[BRANCH_ITEM]], [[BRANCH_END]] structure defined above.
+- Re-check each branch label independently. Never merge the root/prefix into a branch label; preserve only the characters visibly written on that branch.
 - Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
 - When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
@@ -1424,10 +1433,57 @@ function detectLanguageFromText(text) {
 // ═══════════════════════════════════════════════════════════════
 // STEP 1: Safe regex pre-pass — deterministic, high-confidence fixes
 // ═══════════════════════════════════════════════════════════════
+function stripBranchMetadata(text) {
+  const lines = String(text || '').split('\n');
+  const out = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const rootMatch = lines[i].match(/^\s*\[\[BRANCH_ROOT:\s*([\s\S]*?)\]\]\s*$/i);
+    if (!rootMatch) {
+      out.push(lines[i]);
+      continue;
+    }
+
+    const root = rootMatch[1].trim();
+    const items = [];
+    let j = i + 1;
+
+    while (j < lines.length) {
+      if (/^\s*\[\[BRANCH_END\]\]\s*$/i.test(lines[j])) {
+        j++;
+        break;
+      }
+
+      const item = lines[j].match(/^\s*\[\[BRANCH_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i);
+      if (item) items.push({ left: item[1].trim(), right: item[2].trim() });
+      j++;
+    }
+
+    if (!items.length) {
+      out.push(root);
+      i = j - 1;
+      continue;
+    }
+
+    const center = Math.floor(items.length / 2);
+    for (let r = 0; r < items.length; r++) {
+      const item = items[r];
+      const relation = r < center ? '↗' : r > center ? '↘' : '→';
+      const rootPart = r === center ? '○ ' + root + ' ' : '     ';
+      const right = item.right ? ' ───────── ' + item.right : '';
+      out.push(rootPart + relation + ' ' + item.left + right);
+    }
+
+    i = j - 1;
+  }
+
+  return out.join('\n');
+}
+
 function stripOcrMetadata(text) {
   if (!text) return '';
 
-  return String(text)
+  return stripBranchMetadata(String(text))
     .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
       return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
     })
