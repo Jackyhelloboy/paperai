@@ -41,6 +41,43 @@
         return items.length ? { node: { type: 'branch', root: m[1].trim(), items }, next: i } : null;
     }
 
+    function parseWordSearch(lines, start) {
+        if (!/^\s*\[\[WORDSEARCH_START\]\]\s*$/i.test(String(lines[start] || ''))) return null;
+
+        const rows = [];
+        const answers = [];
+        let i = start + 1;
+
+        while (i < lines.length) {
+            if (/^\s*\[\[WORDSEARCH_END\]\]\s*$/i.test(lines[i])) {
+                return {
+                    node: { type: 'wordSearch', rows, answers },
+                    next: i + 1
+                };
+            }
+
+            const row = String(lines[i] || '').match(
+                /^\s*\[\[WORDSEARCH_ROW:\s*([\s\S]*?)\]\]\s*$/i
+            );
+            if (row) {
+                rows.push(splitCells(row[1]));
+                i++;
+                continue;
+            }
+
+            const answer = String(lines[i] || '').match(
+                /^\s*\[\[WORDSEARCH_ANSWER:\s*([^\]]+?)\s*\]\]\s*$/i
+            );
+            if (answer) answers.push(readNumber(answer[1]) ?? answer[1].trim());
+
+            i++;
+        }
+
+        return rows.length || answers.length
+            ? { node: { type: 'wordSearch', rows, answers }, next: i }
+            : null;
+    }
+
     function parseStructured(lines, start, kind) {
         const table = kind === 'table';
         const startRe = table ? /^\s*\[\[TABLE_START\]\]\s*$/i : /^\s*\[\[COLUMNS_START\]\]\s*$/i;
@@ -111,6 +148,9 @@
                 i++;
                 continue;
             }
+
+            const wordSearch = parseWordSearch(lines, i);
+            if (wordSearch) { nodes.push(wordSearch.node); i = wordSearch.next; continue; }
 
             const table = parseStructured(lines, i, 'table');
             if (table) { nodes.push(table.node); i = table.next; continue; }
