@@ -1,0 +1,27 @@
+name: Check Kaggle notebook
+
+on:
+  push:
+    paths:
+      - 'inference/kaggle/**'
+      - 'tests/kaggle_compat.py'
+      - '.github/workflows/check-kaggle.yml'
+  pull_request:
+    paths:
+      - 'inference/kaggle/**'
+      - 'tests/kaggle_compat.py'
+      - '.github/workflows/check-kaggle.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify full-model compatibility helper and notebook
+        run: python tests/kaggle_compat.py

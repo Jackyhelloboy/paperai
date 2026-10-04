@@ -66,3 +66,8 @@ node tests/unlimited-ocr.cjs
 ```
 
 These mock the upstream API to verify the request recipe, tag cleanup, routing, credentials, failure behavior and quota separation. They do not measure the model's recognition accuracy or start a GPU server.
+## Free Kaggle GPU notebook
+
+For temporary free GPU OCR runs without a server, use the [Kaggle notebook](../kaggle/README.md).
+It runs the same complete Unlimited-OCR checkpoint and exports continuous paper text.
+Kaggle GPU sessions do not provide an always-on website backend.
