@@ -30,7 +30,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v16',
+        architecture: 'production-literal-ocr-v17',
       }, { headers: corsHeaders });
     }
 
@@ -38,7 +38,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v16',
+        architecture: 'production-literal-ocr-v17',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -584,19 +584,20 @@ async function handleWordSuggestion(request, env, corsHeaders) {
   if (sourceLanguage === language) {
     targetInstruction = [
       'Source and target are both ' + meta.label + '.',
-      'Suggest corrected spelling, grammar or proper-name spelling in the same language.',
+      'Suggest corrected spelling or script form while preserving the same spoken words and meaning.',
       'Do not translate into a different language.'
     ].join('\n');
   } else {
     targetInstruction = [
       'Source language: ' + sourceMeta.label + ' (' + sourceMeta.script + ' script).',
-      'Target language: ' + meta.label + ' (' + meta.script + ' script).',
-      'Use SMART conversion:',
-      '- If the input has lexical meaning in the source language, TRANSLATE that meaning naturally into the target language.',
-      '- If the input is a proper name, place name, acronym, brand, or phonetic name rather than a translatable phrase, TRANSLITERATE its pronunciation into the target script.',
-      '- Never transliterate a meaningful phrase word-by-word when a real translation is possible.',
-      '- Preserve names and technical identifiers rather than translating their meaning.',
-      '- Prefer gender-neutral natural wording when the source does not specify gender and the target language allows it.'
+      'Target language/script: ' + meta.label + ' (' + meta.script + ' script).',
+      'This feature is PHONETIC TRANSLITERATION, not semantic translation.',
+      '- Preserve the spoken words, names, and phrase meaning exactly.',
+      '- Change only the writing script so the result sounds like the source when read aloud.',
+      '- Never replace an English phrase with its Hindi/Telugu/etc. meaning.',
+      '- Example: English "i love you" to Hindi must remain a phonetic rendering such as "इ लोवे योउ", not "मैं तुमसे प्यार करता हूँ".',
+      '- Example: English name "jawad" to Hindi should be "जवाद".',
+      '- Preserve names, brands, acronyms and technical identifiers phonetically.'
     ].join('\n');
   }
 
@@ -612,8 +613,8 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     'Rules:',
     '- Return 1 to 5 candidate strings only.',
     '- Put the best candidate first.',
-    '- Preserve names and intended pronunciation when transliteration is appropriate.',
-    '- Preserve the sentence meaning when translation is appropriate.',
+    '- Preserve the original pronunciation as closely as the target script allows.',
+    '- Preserve the same phrase meaning by keeping the same spoken words; do not semantically translate.',
     '- Do not explain your choice.',
     '- Do not add quotation marks around candidates.',
     '- Output strict JSON exactly like {"suggestions":["candidate1","candidate2"]}.',
@@ -621,7 +622,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
 
   const response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
     messages: [
-      { role: 'system', content: 'Return only compact JSON suggestions. Translate meaning across languages; transliterate proper names and identifiers.' },
+      { role: 'system', content: 'Return only compact JSON phonetic transliteration suggestions. Preserve the spoken words; never semantically translate them.' },
       { role: 'user', content: prompt },
     ],
     max_completion_tokens: 240,
@@ -636,7 +637,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     suggestions,
     source_language: sourceLanguage,
     language,
-    mode: isPhrase ? 'smart_phrase' : 'smart_word',
+    mode: isPhrase ? 'phonetic_phrase' : 'phonetic_word',
     source: 'workers-ai',
   }, {
     headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' },
@@ -876,7 +877,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v16',
+        architecture: 'production-literal-ocr-v17',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
