@@ -190,3 +190,54 @@ OCR v20 structure metadata:
 These markers are internal structure metadata. Extracted view renders them visually, Word exports them as editable structures, and Plain text/Copy removes them.
 
 This is intentionally not a clone of every Microsoft Word feature. Features such as macros/VBA, mail merge, tracked changes/review workflows, comments, citations, embedded OLE objects, SmartArt editing, themes, section-level headers/footers, and every Word AutoShape remain outside the current OCR-to-Word scope unless explicitly added later.
+
+
+## v21 canonical document model + modern Word engine
+
+### Architecture decision
+
+PaperAI no longer treats editable Word export as a sequence of format-specific string replacements. The durable architecture is:
+
+1. literal OCR / source extraction
+2. canonical PaperAI document model
+3. renderer-specific output:
+   - Extracted HTML
+   - Plain text / Copy
+   - editable DOCX
+4. export validation
+
+The same canonical parser is used by the Extracted tab and the modern Word exporter, so branch/table/page-break classification cannot silently diverge between the browser and Word.
+
+### Research basis
+
+This direction follows modern document-AI systems that preserve explicit page/layout structure, reading order and typed regions rather than only a flat OCR string. Relevant design references studied for this upgrade include Docling's unified document representation, PaddleOCR PP-StructureV3's layout/table/formula/read-order pipeline, DocLayNet's diverse layout taxonomy, and PubTables-1M / Table Transformer for table-structure recognition.
+
+### Word generation
+
+The primary DOCX path now uses the open-source `docx` JavaScript library (pinned at 9.8.1) in the browser. Its DrawingML shape canvas and connector system replaces PaperAI's fragile hand-written VML path for supported structures. The existing manual OOXML exporter remains as a fallback.
+
+Primary goals:
+- native editable Word text/tables/shapes, never a screenshot
+- branch connectors remain attached to shapes in Word
+- geometry derives from the same proportions as the Extracted renderer
+- editable tables and multi-column rows use native Word tables
+- page boundaries use real Word page breaks
+
+### Export quality gate
+
+After the modern DOCX is generated, PaperAI opens the package in-browser with JSZip and verifies:
+- `word/document.xml` exists
+- internal PaperAI structure markers were not exposed
+- required branch labels survived generation
+
+A failed validation automatically falls back to the legacy exporter instead of returning a knowingly broken Word file.
+
+### Files
+
+- `frontend/vendor/paperai-document-model.js` — canonical structured document parser
+- `frontend/vendor/paperai-word-engine.js` — modern DrawingML/DOCX renderer and quality gate
+- `frontend/index.html` — Extracted UI, Teach, and legacy DOCX fallback
+
+### Rule for future development
+
+Do not add a new visual structure independently to HTML and DOCX. First add it to the canonical document model, then implement renderer support. Preserve literal OCR content and never infer semantic content merely to make a layout look complete.
