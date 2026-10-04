@@ -165,6 +165,127 @@
         });
     }
 
+    function wordSearchBlock(node) {
+        const d = DX();
+        const rows = Array.isArray(node.rows) ? node.rows : [];
+        const answers = Array.isArray(node.answers) ? node.answers : [];
+        if (!rows.length && !answers.length) return para('');
+
+        const colCount = Math.max(1, ...rows.map(row => row.length || 0));
+        const leftWidth = 4250;
+        const rightWidth = 5500;
+        const cellWidth = Math.floor(leftWidth / colCount);
+        const gridWidths = Array.from({ length: colCount }, () => cellWidth);
+        gridWidths[gridWidths.length - 1] += leftWidth - gridWidths.reduce((a,b)=>a+b,0);
+
+        const gridBorder = { style: d.BorderStyle.SINGLE, size: 5, color: '64748B' };
+        const grid = new d.Table({
+            width: { size: leftWidth, type: d.WidthType.DXA },
+            columnWidths: gridWidths,
+            borders: {
+                top: gridBorder,
+                bottom: gridBorder,
+                left: gridBorder,
+                right: gridBorder,
+                insideHorizontal: gridBorder,
+                insideVertical: gridBorder,
+            },
+            rows: rows.map(row => new d.TableRow({
+                cantSplit: true,
+                height: { value: 440, rule: d.HeightRule.EXACT },
+                children: gridWidths.map((width, col) => new d.TableCell({
+                    width: { size: width, type: d.WidthType.DXA },
+                    verticalAlign: (d.VerticalAlignTable || d.VerticalAlign).CENTER,
+                    margins: { top: 0, bottom: 0, left: 15, right: 15 },
+                    children: [
+                        para(row[col] || '', {
+                            size: 21,
+                            center: true,
+                            after: 0,
+                            line: 220,
+                            font: 'Tahoma'
+                        })
+                    ]
+                }))
+            }))
+        });
+
+        const visualRows = Math.max(rows.length, answers.length, 1);
+        const answerRows = [];
+        for (let i = 0; i < visualRows; i++) {
+            if (i < answers.length) {
+                const widths = [520, rightWidth - 520];
+                answerRows.push(new d.TableRow({
+                    cantSplit: true,
+                    height: { value: 440, rule: d.HeightRule.EXACT },
+                    children: [
+                        tableCell(
+                            [para(circledNumber(answers[i]), {
+                                size: 20,
+                                center: true,
+                                after: 0,
+                                line: 220,
+                                font: 'Segoe UI Symbol'
+                            })],
+                            widths[0],
+                            { left: 0, right: 30, top: 0, bottomMargin: 0 }
+                        ),
+                        tableCell(
+                            [para('', { after: 0, line: 220 })],
+                            widths[1],
+                            {
+                                bottom: true,
+                                bottomMargin: 85,
+                                left: 0,
+                                right: 50,
+                                top: 0,
+                                color: '64748B'
+                            }
+                        )
+                    ]
+                }));
+            } else {
+                answerRows.push(new d.TableRow({
+                    cantSplit: true,
+                    height: { value: 440, rule: d.HeightRule.EXACT },
+                    children: [
+                        tableCell([para('', { after: 0 })], rightWidth, {
+                            columnSpan: 2,
+                            left: 0, right: 0, top: 0, bottomMargin: 0
+                        })
+                    ]
+                }));
+            }
+        }
+
+        const answersTable = new d.Table({
+            width: { size: rightWidth, type: d.WidthType.DXA },
+            columnWidths: [520, rightWidth - 520],
+            borders: noBorder(),
+            rows: answerRows
+        });
+
+        const outerWidths = [leftWidth, rightWidth];
+        return new d.Table({
+            width: { size: leftWidth + rightWidth, type: d.WidthType.DXA },
+            columnWidths: outerWidths,
+            borders: noBorder(),
+            rows: [
+                new d.TableRow({
+                    cantSplit: true,
+                    children: [
+                        tableCell([grid], outerWidths[0], {
+                            left: 0, right: 120, top: 0, bottomMargin: 0
+                        }),
+                        tableCell([answersTable], outerWidths[1], {
+                            left: 120, right: 0, top: 0, bottomMargin: 0
+                        })
+                    ]
+                })
+            ]
+        });
+    }
+
     function branchDiagram(node) {
         const d = DX();
         const s = SH();
@@ -257,6 +378,10 @@
             }
             if (node.type === 'branch') {
                 children.push(branchDiagram(node));
+                return;
+            }
+            if (node.type === 'wordSearch') {
+                children.push(wordSearchBlock(node));
                 return;
             }
             if (node.type === 'answerBlank') {
