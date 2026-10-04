@@ -5170,10 +5170,83 @@ function docxVmlBranchDiagram(root, items) {
       '</w:pict></w:r></w:p>';
 }
 
+function docxInlineBranchRoot(root) {
+    return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0"/></w:pPr>' +
+        '<w:r><w:pict>' +
+          '<v:oval id="paperai_branch_root_inline" ' +
+            'style="width:38pt;height:38pt" filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827">' +
+            '<v:textbox inset="0,7pt,0,0"><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/>' +
+              '<w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:rPr>' +
+                '<w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
+                '<w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/>' +
+              '</w:rPr><w:t>' + xmlEscape(root) + '</w:t></w:r></w:p></w:txbxContent></v:textbox>' +
+          '</v:oval>' +
+        '</w:pict></w:r></w:p>';
+}
+
 function docxBranchTable(root, items) {
-    // Microsoft Word receives a real editable shape group for branch diagrams:
-    // oval root, arrow connectors, rule lines and editable text boxes.
-    return docxVmlBranchDiagram(root, items);
+    if (!items?.length) return docxParagraph(root);
+
+    // Word/LibreOffice scale grouped VML differently. A hybrid layout is
+    // much more stable: real editable root shape + native editable Word rows.
+    const center = Math.floor(items.length / 2);
+    const widths = [900, 1050, 900, 1750, 1100];
+
+    const rows = items.map((item, index) => {
+        const arrow = index < center ? '╱──>' : index > center ? '╲──>' : '──>';
+
+        const rootCell = index === 0
+            ? docxCell(
+                docxInlineBranchRoot(root),
+                widths[0],
+                { vMerge: 'restart', vAlign: 'center', padLeft: 0, padRight: 30 }
+            )
+            : docxCell(
+                '',
+                widths[0],
+                { vMerge: 'continue', vAlign: 'center', padLeft: 0, padRight: 30 }
+            );
+
+        return '<w:tr><w:trPr><w:trHeight w:val="330" w:hRule="atLeast"/></w:trPr>' +
+            rootCell +
+            docxCell(
+                docxParagraph(arrow, {
+                    size: 18,
+                    after: 0,
+                    rightAlign: true,
+                    font: 'Tahoma',
+                    eastAsia: 'Tahoma',
+                    line: 235
+                }),
+                widths[1],
+                { padLeft: 0, padRight: 35, padTop: 5, padBottom: 5 }
+            ) +
+            docxCell(
+                docxParagraph(item.left || '', { size: 20, after: 0, line: 235 }),
+                widths[2],
+                { padLeft: 0, padRight: 30, padTop: 5, padBottom: 5 }
+            ) +
+            docxCell(
+                docxParagraph('', { after: 0, line: 235 }),
+                widths[3],
+                {
+                    bottomBorder: !!item.right,
+                    padBottom: 70,
+                    padLeft: 0,
+                    padRight: 30,
+                    padTop: 5,
+                    borderColor: '64748B'
+                }
+            ) +
+            docxCell(
+                docxParagraph(item.right || '', { size: 18, after: 0, line: 235 }),
+                widths[4],
+                { padLeft: 20, padRight: 0, padTop: 5, padBottom: 5 }
+            ) +
+            '</w:tr>';
+    }).join('');
+
+    return docxTable(widths, rows, { center: true, borders: false });
 }
 
 function parseDocxFormFieldsLine(raw) {
