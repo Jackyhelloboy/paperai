@@ -3431,6 +3431,63 @@ function repairLegacyBranchDiagram(text) {
     return out.join('\n');
 }
 
+function renderBranchDiagram(root, items) {
+    const safeRoot = esc(root || '');
+    const cleanItems = (items || []).filter(item => item && (item.left || item.right));
+    if (!cleanItems.length) return '<span class="output-line">' + safeRoot + '</span>';
+
+    const width = 620;
+    const rowH = 46;
+    const top = 28;
+    const height = Math.max(120, top * 2 + (cleanItems.length - 1) * rowH);
+    const rootX = 72;
+    const rootY = top + ((cleanItems.length - 1) * rowH) / 2;
+    const labelX = 190;
+    const ruleStartX = 278;
+    const ruleEndX = 410;
+    const englishX = 430;
+
+    const rows = cleanItems.map((item, index) => {
+        const y = top + index * rowH;
+        const left = esc(item.left || '');
+        const right = esc(item.right || '');
+        return [
+            '<line x1="' + (rootX + 26) + '" y1="' + rootY + '" x2="' + (labelX - 14) + '" y2="' + y + '" stroke="currentColor" stroke-width="1.4" marker-end="url(#paperaiBranchArrow)"/>',
+            '<text x="' + labelX + '" y="' + (y + 5) + '" font-size="15" font-weight="500">' + left + '</text>',
+            right ? '<line x1="' + ruleStartX + '" y1="' + y + '" x2="' + ruleEndX + '" y2="' + y + '" stroke="currentColor" stroke-width="1"/>' : '',
+            right ? '<text x="' + englishX + '" y="' + (y + 5) + '" font-size="14">' + right + '</text>' : ''
+        ].join('');
+    }).join('');
+
+    return '<div class="ocr-branch-wrap"><svg class="ocr-branch-diagram" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Branch diagram">' +
+        '<defs><marker id="paperaiBranchArrow" markerWidth="8" markerHeight="8" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="currentColor"/></marker></defs>' +
+        '<circle cx="' + rootX + '" cy="' + rootY + '" r="26" fill="none" stroke="currentColor" stroke-width="1.5"/>' +
+        '<text x="' + rootX + '" y="' + (rootY + 6) + '" text-anchor="middle" font-size="17" font-weight="600">' + safeRoot + '</text>' +
+        rows +
+        '</svg></div>';
+}
+
+function parseBranchBlock(lines, startIndex) {
+    const rootMatch = String(lines[startIndex] || '').match(/^\s*\[\[BRANCH_ROOT:\s*([\s\S]*?)\]\]\s*$/i);
+    if (!rootMatch) return null;
+
+    const root = rootMatch[1].trim();
+    const items = [];
+    let i = startIndex + 1;
+
+    while (i < lines.length) {
+        if (/^\s*\[\[BRANCH_END\]\]\s*$/i.test(lines[i])) {
+            return { html: renderBranchDiagram(root, items), nextIndex: i + 1 };
+        }
+
+        const item = String(lines[i] || '').match(/^\s*\[\[BRANCH_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i);
+        if (item) items.push({ left: item[1].trim(), right: item[2].trim() });
+        i++;
+    }
+
+    return items.length ? { html: renderBranchDiagram(root, items), nextIndex: i } : null;
+}
+
 function isOutputHeadingLine(line, index, firstNonEmptyIndex) {
     const t = String(line || '').trim();
     if (!t) return false;
@@ -3465,12 +3522,25 @@ function formatOutput(text) {
 
     const lines = repairLegacyBranchDiagram(String(text)).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
+    let html = '';
+    let i = 0;
 
-    return lines.map((line, index) => {
-        const heading = isOutputHeadingLine(line, index, firstNonEmptyIndex);
+    while (i < lines.length) {
+        const branch = parseBranchBlock(lines, i);
+        if (branch) {
+            html += branch.html;
+            i = branch.nextIndex;
+            continue;
+        }
+
+        const line = lines[i];
+        const heading = isOutputHeadingLine(line, i, firstNonEmptyIndex);
         const cls = heading ? 'output-line output-heading' : 'output-line';
-        return '<span class="' + cls + '">' + formatOutputLine(line) + '</span>';
-    }).join('');
+        html += '<span class="' + cls + '">' + formatOutputLine(line) + '</span>';
+        i++;
+    }
+
+    return html;
 }
 
 goBtn.onclick = async () => {
@@ -3590,7 +3660,7 @@ function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObject
 function currentExportText(){
     if(!lastResult) return '';
     const live = teachPanel.classList.contains('show') ? (lastResult.preview_text || teachEditor.value) : '';
-    return portableText(live || lastResult.text || lastResult.plain_text || '');
+    return portableText(live || lastResult.plain_text || lastResult.text || '');
 }
 function dlTxt(){if(!lastResult)return;dlBlob(new Blob([currentExportText()],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
 function copyText(btn){if(!lastResult)return;navigator.clipboard.writeText(currentExportText()).then(()=>{btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)})}
