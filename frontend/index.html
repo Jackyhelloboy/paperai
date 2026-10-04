@@ -1044,6 +1044,28 @@
             white-space: pre-wrap;
         }
 
+        .output-answer-line {
+            display: flex;
+            align-items: center;
+            gap: 0.28rem;
+            min-height: 1.65em;
+            white-space: nowrap;
+            overflow-wrap: normal;
+        }
+
+        .output-answer-prefix {
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+
+        .output-answer-rule {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 0;
+            border-bottom: 1px solid currentColor;
+            opacity: 0.85;
+        }
+
         .output-heading {
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
             font-size: 12px;
@@ -4314,6 +4336,23 @@ function formatOutputLine(line) {
     return html;
 }
 
+function formatSingleAnswerBlankLine(line) {
+    const source = String(line || '');
+
+    // Full-width numbered answer blanks should be a single visual rule.
+    // Keep the raw underscores in OCR/plain text for Copy/Download; only the
+    // Extracted HTML presentation changes.
+    const match = source.match(
+        /^\s*((?:\[\[CIRCLED:\s*[\s\S]*?\]\]|[⓪①-⑳❶-❿]|\d+[.)]?))\s*_{8,}\s*$/
+    );
+    if (!match) return null;
+
+    return '<span class="output-answer-line">' +
+        '<span class="output-answer-prefix">' + formatOutputLine(match[1]) + '</span>' +
+        '<span class="output-answer-rule" aria-hidden="true"></span>' +
+        '</span>';
+}
+
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
@@ -4331,6 +4370,13 @@ function formatOutput(text) {
         }
 
         const line = lines[i];
+        const answerBlank = formatSingleAnswerBlankLine(line);
+        if (answerBlank) {
+            html += answerBlank;
+            i++;
+            continue;
+        }
+
         const heading = isOutputHeadingLine(line, i, firstNonEmptyIndex);
         const cls = heading ? 'output-line output-heading' : 'output-line';
         html += '<span class="' + cls + '">' + formatOutputLine(line) + '</span>';
