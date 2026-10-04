@@ -5829,36 +5829,137 @@ function auditStructuredPaper(value) {
     let branches = 0;
     let grids = 0;
     let answerLines = 0;
+    let questionCount = 0;
+    const sections = [];
     const issues = [];
+    let currentSection = null;
+
+    const addSectionItem = () => {
+        questionCount++;
+        if (currentSection) currentSection.foundItems++;
+    };
 
     model.nodes.forEach(node => {
-        if (node.type === 'pageBreak') pages++;
+        if (node.type === 'pageBreak') {
+            pages++;
+            return;
+        }
+
+        if (node.type === 'sectionHeading') {
+            currentSection = {
+                label: node.label || '',
+                title: node.title || node.text || '',
+                expectedItems: Number(node.marks?.expectedItems) || null,
+                foundItems: 0,
+                marks: node.marks?.raw || null
+            };
+            sections.push(currentSection);
+            return;
+        }
+
+        if (node.type === 'questionLine' || node.type === 'singleExercise' || node.type === 'twoColumnExercise') {
+            addSectionItem();
+        }
+
         if (node.type === 'table') {
             tables++;
             const widths = (node.rows || []).map(row => row.length);
-            if (widths.length && new Set(widths).size > 1) issues.push('table rows have different cell counts');
+            if (widths.length && new Set(widths).size > 1) {
+                issues.push('table rows have different cell counts');
+            }
         }
+
         if (node.type === 'columns') columns++;
+
         if (node.type === 'branch') {
             branches++;
-            if ((node.items || []).length < 2) issues.push('branch diagram has too few detected branches');
+            if ((node.items || []).length < 2) {
+                issues.push('branch diagram has too few detected branches');
+            }
         }
+
         if (node.type === 'wordSearch') {
             grids++;
             const widths = (node.rows || []).map(row => row.length);
-            if (widths.length && new Set(widths).size > 1) issues.push('letter grid rows have different column counts');
-            if (!(node.rows || []).length) issues.push('letter grid has no detected rows');
+            if (widths.length && new Set(widths).size > 1) {
+                issues.push('letter grid rows have different column counts');
+            }
+            if (!(node.rows || []).length) {
+                issues.push('letter grid has no detected rows');
+            }
         }
-        if (node.type === 'answerBlank') answerLines++;
+
+        if (node.type === 'answerBlank' || node.type === 'answerRule') answerLines++;
     });
+
+    for (const section of sections) {
+        if (
+            Number.isFinite(section.expectedItems) &&
+            section.expectedItems > 0 &&
+            section.foundItems > 0 &&
+            section.expectedItems !== section.foundItems
+        ) {
+            issues.push(
+                'section ' + (section.label || '?') +
+                ' expects ' + section.expectedItems +
+                ' item' + (section.expectedItems === 1 ? '' : 's') +
+                ' from marks but ' + section.foundItems + ' numbered item' +
+                (section.foundItems === 1 ? '' : 's') + ' were detected'
+            );
+        }
+    }
+
+    const paperAnalysis = lastResult?.paper_analysis;
+    const paperDocuments = Array.isArray(paperAnalysis?.documents) ? paperAnalysis.documents : [];
+    const continuityWarnings = [];
+
+    paperDocuments.forEach(doc => {
+        if (Array.isArray(doc.warnings)) continuityWarnings.push(...doc.warnings);
+        (doc.sections || []).forEach(section => {
+            if (Array.isArray(section.warnings)) continuityWarnings.push(...section.warnings);
+            const expected = Number(section?.expected_items);
+            const found = Number(section?.found_items);
+            if (Number.isFinite(expected) && Number.isFinite(found) && expected > 0 && found >= 0 && expected !== found) {
+                continuityWarnings.push(
+                    (doc.class ? 'Class ' + doc.class + ' ' : '') +
+                    (section.label ? 'section ' + section.label + ': ' : '') +
+                    'expected ' + expected + ', found ' + found
+                );
+            }
+        });
+    });
+
+    continuityWarnings
+        .map(x => String(x || '').trim())
+        .filter(Boolean)
+        .slice(0, 10)
+        .forEach(warning => {
+            if (!issues.includes(warning)) issues.push(warning);
+        });
 
     const confidence = model.profile?.confidence || 'low';
     if (confidence === 'low') issues.push('AI layout confidence is low');
 
     let score = 100;
-    score -= issues.length * 15;
+    score -= issues.length * 12;
     if (confidence === 'medium') score -= 5;
     score = Math.max(35, Math.min(100, score));
+
+    const paperSummary = paperDocuments.map((doc, index) => {
+        const identity = [
+            doc.class ? 'Class ' + doc.class : '',
+            doc.subject || '',
+            doc.exam || ''
+        ].filter(Boolean).join(' · ');
+
+        const sectionLabels = (doc.sections || [])
+            .map(section => section.label)
+            .filter(Boolean)
+            .join('→');
+
+        return (identity || doc.label || ('Paper ' + (index + 1))) +
+            (sectionLabels ? ' · sections ' + sectionLabels : '');
+    }).join(' | ');
 
     return {
         score,
@@ -5870,9 +5971,15 @@ function auditStructuredPaper(value) {
         branches,
         grids,
         answerLines,
+        questionCount,
+        sections,
+        paperCount: paperDocuments.length || 1,
+        paperSummary,
         issues,
         summary: [
             pages + ' page' + (pages === 1 ? '' : 's'),
+            questionCount ? questionCount + ' numbered item' + (questionCount === 1 ? '' : 's') : '',
+            sections.length ? sections.length + ' section' + (sections.length === 1 ? '' : 's') : '',
             grids ? grids + ' grid' + (grids === 1 ? '' : 's') : '',
             tables ? tables + ' table' + (tables === 1 ? '' : 's') : '',
             branches ? branches + ' branch diagram' + (branches === 1 ? '' : 's') : '',
@@ -5894,7 +6001,10 @@ function updateLayoutAudit(value) {
         esc(kind) + ' · ' + esc(confidence) + ' confidence · ' +
         audit.score + '/100' +
         (audit.summary ? ' · ' + esc(audit.summary) : '') +
-        (audit.issues.length ? '<br>Review: ' + esc(audit.issues.join('; ')) : ' · structure looks consistent');
+        (audit.paperSummary ? '<br><strong>Paper pattern:</strong> ' + esc(audit.paperSummary) : '') +
+        (audit.issues.length
+            ? '<br><strong>Review:</strong> ' + esc(audit.issues.slice(0,8).join('; '))
+            : ' · structure looks consistent');
 
     if (lastResult) lastResult.layout_audit = audit;
     return audit;
