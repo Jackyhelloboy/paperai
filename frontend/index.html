@@ -584,6 +584,30 @@
             color: var(--text3);
         }
 
+        .batch-preview-order {
+            display: flex;
+            gap: 0.3rem;
+            margin-top: 0.38rem;
+        }
+
+        .batch-preview-order button {
+            flex: 1;
+            height: 27px;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            background: var(--bg);
+            color: var(--text2);
+            font: inherit;
+            font-size: 0.62rem;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .batch-preview-order button:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+
         .batch-preview-remove {
             position: absolute;
             top: 0.35rem;
@@ -2083,7 +2107,7 @@
 
             <button class="btn-extract" id="goBtn" disabled>
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                Extract Text
+                Extract & Rebuild
             </button>
 
             <div class="progress-wrap" id="prog">
@@ -2466,6 +2490,11 @@ async function renderPdfPreviewCard(f, img) {
         await page.render({ canvasContext: ctx, viewport }).promise;
         img.src = canvas.toDataURL('image/jpeg', 0.78);
         img.style.display = 'block';
+        const typeLabel = img.parentElement?.querySelector('.batch-preview-type');
+        if (typeLabel) typeLabel.style.display = 'none';
+        const index = Number(String(img.id || '').replace('pdfPreview_', ''));
+        const meta = Number.isInteger(index) ? $('batchMeta_' + index) : null;
+        if (meta) meta.textContent = fmtSize(f.size) + ' · PDF · ' + pdf.numPages + ' page' + (pdf.numPages === 1 ? '' : 's') + ' · item ' + (index + 1);
     } catch (_) {}
 }
 
@@ -2498,7 +2527,11 @@ function renderBatchPreview() {
             '<button class="batch-preview-remove" data-remove-index="' + index + '" title="Remove">×</button>' +
             '<div class="batch-preview-media">' + media + '</div>' +
             '<div class="batch-preview-name">' + esc(f.name) + '</div>' +
-            '<div class="batch-preview-meta">' + fmtSize(f.size) + ' · ' + ext.toUpperCase() + ' · item ' + (index + 1) + '</div>' +
+            '<div class="batch-preview-meta" id="batchMeta_' + index + '">' + fmtSize(f.size) + ' · ' + ext.toUpperCase() + ' · item ' + (index + 1) + '</div>' +
+            '<div class="batch-preview-order">' +
+                '<button data-move-index="' + index + '" data-move-dir="-1"' + (index === 0 ? ' disabled' : '') + '>↑ Earlier</button>' +
+                '<button data-move-index="' + index + '" data-move-dir="1"' + (index === files.length - 1 ? ' disabled' : '') + '>Later ↓</button>' +
+            '</div>' +
         '</div>';
     }).join('');
 
@@ -2572,26 +2605,40 @@ function clearFile() {
 
 dropZone.onclick = () => fileInput.click();
 fileInput.onchange = e => {
-    if(e.target.files?.length) setFiles(e.target.files, false);
+    if(e.target.files?.length) setFiles(e.target.files, files.length > 0);
+    fileInput.value = '';
 };
 dropZone.ondragover = e => { e.preventDefault(); dropZone.classList.add('over'); };
 dropZone.ondragleave = () => dropZone.classList.remove('over');
 dropZone.ondrop = e => {
     e.preventDefault();
     dropZone.classList.remove('over');
-    if(e.dataTransfer.files?.length) setFiles(e.dataTransfer.files, false);
+    if(e.dataTransfer.files?.length) setFiles(e.dataTransfer.files, files.length > 0);
 };
 clearBtn.onclick = clearFile;
 
 batchPreview.onclick = e => {
-    const btn = e.target.closest('[data-remove-index]');
-    if (!btn) return;
-    const index = Number(btn.dataset.removeIndex);
-    if (!Number.isInteger(index)) return;
-    files.splice(index, 1);
-    file = files[0] || null;
-    if (!files.length) clearFile();
-    else renderBatchPreview();
+    const removeBtn = e.target.closest('[data-remove-index]');
+    if (removeBtn) {
+        const index = Number(removeBtn.dataset.removeIndex);
+        if (!Number.isInteger(index)) return;
+        files.splice(index, 1);
+        file = files[0] || null;
+        if (!files.length) clearFile();
+        else renderBatchPreview();
+        return;
+    }
+
+    const moveBtn = e.target.closest('[data-move-index]');
+    if (moveBtn) {
+        const index = Number(moveBtn.dataset.moveIndex);
+        const dir = Number(moveBtn.dataset.moveDir);
+        const target = index + dir;
+        if (!Number.isInteger(index) || !Number.isInteger(target) || target < 0 || target >= files.length) return;
+        [files[index], files[target]] = [files[target], files[index]];
+        file = files[0] || null;
+        renderBatchPreview();
+    }
 };
 
 [pagePresetSelect, densitySelect, titleAlignSelect, fontScaleSelect, headingWeightSelect, aiLayoutToggle].forEach(control => {
