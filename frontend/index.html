@@ -1067,6 +1067,43 @@
             opacity: 0.85;
         }
 
+        .ocr-structured-wrap {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0.5rem 0 0.7rem;
+        }
+
+        .ocr-structured-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            font: inherit;
+        }
+
+        .ocr-structured-table td,
+        .ocr-structured-table th {
+            padding: 0.35rem 0.45rem;
+            vertical-align: top;
+            overflow-wrap: anywhere;
+        }
+
+        .ocr-structured-table.grid td,
+        .ocr-structured-table.grid th {
+            border: 1px solid var(--border2);
+        }
+
+        .ocr-structured-table.columns td {
+            border: none;
+            padding-left: 0;
+            padding-right: 0.75rem;
+        }
+
+        .ocr-structured-table th {
+            font-weight: 700;
+            background: var(--bg);
+        }
+
         .output-heading {
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
             font-size: 12px;
@@ -4110,6 +4147,20 @@ function publicPlainTextFromStructured(value) {
     const out = [];
 
     for (let i = 0; i < lines.length; i++) {
+        const table = parseStructuredTableBlock(lines, i);
+        if (table) {
+            for (const row of table.rows) out.push(row.join(' | '));
+            i = table.nextIndex - 1;
+            continue;
+        }
+
+        const columns = parseStructuredColumnsBlock(lines, i);
+        if (columns) {
+            for (const row of columns.rows) out.push(row.join('    '));
+            i = columns.nextIndex - 1;
+            continue;
+        }
+
         const rootMatch = lines[i].match(/^\s*\[\[BRANCH_ROOT:\s*([\s\S]*?)\]\]\s*$/i);
         if (!rootMatch) {
             out.push(lines[i]);
@@ -4488,6 +4539,56 @@ function isAnswerBlankContinuationLine(line) {
     return /^\s*_{2,}\s*$/.test(String(line || ''));
 }
 
+function parseStructuredHtmlBlock(lines, startIndex, type) {
+    const tableMode = type === 'table';
+    const startRe = tableMode
+        ? /^\s*\[\[TABLE_START\]\]\s*$/i
+        : /^\s*\[\[COLUMNS_START\]\]\s*$/i;
+    if (!startRe.test(String(lines[startIndex] || ''))) return null;
+
+    const endRe = tableMode
+        ? /^\s*\[\[TABLE_END\]\]\s*$/i
+        : /^\s*\[\[COLUMNS_END\]\]\s*$/i;
+    const rowRe = tableMode
+        ? /^\s*\[\[TABLE_ROW:\s*([\s\S]*?)\]\]\s*$/i
+        : /^\s*\[\[COLUMN_ROW:\s*([\s\S]*?)\]\]\s*$/i;
+
+    const rows = [];
+    let i = startIndex + 1;
+
+    while (i < lines.length) {
+        if (endRe.test(lines[i])) {
+            return { rows, nextIndex: i + 1 };
+        }
+        const m = String(lines[i] || '').match(rowRe);
+        if (m) rows.push(splitStructuredCells(m[1]));
+        i++;
+    }
+
+    return rows.length ? { rows, nextIndex: i } : null;
+}
+
+function renderStructuredHtmlTable(rows, mode = 'grid') {
+    if (!rows?.length) return '';
+    const cols = Math.max(...rows.map(r => r.length));
+    const isHeader = mode === 'grid' && looksLikeHeaderRow(rows);
+
+    let html = '<div class="ocr-structured-wrap"><table class="ocr-structured-table ' +
+        (mode === 'grid' ? 'grid' : 'columns') + '">';
+
+    rows.forEach((row, rowIndex) => {
+        html += '<tr>';
+        for (let col = 0; col < cols; col++) {
+            const tag = isHeader && rowIndex === 0 ? 'th' : 'td';
+            html += '<' + tag + '>' + formatOutputLine(row[col] || '') + '</' + tag + '>';
+        }
+        html += '</tr>';
+    });
+
+    html += '</table></div>';
+    return html;
+}
+
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
@@ -4497,6 +4598,20 @@ function formatOutput(text) {
     let i = 0;
 
     while (i < lines.length) {
+        const structuredTable = parseStructuredHtmlBlock(lines, i, 'table');
+        if (structuredTable) {
+            html += renderStructuredHtmlTable(structuredTable.rows, 'grid');
+            i = structuredTable.nextIndex;
+            continue;
+        }
+
+        const structuredColumns = parseStructuredHtmlBlock(lines, i, 'columns');
+        if (structuredColumns) {
+            html += renderStructuredHtmlTable(structuredColumns.rows, 'columns');
+            i = structuredColumns.nextIndex;
+            continue;
+        }
+
         const branch = parseBranchBlock(lines, i);
         if (branch) {
             html += branch.html;
