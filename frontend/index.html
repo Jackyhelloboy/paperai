@@ -3320,7 +3320,20 @@ const CANONICAL_PHONETIC_OVERRIDES = Object.freeze({
     gaadi: 'गाड़ी',
     gaadii: 'गाड़ी',
     birbal: 'बीरबल',
-    beerbal: 'बीरबल'
+    beerbal: 'बीरबल',
+    i: 'आई',
+    love: 'लव',
+    you: 'यू',
+    my: 'माय',
+    name: 'नेम',
+    is: 'इज़',
+    hello: 'हेलो',
+    hi: 'हाय',
+    good: 'गुड',
+    morning: 'मॉर्निंग',
+    night: 'नाइट',
+    thank: 'थैंक',
+    thanks: 'थैंक्स'
 });
 
 const CANONICAL_PHONETIC_PHRASES = Object.freeze({
@@ -3332,13 +3345,25 @@ const CANONICAL_PHONETIC_PHRASES = Object.freeze({
 });
 
 function getCanonicalPhraseOverride(phrase, script) {
-    const devanagari = CANONICAL_PHONETIC_PHRASES[String(phrase || '').toLowerCase().replace(/\s+/g, ' ').trim()];
-    if (!devanagari || script !== 'devanagari') return '';
+    const normalized = String(phrase || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    let devanagari = CANONICAL_PHONETIC_PHRASES[normalized] || '';
 
-    // Keep these fixed forms only for Devanagari. Converting a Hindi-script
-    // pronunciation mechanically into Telugu/Tamil/etc. can distort English
-    // sounds, so other target scripts use the AI pronunciation fallback.
-    return devanagari;
+    if (!devanagari && normalized.includes(' ')) {
+        const words = normalized.split(' ');
+        const converted = words.map(word => CANONICAL_PHONETIC_OVERRIDES[word] || '');
+        if (converted.every(Boolean)) devanagari = converted.join(' ');
+    }
+
+    if (!devanagari || script === 'latin') return '';
+    if (script === 'devanagari') return devanagari;
+
+    try {
+        if (window.IndicTransliterate?.convertScript) {
+            return window.IndicTransliterate.convertScript(devanagari, script);
+        }
+    } catch (_) {}
+
+    return '';
 }
 
 function getCanonicalPhoneticOverride(roman, script) {
@@ -3478,7 +3503,9 @@ function getLocalSmartSuggestions(input) {
 
     const suggestions = [];
     const isSingleWord = !roman.includes(' ');
+    const phraseOverride = !isSingleWord ? getCanonicalPhraseOverride(roman, script) : '';
     const override = isSingleWord ? getCanonicalPhoneticOverride(roman, script) : '';
+    if (phraseOverride) suggestions.push(phraseOverride);
     if (override) suggestions.push(override);
 
     try {
