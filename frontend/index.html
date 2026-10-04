@@ -3711,8 +3711,8 @@ teachEditor.addEventListener('select', () => {
 function saveLearning() {
     if (!lastResult) return;
     const original = teachOriginalText || lastResult.plain_text || lastResult.text || '';
-    const corrected = teachEditor.value.normalize('NFC').trim();
-    if (!corrected) return;
+    const corrected = teachEditor.value.normalize('NFC');
+    if (!corrected.trim()) return;
 
     const pairs = extractLearningPairs(original, corrected);
     const existing = loadLearningHints();
