@@ -29,7 +29,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v9',
+        architecture: 'production-literal-ocr-v11',
       }, { headers: corsHeaders });
     }
 
@@ -1073,7 +1073,7 @@ Before answering, silently inspect the complete page from top-left to bottom-rig
 STRICT TRANSCRIPTION RULES:
 1. Output ONLY text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
 2. Preserve the source exactly even when it contains mistakes. Do not correct an equation, date, spelling, answer, or fact.
-3. Preserve English, Hindi, Telugu, and every other visible script without transliteration.
+3. Preserve English, Hindi, Telugu, and every other visible script without transliteration. A Devanagari word must remain Devanagari; never output Roman spellings such as "rupaye" when the visible source is "रुपया". Legitimate printed/handwritten English words must remain English.
 4. Treat intentional handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
 5. Do NOT treat page show-through, reverse-side writing, paper embossing, shadows, ruled-line texture, erased graphite ghosts, compression artifacts, or background fabric as new text unless there is clear intentional ink/pencil evidence on the current page surface.
 6. Blank answer lines stay blank. Never fill a blank from the expected answer, nearby options, grammar, school subject knowledge, or faint erased/ghost writing.
@@ -1083,6 +1083,8 @@ STRICT TRANSCRIPTION RULES:
 10. For Telugu and other Indic scripts, keep consonant+vowel signs and conjuncts attached to the visible base character. Never simplify a complex grapheme into a more common word.
 11. For bracketed answer choices such as "(word1 / word2)", read BOTH options independently from the pixels. Never replace an unclear option with a likely textbook answer.
 12. In matching exercises and two-column questions, preserve each visible row and column relationship. Do not pair an item with a nearby option just because it is semantically plausible.
+12A. For branching word diagrams, mind maps, or one central item connected to several rows, NEVER fake the branches with separator-only lines like "| |". Use the visible directional arrows (→, ↗, ↘, ←, ↑, ↓) and circle metadata when present. The "|" symbol is reserved only for genuine table/column separation.
+12B. If a question number is visibly circled, prefer [[CIRCLED: 1]], [[CIRCLED: 2]], etc. instead of relying on special Unicode circled-number glyphs. Do not mark an ordinary uncircled number as circled.
 13. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
 14. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
 15. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
@@ -1172,6 +1174,8 @@ VERIFICATION RULES:
 - Correct a character only when the image itself supports that correction.
 - Preserve mathematics, marks, punctuation, spacing relationships, and mixed scripts exactly.
 - Re-check every Devanagari grapheme that changed between the first OCR and your proposed result. Only change it when the visible stroke pattern supports the new grapheme.
+- On Hindi-dominant pages, inspect every Latin-letter token again. Keep it Latin only when the source itself is visibly English; never romanize a Devanagari word during verification.
+- For branch diagrams, remove fake "| |" connector rows. Preserve actual arrows/circles and the original row relationships instead.
 - Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
 - When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
