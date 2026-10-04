@@ -3085,6 +3085,128 @@ function replaceNthLiteralToken(text, token, replacement, occurrence) {
     return text;
 }
 
+function buildTeachVisibleLayoutMap(layoutText) {
+    const rawLines = String(layoutText || '').split('\n');
+    const visibleLines = [];
+
+    for (let i = 0; i < rawLines.length; i++) {
+        const rootMatch = rawLines[i].match(/^\s*\[\[BRANCH_ROOT:\s*([\s\S]*?)\]\]\s*$/i);
+        if (!rootMatch) {
+            visibleLines.push({
+                text: portableText(rawLines[i]),
+                rawLineIndices: [i]
+            });
+            continue;
+        }
+
+        const root = rootMatch[1].trim();
+        const items = [];
+        let j = i + 1;
+
+        while (j < rawLines.length) {
+            if (/^\s*\[\[BRANCH_END\]\]\s*$/i.test(rawLines[j])) {
+                j++;
+                break;
+            }
+
+            const item = rawLines[j].match(
+                /^\s*\[\[BRANCH_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i
+            );
+            if (item) {
+                items.push({
+                    left: item[1].trim(),
+                    right: item[2].trim(),
+                    rawLineIndex: j
+                });
+            }
+            j++;
+        }
+
+        if (!items.length) {
+            visibleLines.push({
+                text: root,
+                rawLineIndices: [i]
+            });
+            i = j - 1;
+            continue;
+        }
+
+        const center = Math.floor(items.length / 2);
+        for (let r = 0; r < items.length; r++) {
+            const item = items[r];
+            const relation = r < center ? '↗' : r > center ? '↘' : '→';
+            const rootPart = r === center ? '○ ' + root + ' ' : '     ';
+            const right = item.right ? ' ───────── ' + item.right : '';
+
+            visibleLines.push({
+                text: rootPart + relation + ' ' + item.left + right,
+                rawLineIndices: r === center
+                    ? [i, item.rawLineIndex]
+                    : [item.rawLineIndex]
+            });
+        }
+
+        i = j - 1;
+    }
+
+    return { rawLines, visibleLines };
+}
+
+function countLiteralToken(text, token) {
+    if (!token) return 0;
+    let from = 0;
+    let count = 0;
+
+    while (from <= text.length - token.length) {
+        const index = text.indexOf(token, from);
+        if (index < 0) break;
+        if (isTokenBoundary(text, index, token.length)) count++;
+        from = index + Math.max(1, token.length);
+    }
+    return count;
+}
+
+function replaceEditInVisibleLayoutLine(rawLines, visibleLine, edit) {
+    if (!visibleLine?.rawLineIndices?.length) return false;
+
+    // A visible branch line can come from both BRANCH_ROOT and BRANCH_ITEM.
+    // Walk those raw lines in visual reading order and replace the requested
+    // occurrence without changing any branch/annotation metadata.
+    let remaining = Math.max(1, edit.occurrence || 1);
+
+    for (const rawIndex of visibleLine.rawLineIndices) {
+        const raw = rawLines[rawIndex] || '';
+        const count = countLiteralToken(raw, edit.wrong);
+        if (!count) continue;
+
+        if (remaining <= count) {
+            const replaced = replaceNthLiteralToken(raw, edit.wrong, edit.right, remaining);
+            if (replaced !== raw) {
+                rawLines[rawIndex] = replaced;
+                return true;
+            }
+        }
+
+        remaining -= count;
+    }
+
+    return false;
+}
+
+function scoreTeachVisibleLine(sourceLine, candidateLine, wrong) {
+    if (!countLiteralToken(candidateLine, wrong)) return -1;
+
+    const sourceTokens = tokeniseLearning(sourceLine)
+        .filter(token => token !== wrong && token.length < 80 && !/^_+$/.test(token));
+    const candidateTokens = new Set(tokeniseLearning(candidateLine));
+
+    let score = 10;
+    for (const token of sourceTokens) {
+        if (candidateTokens.has(token)) score += 2;
+    }
+    return score;
+}
+
 function applyTeachWordCorrectionsToLayout(layoutText, originalPlain, correctedPlain) {
     const layout = String(layoutText || '');
     if (!layout) return String(correctedPlain || '');
@@ -3093,26 +3215,72 @@ function applyTeachWordCorrectionsToLayout(layoutText, originalPlain, correctedP
     const edits = extractLayoutWordEdits(originalPlain, correctedPlain);
     if (!edits.length) return layout;
 
-    let lines = layout.split('\n');
+    const mapped = buildTeachVisibleLayoutMap(layout);
+    const lines = mapped.rawLines;
+    const visibleLines = mapped.visibleLines;
+    const originalLines = String(originalPlain || '').split('\n');
+
     const lineEdits = edits
-        .filter(edit => Number.isInteger(edit.lineIndex) && edit.lineIndex >= 0 && edit.lineIndex < lines.length)
+        .filter(edit => Number.isInteger(edit.lineIndex))
         .sort((a, b) => (b.lineIndex - a.lineIndex) || (b.occurrence - a.occurrence));
     const globalEdits = edits
         .filter(edit => edit.lineIndex === null)
         .sort((a, b) => b.occurrence - a.occurrence);
 
     for (const edit of lineEdits) {
-        lines[edit.lineIndex] = replaceNthLiteralToken(
-            lines[edit.lineIndex],
-            edit.wrong,
-            edit.right,
-            edit.occurrence
-        );
+        let applied = false;
+
+        // First map the plain Extracted line to the corresponding visible
+        // layout line. This stays correct even when branch metadata adds raw
+        // lines that the user never sees.
+        if (edit.lineIndex >= 0 && edit.lineIndex < visibleLines.length) {
+            applied = replaceEditInVisibleLayoutLine(
+                lines,
+                visibleLines[edit.lineIndex],
+                edit
+            );
+        }
+
+        // If annotations or legacy layout caused another offset, locate the
+        // best visible line by its surrounding tokens instead of guessing a
+        // raw line number.
+        if (!applied) {
+            const sourceLine = originalLines[edit.lineIndex] || '';
+            const ranked = visibleLines
+                .map((line, index) => ({
+                    index,
+                    score: scoreTeachVisibleLine(sourceLine, line.text, edit.wrong)
+                }))
+                .filter(row => row.score >= 0)
+                .sort((a, b) => b.score - a.score);
+
+            for (const row of ranked) {
+                if (replaceEditInVisibleLayoutLine(lines, visibleLines[row.index], edit)) {
+                    applied = true;
+                    break;
+                }
+            }
+        }
+
+        // Last safe fallback: if the old token occurs only once in the entire
+        // structured layout, replacing that unique occurrence cannot target
+        // the wrong visible word.
+        if (!applied) {
+            const joined = lines.join('\n');
+            if (countLiteralToken(joined, edit.wrong) === 1) {
+                const replaced = replaceNthLiteralToken(joined, edit.wrong, edit.right, 1);
+                lines.splice(0, lines.length, ...replaced.split('\n'));
+            }
+        }
     }
 
     let out = lines.join('\n');
     for (const edit of globalEdits) {
-        out = replaceNthLiteralToken(out, edit.wrong, edit.right, edit.occurrence);
+        if (countLiteralToken(out, edit.wrong) === 1) {
+            out = replaceNthLiteralToken(out, edit.wrong, edit.right, 1);
+        } else {
+            out = replaceNthLiteralToken(out, edit.wrong, edit.right, edit.occurrence);
+        }
     }
     return out;
 }
