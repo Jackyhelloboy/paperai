@@ -1576,7 +1576,7 @@ Use nearby visible context only to choose between visually plausible characters;
 Before answering, silently inspect the complete page from top-left to bottom-right. For difficult pages, do a second visual check of every number, operator, mark, unit, punctuation symbol, and short handwritten word before producing the final transcription.
 
 STRICT TRANSCRIPTION RULES:
-1. Output ONLY the optional allowed [[PAGE_PROFILE: ...]] / [[LINE_STYLE: ... || text]] metadata plus text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
+1. Output ONLY the optional allowed PAGE_PROFILE / LINE_STYLE / QUESTION_SECTION / QUESTION_ITEM / ANSWER_RULE / branch/table/column/word-search/edit metadata plus text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
 2. Preserve the source exactly even when it contains mistakes. Do not correct an equation, date, spelling, answer, or fact.
 3. Preserve English, Hindi, Telugu, and every other visible script without transliteration. A Devanagari word must remain Devanagari; never output Roman spellings such as "rupaye" when the visible source is "रुपया". Legitimate printed/handwritten English words must remain English.
 4. Treat intentional handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
@@ -1619,6 +1619,16 @@ Use one TABLE_ROW per visible row, cells strictly left-to-right. Preserve empty 
 [[COLUMNS_END]]
 Use the actual visible number of columns. Do not use this for ordinary prose merely because lines contain spaces.
 20C. The "||" separator inside TABLE_ROW/COLUMN_ROW is structural metadata, not source punctuation. Never use these markers unless the row/column relationship is visibly clear.
+20D. QUESTION / ANSWER SHEETS: when a clearly visible section heading is followed by numbered questions and ruled answer lines, preserve the structure explicitly:
+[[QUESTION_SECTION: visible Roman/section label || exact visible instruction || exact visible marks formula]]
+[[QUESTION_ITEM: exact visible question number || exact visible question text]]
+[[ANSWER_RULE]]
+[[ANSWER_RULE]]
+...repeat one ANSWER_RULE for each clearly visible blank answer line belonging to that question...
+Use QUESTION_SECTION only for a real visible section/bit heading. Use QUESTION_ITEM only when a question/item number is visibly present. Do not invent a number from sequence context.
+If a numbered question is partly unreadable, preserve the visible number and use [unclear] only inside the unreadable part of the question text. NEVER drop the entire question merely because the ruled answer line below is clearer.
+Do not include the question's answer in QUESTION_ITEM. Student answers, ticks/crosses, choices and annotations remain literal visible content after the question text.
+For sections such as word meanings, singular/plural, antonyms, fill-in-the-blanks, true/false or matching, preserve the exact visible item count. Marks patterns may help you CHECK the count, but never create a missing item.
 21. WORD-SEARCH / LETTER-GRID WITH SIDE ANSWERS: if a bordered letter/word-search grid appears beside a separate numbered answer list or answer blanks, NEVER merge the answer numbers/lines into the grid rows. Treat these as two adjacent structures and output exactly:
 [[WORDSEARCH_START]]
 [[WORDSEARCH_ROW: cell 1 || cell 2 || cell 3 || ...]]
@@ -1714,6 +1724,8 @@ VERIFICATION RULES:
 - For branch diagrams, remove fake "| |" connector rows and return the exact [[BRANCH_ROOT]], [[BRANCH_ITEM]], [[BRANCH_END]] structure defined above.
 - Re-check each branch label independently. Never merge the root/prefix into a branch label; preserve only the characters visibly written on that branch.
 - Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
+- On question/answer sheets, count every visible numbered question before accepting the verification result. Do not let long ruled answer lines replace or suppress the shorter question text above them.
+- Preserve QUESTION_SECTION, QUESTION_ITEM and ANSWER_RULE metadata when the corresponding structure is visibly present. Never add a missing question from expected marks or sequence.
 - When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
 
@@ -1793,6 +1805,10 @@ function shouldVerifyOcr(text, imageMeta = {}) {
   const hardPage =
     imageMeta?.difficulty === 'hard' ||
     Number(imageMeta?.score || 0) >= 2;
+  const questionPaperLike =
+    /\[\[(?:QUESTION_SECTION|QUESTION_ITEM):/i.test(visible) ||
+    /(?:^|\n)\s*[IVX]{1,6}\s*[.)।:-]?\s+/m.test(visible) ||
+    /\b\d+\s*[x×X]\s*\d+\s*=\s*\d+\s*M?\b/i.test(visible);
 
   return emptyLike ||
     lineMiss ||
@@ -1800,6 +1816,7 @@ function shouldVerifyOcr(text, imageMeta = {}) {
     hasEditMetadata ||
     structuredPage ||
     hardPage ||
+    questionPaperLike ||
     (plain.length < 12 && likelyInk);
 }
 
@@ -2009,6 +2026,16 @@ function stripBranchMetadata(text) {
   return out.join('\n');
 }
 
+function stripQuestionPaperMetadata(text) {
+  return String(text || '')
+    .replace(/^\s*\[\[QUESTION_SECTION:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,
+      (_, label, instruction, marks) => [String(label || '').trim() + '.', String(instruction || '').trim(), String(marks || '').trim()].filter(Boolean).join(' '))
+    .replace(/^\s*\[\[QUESTION_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,
+      (_, number, question) => String(number || '').trim() + '. ' + String(question || '').trim())
+    .replace(/^\s*\[\[ANSWER_RULE\]\]\s*$/gmi,
+      '___________________________________________________________________________');
+}
+
 function stripLineStyleMetadata(text) {
   return String(text || '')
     .replace(/^\s*\[\[LINE_STYLE:\s*[^\]]*?\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi, (_, visibleText) =>
@@ -2088,7 +2115,7 @@ function stripStructuredMetadata(text) {
 function stripOcrMetadata(text) {
   if (!text) return '';
 
-  return stripBranchMetadata(stripStructuredMetadata(stripPageProfileMetadata(stripLineStyleMetadata(String(text)))))
+  return stripBranchMetadata(stripStructuredMetadata(stripPageProfileMetadata(stripLineStyleMetadata(stripQuestionPaperMetadata(String(text))))))
     .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
       return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
     })
