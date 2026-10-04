@@ -5974,32 +5974,9 @@ function learnLayoutPreference(kind, options) {
 }
 
 function getEffectiveLayoutProfile(baseProfile = {}) {
-    const options = getLayoutOptions();
+    // v24 automatic mode: the current document's AI profile is authoritative.
+    // Old manual layout preferences are deliberately ignored.
     const profile = { ...baseProfile };
-    const learned = loadLayoutLearning()[profile.kind] || {};
-
-    const effectiveDensity = options.density !== 'auto' ? options.density : learned.density;
-    const effectiveTitleAlign = options.titleAlign !== 'auto' ? options.titleAlign : learned.titleAlign;
-    const effectiveFontScale = options.fontScale !== 'auto' ? options.fontScale : learned.fontScale;
-    const effectiveHeadingWeight = options.headingWeight !== 'auto' ? options.headingWeight : learned.headingWeight;
-
-    if (options.preset !== 'auto' && options.preset !== 'preserve') {
-        profile.kind = options.preset;
-    }
-    if (effectiveDensity && effectiveDensity !== 'auto') profile.density = effectiveDensity;
-    if (effectiveTitleAlign && effectiveTitleAlign !== 'auto') profile.titleAlign = effectiveTitleAlign;
-    if (effectiveHeadingWeight && effectiveHeadingWeight !== 'auto') profile.titleWeight = effectiveHeadingWeight;
-
-    const factor = effectiveFontScale === 'small' ? 0.9 :
-        effectiveFontScale === 'large' ? 1.12 :
-        effectiveFontScale === 'normal' ? 1 : null;
-
-    if (factor) {
-        profile.bodySize = Math.max(9, Math.min(14, Math.round((Number(profile.bodySize) || 10) * factor)));
-        profile.headingSize = Math.max(10, Math.min(16, Math.round((Number(profile.headingSize) || 12) * factor)));
-        profile.titleSize = Math.max(12, Math.min(20, Math.round((Number(profile.titleSize) || 16) * factor)));
-    }
-
     profile.englishFont = 'Tahoma';
     return profile;
 }
