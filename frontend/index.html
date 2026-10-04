@@ -3721,6 +3721,10 @@ function saveLearning() {
     const corrected = teachEditor.value.normalize('NFC');
     if (!corrected.trim()) return;
 
+    // Rebuild the preview one final time from the current editor contents so
+    // Save & apply commits exactly what the user is seeing in Teach.
+    renderTeachPreview();
+
     const pairs = extractLearningPairs(original, corrected);
     const existing = loadLearningHints();
     const map = new Map();
@@ -3744,20 +3748,35 @@ function saveLearning() {
 
     saveLearningHints(saved);
 
-    const correctedLayout = applyTeachWordCorrectionsToLayout(
-        teachOriginalLayoutText || lastResult.text || '',
-        original,
-        corrected
-    );
+    const correctedLayout =
+        lastResult.preview_layout_text ||
+        applyTeachWordCorrectionsToLayout(
+            teachOriginalLayoutText || lastResult.text || '',
+            original,
+            corrected
+        );
 
+    // Commit Teach into the canonical Extracted result. Raw OCR remains
+    // untouched, but every Extracted render/copy/download now uses this value.
     lastResult.plain_text = corrected;
     lastResult.text = correctedLayout;
     lastResult.preview_text = corrected;
     lastResult.preview_layout_text = correctedLayout;
-    textOut.innerHTML = formatOutput(correctedLayout);
-    textOut.className = 'output-body';
+
+    // The saved correction becomes the new Teach baseline too, so reopening
+    // Teach cannot bring the old OCR word back.
+    teachOriginalText = corrected;
     teachOriginalLayoutText = correctedLayout;
+
+    // Save & apply must always return to Extracted and show the committed text
+    // immediately, even if the user had Raw OCR selected before saving.
+    showingRaw = false;
+    $('tabVerified').classList.add('active');
+    $('tabRaw').classList.remove('active');
+
     closeTeachPanel();
+    textOut.innerHTML = formatOutput(lastResult.text || '');
+    textOut.className = 'output-body';
 
     const learned = pairs.length;
     if (learned) $('statsBar').innerHTML += '<span class="badge badge-gray">' + learned + ' learned</span>';
