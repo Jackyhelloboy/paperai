@@ -5336,6 +5336,69 @@ function parseSimpleFlowLine(raw) {
     return parts;
 }
 
+function parseSimpleGeometryLine(raw) {
+    const text = stripDocxMetadataForDetection(raw);
+    if (!text || text.length > 36) return null;
+
+    const m = text.match(/^([○◯●□▢△▲])\s*([A-Za-z0-9\u0900-\u097F][A-Za-z0-9\u0900-\u097F ._-]{0,24})$/);
+    if (!m) return null;
+
+    const label = m[2].trim();
+    if (!label || label.split(/\s+/).length > 4) return null;
+
+    const map = {
+        '○': 'circle', '◯': 'circle', '●': 'circle',
+        '□': 'rect', '▢': 'rect',
+        '△': 'triangle', '▲': 'triangle'
+    };
+
+    return { type: map[m[1]], label };
+}
+
+function docxVmlGeometryFigure(figure) {
+    const width = 220;
+    const height = 90;
+    const shapeX = 20;
+    const shapeY = 15;
+    const shapeW = 58;
+    const shapeH = 58;
+    let shapeXml = '';
+
+    if (figure.type === 'circle') {
+        shapeXml =
+            '<v:oval id="paperai_geometry_shape" ' +
+            'style="position:absolute;left:' + shapeX + 'pt;top:' + shapeY + 'pt;width:' + shapeW + 'pt;height:' + shapeH + 'pt;z-index:2" ' +
+            'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827"/>';
+    } else if (figure.type === 'rect') {
+        shapeXml =
+            '<v:rect id="paperai_geometry_shape" ' +
+            'style="position:absolute;left:' + shapeX + 'pt;top:' + shapeY + 'pt;width:' + shapeW + 'pt;height:' + shapeH + 'pt;z-index:2" ' +
+            'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827"/>';
+    } else {
+        shapeXml =
+            '<v:shape id="paperai_geometry_shape" coordorigin="0,0" coordsize="21600,21600" ' +
+            'path="m10800,0 l21600,21600,0,21600 x e" ' +
+            'style="position:absolute;left:' + shapeX + 'pt;top:' + shapeY + 'pt;width:' + shapeW + 'pt;height:' + shapeH + 'pt;z-index:2" ' +
+            'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827"/>';
+    }
+
+    const label = docxVmlTextBox(
+        'paperai_geometry_label',
+        figure.label,
+        98,
+        30,
+        100,
+        24,
+        { fontSize: 10.5 }
+    );
+
+    return '<w:p><w:pPr><w:spacing w:before="25" w:after="45"/></w:pPr><w:r><w:pict>' +
+        '<v:group id="paperai_geometry_group" style="position:relative;width:' + width + 'pt;height:' + height + 'pt" ' +
+        'coordorigin="0,0" coordsize="' + width + ',' + height + '">' +
+        shapeXml + label +
+        '</v:group></w:pict></w:r></w:p>';
+}
+
 function parseVerticalFlowBlock(lines, startIndex) {
     const nodes = [];
     let i = startIndex;
@@ -5495,6 +5558,13 @@ function buildDocxBody(structuredText) {
         const singleExercise = parseDocxSingleExerciseLine(raw);
         if (singleExercise) {
             body.push(docxSingleExerciseTable(singleExercise));
+            i++;
+            continue;
+        }
+
+        const geometryFigure = parseSimpleGeometryLine(raw);
+        if (geometryFigure) {
+            body.push(docxVmlGeometryFigure(geometryFigure));
             i++;
             continue;
         }
