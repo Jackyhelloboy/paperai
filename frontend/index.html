@@ -6065,32 +6065,264 @@ function formatOutput(text) {
     return html;
 }
 
-async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1) {
-    const ext = inputFile.name.split('.').pop().toLowerCase();
-    const batchLabel = batchTotal > 1 ? 'File ' + (batchIndex + 1) + '/' + batchTotal + ' · ' : '';
+
+const QUESTION_PATTERN_KEY = 'paperai_question_patterns_v1';
+
+function loadQuestionPatterns() {
+    try {
+        const value = JSON.parse(localStorage.getItem(QUESTION_PATTERN_KEY) || '[]');
+        return Array.isArray(value) ? value : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function saveQuestionPatternsFromAnalysis(analysis) {
+    if (!analysis?.documents?.length) return;
+
+    try {
+        const existing = loadQuestionPatterns();
+        const next = [...existing];
+
+        for (const doc of analysis.documents) {
+            const sections = Array.isArray(doc.sections)
+                ? doc.sections
+                    .filter(section => section && (section.label || section.title || section.marks))
+                    .map(section => ({
+                        label: section.label || null,
+                        title: String(section.title || '').slice(0, 140) || null,
+                        marks: section.marks || null,
+                        expected_items: Number.isFinite(Number(section.expected_items))
+                            ? Number(section.expected_items)
+                            : null
+                    }))
+                    .slice(0, 20)
+                : [];
+
+            if (!sections.length) continue;
+
+            const key = [
+                String(doc.class || '').trim().toLowerCase(),
+                String(doc.subject || '').trim().toLowerCase(),
+                String(doc.exam || '').trim().toLowerCase()
+            ].join('|');
+
+            if (!key.replace(/\|/g, '')) continue;
+
+            const found = next.find(row => row.key === key);
+            const row = {
+                key,
+                class: doc.class || null,
+                subject: doc.subject || null,
+                exam: doc.exam || null,
+                sections,
+                count: Math.min(99, Number(found?.count || 0) + 1),
+                updatedAt: Date.now()
+            };
+
+            if (found) Object.assign(found, row);
+            else next.push(row);
+        }
+
+        next.sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        localStorage.setItem(QUESTION_PATTERN_KEY, JSON.stringify(next.slice(0, 24)));
+    } catch (_) {}
+}
+
+function safeQuestionPatternHints() {
+    return loadQuestionPatterns()
+        .slice(0, 8)
+        .map(row => ({
+            class: row.class,
+            subject: row.subject,
+            exam: row.exam,
+            sections: Array.isArray(row.sections)
+                ? row.sections.slice(0, 16).map(section => ({
+                    label: section.label,
+                    title: section.title,
+                    marks: section.marks,
+                    expected_items: section.expected_items
+                }))
+                : []
+        }));
+}
+
+function localPaperAnalysis(pageRecords) {
+    const pages = Array.isArray(pageRecords) ? pageRecords : [];
+    return {
+        documents: pages.length ? [{
+            label: 'Paper 1',
+            class: null,
+            subject: null,
+            exam: null,
+            confidence: 'low',
+            page_indices: pages.map(page => page.index),
+            sections: [],
+            warnings: []
+        }] : [],
+        pages: pages.map((page, order) => ({
+            index: page.index,
+            document: 0,
+            order,
+            continuation_of_section: null,
+            warnings: []
+        })),
+        warnings: [],
+        source: 'upload-order'
+    };
+}
+
+async function analyzePaperBatch(pageRecords) {
+    const pages = Array.isArray(pageRecords) ? pageRecords : [];
+    if (pages.length <= 1) return localPaperAnalysis(pages);
+
+    try {
+        const res = await fetchOcrEndpoint('/api/analyze-paper', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                pages: pages.map(page => ({
+                    index: page.index,
+                    filename: page.filename || '',
+                    text: page.text || page.plain || '',
+                    profile: page.profile || {}
+                })),
+                known_patterns: safeQuestionPatternHints()
+            })
+        });
+
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body?.analysis?.documents?.length) {
+            return localPaperAnalysis(pages);
+        }
+        return body.analysis;
+    } catch (_) {
+        return localPaperAnalysis(pages);
+    }
+}
+
+function orderedPaperPages(pageRecords, analysis) {
+    const byIndex = new Map((pageRecords || []).map(page => [Number(page.index), page]));
+    const ordered = [];
+    const seen = new Set();
+    const documentBreakAfter = new Set();
+
+    const documents = Array.isArray(analysis?.documents) ? analysis.documents : [];
+    documents.forEach((doc, docIndex) => {
+        const indices = Array.isArray(doc?.page_indices) ? doc.page_indices.map(Number) : [];
+        indices.forEach(index => {
+            if (seen.has(index) || !byIndex.has(index)) return;
+            ordered.push(byIndex.get(index));
+            seen.add(index);
+        });
+        if (docIndex < documents.length - 1 && ordered.length) {
+            documentBreakAfter.add(ordered.length - 1);
+        }
+    });
+
+    for (const page of pageRecords || []) {
+        const index = Number(page.index);
+        if (seen.has(index)) continue;
+        ordered.push(page);
+        seen.add(index);
+    }
+
+    return { ordered, documentBreakAfter };
+}
+
+function assemblePaperPages(pageRecords, analysis) {
+    const { ordered, documentBreakAfter } = orderedPaperPages(pageRecords, analysis);
     let text = '';
     let plain = '';
     let raw = '';
-    let pageCount = 1;
+
+    ordered.forEach((page, position) => {
+        if (position > 0) {
+            text += '\n[[PAGE_BREAK]]\n';
+            plain += '\n\n';
+            raw += '\n\n';
+        }
+
+        text += page.text || page.plain || '';
+        plain += page.plain || page.text || '';
+        raw += page.raw || page.text || page.plain || '';
+
+        // A new detected paper always starts on a fresh Word page. PAGE_BREAK
+        // already guarantees the physical separation; the analysis object
+        // retains the class/exam boundary without exposing private metadata.
+        if (documentBreakAfter.has(position)) {
+            // No synthetic visible label is inserted here.
+        }
+    });
+
+    return { text, plain, raw, ordered };
+}
+
+function pageTail(value) {
+    return publicPlainTextFromStructured(String(value || ''))
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(-1600);
+}
+
+function pageProfileFromText(value) {
+    return window.PaperAIDocumentModel?.parse?.(String(value || ''))?.profile || {};
+}
+
+function combineLocalPageRecords(records) {
+    let text = '';
+    let plain = '';
+    let raw = '';
+
+    (records || []).forEach((page, index) => {
+        if (index > 0) {
+            text += '\n[[PAGE_BREAK]]\n';
+            plain += '\n\n';
+            raw += '\n\n';
+        }
+        text += page.text || page.plain || '';
+        plain += page.plain || page.text || '';
+        raw += page.raw || page.text || page.plain || '';
+    });
+
+    return { text, plain, raw };
+}
+
+async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, previousPageTail = '') {
+    const ext = inputFile.name.split('.').pop().toLowerCase();
+    const batchLabel = batchTotal > 1 ? 'File ' + (batchIndex + 1) + '/' + batchTotal + ' · ' : '';
+    const records = [];
+    let localTail = previousPageTail || '';
+
+    const addRecord = (payload = {}) => {
+        const record = {
+            filename: inputFile.name,
+            page_in_file: records.length,
+            text: payload.text || payload.plain || '',
+            plain: payload.plain || payload.text || '',
+            raw: payload.raw || payload.text || payload.plain || '',
+            profile: payload.profile || pageProfileFromText(payload.text || payload.plain || '')
+        };
+        records.push(record);
+        localTail = pageTail(record.plain || record.text);
+        return record;
+    };
 
     if (ext === 'pdf') {
         setProg(8, batchLabel + 'Loading PDF...');
         const pages = await pdfToPages(inputFile);
-        pageCount = Math.max(1, pages.length);
 
         for (let i = 0; i < pages.length; i++) {
-            const prefix = text ? '\n[[PAGE_BREAK]]\n' : '';
-            const plainPrefix = plain ? '\n\n' : '';
-            const rawPrefix = raw ? '\n\n' : '';
-
             if (pages[i].type === 'text') {
                 setProg(
                     20 + Math.round(((batchIndex + (i / Math.max(1,pages.length))) / Math.max(1,batchTotal)) * 68),
                     batchLabel + 'Reading PDF page ' + (i+1) + '/' + pages.length
                 );
-                text += prefix + pages[i].text;
-                plain += plainPrefix + pages[i].text;
-                raw += rawPrefix + pages[i].text;
+                addRecord({
+                    text: pages[i].text,
+                    plain: pages[i].text,
+                    raw: pages[i].text
+                });
                 continue;
             }
 
@@ -6104,52 +6336,91 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1) {
             const result = await sendToOCR(
                 pages[i].blob,
                 ctrl.signal,
-                batchLabel + 'Preparing page ' + (i+1) + '/' + pages.length
+                batchLabel + 'Preparing page ' + (i+1) + '/' + pages.length,
+                {
+                    previous_page_tail: localTail,
+                    page_index: i,
+                    page_total: pages.length,
+                    batch_index: batchIndex,
+                    batch_total: batchTotal
+                }
             );
             clearTimeout(tid);
 
             if (result.status === 'completed' && result.result) {
                 const annotated = result.result.annotated_text || result.result.full_text || '';
                 const pagePlain = result.result.full_text || annotated;
-                text += prefix + annotated;
-                plain += plainPrefix + pagePlain;
-                raw += rawPrefix + (result.result.raw_text || annotated);
+                addRecord({
+                    text: annotated,
+                    plain: pagePlain,
+                    raw: result.result.raw_text || annotated,
+                    profile: pageProfileFromText(annotated)
+                });
             }
         }
 
-        return { text, plain, raw, pageCount };
+        const combined = combineLocalPageRecords(records);
+        return {
+            ...combined,
+            pages: records,
+            pageCount: Math.max(1, records.length),
+            contextTail: localTail
+        };
     }
 
     if (XLS_EXTS.includes(ext)) {
         setProg(25, batchLabel + 'Reading spreadsheet...');
-        text = await extractSpreadsheetFile(inputFile);
-        return { text, plain: text, raw: text, pageCount: 1 };
+        const text = await extractSpreadsheetFile(inputFile);
+        addRecord({ text, plain: text, raw: text });
+        return { ...combineLocalPageRecords(records), pages: records, pageCount: 1, contextTail: localTail };
     }
 
     if (IMAGE_EXTS.includes(ext)) {
         setProg(12, batchLabel + 'AI analyzing image...');
         const ctrl = new AbortController();
         const tid = setTimeout(() => ctrl.abort(), 240000);
-        const result = await sendToOCR(inputFile, ctrl.signal, batchLabel + 'Preparing image');
+        const result = await sendToOCR(
+            inputFile,
+            ctrl.signal,
+            batchLabel + 'Preparing image',
+            {
+                previous_page_tail: localTail,
+                page_index: batchIndex,
+                page_total: batchTotal,
+                batch_index: batchIndex,
+                batch_total: batchTotal
+            }
+        );
         clearTimeout(tid);
-        if (result.status !== 'completed' || !result.result) throw new Error('No results for ' + inputFile.name);
 
-        text = result.result.annotated_text || result.result.full_text || '';
-        plain = result.result.full_text || text;
-        raw = result.result.raw_text || text;
-        return { text, plain, raw, pageCount: 1 };
+        if (result.status !== 'completed' || !result.result) {
+            throw new Error('No results for ' + inputFile.name);
+        }
+
+        const text = result.result.annotated_text || result.result.full_text || '';
+        const plain = result.result.full_text || text;
+        addRecord({
+            text,
+            plain,
+            raw: result.result.raw_text || text,
+            profile: pageProfileFromText(text)
+        });
+
+        return { ...combineLocalPageRecords(records), pages: records, pageCount: 1, contextTail: localTail };
     }
 
     if (TXT_EXTS.includes(ext) || ext === 'rtf') {
         setProg(25, batchLabel + 'Reading text...');
-        text = await extractPlainTextFile(inputFile);
-        return { text, plain: text, raw: text, pageCount: 1 };
+        const text = await extractPlainTextFile(inputFile);
+        addRecord({ text, plain: text, raw: text });
+        return { ...combineLocalPageRecords(records), pages: records, pageCount: 1, contextTail: localTail };
     }
 
     if (['docx','odt','pptx','odp'].includes(ext)) {
         setProg(25, batchLabel + 'Reading Office document...');
-        text = await extractOfficeZipFile(inputFile);
-        return { text, plain: text, raw: text, pageCount: 1 };
+        const text = await extractOfficeZipFile(inputFile);
+        addRecord({ text, plain: text, raw: text });
+        return { ...combineLocalPageRecords(records), pages: records, pageCount: 1, contextTail: localTail };
     }
 
     setProg(20, batchLabel + 'Reading document...');
@@ -6157,12 +6428,21 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1) {
     const tid = setTimeout(() => ctrl.abort(), 120000);
     const result = await sendFileToWorker(inputFile, ctrl.signal);
     clearTimeout(tid);
-    if (result.status !== 'completed' || !result.result) throw new Error('No results for ' + inputFile.name);
 
-    text = result.result.annotated_text || result.result.full_text || '';
-    plain = result.result.full_text || text;
-    raw = result.result.raw_text || text;
-    return { text, plain, raw, pageCount: 1 };
+    if (result.status !== 'completed' || !result.result) {
+        throw new Error('No results for ' + inputFile.name);
+    }
+
+    const text = result.result.annotated_text || result.result.full_text || '';
+    const plain = result.result.full_text || text;
+    addRecord({
+        text,
+        plain,
+        raw: result.result.raw_text || text,
+        profile: pageProfileFromText(text)
+    });
+
+    return { ...combineLocalPageRecords(records), pages: records, pageCount: 1, contextTail: localTail };
 }
 
 goBtn.onclick = async () => {
@@ -6175,33 +6455,50 @@ goBtn.onclick = async () => {
     setProg(5, files.length > 1 ? 'Preparing ' + files.length + ' files...' : 'Reading file...');
 
     try {
-        let allText = '';
-        let allPlain = '';
-        let allRaw = '';
         let totalPages = 0;
+        let previousTail = '';
+        const pageRecords = [];
 
         for (let index = 0; index < files.length; index++) {
             const current = files[index];
-            const result = await extractOneInputFile(current, index, files.length);
-            if (!result?.text && !result?.plain) continue;
+            const result = await extractOneInputFile(current, index, files.length, previousTail);
+            const resultPages = Array.isArray(result?.pages) ? result.pages : [];
 
-            const pagePrefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
-            const plainPrefix = allPlain ? '\n\n' : '';
-            const rawPrefix = allRaw ? '\n\n' : '';
+            for (const page of resultPages) {
+                pageRecords.push({
+                    ...page,
+                    index: pageRecords.length
+                });
+            }
 
-            allText += pagePrefix + (result.text || result.plain || '');
-            allPlain += plainPrefix + (result.plain || result.text || '');
-            allRaw += rawPrefix + (result.raw || result.text || result.plain || '');
-            totalPages += Number(result.pageCount) || 1;
+            totalPages += Number(result?.pageCount) || resultPages.length || 1;
+            previousTail = result?.contextTail || previousTail;
 
             setProg(
-                Math.min(92, 20 + Math.round(((index + 1) / files.length) * 72)),
-                'Reconstructed ' + (index + 1) + '/' + files.length + ' file' + (files.length > 1 ? 's' : '')
+                Math.min(90, 18 + Math.round(((index + 1) / files.length) * 68)),
+                'Read ' + (index + 1) + '/' + files.length + ' file' + (files.length > 1 ? 's' : '')
             );
         }
 
-        if (!allPlain) allPlain = allText;
-        if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in selected files');
+        if (!pageRecords.length) {
+            throw new Error('No text found in selected files');
+        }
+
+        setProg(92, pageRecords.length > 1
+            ? 'Checking class, exam and question continuity...'
+            : 'Checking question structure...');
+
+        const paperAnalysis = await analyzePaperBatch(pageRecords);
+        saveQuestionPatternsFromAnalysis(paperAnalysis);
+
+        const assembled = assemblePaperPages(pageRecords, paperAnalysis);
+        let allText = assembled.text;
+        let allPlain = assembled.plain || assembled.text;
+        let allRaw = assembled.raw || assembled.text;
+
+        if (!allPlain.trim() && !allText.trim()) {
+            throw new Error('No text found in selected files');
+        }
 
         allText = repairLegacyBranchDiagram(allText);
         allPlain = repairLegacyBranchDiagram(allPlain);
@@ -6210,10 +6507,12 @@ goBtn.onclick = async () => {
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         const model = window.PaperAIDocumentModel?.parse?.(allText);
         const profile = model?.profile || null;
+        const paperCount = Math.max(1, Number(paperAnalysis?.documents?.length) || 1);
 
         let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
         if (files.length > 1) badges += '<span class="badge badge-gray">' + files.length + ' files</span>';
         if (totalPages > 1) badges += '<span class="badge badge-gray">' + totalPages + ' pages</span>';
+        if (paperCount > 1) badges += '<span class="badge badge-gray">' + paperCount + ' papers</span>';
         if (profile?.kind && profile.kind !== 'general') {
             badges += '<span class="badge badge-gray">' + esc(profile.kind.replace(/-/g,' ')) + '</span>';
         }
@@ -6225,6 +6524,13 @@ goBtn.onclick = async () => {
             plain_text: allPlain,
             raw_text: allRaw,
             layout_profile: profile,
+            paper_analysis: paperAnalysis,
+            page_records: assembled.ordered.map(page => ({
+                index: page.index,
+                filename: page.filename,
+                page_in_file: page.page_in_file,
+                profile: page.profile
+            })),
             source_files: files.map(f => ({ name: f.name, size: f.size, type: f.type || '' })),
             layout_options: getLayoutOptions()
         };
@@ -6234,18 +6540,20 @@ goBtn.onclick = async () => {
         $('tabVerified').classList.add('active');
         $('tabRaw').classList.remove('active');
         updateResultActionsForTab();
+
         const adjustedInitialText = applyLayoutOverridesToStructuredText(lastResult.text || '');
         textOut.innerHTML = formatOutput(adjustedInitialText);
         textOut.className = 'output-body';
         updateLayoutAudit(adjustedInitialText);
 
-        // Make the final Extracted view follow the same effective profile as Word.
         const adjustedInitialModel = window.PaperAIDocumentModel?.parse?.(adjustedInitialText);
         applyOutputProfile(adjustedInitialModel?.profile || profile || {});
 
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
-        setProg(100, 'Question paper reconstruction complete');
+        setProg(100, paperCount > 1
+            ? 'Reconstructed ' + paperCount + ' question papers'
+            : 'Question paper reconstruction complete');
         setTimeout(() => prog.classList.remove('show'), 900);
         loadUsage();
 
