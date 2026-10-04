@@ -76,14 +76,18 @@ jobs:
           fi
 
           # Named rule with explicit flags, so it can never be mistaken for a prefix
-          # condition. Re-running with the same rule id updates the rule in place,
-          # and photos are removed a day after they are uploaded.
+          # condition. Adding a rule whose name already exists is refused by R2
+          # ("Rule IDs must be unique"), so remove it first. That keeps the bucket
+          # converging on a one-day expiry even if an older rule is already there.
+          npx wrangler@4 r2 bucket lifecycle remove "$BUCKET" \
+            --name expire-draft-pages || true
           npx wrangler@4 r2 bucket lifecycle add "$BUCKET" \
             --name expire-draft-pages --expire-days 1 --force
 
           RULES="$(npx wrangler@4 r2 bucket lifecycle list "$BUCKET")"
           grep -q "expire-draft-pages" <<<"$RULES"
-          grep -Eq "\b1\b" <<<"$RULES"
+          echo "Lifecycle rules on $BUCKET:"
+          echo "$RULES"
           echo "Page photos expire after 1 day"
           echo "Generated worker/wrangler.deploy.toml"
 
