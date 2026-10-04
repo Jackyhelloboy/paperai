@@ -1269,6 +1269,10 @@ AI LAYOUT PROFILE (internal metadata only):
 Before the visible transcription, output exactly ONE line in this format:
 [[PAGE_PROFILE: kind=<question-paper|worksheet|form|table|general>; orientation=<portrait|landscape>; density=<compact|normal|spacious>; title_align=<left|center|right>; title_weight=<normal|bold>; columns=<1|2|3>; title_size=<12-20>; heading_size=<10-16>; body_size=<9-14>; english_font=Tahoma; confidence=<high|medium|low>]]
 Estimate ONLY relative layout/style that is clearly visible. Do not guess an exact source font name. PaperAI always uses Tahoma for English output. Do not put source text inside PAGE_PROFILE.
+
+For a clearly distinctive standalone title or section heading, you MAY preserve its visible typography with:
+[[LINE_STYLE: role=<title|heading|body>; align=<left|center|right>; weight=<normal|bold>; size=<small|body|heading|title> || exact visible text]]
+Use LINE_STYLE only when alignment/weight/size difference is visually clear. Do not wrap every ordinary body line. The text after || must be a literal transcription of the pixels. Never change wording to improve formatting.
 User layout preset: ${layoutPreset}. Requested density: ${requestedDensity}.
 Requested title alignment: ${layoutOptions?.titleAlign || "auto"}.
 Requested text scale: ${layoutOptions?.fontScale || "auto"}.
@@ -1315,7 +1319,7 @@ Use nearby visible context only to choose between visually plausible characters;
 Before answering, silently inspect the complete page from top-left to bottom-right. For difficult pages, do a second visual check of every number, operator, mark, unit, punctuation symbol, and short handwritten word before producing the final transcription.
 
 STRICT TRANSCRIPTION RULES:
-1. Output ONLY the optional allowed [[PAGE_PROFILE: ...]] metadata line followed by text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
+1. Output ONLY the optional allowed [[PAGE_PROFILE: ...]] / [[LINE_STYLE: ... || text]] metadata plus text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
 2. Preserve the source exactly even when it contains mistakes. Do not correct an equation, date, spelling, answer, or fact.
 3. Preserve English, Hindi, Telugu, and every other visible script without transliteration. A Devanagari word must remain Devanagari; never output Roman spellings such as "rupaye" when the visible source is "रुपया". Legitimate printed/handwritten English words must remain English.
 4. Treat intentional handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
@@ -1748,6 +1752,13 @@ function stripBranchMetadata(text) {
   return out.join('\n');
 }
 
+function stripLineStyleMetadata(text) {
+  return String(text || '')
+    .replace(/^\s*\[\[LINE_STYLE:\s*[^\]]*?\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi, (_, visibleText) =>
+      String(visibleText || '').trim()
+    );
+}
+
 function stripPageProfileMetadata(text) {
   return String(text || '')
     .split('\n')
@@ -1820,7 +1831,7 @@ function stripStructuredMetadata(text) {
 function stripOcrMetadata(text) {
   if (!text) return '';
 
-  return stripBranchMetadata(stripStructuredMetadata(stripPageProfileMetadata(String(text))))
+  return stripBranchMetadata(stripStructuredMetadata(stripPageProfileMetadata(stripLineStyleMetadata(String(text)))))
     .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
       return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
     })
