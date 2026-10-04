@@ -733,6 +733,23 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
   const pages = Array.isArray(body?.pages)
     ? body.pages.slice(0, 24).map((page, index) => cleanPaperPage(page, index))
     : [];
+  const knownPatterns = Array.isArray(body?.known_patterns)
+    ? body.known_patterns.slice(0, 8).map(pattern => ({
+        class: pattern?.class == null ? null : String(pattern.class).slice(0,80),
+        subject: pattern?.subject == null ? null : String(pattern.subject).slice(0,80),
+        exam: pattern?.exam == null ? null : String(pattern.exam).slice(0,80),
+        sections: Array.isArray(pattern?.sections)
+          ? pattern.sections.slice(0,16).map(section => ({
+              label: section?.label == null ? null : String(section.label).slice(0,24),
+              title: section?.title == null ? null : String(section.title).slice(0,140),
+              marks: section?.marks == null ? null : String(section.marks).slice(0,40),
+              expected_items: Number.isFinite(Number(section?.expected_items))
+                ? Number(section.expected_items)
+                : null,
+            }))
+          : [],
+      }))
+    : [];
 
   if (!pages.length) {
     return Response.json({ status: 'completed', analysis: fallbackPaperAnalysis([]) }, {
@@ -745,6 +762,15 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
       headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' }
     });
   }
+
+  const knownPatternText = knownPatterns.length
+    ? [
+        '',
+        'SAFE HISTORICAL FORMAT HINTS:',
+        'These are user-local section skeletons from prior papers. Use them only as weak evidence for section ordering/count expectations when the current OCR visibly supports the same class/subject/exam. Never copy question wording or invent a missing section/item from these hints.',
+        JSON.stringify(knownPatterns)
+      ].join('\n')
+    : '';
 
   const pageText = pages.map(page => [
     '--- PAGE INDEX ' + page.index + ' ---',
@@ -782,6 +808,7 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
     '',
     'Return strict JSON only in this schema:',
     '{"documents":[{"label":"Paper 1","class":"V","subject":"Hindi","exam":"FA-IV","confidence":"high","page_indices":[2,0],"sections":[{"label":"I","title":"visible heading","marks":"3x2=6M","expected_items":3,"found_items":3,"page_indices":[2],"warnings":[]}],"warnings":[]}],"pages":[{"index":2,"document":0,"order":0,"continuation_of_section":null,"warnings":[]},{"index":0,"document":0,"order":1,"continuation_of_section":"IV","warnings":[]}],"warnings":[]}',
+    knownPatternText,
     '',
     pageText
   ].join('\n');
