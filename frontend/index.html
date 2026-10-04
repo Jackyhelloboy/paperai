@@ -658,6 +658,281 @@
             .batch-preview-media { height: 96px; }
         }
 
+        .batch-preview-media {
+            cursor: zoom-in;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .preview-lightbox {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .preview-lightbox.show { display: flex; }
+
+        .preview-lightbox-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(6, 12, 24, 0.93);
+            backdrop-filter: blur(4px);
+        }
+
+        .preview-lightbox-panel {
+            position: relative;
+            z-index: 1;
+            width: min(100%, 720px);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+        }
+
+        .preview-lightbox-top {
+            min-height: 58px;
+            padding: 0.65rem 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+
+        .preview-lightbox-info { min-width: 0; }
+
+        .preview-lightbox-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .preview-lightbox-sub {
+            margin-top: 0.12rem;
+            font-size: 0.64rem;
+            color: rgba(255,255,255,0.66);
+        }
+
+        .preview-lightbox-close {
+            width: 42px;
+            height: 42px;
+            flex: 0 0 42px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font: inherit;
+            font-size: 1.4rem;
+            cursor: pointer;
+        }
+
+        .preview-lightbox-stage {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            overscroll-behavior: contain;
+            padding: 0.4rem 0.55rem 0.85rem;
+            touch-action: pinch-zoom pan-x pan-y;
+        }
+
+        .preview-lightbox-stage img {
+            display: block;
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+        }
+
+        body.preview-open { overflow: hidden; }
+
+        @media (max-width: 640px) {
+            body { padding-bottom: 84px; }
+
+            .upload-card {
+                border-radius: 18px;
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+            }
+
+            .language-row {
+                margin-top: 0.62rem;
+                padding: 0.58rem 0.65rem;
+                border-radius: 12px;
+            }
+
+            .language-label { font-size: 0.67rem; }
+
+            .language-select {
+                min-width: 0;
+                max-width: 68%;
+                height: 38px;
+                font-size: 0.71rem;
+            }
+
+            .layout-review {
+                margin-top: 0.62rem;
+                padding: 0.62rem;
+                border-radius: 14px;
+            }
+
+            .layout-review-head {
+                gap: 0.48rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .layout-review-title { font-size: 0.71rem; }
+            .layout-review-sub { display: none; }
+
+            .layout-toggle {
+                min-height: 30px;
+                font-size: 0.64rem;
+            }
+
+            .layout-controls {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 0.38rem;
+            }
+
+            .layout-field { gap: 0.16rem; }
+            .layout-field span { font-size: 0.55rem; }
+
+            .layout-field select,
+            .layout-field input {
+                height: 37px;
+                border-radius: 10px;
+                font-size: 0.67rem;
+                padding: 0 0.42rem;
+            }
+
+            .layout-field:last-child { display: none; }
+
+            .batch-preview {
+                display: none;
+                grid-template-columns: none !important;
+                grid-auto-flow: column;
+                grid-auto-columns: 116px;
+                gap: 0.46rem;
+                margin: 0.58rem -0.1rem 0;
+                padding: 0.1rem 0.1rem 0.32rem;
+                overflow-x: auto;
+                overflow-y: hidden;
+                scroll-snap-type: x proximity;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+
+            .batch-preview::-webkit-scrollbar { display: none; }
+            .batch-preview.show { display: grid; }
+
+            .batch-preview-card {
+                width: 116px;
+                padding: 0.34rem;
+                border-radius: 11px;
+                scroll-snap-align: start;
+                box-shadow: none;
+            }
+
+            .batch-preview-media {
+                height: 74px !important;
+                border-radius: 7px;
+            }
+
+            .batch-preview-name {
+                margin-top: 0.26rem;
+                font-size: 0.59rem;
+                line-height: 1.18;
+            }
+
+            .batch-preview-meta {
+                margin-top: 0.07rem;
+                font-size: 0.51rem;
+                line-height: 1.15;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .batch-preview-remove {
+                top: 0.2rem;
+                right: 0.2rem;
+                width: 24px;
+                height: 24px;
+                font-size: 0.9rem;
+            }
+
+            .batch-preview-order {
+                gap: 0.2rem;
+                margin-top: 0.25rem;
+            }
+
+            .batch-preview-order button {
+                height: 30px;
+                padding: 0;
+                font-size: 0 !important;
+                border-radius: 8px;
+            }
+
+            .batch-preview-order button::before {
+                font-size: 0.82rem;
+                line-height: 1;
+            }
+
+            .batch-preview-order button[data-move-dir="-1"]::before { content: "←"; }
+            .batch-preview-order button[data-move-dir="1"]::before { content: "→"; }
+
+            .pdf-mini-pages {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 1px;
+                padding: 1px;
+            }
+
+            .btn-extract {
+                position: fixed;
+                z-index: 900;
+                left: max(12px, env(safe-area-inset-left));
+                right: max(12px, env(safe-area-inset-right));
+                bottom: max(10px, env(safe-area-inset-bottom));
+                width: auto !important;
+                max-width: 520px;
+                margin: 0 auto;
+                height: 52px;
+                border-radius: 15px;
+                box-shadow: 0 12px 30px rgba(15,23,42,0.24);
+            }
+
+            .btn-extract:not(.show) { display: none !important; }
+
+            .results-actions {
+                position: sticky;
+                top: 0;
+                z-index: 20;
+                padding: 0.32rem 0;
+                background: var(--surface);
+            }
+
+            .preview-lightbox-stage {
+                padding: 0.25rem 0.45rem 0.8rem;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .batch-preview { grid-auto-columns: 106px; }
+            .batch-preview-card { width: 106px; }
+            .batch-preview-media { height: 68px !important; }
+        }
+
         .file-preview {
             display: none;
             align-items: center;
@@ -2166,6 +2441,22 @@
                 Extract & Rebuild
             </button>
 
+            <div class="preview-lightbox" id="previewLightbox" aria-hidden="true">
+                <div class="preview-lightbox-backdrop" data-preview-close></div>
+                <div class="preview-lightbox-panel" role="dialog" aria-modal="true" aria-label="Document preview">
+                    <div class="preview-lightbox-top">
+                        <div class="preview-lightbox-info">
+                            <div class="preview-lightbox-title" id="previewLightboxTitle">Preview</div>
+                            <div class="preview-lightbox-sub" id="previewLightboxSub">Pinch to zoom</div>
+                        </div>
+                        <button class="preview-lightbox-close" type="button" data-preview-close aria-label="Close preview">×</button>
+                    </div>
+                    <div class="preview-lightbox-stage">
+                        <img id="previewLightboxImage" alt="Full document preview">
+                    </div>
+                </div>
+            </div>
+
             <div class="progress-wrap" id="prog">
                 <div class="progress-info">
                     <span class="progress-label" id="pMsg">Processing...</span>
@@ -2291,6 +2582,8 @@ const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageSelect=$('languageSelect');
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
 const batchPreview=$('batchPreview'),layoutReview=$('layoutReview');
+const previewLightbox=$('previewLightbox'),previewLightboxImage=$('previewLightboxImage');
+const previewLightboxTitle=$('previewLightboxTitle'),previewLightboxSub=$('previewLightboxSub');
 const pagePresetSelect=$('pagePresetSelect'),densitySelect=$('densitySelect'),aiLayoutToggle=$('aiLayoutToggle');
 const titleAlignSelect=$('titleAlignSelect'),fontScaleSelect=$('fontScaleSelect'),headingWeightSelect=$('headingWeightSelect');
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
@@ -2571,6 +2864,36 @@ async function renderPdfPreviewCard(f, container) {
     } catch (_) {}
 }
 
+function openPreviewLightbox(src, title = 'Preview', sub = '') {
+    if (!src || !previewLightbox || !previewLightboxImage) return;
+    previewLightboxImage.src = src;
+    previewLightboxTitle.textContent = title || 'Preview';
+    previewLightboxSub.textContent = sub || 'Pinch to zoom';
+    previewLightbox.classList.add('show');
+    previewLightbox.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('preview-open');
+}
+
+function closePreviewLightbox() {
+    if (!previewLightbox) return;
+    previewLightbox.classList.remove('show');
+    previewLightbox.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('preview-open');
+    setTimeout(() => {
+        if (!previewLightbox.classList.contains('show') && previewLightboxImage) {
+            previewLightboxImage.removeAttribute('src');
+        }
+    }, 180);
+}
+
+previewLightbox?.addEventListener('click', e => {
+    if (e.target.closest('[data-preview-close]')) closePreviewLightbox();
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && previewLightbox?.classList.contains('show')) closePreviewLightbox();
+});
+
 function renderBatchPreview() {
     previewObjectUrls.forEach(url => { try { URL.revokeObjectURL(url); } catch (_) {} });
     previewObjectUrls = [];
@@ -2596,9 +2919,9 @@ function renderBatchPreview() {
             media = '<div id="pdfPreview_' + index + '" class="pdf-mini-pages"><div class="batch-preview-type">PDF</div></div>';
         }
 
-        return '<div class="batch-preview-card" data-index="' + index + '">' +
+        return '<div class="batch-preview-card" data-index="' + index + '" data-file-name="' + esc(f.name) + '">' +
             '<button class="batch-preview-remove" data-remove-index="' + index + '" title="Remove">×</button>' +
-            '<div class="batch-preview-media">' + media + '</div>' +
+            '<div class="batch-preview-media" title="Tap to preview">' + media + '</div>' +
             '<div class="batch-preview-name">' + esc(f.name) + '</div>' +
             '<div class="batch-preview-meta" id="batchMeta_' + index + '">' + fmtSize(f.size) + ' · ' + ext.toUpperCase() + ' · item ' + (index + 1) + '</div>' +
             '<div class="batch-preview-order">' +
@@ -2691,6 +3014,18 @@ dropZone.ondrop = e => {
 clearBtn.onclick = clearFile;
 
 batchPreview.onclick = e => {
+    const previewImage = e.target.closest('.batch-preview-media img');
+    if (previewImage?.src) {
+        const card = previewImage.closest('.batch-preview-card');
+        const name = card?.dataset.fileName || 'Document preview';
+        const index = Number(card?.dataset.index);
+        const pageLabel = previewImage.alt && /PDF page/i.test(previewImage.alt)
+            ? previewImage.alt
+            : 'Item ' + (Number.isInteger(index) ? index + 1 : '');
+        openPreviewLightbox(previewImage.src, name, pageLabel + ' · pinch to zoom');
+        return;
+    }
+
     const removeBtn = e.target.closest('[data-remove-index]');
     if (removeBtn) {
         const index = Number(removeBtn.dataset.removeIndex);
