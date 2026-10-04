@@ -30,7 +30,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v19',
+        architecture: 'production-literal-ocr-v20',
       }, { headers: corsHeaders });
     }
 
@@ -38,7 +38,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v19',
+        architecture: 'production-literal-ocr-v20',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -913,7 +913,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v19',
+        architecture: 'production-literal-ocr-v20',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1286,8 +1286,21 @@ Use only text actually visible in the image. If there is no right-side label, le
 17. For diagrams, shapes, flowcharts, maps, or labelled drawings: preserve visible labels, numbers, arrows and shape relationships. Use visible symbols such as ○, □, →, ←, ↗, ↘, ↑, ↓ only when the corresponding shape/arrow is actually visible. Keep connected branches on separate lines when needed so the relationship remains readable. Do not invent a description of the drawing.
 18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
 19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
-20. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row, using " | " only as a column separator.
-21. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
+20. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row.
+20A. For a clearly bordered table/grid with two or more columns, output this exact machine-readable structure:
+[[TABLE_START]]
+[[TABLE_ROW: cell 1 || cell 2 || cell 3]]
+[[TABLE_ROW: next row cell 1 || next row cell 2 || next row cell 3]]
+[[TABLE_END]]
+Use one TABLE_ROW per visible row, cells strictly left-to-right. Preserve empty visible cells as empty positions between ||. Do not invent a header. Use this only when a real table/grid structure is visually clear.
+20B. For a clearly aligned multi-column list WITHOUT enclosing table/grid borders, output:
+[[COLUMNS_START]]
+[[COLUMN_ROW: left item || right item]]
+[[COLUMN_ROW: next left item || next right item]]
+[[COLUMNS_END]]
+Use the actual visible number of columns. Do not use this for ordinary prose merely because lines contain spaces.
+20C. The "||" separator inside TABLE_ROW/COLUMN_ROW is structural metadata, not source punctuation. Never use these markers unless the row/column relationship is visibly clear.
+21. Grids/word-search/crossword boxes: use the TABLE_START/TABLE_ROW/TABLE_END structure above. Keep grapheme clusters together, for example "बा" is one cell.
 22. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
 23. Never invent page markers, filenames, headings, or text that is not visibly present.
 24. Detect human editing marks instead of throwing them away. Cross-outs, repeated mistakes, overwriting, caret insertions, circles, underlines, boxes, highlights, margin notes, ticks, crosses, and teacher corrections are part of the document.
@@ -1667,10 +1680,43 @@ function stripBranchMetadata(text) {
   return out.join('\n');
 }
 
+function stripStructuredMetadata(text) {
+  const lines = String(text || '').split('\n');
+  const out = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*\[\[TABLE_START\]\]\s*$/i.test(lines[i])) {
+      let j = i + 1;
+      while (j < lines.length && !/^\s*\[\[TABLE_END\]\]\s*$/i.test(lines[j])) {
+        const row = lines[j].match(/^\s*\[\[TABLE_ROW:\s*([\s\S]*?)\]\]\s*$/i);
+        if (row) out.push(row[1].split(/\s*\|\|\s*/).map(s => s.trim()).join(' | '));
+        j++;
+      }
+      i = j < lines.length ? j : lines.length - 1;
+      continue;
+    }
+
+    if (/^\s*\[\[COLUMNS_START\]\]\s*$/i.test(lines[i])) {
+      let j = i + 1;
+      while (j < lines.length && !/^\s*\[\[COLUMNS_END\]\]\s*$/i.test(lines[j])) {
+        const row = lines[j].match(/^\s*\[\[COLUMN_ROW:\s*([\s\S]*?)\]\]\s*$/i);
+        if (row) out.push(row[1].split(/\s*\|\|\s*/).map(s => s.trim()).join('    '));
+        j++;
+      }
+      i = j < lines.length ? j : lines.length - 1;
+      continue;
+    }
+
+    out.push(lines[i]);
+  }
+
+  return out.join('\n');
+}
+
 function stripOcrMetadata(text) {
   if (!text) return '';
 
-  return stripBranchMetadata(String(text))
+  return stripBranchMetadata(stripStructuredMetadata(String(text)))
     .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
       return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
     })
