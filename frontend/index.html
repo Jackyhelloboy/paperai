@@ -3387,8 +3387,9 @@
                 </div>
 
                 <div class="draft-actions">
-                    <button class="draft-btn" id="draftTeachBtn" type="button">Correct all pages</button>
+                    <button class="draft-btn" id="draftTeachBtn" type="button">Correct for export</button>
                     <button class="draft-btn primary" id="draftWordBtn" type="button">Combine &amp; export Word</button>
+                    <span class="draft-hint">Corrections made in Teach apply to the Word file only. To save a change to a page for good, use that page's Fix button.</span>
                 </div>
             </div>
         </div>
@@ -9751,7 +9752,12 @@ function openDraftInTeach() {
 }
 
 async function exportDraftWord() {
-    if (!loadDraftIntoResults()) return;
+    // Reloading the draft would throw away any corrections made in Teach, so
+    // only load it when the results are not already showing this draft.
+    const draftAlreadyLoaded = !!lastResult && lastResult.draft_id === (activeDraft && activeDraft.id);
+    if (!draftAlreadyLoaded && !loadDraftIntoResults()) return;
+    // Rebuild the export preview so the file contains what is on screen now.
+    if (teachPanel.classList.contains('show')) renderTeachPreview();
     try {
         const blob = await createExtractedWordFile();
         const url = URL.createObjectURL(blob);
