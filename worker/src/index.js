@@ -1597,107 +1597,24 @@ If a section heading or numbered question is visible, do not omit it merely beca
     ks: 'Main language: Kashmiri. Preserve English, numbers and mixed scripts exactly.'
   }[language] || 'Auto-detect every visible language and preserve the original scripts exactly.';
 
-  const prompt = `You are PaperAI, a high-accuracy visual OCR and handwriting transcription engine.
+  const prompt = `Transcribe the full source page faithfully and completely. ${languageHint}
+The other images are overlapping close-ups of the SAME source page. They are detail aids, not extra pages. Output each source line exactly once in full-page reading order.
 
-LANGUAGE INSTRUCTION:
-${languageHint}
+Check the entire page, including small handwritten words and numbers in the left margin. Check printed school names and header fields letter by letter. Do not summarize, shorten a question, solve it, correct its spelling, or fill any answer blank. Keep Hindi in Devanagari and English in English.
+
+For a question paper, preserve EVERY visible Roman section label, item number, instruction, marks formula, option and word. Use ordinary numbered text lines, such as "1. ...", for questions; preserve the source's actual labels and numbering. A missing or unreadable word must be [unclear] in its exact position, never an omitted question. Do not infer a missing item from a marks formula or sequence. Preserve a continuation that starts at item 2 or later.
+
+Copy intentionally written answer blanks as underscores. Notebook ruling, reverse-side show-through, shadows and erased ghosts are background, not text or answer blanks. Preserve deliberate answer space without turning every notebook rule into a separate answer line.
+
+For matching exercises and columns, keep each left entry and its adjacent right entry on the same row using:
+[[COLUMN_START]]
+[[COLUMN_ROW: actual left text || actual right text]]
+[[COLUMN_END]]
+Use one COLUMN_ROW per actual source row, including its visible item number. Never pair or solve the entries. For a bordered table, use TABLE_START/TABLE_ROW/TABLE_END with the same row fields and preserve every visible row and column. For a labelled branch diagram, use BRANCH_ROOT, BRANCH_ITEM (left label || right label), and BRANCH_END. Preserve visible mathematics, arrows and editing marks without inventing shapes or labels.
+
+Before the final answer, check that every visible question/item number has its text and that no header, section, short word or option was dropped. Return only the complete transcription, with no discussion, thinking text, duplicate headings, filenames or invented sections.
 ${learningSection}
-${layoutSection}
-${layoutProfileInstruction}
-${paperContextInstruction}
-SCAN MODE:
-${scanMode === 'line-by-line'
-  ? 'The image has been locally reorganized into horizontal text strips in original top-to-bottom order. Read ONE strip at a time, left-to-right, and output one corresponding text line per strip. Blank vertical gaps were removed only to reduce wasted vision work. Do not invent strip numbers or separators.'
-  : scanMode === 'fast-clear'
-    ? 'The image looks clear. Read it efficiently, but still verify every visible line before answering.'
-    : 'The image may contain structured layout, handwriting, symbols, or low contrast. Preserve layout and inspect character shapes carefully.'}
-
-Your job is to READ the pixels, including difficult human handwriting, and transcribe what is actually visible.
-Use nearby visible context only to choose between visually plausible characters; NEVER change the writer's spelling, grammar, facts, calculations, or wording.
-
-Before answering, silently inspect the complete page from top-left to bottom-right. For difficult pages, do a second visual check of every number, operator, mark, unit, punctuation symbol, and short handwritten word before producing the final transcription.
-
-STRICT TRANSCRIPTION RULES:
-1. Output ONLY the optional allowed PAGE_PROFILE / LINE_STYLE / QUESTION_SECTION / QUESTION_ITEM / ANSWER_RULE / branch/table/column/word-search/edit metadata plus text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
-2. Preserve the source exactly even when it contains mistakes. Do not correct an equation, date, spelling, answer, or fact.
-3. Preserve English, Hindi, Telugu, and every other visible script without transliteration. A Devanagari word must remain Devanagari; never output Roman spellings such as "rupaye" when the visible source is "रुपया". Legitimate printed/handwritten English words must remain English.
-4. Treat intentional handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
-5. Do NOT treat page show-through, reverse-side writing, paper embossing, shadows, ruled-line texture, erased graphite ghosts, compression artifacts, or background fabric as new text unless there is clear intentional ink/pencil evidence on the current page surface.
-6. Blank answer lines stay blank. Never fill a blank from the expected answer, nearby options, grammar, school subject knowledge, or faint erased/ghost writing.
-7. When a character is ambiguous, choose the closest visually supported character. Language context may break a tie only between characters that are BOTH visually plausible. Context must never override the pixels.
-8. Distinguish visually similar characters only from the image: 1/l/I, 0/O, 5/S, 2/Z, 6/G, x/×, +/t, -/−, ./,/:
-9. For Devanagari handwriting, verify each grapheme by its visible headline, stem, loop, lower stroke and matra. Re-check visually confusable forms such as द/स, ब/व, र/श, ड/ढ, म/भ, न/प, त/त्त, and short/long vowel marks. Do not choose the more common Hindi word unless its strokes support it.
-10. For Telugu and other Indic scripts, keep consonant+vowel signs and conjuncts attached to the visible base character. Never simplify a complex grapheme into a more common word.
-11. For bracketed answer choices such as "(word1 / word2)", read BOTH options independently from the pixels. Never replace an unclear option with a likely textbook answer.
-12. In matching exercises and two-column questions, preserve each visible row and column relationship. Do not pair an item with a nearby option just because it is semantically plausible.
-12A. For a branching word diagram, mind map, or one central item connected to several rows, NEVER fake branches with separator-only lines like "| |". Do not draw the branch with spaces. Instead output this exact machine-readable structure:
-[[BRANCH_ROOT: visible central text]]
-[[BRANCH_ITEM: visible branch label || visible right-side label]]
-[[BRANCH_ITEM: visible branch label || visible right-side label]]
-...one BRANCH_ITEM for each visible branch, strictly top-to-bottom...
-[[BRANCH_END]]
-Use only text actually visible in the image. If there is no right-side label, leave the text after || empty.
-12B. The central/root token is separate from every branch label. NEVER concatenate the root with a branch label just because together they form a meaningful word. Example rule: if the root is "बा" and a branch visibly contains only "दाम", the branch label must remain "दाम"; do not turn it into "बादाम".
-12C. The "|" symbol is reserved only for genuine table/column separation. Do not use it to simulate arrows or connector lines.
-12D. If a question number is visibly circled, prefer [[CIRCLED: 1]], [[CIRCLED: 2]], etc. instead of relying on special Unicode circled-number glyphs. Do not mark an ordinary uncircled number as circled.
-13. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
-14. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
-15. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
-16. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
-17. For diagrams, shapes, flowcharts, maps, or labelled drawings: preserve visible labels, numbers, arrows and shape relationships. Use visible symbols such as ○, □, →, ←, ↗, ↘, ↑, ↓ only when the corresponding shape/arrow is actually visible. Keep connected branches on separate lines when needed so the relationship remains readable. Do not invent a description of the drawing.
-18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
-18A. PRINTED SCHOOL / EXAM HEADERS: re-read large printed uppercase header words letter-by-letter. Do not autocomplete, abbreviate, or substitute a more familiar school name. Preserve visible Class, Section, Exam, Subject, Date, Roll No. and Marks fields separately when they are printed as separate fields. If a printed header character is genuinely unreadable, use [unclear] for that character/word rather than replacing the whole header with a guessed name.
-19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
-20. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row.
-20A. For a clearly bordered table/grid with two or more columns, output this exact machine-readable structure:
-[[TABLE_START]]
-[[TABLE_ROW: cell 1 || cell 2 || cell 3]]
-[[TABLE_ROW: next row cell 1 || next row cell 2 || next row cell 3]]
-[[TABLE_END]]
-Use one TABLE_ROW per visible row, cells strictly left-to-right. Preserve empty visible cells as empty positions between ||. Do not invent a header. Use this only when a real table/grid structure is visually clear.
-20B. For a clearly aligned multi-column list WITHOUT enclosing table/grid borders, output:
-[[COLUMNS_START]]
-[[COLUMN_ROW: left item || right item]]
-[[COLUMN_ROW: next left item || next right item]]
-[[COLUMNS_END]]
-Use the actual visible number of columns. Do not use this for ordinary prose merely because lines contain spaces.
-20C. The "||" separator inside TABLE_ROW/COLUMN_ROW is structural metadata, not source punctuation. Never use these markers unless the row/column relationship is visibly clear.
-20D. QUESTION / ANSWER SHEETS: when a real visible section heading is followed by numbered questions and ruled answer lines, use QUESTION_SECTION / QUESTION_ITEM / ANSWER_RULE metadata.
-QUESTION_SECTION has exactly three fields separated by || in this order: the ACTUAL visible section label, the ACTUAL visible instruction, and the ACTUAL visible marks formula. QUESTION_ITEM has exactly two fields: the ACTUAL visible question number and the ACTUAL visible question text.
-Every field must contain transcription from the image itself. If a field is partly unreadable, use [unclear] only for that unreadable part. If the section label itself is unreadable, use [unclear] for the label rather than guessing from sequence.
-NEVER output instructional phrases such as "visible Roman/section label", "exact visible instruction", "exact visible marks formula", "exact visible question number", or "exact visible question text". Those phrases are prompt descriptions and are forbidden in OCR output.
-After each question, emit one [[ANSWER_RULE]] for each clearly visible ruled blank that belongs to that question.
-Use QUESTION_SECTION only for a real visible section/bit heading. Use QUESTION_ITEM only when a question/item number is visibly present. Do not invent a number from sequence context.
-If a numbered question is partly unreadable, preserve the visible number and use [unclear] only inside the unreadable part of the question text. NEVER drop the entire question merely because the ruled answer line below is clearer.
-Do not include the question's answer in QUESTION_ITEM. Student answers, ticks/crosses, choices and annotations remain literal visible content after the question text.
-For sections such as word meanings, singular/plural, antonyms, fill-in-the-blanks, true/false or matching, preserve the exact visible item count. Marks patterns may help you CHECK the count, but never create or delete an item.
-21. WORD-SEARCH / LETTER-GRID WITH SIDE ANSWERS: if a bordered letter/word-search grid appears beside a separate numbered answer list or answer blanks, NEVER merge the answer numbers/lines into the grid rows. Treat these as two adjacent structures and output exactly:
-[[WORDSEARCH_START]]
-[[WORDSEARCH_ROW: cell 1 || cell 2 || cell 3 || ...]]
-[[WORDSEARCH_ROW: next row cell 1 || next row cell 2 || next row cell 3 || ...]]
-[[WORDSEARCH_ANSWER: 1]]
-[[WORDSEARCH_ANSWER: 2]]
-[[WORDSEARCH_ANSWER: 3]]
-[[WORDSEARCH_END]]
-Use one WORDSEARCH_ROW for EVERY visible grid row and preserve the exact visible column count for every row. Preserve empty grid cells as empty positions between ||. Keep each Devanagari/Indic grapheme cluster together as one cell, for example "बा" or "कि" is one cell, not separate base/matra cells. WORDSEARCH_ANSWER contains only the visible answer number; the renderer will draw the blank line. Do not solve the puzzle or invent answer words.
-21A. If a grid has NO adjacent answer list, use TABLE_START/TABLE_ROW/TABLE_END as in rule 20A.
-21B. Before returning a WORDSEARCH block, count the visible grid rows and columns from the image and make sure the metadata has the same row count and the same cell count per row. Do not infer the grid dimensions from the number of answer lines.
-22. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, answer blanks, scores, or marks into grid cells.
-23. Never invent page markers, filenames, headings, or text that is not visibly present.
-24. Detect human editing marks instead of throwing them away. Cross-outs, repeated mistakes, overwriting, caret insertions, circles, underlines, boxes, highlights, margin notes, ticks, crosses, and teacher corrections are part of the document.
-25. For a single legible strike-through use exactly: [[STRIKE: text]]
-26. If the same legible text has two or more clear strike lines or a heavy double-cancel mark, use exactly: [[DOUBLE-STRIKE: text]]
-27. If both the original and replacement are legible, use exactly: [[REPLACE: old -> new]]. Never guess an unreadable old word.
-28. For a clearly inserted word/number written with a caret or insertion mark, use exactly: [[INSERT: text]]
-29. For visible formatting/annotation use only when visually clear: [[CIRCLED: text]], [[UNDERLINE: text]], [[DOUBLE-UNDERLINE: text]], [[BOXED: text]], [[HIGHLIGHT: text]], [[MARGIN: text]], [[STAMP: text]]. Use [[SIGNATURE: text]] only when signature letters are actually readable; otherwise use [[SIGNATURE: [unreadable]]].
-30. If a writer makes multiple sequential mistakes, keep every visible stage in reading order. Example: [[STRIKE: first]] [[STRIKE: second]] final. Do not collapse them into only the final answer.
-31. If struck or overwritten text is partly readable, preserve the readable characters and use [unclear] only for the unreadable portion, for example [[STRIKE: ans[unclear]]].
-32. The [[...]] edit markers above are OCR metadata, not source text. Use them ONLY when the corresponding visual mark is genuinely present. Never invent a strike, correction, underline, circle, box, highlight, margin note, stamp, or signature from low image quality.
-33. Preserve teacher marks and grading notation such as ✓, ✗, ticks, crosses, circles around marks, "2/5", "+1", "-1", "Good", "Wrong", initials, and correction arrows when visible.
-34. Do not hallucinate text hidden by blur, glare, cropping, scribble, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
-35. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
-
-Return only the final transcription plus the allowed [[...]] edit markers when needed.`;
+${paperContextInstruction}`;
 
   const requestBody = {
     messages: [
@@ -1823,7 +1740,16 @@ VERIFICATION RULES:
     function normalizeQuestionMetadata(value) {
         const label = token => String(token || '').trim().replace(/[.)।:;]+$/u, '');
         let out = String(value || '').replace(/\[\[QUESTION_(SECTION|ITEM):\s*([^\n]*?)\]\]/gi, (raw, kind, body) => {
-            const fields = body.split(body.includes('||') ? /\s*\|\|\s*/ : /\s*\|\s*/).map(part => part.trim());
+            let fields;
+            if (body.includes('|')) fields = body.split(body.includes('||') ? /\s*\|\|\s*/ : /\s*\|\s*/);
+            else {
+                const first = body.indexOf(','), last = body.lastIndexOf(',');
+                if (first < 0 || (kind.toUpperCase() === 'SECTION' && first === last)) return raw;
+                fields = kind.toUpperCase() === 'SECTION'
+                    ? [body.slice(0, first), body.slice(first + 1, last), body.slice(last + 1)]
+                    : [body.slice(0, first), body.slice(first + 1)];
+            }
+            fields = fields.map(part => part.trim());
             if (fields.length !== (kind.toUpperCase() === 'SECTION' ? 3 : 2)) return raw;
             fields[0] = label(fields[0]);
             return '[[QUESTION_' + kind.toUpperCase() + ': ' + fields.join(' || ') + ']]';

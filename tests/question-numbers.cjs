@@ -13,6 +13,10 @@ for (const name of ['paperai-document-model.js', 'paperai-word-engine.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'frontend/vendor', name), 'utf8'), context);
 }
 const model = context.window.PaperAIDocumentModel;
+const commaPaper = '[[QUESTION_SECTION: I, प्रश्नों के उत्तर लिखिए।, 1x2=2M]]\n[[QUESTION_ITEM: 1, तीन मित्रों के क्या नाम थे?]]';
+assert.equal(model.parse(commaPaper).nodes[0].label, 'I');
+assert.equal(model.parse(commaPaper).nodes[1].rawNumber, '1');
+assert.equal(model.parse('[[QUESTION_ITEM: 2, पहला शब्द, दूसरा शब्द]]').nodes[0].text, 'पहला शब्द, दूसरा शब्द');
 const paper = 'V. सही शब्द से खाली स्थान भरिए। 3x1=3M\n' +
     '[[QUESTION_SECTION: V. | सही शब्द से खाली स्थान भरिए। | 3x1=3M]]\n' +
     '[[QUESTION_ITEM: 1. | जंगल में उन्हें ____ के सिक्के मिले थे।]]\n' +
@@ -35,6 +39,11 @@ assert(!model.cleanOutputText(paper).includes('QUESTION_ITEM: 1.'));
     assert(!/\[\[(?:QUESTION_|ANSWER_RULE)/.test(xml), 'No metadata may leak into Word');
     assert(!xml.includes('<w:drawing'), 'Ordinary question numbers must be native text');
     assert(!xml.includes('w:type="page"'), 'Keep continuous page flow');
+    const commaBlob = await context.window.PaperAIWordEngine.makeDocx(commaPaper);
+    const commaZip = await JSZip.loadAsync(Buffer.from(await commaBlob.arrayBuffer()));
+    const commaXml = await commaZip.file('word/document.xml').async('string');
+    assert(commaXml.includes('>1.</w:t>') && commaXml.includes('तीन मित्रों'));
+    assert(!commaXml.includes('[[QUESTION_'));
     if (process.argv[2]) fs.writeFileSync(process.argv[2], Buffer.from(await blob.arrayBuffer()));
     console.log('Actual DOCX package preserves all native numbers, text, answer rules, and continuous flow.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

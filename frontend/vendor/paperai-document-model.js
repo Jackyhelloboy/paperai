@@ -6,7 +6,16 @@
     function normalizeQuestionMetadata(value) {
         const label = token => String(token || '').trim().replace(/[.)।:;]+$/u, '');
         let out = String(value || '').replace(/\[\[QUESTION_(SECTION|ITEM):\s*([^\n]*?)\]\]/gi, (raw, kind, body) => {
-            const fields = body.split(body.includes('||') ? /\s*\|\|\s*/ : /\s*\|\s*/).map(part => part.trim());
+            let fields;
+            if (body.includes('|')) fields = body.split(body.includes('||') ? /\s*\|\|\s*/ : /\s*\|\s*/);
+            else {
+                const first = body.indexOf(','), last = body.lastIndexOf(',');
+                if (first < 0 || (kind.toUpperCase() === 'SECTION' && first === last)) return raw;
+                fields = kind.toUpperCase() === 'SECTION'
+                    ? [body.slice(0, first), body.slice(first + 1, last), body.slice(last + 1)]
+                    : [body.slice(0, first), body.slice(first + 1)];
+            }
+            fields = fields.map(part => part.trim());
             if (fields.length !== (kind.toUpperCase() === 'SECTION' ? 3 : 2)) return raw;
             fields[0] = label(fields[0]);
             return '[[QUESTION_' + kind.toUpperCase() + ': ' + fields.join(' || ') + ']]';
