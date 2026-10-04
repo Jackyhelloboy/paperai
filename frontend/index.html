@@ -1712,9 +1712,9 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
                     Copy
                 </button>
-                <button class="action-btn" onclick="dlTxt()">
+                <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Download
+                    Download Word
                 </button>
                 <button class="action-btn" onclick="openTeachPanel()">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
@@ -1783,7 +1783,7 @@
             <div class="output-card">
                 <div class="output-tabs">
                     <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
-                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Raw OCR</button>
+                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
                 </div>
                 <div class="output-body" id="textOut"></div>
             </div>
@@ -3990,6 +3990,7 @@ function saveLearning() {
     showingRaw = false;
     $('tabVerified').classList.add('active');
     $('tabRaw').classList.remove('active');
+    updateResultActionsForTab();
 
     closeTeachPanel();
     textOut.innerHTML = formatOutput(lastResult.text || '');
@@ -4099,14 +4100,32 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
     throw new Error('OCR failed after an automatic retry.');
 }
 
+function currentPlainText() {
+    if (!lastResult) return '';
+    const live = teachPanel.classList.contains('show')
+        ? (lastResult.preview_text || teachEditor.value)
+        : '';
+    return portableText(live || lastResult.plain_text || lastResult.text || '');
+}
+
+function updateResultActionsForTab() {
+    const downloadBtn = $('downloadWordBtn');
+    if (!downloadBtn) return;
+    downloadBtn.style.display = showingRaw ? 'none' : '';
+    downloadBtn.disabled = showingRaw;
+}
+
 function showTab(tab) {
     showingRaw = tab==='raw';
     $('tabVerified').classList.toggle('active',!showingRaw);
     $('tabRaw').classList.toggle('active',showingRaw);
+    updateResultActionsForTab();
 
     if(lastResult) {
         if(showingRaw) {
-            textOut.textContent = lastResult.raw_text||'';
+            // Public plain-text view only. Never expose internal OCR structure
+            // such as [[BRANCH_*]] / [[CIRCLED:*]] to normal users.
+            textOut.textContent = currentPlainText();
             textOut.className = 'output-body output-raw';
         } else {
             const teachIsOpen = teachPanel.classList.contains('show');
@@ -4545,6 +4564,7 @@ goBtn.onclick = async () => {
         showingRaw = false;
         $('tabVerified').classList.add('active');
         $('tabRaw').classList.remove('active');
+        updateResultActionsForTab();
         textOut.innerHTML = formatOutput(lastResult.text || '');
         textOut.className = 'output-body';
         $('flaggedBox').classList.remove('show');
@@ -4562,14 +4582,279 @@ goBtn.onclick = async () => {
     }
 };
 
-function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();URL.revokeObjectURL(a.href)}
+function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
+
 function currentExportText(){
-    if(!lastResult) return '';
-    const live = teachPanel.classList.contains('show') ? (lastResult.preview_text || teachEditor.value) : '';
-    return portableText(live || lastResult.plain_text || lastResult.text || '');
+    return currentPlainText();
 }
-function dlTxt(){if(!lastResult)return;dlBlob(new Blob([currentExportText()],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
-function copyText(btn){if(!lastResult)return;navigator.clipboard.writeText(currentExportText()).then(()=>{btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)})}
+
+function xmlEscape(value) {
+    return String(value ?? '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&apos;');
+}
+
+function circledWordNumber(n) {
+    const value = Number(n);
+    if (value === 0) return '⓪';
+    if (value >= 1 && value <= 20) return String.fromCodePoint(0x2460 + value - 1);
+    return String(n);
+}
+
+function docxVisibleText(value) {
+    let out = String(value || '');
+
+    out = out
+        .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) =>
+            [oldText.trim(), newText.trim()].filter(Boolean).join(' → '))
+        .replace(/\[\[CIRCLED:\s*([\s\S]*?)\]\]/gi, (_, content) => {
+            const t = String(content || '').trim();
+            return /^\d+$/.test(t) ? circledWordNumber(t) : t;
+        })
+        .replace(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):\s*([\s\S]*?)\]\]/gi,
+            (_, content) => String(content || '').trim());
+
+    return out.replace(/[⓪①-⑳❶-❿]/g, ch => {
+        const n = circledNumberValue(ch);
+        return n === null ? ch : circledWordNumber(n);
+    });
+}
+
+function docxRun(text, options = {}) {
+    const bold = options.bold ? '<w:b/><w:bCs/>' : '';
+    const size = Number(options.size || 22);
+    const preserve = /^\s|\s$|\s{2,}/.test(String(text || '')) ? ' xml:space="preserve"' : '';
+    return '<w:r><w:rPr>' +
+        '<w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
+        bold +
+        '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>' +
+        '<w:lang w:val="en-US" w:eastAsia="hi-IN"/>' +
+        '</w:rPr><w:t' + preserve + '>' + xmlEscape(text) + '</w:t></w:r>';
+}
+
+function docxParagraph(text, options = {}) {
+    const bold = !!options.bold;
+    const size = Number(options.size || 22);
+    const before = Number(options.before || 0);
+    const after = Number(options.after ?? 40);
+    const left = Number(options.left || 0);
+    const keep = options.keepNext ? '<w:keepNext/>' : '';
+    const jc = options.center ? '<w:jc w:val="center"/>' : '';
+    const indent = left ? '<w:ind w:left="' + left + '"/>' : '';
+    const tabs = options.answerLeader
+        ? '<w:tabs><w:tab w:val="right" w:leader="underscore" w:pos="9000"/></w:tabs>'
+        : '';
+
+    return '<w:p><w:pPr>' + keep + jc + indent + tabs +
+        '<w:spacing w:before="' + before + '" w:after="' + after + '" w:line="300" w:lineRule="auto"/>' +
+        '</w:pPr>' +
+        docxRun(text, { bold, size }) +
+        (options.answerLeader ? docxRun('\t', { size }) : '') +
+        '</w:p>';
+}
+
+function parseDocxBranchBlock(lines, startIndex) {
+    const rootMatch = String(lines[startIndex] || '').match(/^\s*\[\[BRANCH_ROOT:\s*([\s\S]*?)\]\]\s*$/i);
+    if (!rootMatch) return null;
+
+    const root = rootMatch[1].trim();
+    const items = [];
+    let i = startIndex + 1;
+
+    while (i < lines.length) {
+        if (/^\s*\[\[BRANCH_END\]\]\s*$/i.test(lines[i])) {
+            return { root, items, nextIndex: i + 1 };
+        }
+        const item = String(lines[i] || '').match(/^\s*\[\[BRANCH_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i);
+        if (item) items.push({ left: item[1].trim(), right: item[2].trim() });
+        i++;
+    }
+    return null;
+}
+
+function docxBranchTable(root, items) {
+    if (!items.length) return docxParagraph(root);
+    const center = Math.floor(items.length / 2);
+    const rows = items.map((item, index) => {
+        const relation = index < center ? '↗' : index > center ? '↘' : '→';
+        const rootText = index === center ? '○ ' + root : '';
+        const rightText = item.right ? '─────────  ' + item.right : '';
+
+        const cell = (text, width, bold = false) =>
+            '<w:tc><w:tcPr><w:tcW w:w="' + width + '" w:type="dxa"/></w:tcPr>' +
+            docxParagraph(text, { size: 21, bold, after: 0 }) + '</w:tc>';
+
+        return '<w:tr>' +
+            cell(rootText, 1500, index === center) +
+            cell(relation, 650, false) +
+            cell(item.left, 1450, false) +
+            cell(rightText, 4300, false) +
+            '</w:tr>';
+    }).join('');
+
+    return '<w:tbl><w:tblPr>' +
+        '<w:tblW w:w="7900" w:type="dxa"/>' +
+        '<w:tblLayout w:type="fixed"/>' +
+        '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>' +
+        '</w:tblPr><w:tblGrid>' +
+        '<w:gridCol w:w="1500"/><w:gridCol w:w="650"/><w:gridCol w:w="1450"/><w:gridCol w:w="4300"/>' +
+        '</w:tblGrid>' + rows + '</w:tbl>';
+}
+
+function buildDocxBody(structuredText) {
+    const lines = repairLegacyBranchDiagram(String(structuredText || '')).split('\n');
+    const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
+    const body = [];
+    let i = 0;
+
+    while (i < lines.length) {
+        const branch = parseDocxBranchBlock(lines, i);
+        if (branch) {
+            body.push(docxBranchTable(branch.root, branch.items));
+            body.push(docxParagraph('', { after: 40 }));
+            i = branch.nextIndex;
+            continue;
+        }
+
+        const raw = lines[i];
+        const numberedBlank = raw.match(
+            /^\s*(?:\[\[CIRCLED:\s*(\d+)\s*\]\]|([⓪①-⑳❶-❿])|(\d+)[.)]?)\s*_{8,}\s*$/
+        );
+
+        if (numberedBlank) {
+            let number = numberedBlank[1] || numberedBlank[3] || '';
+            if (!number && numberedBlank[2]) number = circledNumberValue(numberedBlank[2]);
+            body.push(docxParagraph(circledWordNumber(number), {
+                size: 22,
+                after: 40,
+                answerLeader: true
+            }));
+            i++;
+            while (i < lines.length && /^\s*_{2,}\s*$/.test(lines[i])) i++;
+            continue;
+        }
+
+        if (!raw.trim()) {
+            body.push(docxParagraph('', { after: 40 }));
+            i++;
+            continue;
+        }
+
+        const visible = docxVisibleText(raw);
+        const heading = isOutputHeadingLine(raw, i, firstNonEmptyIndex);
+        body.push(docxParagraph(visible, {
+            bold: heading,
+            size: heading ? 24 : 22,
+            before: heading ? 80 : 0,
+            after: heading ? 60 : 35
+        }));
+        i++;
+    }
+
+    return body.join('');
+}
+
+function docxStylesXml() {
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:docDefaults><w:rPrDefault><w:rPr>' +
+        '<w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
+        '<w:sz w:val="22"/><w:szCs w:val="22"/>' +
+      '</w:rPr></w:rPrDefault><w:pPrDefault><w:pPr>' +
+        '<w:spacing w:after="40" w:line="300" w:lineRule="auto"/>' +
+      '</w:pPr></w:pPrDefault></w:docDefaults>' +
+      '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>' +
+    '</w:styles>';
+}
+
+function docxDocumentXml(structuredText) {
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:body>' + buildDocxBody(structuredText) +
+        '<w:sectPr>' +
+          '<w:pgSz w:w="11906" w:h="16838"/>' +
+          '<w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/>' +
+        '</w:sectPr>' +
+      '</w:body>' +
+    '</w:document>';
+}
+
+async function makeExtractedDocx(structuredText) {
+    if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
+
+    const zip = new JSZip();
+    zip.file('[Content_Types].xml',
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+          '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+          '<Default Extension="xml" ContentType="application/xml"/>' +
+          '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+          '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+        '</Types>');
+
+    zip.folder('_rels').file('.rels',
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+        '</Relationships>');
+
+    zip.folder('word').file('document.xml', docxDocumentXml(structuredText));
+    zip.folder('word').file('styles.xml', docxStylesXml());
+    zip.folder('word').folder('_rels').file('document.xml.rels',
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+        '</Relationships>');
+
+    return zip.generateAsync({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        compression: 'DEFLATE'
+    });
+}
+
+async function downloadWord(btn) {
+    if (!lastResult || showingRaw) return;
+
+    const structuredText = teachPanel.classList.contains('show')
+        ? (lastResult.preview_layout_text || lastResult.text || '')
+        : (lastResult.text || '');
+
+    if (!structuredText.trim()) return;
+
+    const original = btn?.innerHTML || '';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Creating Word...';
+    }
+
+    try {
+        const blob = await makeExtractedDocx(structuredText);
+        const base = String(file?.name || 'paperai')
+            .replace(/\.[^.]+$/, '')
+            .replace(/[^\p{L}\p{N}_-]+/gu, '-')
+            .replace(/^-+|-+$/g, '') || 'paperai';
+        dlBlob(blob, base + '-extracted.docx');
+    } catch (error) {
+        showErr(error?.message || 'Could not create Word file.');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    }
+}
+
+function copyText(btn){
+    if(!lastResult)return;
+    navigator.clipboard.writeText(currentPlainText()).then(()=>{
+        btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';
+        setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)
+    })
+}
 </script>
 </body>
 </html>
