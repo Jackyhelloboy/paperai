@@ -1633,6 +1633,7 @@ Use only text actually visible in the image. If there is no right-side label, le
 16. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
 17. For diagrams, shapes, flowcharts, maps, or labelled drawings: preserve visible labels, numbers, arrows and shape relationships. Use visible symbols such as ○, □, →, ←, ↗, ↘, ↑, ↓ only when the corresponding shape/arrow is actually visible. Keep connected branches on separate lines when needed so the relationship remains readable. Do not invent a description of the drawing.
 18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
+18A. PRINTED SCHOOL / EXAM HEADERS: re-read large printed uppercase header words letter-by-letter. Do not autocomplete, abbreviate, or substitute a more familiar school name. Preserve visible Class, Section, Exam, Subject, Date, Roll No. and Marks fields separately when they are printed as separate fields. If a printed header character is genuinely unreadable, use [unclear] for that character/word rather than replacing the whole header with a guessed name.
 19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
 20. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row.
 20A. For a clearly bordered table/grid with two or more columns, output this exact machine-readable structure:
@@ -1747,6 +1748,7 @@ VERIFICATION RULES:
 - Do not fill answer blanks from context or options.
 - Correct a character only when the image itself supports that correction.
 - Preserve mathematics, marks, punctuation, spacing relationships, and mixed scripts exactly.
+- Re-check large printed school/exam/header words letter-by-letter; these should not be rewritten from memory or familiarity.
 - Re-check every Devanagari grapheme that changed between the first OCR and your proposed result. Only change it when the visible stroke pattern supports the new grapheme.
 - On Hindi-dominant pages, inspect every Latin-letter token again. Keep it Latin only when the source itself is visibly English; never romanize a Devanagari word during verification.
 - For branch diagrams, remove fake "| |" connector rows and return the exact [[BRANCH_ROOT]], [[BRANCH_ITEM]], [[BRANCH_END]] structure defined above.
