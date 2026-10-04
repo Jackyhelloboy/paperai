@@ -4890,40 +4890,130 @@ function parseDocxBranchBlock(lines, startIndex) {
     return null;
 }
 
-function docxBranchTable(root, items) {
+function docxVmlTextBox(id, text, x, y, width, height, options = {}) {
+    const fontSizePt = Number(options.fontSize || 10);
+    const bold = options.bold ? 'font-weight:bold;' : '';
+    const align = options.center ? 'text-align:center;' : '';
+    const border = options.border || 'none';
+    const fill = options.fill || 'none';
+
+    return '<v:shape id="' + xmlEscape(id) + '" type="#_x0000_t202" ' +
+        'style="position:absolute;left:' + x + 'pt;top:' + y + 'pt;width:' + width + 'pt;height:' + height + 'pt;z-index:2" ' +
+        'stroked="' + (border === 'none' ? 'f' : 't') + '" filled="' + (fill === 'none' ? 'f' : 't') + '">' +
+        (fill !== 'none' ? '<v:fill color="' + xmlEscape(fill) + '"/>' : '') +
+        '<v:textbox inset="0,0,0,0">' +
+          '<w:txbxContent><w:p><w:pPr>' +
+            (options.center ? '<w:jc w:val="center"/>' : '') +
+            '<w:spacing w:before="0" w:after="0" w:line="220" w:lineRule="auto"/>' +
+          '</w:pPr><w:r><w:rPr>' +
+            '<w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
+            (options.bold ? '<w:b/><w:bCs/>' : '') +
+            '<w:sz w:val="' + Math.round(fontSizePt * 2) + '"/><w:szCs w:val="' + Math.round(fontSizePt * 2) + '"/>' +
+          '</w:rPr><w:t xml:space="preserve">' + xmlEscape(text) + '</w:t></w:r></w:p></w:txbxContent>' +
+        '</v:textbox>' +
+      '</v:shape>';
+}
+
+function docxVmlBranchDiagram(root, items) {
     if (!items.length) return docxParagraph(root);
 
-    const center = Math.floor(items.length / 2);
-    const widths = [1050, 900, 1050, 2050, 2250];
-    const rows = items.map((item, index) => {
-        const relation = index < center ? '╱──>' : index > center ? '╲──>' : '──>';
-        const rootCell = index === 0
-            ? docxCell(
-                docxParagraph('○ ' + root, { size: 22, bold: true, after: 0, center: true }),
-                widths[0],
-                { vMerge: 'restart', vAlign: 'center' }
+    const width = 430;
+    const rowH = 31;
+    const top = 16;
+    const bottom = 16;
+    const height = Math.max(105, top + bottom + (items.length - 1) * rowH);
+
+    const rootX = 18;
+    const rootSize = 42;
+    const rootY = top + ((items.length - 1) * rowH) / 2 - rootSize / 2;
+    const rootCenterX = rootX + rootSize;
+    const rootCenterY = rootY + rootSize / 2;
+
+    const labelX = 122;
+    const labelW = 60;
+    const ruleX1 = 202;
+    const ruleX2 = 306;
+    const englishX = 320;
+    const englishW = 92;
+
+    const shapes = [];
+
+    shapes.push(
+        '<v:oval id="paperai_root" ' +
+          'style="position:absolute;left:' + rootX + 'pt;top:' + rootY + 'pt;width:' + rootSize + 'pt;height:' + rootSize + 'pt;z-index:3" ' +
+          'filled="f" stroked="t" strokeweight="1pt" strokecolor="#111827">' +
+          '<v:textbox inset="0,7pt,0,0"><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/>' +
+            '<w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:rPr>' +
+              '<w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
+              '<w:b/><w:bCs/><w:sz w:val="24"/><w:szCs w:val="24"/>' +
+            '</w:rPr><w:t>' + xmlEscape(root) + '</w:t></w:r></w:p></w:txbxContent></v:textbox>' +
+        '</v:oval>'
+    );
+
+    items.forEach((item, index) => {
+        const y = top + index * rowH;
+        const lineEndY = y + 9;
+
+        shapes.push(
+            '<v:line id="paperai_branch_' + (index + 1) + '" ' +
+              'from="' + rootCenterX + 'pt,' + rootCenterY + 'pt" ' +
+              'to="' + (labelX - 8) + 'pt,' + lineEndY + 'pt" ' +
+              'strokecolor="#111827" strokeweight="1pt">' +
+              '<v:stroke endarrow="block" endarrowwidth="narrow" endarrowlength="short"/>' +
+            '</v:line>'
+        );
+
+        shapes.push(
+            docxVmlTextBox(
+                'paperai_left_' + (index + 1),
+                item.left || '',
+                labelX,
+                y,
+                labelW,
+                20,
+                { fontSize: 10 }
             )
-            : docxCell('', widths[0], { vMerge: 'continue', vAlign: 'center' });
+        );
 
-        const rowHeight = '<w:trPr><w:trHeight w:val="390" w:hRule="atLeast"/></w:trPr>';
-        return '<w:tr>' + rowHeight +
-            rootCell +
-            docxCell(docxParagraph(relation, {
-                size: 18,
-                after: 0,
-                center: true
-            }), widths[1]) +
-            docxCell(docxParagraph(item.left, { size: 21, after: 0 }), widths[2]) +
-            docxCell(docxParagraph('', { after: 0 }), widths[3], {
-                bottomBorder: !!item.right,
-                padBottom: 85,
-                borderColor: '6B7280'
-            }) +
-            docxCell(docxParagraph(item.right || '', { size: 20, after: 0 }), widths[4]) +
-            '</w:tr>';
-    }).join('');
+        if (item.right) {
+            shapes.push(
+                '<v:line id="paperai_rule_' + (index + 1) + '" ' +
+                  'from="' + ruleX1 + 'pt,' + lineEndY + 'pt" ' +
+                  'to="' + ruleX2 + 'pt,' + lineEndY + 'pt" ' +
+                  'strokecolor="#64748B" strokeweight="0.75pt"/>'
+            );
 
-    return docxTable(widths, rows, { center: true });
+            shapes.push(
+                docxVmlTextBox(
+                    'paperai_right_' + (index + 1),
+                    item.right,
+                    englishX,
+                    y,
+                    englishW,
+                    20,
+                    { fontSize: 9.5 }
+                )
+            );
+        }
+    });
+
+    return '<w:p><w:pPr><w:spacing w:before="40" w:after="70"/></w:pPr>' +
+      '<w:r><w:pict>' +
+        '<v:group id="paperai_branch_group" ' +
+          'style="position:relative;width:' + width + 'pt;height:' + height + 'pt" ' +
+          'coordorigin="0,0" coordsize="' + width + ',' + height + '">' +
+          '<v:shapetype id="_x0000_t202" coordsize="21600,21600" o:spt="202" path="m,l,21600r21600,l21600,xe">' +
+            '<v:stroke joinstyle="miter"/><v:path gradientshapeok="t" o:connecttype="rect"/>' +
+          '</v:shapetype>' +
+          shapes.join('') +
+        '</v:group>' +
+      '</w:pict></w:r></w:p>';
+}
+
+function docxBranchTable(root, items) {
+    // Microsoft Word receives a real editable shape group for branch diagrams:
+    // oval root, arrow connectors, rule lines and editable text boxes.
+    return docxVmlBranchDiagram(root, items);
 }
 
 function parseDocxFormFieldsLine(raw) {
@@ -5209,7 +5299,11 @@ function docxStylesXml() {
 
 function docxDocumentXml(structuredText) {
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:document ' +
+      'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+      'xmlns:v="urn:schemas-microsoft-com:vml" ' +
+      'xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+      'xmlns:w10="urn:schemas-microsoft-com:office:word">' +
       '<w:body>' + buildDocxBody(structuredText) +
         '<w:sectPr>' +
           '<w:pgSz w:w="11906" w:h="16838"/>' +
