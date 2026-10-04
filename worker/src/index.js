@@ -30,7 +30,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v20',
+        architecture: 'production-literal-ocr-v21',
       }, { headers: corsHeaders });
     }
 
@@ -38,7 +38,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v20',
+        architecture: 'production-literal-ocr-v21',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -913,7 +913,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v20',
+        architecture: 'production-literal-ocr-v21',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1300,8 +1300,18 @@ Use one TABLE_ROW per visible row, cells strictly left-to-right. Preserve empty 
 [[COLUMNS_END]]
 Use the actual visible number of columns. Do not use this for ordinary prose merely because lines contain spaces.
 20C. The "||" separator inside TABLE_ROW/COLUMN_ROW is structural metadata, not source punctuation. Never use these markers unless the row/column relationship is visibly clear.
-21. Grids/word-search/crossword boxes: use the TABLE_START/TABLE_ROW/TABLE_END structure above. Keep grapheme clusters together, for example "बा" is one cell.
-22. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
+21. WORD-SEARCH / LETTER-GRID WITH SIDE ANSWERS: if a bordered letter/word-search grid appears beside a separate numbered answer list or answer blanks, NEVER merge the answer numbers/lines into the grid rows. Treat these as two adjacent structures and output exactly:
+[[WORDSEARCH_START]]
+[[WORDSEARCH_ROW: cell 1 || cell 2 || cell 3 || ...]]
+[[WORDSEARCH_ROW: next row cell 1 || next row cell 2 || next row cell 3 || ...]]
+[[WORDSEARCH_ANSWER: 1]]
+[[WORDSEARCH_ANSWER: 2]]
+[[WORDSEARCH_ANSWER: 3]]
+[[WORDSEARCH_END]]
+Use one WORDSEARCH_ROW for EVERY visible grid row and preserve the exact visible column count for every row. Preserve empty grid cells as empty positions between ||. Keep each Devanagari/Indic grapheme cluster together as one cell, for example "बा" or "कि" is one cell, not separate base/matra cells. WORDSEARCH_ANSWER contains only the visible answer number; the renderer will draw the blank line. Do not solve the puzzle or invent answer words.
+21A. If a grid has NO adjacent answer list, use TABLE_START/TABLE_ROW/TABLE_END as in rule 20A.
+21B. Before returning a WORDSEARCH block, count the visible grid rows and columns from the image and make sure the metadata has the same row count and the same cell count per row. Do not infer the grid dimensions from the number of answer lines.
+22. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, answer blanks, scores, or marks into grid cells.
 23. Never invent page markers, filenames, headings, or text that is not visibly present.
 24. Detect human editing marks instead of throwing them away. Cross-outs, repeated mistakes, overwriting, caret insertions, circles, underlines, boxes, highlights, margin notes, ticks, crosses, and teacher corrections are part of the document.
 25. For a single legible strike-through use exactly: [[STRIKE: text]]
@@ -1685,6 +1695,35 @@ function stripStructuredMetadata(text) {
   const out = [];
 
   for (let i = 0; i < lines.length; i++) {
+    if (/^\s*\[\[WORDSEARCH_START\]\]\s*$/i.test(lines[i])) {
+      const rows = [];
+      const answers = [];
+      let j = i + 1;
+
+      while (j < lines.length && !/^\s*\[\[WORDSEARCH_END\]\]\s*$/i.test(lines[j])) {
+        const row = lines[j].match(/^\s*\[\[WORDSEARCH_ROW:\s*([\s\S]*?)\]\]\s*$/i);
+        if (row) {
+          rows.push(row[1].split(/\s*\|\|\s*/).map(s => s.trim()));
+          j++;
+          continue;
+        }
+
+        const answer = lines[j].match(/^\s*\[\[WORDSEARCH_ANSWER:\s*([^\]]+?)\s*\]\]\s*$/i);
+        if (answer) answers.push(answer[1].trim());
+        j++;
+      }
+
+      const maxRows = Math.max(rows.length, answers.length);
+      for (let r = 0; r < maxRows; r++) {
+        const gridText = rows[r] ? rows[r].join(' | ') : '';
+        const answerText = answers[r] ? answers[r] + '. ____________________' : '';
+        out.push([gridText, answerText].filter(Boolean).join('    '));
+      }
+
+      i = j < lines.length ? j : lines.length - 1;
+      continue;
+    }
+
     if (/^\s*\[\[TABLE_START\]\]\s*$/i.test(lines[i])) {
       let j = i + 1;
       while (j < lines.length && !/^\s*\[\[TABLE_END\]\]\s*$/i.test(lines[j])) {
