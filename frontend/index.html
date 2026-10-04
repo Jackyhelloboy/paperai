@@ -5925,6 +5925,34 @@ async function sendFileToWorker(inputFile, signal) {
     return body;
 }
 
+function linkedAttemptSignal(parentSignal, timeoutMs) {
+    const controller = new AbortController();
+    let timedOut = false;
+
+    const onAbort = () => {
+        try { controller.abort(parentSignal?.reason); } catch (_) { controller.abort(); }
+    };
+
+    if (parentSignal) {
+        if (parentSignal.aborted) onAbort();
+        else parentSignal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    const timer = setTimeout(() => {
+        timedOut = true;
+        try { controller.abort('attempt-timeout'); } catch (_) { controller.abort(); }
+    }, timeoutMs);
+
+    return {
+        signal: controller.signal,
+        timedOut: () => timedOut,
+        cleanup: () => {
+            clearTimeout(timer);
+            if (parentSignal) parentSignal.removeEventListener('abort', onAbort);
+        }
+    };
+}
+
 async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {}) {
     let prepared = await prepareImageForOCR(sourceBlob, false);
 
@@ -5937,6 +5965,12 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
+        if (signal?.aborted) {
+            const abortError = new Error('Extraction cancelled');
+            abortError.name = 'AbortError';
+            throw abortError;
+        }
+
         const formData = new FormData();
         formData.append('file', prepared.blob, 'page.jpg');
         formData.append('language', languageSelect.value || 'auto');
@@ -5948,22 +5982,39 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
         formData.append('paper_context', JSON.stringify(paperContext || {}));
         appendLearningHints(formData);
 
+        const attemptControl = linkedAttemptSignal(signal, attempt === 0 ? 110000 : 105000);
         let res;
+
         try {
             res = await fetchOcrEndpoint('/api/ocr', {
                 method: 'POST',
                 body: formData,
-                signal
+                signal: attemptControl.signal
             });
         } catch (e) {
-            if (signal?.aborted) throw e;
+            const parentAborted = signal?.aborted;
+            const attemptTimedOut = attemptControl.timedOut();
+            attemptControl.cleanup();
+
+            if (parentAborted) {
+                const abortError = new Error('Extraction cancelled');
+                abortError.name = 'AbortError';
+                throw abortError;
+            }
+
             if (attempt === 0) {
-                await wait(600);
+                if (progressText) setProg(22, attemptTimedOut ? 'AI was slow · retrying safely...' : 'Connection interrupted · retrying...');
+                await wait(350);
                 prepared = await prepareImageForOCR(sourceBlob, true);
                 continue;
             }
-            throw new Error('Could not reach PaperAI OCR. Check your internet and try again.');
+
+            throw new Error(attemptTimedOut
+                ? 'This image took too long twice. PaperAI kept the other completed files; retry this image.'
+                : 'Could not reach PaperAI OCR. Check your internet and retry this image.');
         }
+
+        attemptControl.cleanup();
 
         let body = null;
         try { body = await res.json(); } catch (_) {}
@@ -5974,9 +6025,16 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
             throw new Error('Daily free AI OCR limit reached. Try again after the daily reset.');
         }
 
-        if ((res.status === 408 || body?.code === 'AI_TIMEOUT') && attempt === 0) {
-            setProg(22, 'AI was slow · retrying a lighter line scan...');
-            await wait(250);
+        if (
+            attempt === 0 &&
+            (
+                res.status === 408 ||
+                body?.code === 'AI_TIMEOUT' ||
+                [502,503,504].includes(res.status)
+            )
+        ) {
+            if (progressText) setProg(22, 'AI was slow · retrying a lighter scan...');
+            await wait(350);
             prepared = await prepareImageForOCR(sourceBlob, true);
             continue;
         }
@@ -5990,6 +6048,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
         if (res.status === 405) {
             throw new Error('PaperAI API route was not accepting image uploads. Please refresh and try again.');
         }
+
         throw new Error(body?.error || ('OCR service error ' + res.status));
     }
 
