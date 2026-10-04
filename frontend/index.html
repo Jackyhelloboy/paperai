@@ -4100,12 +4100,61 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
     throw new Error('OCR failed after an automatic retry.');
 }
 
+function publicPlainTextFromStructured(value) {
+    const lines = String(value || '').split('\n');
+    const out = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const rootMatch = lines[i].match(/^\s*\[\[BRANCH_ROOT:\s*([\s\S]*?)\]\]\s*$/i);
+        if (!rootMatch) {
+            out.push(lines[i]);
+            continue;
+        }
+
+        const root = rootMatch[1].trim();
+        const items = [];
+        let j = i + 1;
+
+        while (j < lines.length) {
+            if (/^\s*\[\[BRANCH_END\]\]\s*$/i.test(lines[j])) {
+                j++;
+                break;
+            }
+
+            const item = lines[j].match(/^\s*\[\[BRANCH_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i);
+            if (item) items.push({ left: item[1].trim(), right: item[2].trim() });
+            j++;
+        }
+
+        if (!items.length) {
+            out.push(root);
+            i = j - 1;
+            continue;
+        }
+
+        const center = Math.floor(items.length / 2);
+        for (let r = 0; r < items.length; r++) {
+            const item = items[r];
+            const relation = r < center ? '↗' : r > center ? '↘' : '→';
+            const rootPart = r === center ? '○ ' + root + ' ' : '     ';
+            const right = item.right ? ' ───────── ' + item.right : '';
+            out.push(rootPart + relation + ' ' + item.left + right);
+        }
+
+        i = j - 1;
+    }
+
+    return portableText(out.join('\n'));
+}
+
 function currentPlainText() {
     if (!lastResult) return '';
     const live = teachPanel.classList.contains('show')
         ? (lastResult.preview_text || teachEditor.value)
         : '';
-    return portableText(live || lastResult.plain_text || lastResult.text || '');
+    return publicPlainTextFromStructured(
+        live || lastResult.plain_text || lastResult.text || ''
+    );
 }
 
 function updateResultActionsForTab() {
@@ -4652,7 +4701,7 @@ function docxParagraph(text, options = {}) {
         '<w:spacing w:before="' + before + '" w:after="' + after + '" w:line="300" w:lineRule="auto"/>' +
         '</w:pPr>' +
         docxRun(text, { bold, size }) +
-        (options.answerLeader ? docxRun('\t', { size }) : '') +
+        (options.answerLeader ? '<w:r><w:tab/></w:r>' : '') +
         '</w:p>';
 }
 
