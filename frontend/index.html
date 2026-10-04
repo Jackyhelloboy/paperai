@@ -4155,6 +4155,26 @@ function formatVisibleText(value) {
     return html;
 }
 
+function collapsePortableAnswerBlankContinuations(value) {
+    const lines = String(value || '').split('\n');
+    const out = [];
+    let afterNumberedBlank = false;
+
+    for (const line of lines) {
+        const numberedBlank = /^\s*\d+[.)]?\s*_{8,}\s*$/.test(line);
+        const continuation = /^\s*_{2,}\s*$/.test(line);
+
+        if (afterNumberedBlank && continuation) {
+            continue;
+        }
+
+        out.push(line);
+        afterNumberedBlank = numberedBlank;
+    }
+
+    return out.join('\n');
+}
+
 function portableText(value) {
     let out = String(value || '');
 
@@ -4173,7 +4193,7 @@ function portableText(value) {
         return n === null ? ch : n + '.';
     });
 
-    return out;
+    return collapsePortableAnswerBlankContinuations(out);
 }
 
 function formatOcrAnnotation(type, content) {
