@@ -3543,17 +3543,24 @@ function chooseSmartSuggestion(choice) {
 }
 
 function renderTeachPreview() {
-    if (!lastResult || showingRaw) return;
+    if (!lastResult) return;
     const preview = teachEditor.value.normalize('NFC');
     const layoutPreview = applyTeachWordCorrectionsToLayout(
         teachOriginalLayoutText || lastResult.text || '',
         teachOriginalText,
         preview
     );
+
+    // Always keep the latest Teach preview in memory, even while the Raw OCR
+    // tab is selected. When the user returns to Extracted, it should show the
+    // current unsaved Teach corrections immediately.
     lastResult.preview_text = preview;
     lastResult.preview_layout_text = layoutPreview;
-    textOut.innerHTML = formatOutput(layoutPreview);
-    textOut.className = 'output-body';
+
+    if (!showingRaw) {
+        textOut.innerHTML = formatOutput(layoutPreview);
+        textOut.className = 'output-body';
+    }
 }
 
 function updateTeachButtons() {
@@ -3860,12 +3867,18 @@ function showTab(tab) {
     showingRaw = tab==='raw';
     $('tabVerified').classList.toggle('active',!showingRaw);
     $('tabRaw').classList.toggle('active',showingRaw);
+
     if(lastResult) {
         if(showingRaw) {
             textOut.textContent = lastResult.raw_text||'';
             textOut.className = 'output-body output-raw';
         } else {
-            textOut.innerHTML = formatOutput(lastResult.text||'');
+            const teachIsOpen = teachPanel.classList.contains('show');
+            const extractedText = teachIsOpen
+                ? (lastResult.preview_layout_text || lastResult.text || '')
+                : (lastResult.text || '');
+
+            textOut.innerHTML = formatOutput(extractedText);
             textOut.className = 'output-body';
         }
     }
