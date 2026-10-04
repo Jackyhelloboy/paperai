@@ -5247,6 +5247,130 @@ function docxTable(gridWidths, rowsXml, options = {}) {
         '</w:tblGrid>' + rowsXml + '</w:tbl>';
 }
 
+function parseDocxWordSearchBlock(lines, startIndex) {
+    if (!/^\s*\[\[WORDSEARCH_START\]\]\s*$/i.test(String(lines[startIndex] || ''))) return null;
+
+    const rows = [];
+    const answers = [];
+    let i = startIndex + 1;
+
+    while (i < lines.length) {
+        if (/^\s*\[\[WORDSEARCH_END\]\]\s*$/i.test(lines[i])) {
+            return { rows, answers, nextIndex: i + 1 };
+        }
+
+        const row = String(lines[i] || '').match(
+            /^\s*\[\[WORDSEARCH_ROW:\s*([\s\S]*?)\]\]\s*$/i
+        );
+        if (row) {
+            rows.push(splitStructuredCells(row[1]));
+            i++;
+            continue;
+        }
+
+        const answer = String(lines[i] || '').match(
+            /^\s*\[\[WORDSEARCH_ANSWER:\s*([^\]]+?)\s*\]\]\s*$/i
+        );
+        if (answer) answers.push(answer[1].trim());
+        i++;
+    }
+
+    return rows.length || answers.length ? { rows, answers, nextIndex: i } : null;
+}
+
+function docxLegacyWordSearchBlock(rows, answers) {
+    const cleanRows = Array.isArray(rows) ? rows : [];
+    const cleanAnswers = Array.isArray(answers) ? answers : [];
+    const cols = Math.max(1, ...cleanRows.map(row => row.length || 0));
+    const leftWidth = 4250;
+    const rightWidth = 5500;
+    const cellWidth = Math.floor(leftWidth / cols);
+    const gridWidths = Array.from({ length: cols }, () => cellWidth);
+    gridWidths[gridWidths.length - 1] += leftWidth - gridWidths.reduce((a,b) => a + b, 0);
+
+    const gridRows = cleanRows.map(row => {
+        const cells = gridWidths.map((width, col) =>
+            docxCell(
+                docxParagraph(row[col] || '', { size: 21, after: 0, center: true, line: 220 }),
+                width,
+                {
+                    fullBorder: true,
+                    padTop: 30,
+                    padBottom: 30,
+                    padLeft: 15,
+                    padRight: 15
+                }
+            )
+        ).join('');
+
+        return '<w:tr><w:trPr><w:trHeight w:val="440" w:hRule="exact"/></w:trPr>' +
+            cells + '</w:tr>';
+    }).join('');
+
+    const gridTable = docxTable(gridWidths, gridRows, { center: false, borders: true });
+
+    const visualRows = Math.max(cleanRows.length, cleanAnswers.length, 1);
+    const answerWidths = [520, rightWidth - 520];
+    const answerRows = [];
+
+    for (let i = 0; i < visualRows; i++) {
+        if (i < cleanAnswers.length) {
+            const raw = cleanAnswers[i];
+            const n = /^\d+$/.test(raw) ? raw : raw;
+            answerRows.push(
+                '<w:tr><w:trPr><w:trHeight w:val="440" w:hRule="exact"/></w:trPr>' +
+                docxCell(
+                    docxParagraphRuns(
+                        docxRun(circledWordNumber(n), { symbol: true, size: 20 }),
+                        { after: 0, center: true, line: 220 }
+                    ),
+                    answerWidths[0],
+                    { padLeft: 0, padRight: 30, padTop: 0, padBottom: 0 }
+                ) +
+                docxCell(
+                    docxParagraph('', { after: 0, line: 220 }),
+                    answerWidths[1],
+                    {
+                        bottomBorder: true,
+                        padBottom: 85,
+                        padLeft: 0,
+                        padRight: 50,
+                        padTop: 0,
+                        borderColor: '64748B'
+                    }
+                ) +
+                '</w:tr>'
+            );
+        } else {
+            answerRows.push(
+                '<w:tr><w:trPr><w:trHeight w:val="440" w:hRule="exact"/></w:trPr>' +
+                docxCell(
+                    docxParagraph('', { after: 0 }),
+                    rightWidth,
+                    { padLeft: 0, padRight: 0, padTop: 0, padBottom: 0 }
+                ) +
+                '</w:tr>'
+            );
+        }
+    }
+
+    const answersTable = docxTable(answerWidths, answerRows.join(''), { center: false, borders: false });
+    const outerWidths = [leftWidth, rightWidth];
+
+    return docxTable(
+        outerWidths,
+        '<w:tr>' +
+            docxCell(gridTable + '<w:p/>', outerWidths[0], {
+                padLeft: 0, padRight: 120, padTop: 0, padBottom: 0
+            }) +
+            docxCell(answersTable + '<w:p/>', outerWidths[1], {
+                padLeft: 120, padRight: 0, padTop: 0, padBottom: 0
+            }) +
+        '</w:tr>',
+        { center: true, borders: false }
+    );
+}
+
 function parseDocxBranchBlock(lines, startIndex) {
     const rootMatch = String(lines[startIndex] || '').match(/^\s*\[\[BRANCH_ROOT:\s*([\s\S]*?)\]\]\s*$/i);
     if (!rootMatch) return null;
@@ -6161,6 +6285,13 @@ function buildDocxBody(structuredText) {
         if (/^\s*\[\[PAGE_BREAK\]\]\s*$/i.test(lines[i])) {
             body.push('<w:p><w:r><w:br w:type="page"/></w:r></w:p>');
             i++;
+            continue;
+        }
+
+        const wordSearch = parseDocxWordSearchBlock(lines, i);
+        if (wordSearch) {
+            body.push(docxLegacyWordSearchBlock(wordSearch.rows, wordSearch.answers));
+            i = wordSearch.nextIndex;
             continue;
         }
 
