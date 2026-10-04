@@ -195,6 +195,71 @@
         };
     }
 
+    function devanagariDigitToNumber(value) {
+        const map = { '०':'0','१':'1','२':'2','३':'3','४':'4','५':'5','६':'6','७':'7','८':'8','९':'9' };
+        const normalized = String(value || '').replace(/[०-९]/g, ch => map[ch] || ch);
+        const n = Number(normalized);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function parseMarksPattern(text) {
+        const m = String(text || '').match(/(\d+|[०-९]+)\s*[x×X]\s*(\d+|[०-९]+)\s*=\s*(\d+|[०-९]+)\s*M?/i);
+        if (!m) return null;
+        return {
+            raw: m[0],
+            expectedItems: devanagariDigitToNumber(m[1]),
+            marksEach: devanagariDigitToNumber(m[2]),
+            totalMarks: devanagariDigitToNumber(m[3])
+        };
+    }
+
+    function parseSectionHeadingLine(text, style = null) {
+        const source = String(text || '').trim();
+        if (!source) return null;
+        const m = source.match(/^\s*([IVXivx]{1,6})\s*[.)।:-]?\s+(.+)$/);
+        if (!m) return null;
+
+        const body = m[2].trim();
+        const marks = parseMarksPattern(source);
+        const title = marks ? body.replace(marks.raw, '').replace(/[|·\-–—]+\s*$/, '').trim() : body;
+
+        return {
+            type: 'sectionHeading',
+            label: m[1].toUpperCase(),
+            text: source,
+            title,
+            marks,
+            style: style || null
+        };
+    }
+
+    function parseQuestionLine(text, style = null) {
+        const source = String(text || '').trim();
+        if (!source) return null;
+
+        const m = source.match(/^\s*((?:\d+|[०-९]+|[⓪①-⑳❶-❿]))\s*[.)।:-]\s*(.+)$/u);
+        if (!m) return null;
+
+        const number = CIRCLED.test(m[1])
+            ? circledNumberValue(m[1])
+            : devanagariDigitToNumber(m[1]);
+
+        return {
+            type: 'questionLine',
+            number,
+            rawNumber: m[1],
+            text: m[2].trim(),
+            raw: source,
+            style: style || null
+        };
+    }
+
+    function parseAnswerRuleLine(text) {
+        const source = String(text || '').trim();
+        if (!/^_{8,}$/.test(source)) return null;
+        return { type: 'answerRule', raw: source };
+    }
+
     function parse(text) {
         const source = String(text || '').normalize('NFC');
         const lines = source.split('\n');
@@ -214,7 +279,13 @@
 
             const styledLine = parseStyledLine(line);
             if (styledLine) {
-                nodes.push(styledLine);
+                const section = parseSectionHeadingLine(styledLine.text, styledLine.style);
+                if (section) {
+                    nodes.push(section);
+                } else {
+                    const question = parseQuestionLine(styledLine.text, styledLine.style);
+                    nodes.push(question || styledLine);
+                }
                 i++;
                 continue;
             }
@@ -251,6 +322,15 @@
             const single = parseSingleExercise(line);
             if (single) { nodes.push(single); i++; continue; }
 
+            const section = parseSectionHeadingLine(line);
+            if (section) { nodes.push(section); i++; continue; }
+
+            const question = parseQuestionLine(line);
+            if (question) { nodes.push(question); i++; continue; }
+
+            const answerRule = parseAnswerRuleLine(line);
+            if (answerRule) { nodes.push(answerRule); i++; continue; }
+
             if (!line.trim()) nodes.push({ type: 'blank' });
             else nodes.push({ type: 'text', text: line });
             i++;
@@ -280,6 +360,7 @@
         parse,
         splitCells,
         circledNumberValue,
-        readNumber
+        readNumber,
+        parseMarksPattern
     });
 })(window);
