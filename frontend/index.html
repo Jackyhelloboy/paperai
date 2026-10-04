@@ -822,6 +822,35 @@
             border-color: var(--accent);
         }
 
+        .teach-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .teach-tool {
+            min-height: 34px;
+            padding: 0.35rem 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text2);
+            font: 600 0.68rem/1 Tahoma, Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .teach-tool:hover {
+            background: var(--bg);
+            border-color: var(--border2);
+        }
+
+        .teach-tool.active {
+            background: var(--accent-soft);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
         .teach-actions {
             display: flex;
             gap: 0.5rem;
@@ -915,15 +944,22 @@
             font-style: normal;
         }
 
-        .output-symbol {
-            display: inline-block;
-            font-family: 'Segoe UI Symbol', 'Arial Unicode MS', 'Noto Sans Symbols 2', 'Noto Sans Symbols', Arial, sans-serif;
-            font-size: 12px;
-            font-weight: 600;
+        .output-number-circle {
+            display: inline-flex;
+            width: 1.35em;
+            height: 1.35em;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            border: 1.35px solid currentColor;
+            border-radius: 50%;
+            font-family: Tahoma, Arial, sans-serif;
+            font-size: 0.88em;
+            font-weight: 700;
             font-style: normal;
             line-height: 1;
-            vertical-align: -0.02em;
-            letter-spacing: 0;
+            vertical-align: -0.12em;
+            margin: 0 0.08em;
         }
 
         .ocr-strike {
@@ -1549,10 +1585,16 @@
 
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
-                <div class="teach-sub">Edit only mistakes. Saved pairs are used as visual confusion hints on future scans; they never force an automatic correction.</div>
+                <div class="teach-sub">Edits preview instantly below. Hindi Phonetic can turn Roman typing such as <strong>rupayaa</strong> into <strong>रुपया</strong>. Saved corrections become visual hints only; the image still decides future OCR.</div>
+                <div class="teach-toolbar">
+                    <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
+                    <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
+                    <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
+                    <button class="teach-tool" id="teachHindiBtn" type="button" onclick="toggleHindiPhonetic()">हिंदी Phonetic: Off</button>
+                </div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
                 <div class="teach-actions">
-                    <button class="action-btn" onclick="saveLearning()">Save learning</button>
+                    <button class="action-btn" onclick="saveLearning()">Save & apply</button>
                     <button class="action-btn" onclick="closeTeachPanel()">Cancel</button>
                 </div>
             </div>
@@ -1589,9 +1631,12 @@ const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('text
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
 const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
-const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
+const teachPanel=$('teachPanel'),teachEditor=$('teachEditor'),teachHindiBtn=$('teachHindiBtn');
+const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn');
 
 let file=null, lastResult=null, showingRaw=false;
+let teachOriginalText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
+let hindiPhoneticOn=false, hindiComposition=null;
 
 const fmtSize = b => b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
 const showErr = m => { errText.textContent=m; errBox.classList.add('show'); };
@@ -2782,20 +2827,233 @@ function extractLearningPairs(before, after) {
     return pairs;
 }
 
+const DEVANAGARI_INDEPENDENT_VOWELS = {
+    a:'अ', aa:'आ', i:'इ', ii:'ई', ee:'ई', u:'उ', uu:'ऊ', oo:'ऊ',
+    e:'ए', ai:'ऐ', o:'ओ', au:'औ', ri:'ऋ'
+};
+
+const DEVANAGARI_MATRAS = {
+    a:'', aa:'ा', i:'ि', ii:'ी', ee:'ी', u:'ु', uu:'ू', oo:'ू',
+    e:'े', ai:'ै', o:'ो', au:'ौ', ri:'ृ'
+};
+
+const DEVANAGARI_CONSONANTS = {
+    k:'क', kh:'ख', g:'ग', gh:'घ', ng:'ङ',
+    ch:'च', chh:'छ', c:'च', j:'ज', jh:'झ', ny:'ञ',
+    t:'त', th:'थ', d:'द', dh:'ध', n:'न',
+    tt:'ट', tth:'ठ', dd:'ड', ddh:'ढ', nn:'ण',
+    p:'प', ph:'फ', f:'फ', b:'ब', bh:'भ', m:'म',
+    y:'य', r:'र', l:'ल', v:'व', w:'व',
+    sh:'श', ss:'ष', s:'स', h:'ह',
+    ksh:'क्ष', gy:'ज्ञ', tr:'त्र'
+};
+
+const DEV_VOWEL_KEYS = ['aa','ii','ee','uu','oo','ai','au','ri','a','i','u','e','o'];
+const DEV_CONSONANT_KEYS = ['tth','ddh','ksh','chh','kh','gh','jh','th','dh','ph','bh','tt','dd','nn','sh','ss','ng','ny','gy','tr','ch','k','g','c','j','t','d','n','p','f','b','m','y','r','l','v','w','s','h'];
+
+function matchRomanKey(word, pos, keys) {
+    for (const key of keys) {
+        if (word.startsWith(key, pos)) return key;
+    }
+    return null;
+}
+
+function transliterateHindiWord(input) {
+    const source = String(input || '').toLowerCase();
+    if (!/^[a-z]+$/.test(source)) return input;
+
+    let out = '';
+    let i = 0;
+
+    while (i < source.length) {
+        const consonant = matchRomanKey(source, i, DEV_CONSONANT_KEYS);
+
+        if (consonant) {
+            out += DEVANAGARI_CONSONANTS[consonant];
+            i += consonant.length;
+
+            const vowel = matchRomanKey(source, i, DEV_VOWEL_KEYS);
+            if (vowel) {
+                out += DEVANAGARI_MATRAS[vowel];
+                i += vowel.length;
+            } else if (i < source.length) {
+                out += '्';
+            }
+            continue;
+        }
+
+        const vowel = matchRomanKey(source, i, DEV_VOWEL_KEYS);
+        if (vowel) {
+            out += DEVANAGARI_INDEPENDENT_VOWELS[vowel];
+            i += vowel.length;
+            continue;
+        }
+
+        out += source[i++];
+    }
+
+    return out.normalize('NFC');
+}
+
+function renderTeachPreview() {
+    if (!lastResult || showingRaw) return;
+    const preview = teachEditor.value.normalize('NFC');
+    textOut.innerHTML = formatOutput(preview);
+    textOut.className = 'output-body';
+}
+
+function updateTeachButtons() {
+    teachUndoBtn.disabled = teachHistoryIndex <= 0;
+    teachRedoBtn.disabled = teachHistoryIndex < 0 || teachHistoryIndex >= teachHistory.length - 1;
+    teachHindiBtn.classList.toggle('active', hindiPhoneticOn);
+    teachHindiBtn.textContent = 'हिंदी Phonetic: ' + (hindiPhoneticOn ? 'On' : 'Off');
+}
+
+function pushTeachHistory(value) {
+    if (teachHistoryLock) return;
+    const normalized = String(value ?? teachEditor.value);
+    if (teachHistory[teachHistoryIndex] === normalized) return;
+    teachHistory = teachHistory.slice(0, teachHistoryIndex + 1);
+    teachHistory.push(normalized);
+    if (teachHistory.length > 80) teachHistory.shift();
+    teachHistoryIndex = teachHistory.length - 1;
+    updateTeachButtons();
+}
+
+function applyTeachSnapshot(value) {
+    teachHistoryLock = true;
+    teachEditor.value = value;
+    teachHistoryLock = false;
+    hindiComposition = null;
+    renderTeachPreview();
+    updateTeachButtons();
+}
+
+function teachUndo() {
+    if (teachHistoryIndex <= 0) return;
+    teachHistoryIndex--;
+    applyTeachSnapshot(teachHistory[teachHistoryIndex]);
+}
+
+function teachRedo() {
+    if (teachHistoryIndex >= teachHistory.length - 1) return;
+    teachHistoryIndex++;
+    applyTeachSnapshot(teachHistory[teachHistoryIndex]);
+}
+
+function teachRestoreOriginal() {
+    pushTeachHistory(teachOriginalText);
+    applyTeachSnapshot(teachOriginalText);
+}
+
+function toggleHindiPhonetic() {
+    hindiPhoneticOn = !hindiPhoneticOn;
+    hindiComposition = null;
+    updateTeachButtons();
+    teachEditor.focus();
+}
+
+function replaceTeachRange(start, end, replacement) {
+    const before = teachEditor.value.slice(0, start);
+    const after = teachEditor.value.slice(end);
+    teachEditor.value = before + replacement + after;
+    const caret = start + replacement.length;
+    teachEditor.setSelectionRange(caret, caret);
+    return caret;
+}
+
+function handleHindiPhoneticKey(event) {
+    if (!hindiPhoneticOn || event.ctrlKey || event.metaKey || event.altKey) return false;
+
+    if (/^[a-zA-Z]$/.test(event.key)) {
+        event.preventDefault();
+
+        const caret = teachEditor.selectionStart;
+        const selectionEnd = teachEditor.selectionEnd;
+
+        if (!hindiComposition || hindiComposition.end !== caret || selectionEnd !== caret) {
+            hindiComposition = { start: caret, end: selectionEnd, roman: '' };
+        }
+
+        hindiComposition.roman += event.key.toLowerCase();
+        const converted = transliterateHindiWord(hindiComposition.roman);
+        const newEnd = replaceTeachRange(hindiComposition.start, hindiComposition.end, converted);
+        hindiComposition.end = newEnd;
+        pushTeachHistory(teachEditor.value);
+        renderTeachPreview();
+        return true;
+    }
+
+    if (event.key === 'Backspace' && hindiComposition?.roman) {
+        event.preventDefault();
+        hindiComposition.roman = hindiComposition.roman.slice(0, -1);
+        const converted = transliterateHindiWord(hindiComposition.roman);
+        const newEnd = replaceTeachRange(hindiComposition.start, hindiComposition.end, converted);
+        hindiComposition.end = newEnd;
+
+        if (!hindiComposition.roman) hindiComposition = null;
+        pushTeachHistory(teachEditor.value);
+        renderTeachPreview();
+        return true;
+    }
+
+    hindiComposition = null;
+    return false;
+}
+
 function openTeachPanel() {
     if (!lastResult) return;
-    teachEditor.value = lastResult.plain_text || lastResult.text || '';
+    teachOriginalText = lastResult.plain_text || lastResult.text || '';
+    teachEditor.value = teachOriginalText;
+    teachHistory = [teachOriginalText];
+    teachHistoryIndex = 0;
+    hindiComposition = null;
+    hindiPhoneticOn = languageSelect.value === 'hi';
     teachPanel.classList.add('show');
+    updateTeachButtons();
+    renderTeachPreview();
     teachEditor.focus();
 }
 
 function closeTeachPanel() {
     teachPanel.classList.remove('show');
+    hindiComposition = null;
+
+    if (lastResult && !showingRaw) {
+        textOut.innerHTML = formatOutput(lastResult.text || '');
+        textOut.className = 'output-body';
+    }
 }
+
+teachEditor.addEventListener('keydown', event => {
+    if (handleHindiPhoneticKey(event)) return;
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) teachRedo();
+        else teachUndo();
+        return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        teachRedo();
+    }
+});
+
+teachEditor.addEventListener('input', () => {
+    if (teachHistoryLock) return;
+    hindiComposition = null;
+    pushTeachHistory(teachEditor.value);
+    renderTeachPreview();
+});
+
+teachEditor.addEventListener('click', () => { hindiComposition = null; });
+teachEditor.addEventListener('select', () => { hindiComposition = null; });
 
 function saveLearning() {
     if (!lastResult) return;
-    const original = lastResult.plain_text || lastResult.text || '';
+    const original = teachOriginalText || lastResult.plain_text || lastResult.text || '';
     const corrected = teachEditor.value.normalize('NFC').trim();
     if (!corrected) return;
 
@@ -2824,12 +3082,12 @@ function saveLearning() {
 
     lastResult.plain_text = corrected;
     lastResult.text = corrected;
-    textOut.textContent = corrected;
+    textOut.innerHTML = formatOutput(corrected);
     textOut.className = 'output-body';
     closeTeachPanel();
 
     const learned = pairs.length;
-    $('statsBar').innerHTML += '<span class="badge badge-gray">' + learned + ' learned</span>';
+    if (learned) $('statsBar').innerHTML += '<span class="badge badge-gray">' + learned + ' learned</span>';
 }
 
 function appendLearningHints(formData) {
@@ -2949,8 +3207,44 @@ function showTab(tab) {
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
+function circledNumberValue(ch) {
+    const cp = ch.codePointAt(0);
+    if (cp === 0x24EA) return 0;
+    if (cp >= 0x2460 && cp <= 0x2473) return cp - 0x245F;
+    if (cp >= 0x2776 && cp <= 0x277F) return cp - 0x2775;
+    return null;
+}
+
 function formatVisibleText(value) {
-    return esc(value || '').replace(/([①-⑳⓪❶-❿])/g, '<span class="output-symbol">$1</span>');
+    const source = String(value || '');
+    let html = '';
+    let buffer = '';
+
+    const flush = () => {
+        if (!buffer) return;
+        html += esc(buffer);
+        buffer = '';
+    };
+
+    for (const ch of source) {
+        const n = circledNumberValue(ch);
+        if (n === null) {
+            buffer += ch;
+            continue;
+        }
+        flush();
+        html += '<span class="output-number-circle" aria-label="' + n + '">' + n + '</span>';
+    }
+
+    flush();
+    return html;
+}
+
+function portableText(value) {
+    return String(value || '').replace(/[⓪①-⑳❶-❿]/g, ch => {
+        const n = circledNumberValue(ch);
+        return n === null ? ch : '(' + n + ')';
+    });
 }
 
 function formatOcrAnnotation(type, content) {
@@ -3133,8 +3427,8 @@ goBtn.onclick = async () => {
 };
 
 function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();URL.revokeObjectURL(a.href)}
-function dlTxt(){if(!lastResult)return;dlBlob(new Blob([lastResult.plain_text || lastResult.text],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
-function copyText(btn){if(!lastResult)return;navigator.clipboard.writeText(lastResult.plain_text || lastResult.text).then(()=>{btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)})}
+function dlTxt(){if(!lastResult)return;dlBlob(new Blob([portableText(lastResult.plain_text || lastResult.text)],{type:'text/plain;charset=utf-8'}),'paperai.txt')}
+function copyText(btn){if(!lastResult)return;navigator.clipboard.writeText(portableText(lastResult.plain_text || lastResult.text)).then(()=>{btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)})}
 </script>
 </body>
 </html>
