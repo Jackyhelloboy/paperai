@@ -133,3 +133,13 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Roman text stays visible while typing so the system can understand the full phrase before replacing it.
 - Mixed-language pages remain editable because source and target routing are explicit.
 - The same free Workers AI model is used for phrase suggestions; there is no paid fallback.
+
+
+## v17 phonetic transliteration
+
+- Teach is transliteration-first, not semantic translation.
+- English/Roman phrases keep the same spoken words and are rewritten in the target script.
+- Example: English "i love you" -> Hindi "इ लोवे योउ"; the system must not replace it with a Hindi meaning translation.
+- Known names such as jawad still transliterate to जवाद.
+- Full Roman phrases are handled locally first with the bundled Indic transliteration library; difficult cases can receive AI phonetic alternatives.
+- AI suggestions are explicitly instructed to preserve pronunciation and never translate sentence meaning.
