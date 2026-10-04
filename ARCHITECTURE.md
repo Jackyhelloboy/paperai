@@ -164,3 +164,29 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Teach preview/save now keeps the original OCR layout/annotation structure and applies word-level corrections onto that structure instead of replacing the extracted result with a flattened textarea.
 - Branch diagrams, OCR annotations, line breaks and other extracted structure therefore remain stable while corrected words update inside the preserved layout.
 - Teach save preserves surrounding whitespace; only the corrected wording is intended to change.
+
+
+## v20 editable Word structure engine
+
+PaperAI Word export now classifies extracted structure into native editable Word elements instead of flattening everything into plain text or images.
+
+Supported major structures:
+- literal editable text and headings
+- editable answer/form lines and page breaks
+- explicit bordered tables/grids and borderless multi-column rows
+- legacy pipe-delimited tables/columns
+- editable numbered/bulleted/checklist rows
+- two-column worksheet/exam rows
+- editable branch diagrams with Word/VML shapes and text boxes
+- horizontal and vertical flow diagrams
+- common geometry shapes: circle, rectangle, triangle, diamond, star, pentagon, hexagon
+- native Word math (OMML), including common fractions, square roots, superscripts/powers and subscripts
+- OCR formatting metadata mapped to Word formatting: underline, double underline, strike, double strike, insert, replace, boxed, highlight, margin note, stamp and signature styling
+- multi-page PDF page boundaries mapped to real Word page breaks
+
+OCR v20 structure metadata:
+- `[[TABLE_START]] / [[TABLE_ROW: ... || ...]] / [[TABLE_END]]`
+- `[[COLUMNS_START]] / [[COLUMN_ROW: ... || ...]] / [[COLUMNS_END]]`
+These markers are internal structure metadata. Extracted view renders them visually, Word exports them as editable structures, and Plain text/Copy removes them.
+
+This is intentionally not a clone of every Microsoft Word feature. Features such as macros/VBA, mail merge, tracked changes/review workflows, comments, citations, embedded OLE objects, SmartArt editing, themes, section-level headers/footers, and every Word AutoShape remain outside the current OCR-to-Word scope unless explicitly added later.
