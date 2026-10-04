@@ -30,7 +30,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v15',
+        architecture: 'production-literal-ocr-v16',
       }, { headers: corsHeaders });
     }
 
@@ -38,7 +38,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v15',
+        architecture: 'production-literal-ocr-v16',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -533,7 +533,7 @@ function cleanSuggestionArray(value, max = 5) {
   const out = [];
   for (const item of value) {
     const candidate = String(item || '').normalize('NFC').trim();
-    if (!candidate || candidate.length > 60 || /[\r\n<>]/.test(candidate) || seen.has(candidate)) continue;
+    if (!candidate || candidate.length > 180 || /[\r\n<>]/.test(candidate) || seen.has(candidate)) continue;
     seen.add(candidate);
     out.push(candidate);
     if (out.length >= max) break;
@@ -563,52 +563,82 @@ function parseSuggestionJson(text) {
 
 async function handleWordSuggestion(request, env, corsHeaders) {
   if (!env.AI) return Response.json({ suggestions: [] }, { headers: corsHeaders });
+
   const body = await request.json().catch(() => ({}));
-  const word = String(body?.word || '').trim();
+  const input = String(body?.text ?? body?.word ?? '').replace(/\s+/g, ' ').trim();
+  const sourceLanguage = SUGGESTION_LANGUAGES[body?.source_language] ? body.source_language : 'en';
   const language = SUGGESTION_LANGUAGES[body?.language] ? body.language : 'en';
+  const sourceMeta = SUGGESTION_LANGUAGES[sourceLanguage];
   const meta = SUGGESTION_LANGUAGES[language];
-  const context = String(body?.context || '').replace(/[\r\n]+/g, ' ').slice(0, 220);
+  const context = String(body?.context || '').replace(/[\r\n]+/g, ' ').slice(0, 260);
   const localSuggestions = cleanSuggestionArray(body?.local_suggestions || [], 5);
-  if (!/^[A-Za-z][A-Za-z'’-]{1,39}$/.test(word)) {
+
+  if (!input || input.length > 120 || !/^[\p{L}\p{M}][\p{L}\p{M}'’\- ]*$/u.test(input)) {
     return Response.json({ suggestions: [] }, { headers: corsHeaders });
   }
 
-  const targetInstruction = language === 'en'
-    ? 'Suggest the most likely correctly spelled English word or proper-name spelling. Do not translate it.'
-    : 'The user typed a Roman phonetic spelling. Suggest the intended ' + meta.label + ' spelling in ' + meta.script + ' script. This is transliteration, not translation.';
+  const wordCount = input.split(/\s+/).filter(Boolean).length;
+  const isPhrase = wordCount >= 2;
+
+  let targetInstruction;
+  if (sourceLanguage === language) {
+    targetInstruction = [
+      'Source and target are both ' + meta.label + '.',
+      'Suggest corrected spelling, grammar or proper-name spelling in the same language.',
+      'Do not translate into a different language.'
+    ].join('\n');
+  } else {
+    targetInstruction = [
+      'Source language: ' + sourceMeta.label + ' (' + sourceMeta.script + ' script).',
+      'Target language: ' + meta.label + ' (' + meta.script + ' script).',
+      'Use SMART conversion:',
+      '- If the input has lexical meaning in the source language, TRANSLATE that meaning naturally into the target language.',
+      '- If the input is a proper name, place name, acronym, brand, or phonetic name rather than a translatable phrase, TRANSLITERATE its pronunciation into the target script.',
+      '- Never transliterate a meaningful phrase word-by-word when a real translation is possible.',
+      '- Preserve names and technical identifiers rather than translating their meaning.',
+      '- Prefer gender-neutral natural wording when the source does not specify gender and the target language allows it.'
+    ].join('\n');
+  }
 
   const prompt = [
-    'You are a multilingual typing suggestion engine inside an OCR correction editor.',
+    'You are a smart multilingual typing engine inside an OCR correction editor.',
     '',
     targetInstruction,
     '',
-    'Roman input: "' + word + '"',
+    'Input text: "' + input + '"',
     'Nearby document context: "' + (context || 'none') + '"',
     'Local offline candidates: ' + JSON.stringify(localSuggestions),
     '',
     'Rules:',
-    '- Return 1 to 5 short candidate strings only.',
+    '- Return 1 to 5 candidate strings only.',
     '- Put the best candidate first.',
-    '- Preserve names and intended pronunciation.',
-    '- For Indian-language targets, return the target native script, not Roman letters, unless the input is clearly an English word that should remain English.',
-    '- For English, return English only.',
-    '- Do not explain, translate sentences, or add punctuation around candidates.',
+    '- Preserve names and intended pronunciation when transliteration is appropriate.',
+    '- Preserve the sentence meaning when translation is appropriate.',
+    '- Do not explain your choice.',
+    '- Do not add quotation marks around candidates.',
     '- Output strict JSON exactly like {"suggestions":["candidate1","candidate2"]}.',
   ].join('\n');
 
   const response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
     messages: [
-      { role: 'system', content: 'Return only compact JSON word suggestions. Never include commentary.' },
+      { role: 'system', content: 'Return only compact JSON suggestions. Translate meaning across languages; transliterate proper names and identifiers.' },
       { role: 'user', content: prompt },
     ],
-    max_completion_tokens: 160,
-    temperature: 0.1,
+    max_completion_tokens: 240,
+    temperature: 0,
     chat_template_kwargs: { enable_thinking: false },
   }, { rejectIfBusy: true });
 
   try { await recordAiUsage(env, response?.usage || null); } catch (_) {}
+
   const suggestions = parseSuggestionJson(extractAiText(response));
-  return Response.json({ suggestions, language, source: 'workers-ai' }, {
+  return Response.json({
+    suggestions,
+    source_language: sourceLanguage,
+    language,
+    mode: isPhrase ? 'smart_phrase' : 'smart_word',
+    source: 'workers-ai',
+  }, {
     headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' },
   });
 }
@@ -846,7 +876,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v8',
+        architecture: 'production-literal-ocr-v16',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
