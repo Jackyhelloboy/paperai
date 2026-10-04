@@ -4716,7 +4716,7 @@ function publicPlainTextFromStructured(value) {
         model.nodes.forEach(node => {
             if (node.type === 'blank' || node.type === 'pageBreak') {
                 out.push('');
-            } else if (node.type === 'text') {
+            } else if (node.type === 'text' || node.type === 'styledText') {
                 out.push(node.text || '');
             } else if (node.type === 'table') {
                 node.rows.forEach(row => out.push(row.join(' | ')));
@@ -4920,6 +4920,7 @@ function portableText(value) {
 
     out = out
         .replace(/^\s*\[\[PAGE_PROFILE:\s*[\s\S]*?\]\]\s*$/gmi, '')
+        .replace(/^\s*\[\[LINE_STYLE:\s*[^\]]*?\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi, (_, text) => String(text || '').trim())
         .replace(/^\s*\[\[WORDSEARCH_START\]\]\s*$/gmi, '')
         .replace(/^\s*\[\[WORDSEARCH_END\]\]\s*$/gmi, '')
         .replace(/^\s*\[\[WORDSEARCH_ROW:\s*([\s\S]*?)\]\]\s*$/gmi, (_, row) =>
@@ -5372,7 +5373,7 @@ function formatOutput(text) {
     if (window.PaperAIDocumentModel?.parse) {
         const model = window.PaperAIDocumentModel.parse(repaired);
         const firstTextIndex = model.nodes.findIndex(node =>
-            node.type === 'text' && String(node.text || '').trim()
+            (node.type === 'text' || node.type === 'styledText') && String(node.text || '').trim()
         );
         let html = '';
 
@@ -5409,6 +5410,30 @@ function formatOutput(text) {
                 html += '<span class="output-line"></span>';
                 return;
             }
+            if (node.type === 'styledText') {
+                const style = node.style || {};
+                const sizePx = style.size === 'title'
+                    ? 'var(--paper-title-size)'
+                    : style.size === 'heading'
+                        ? 'var(--paper-heading-size)'
+                        : style.size === 'small'
+                            ? 'calc(var(--paper-body-size) * 0.9)'
+                            : 'var(--paper-body-size)';
+                const inlineStyle = [
+                    'text-align:' + (style.align || 'left'),
+                    'font-weight:' + (style.weight === 'bold' ? '700' : '400'),
+                    'font-size:' + sizePx
+                ].join(';');
+                const cls = style.role === 'title'
+                    ? 'output-line output-heading output-title'
+                    : style.role === 'heading'
+                        ? 'output-line output-heading'
+                        : 'output-line';
+                html += '<span class="' + cls + '" style="' + inlineStyle + '">' +
+                    formatOutputLine(node.text) + '</span>';
+                return;
+            }
+
             if (node.type === 'text') {
                 const heading = isOutputHeadingLine(node.text, index, firstTextIndex);
                 const isTitle = heading && index === firstTextIndex;
