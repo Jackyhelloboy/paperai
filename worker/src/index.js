@@ -25,12 +25,13 @@ export default {
         status: 'running',
         endpoints: [
           'POST /api/ocr',
+          'POST /api/analyze-paper',
           'POST /api/suggest-word',
           'GET /api/usage',
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v22',
+        architecture: 'production-literal-ocr-v23',
       }, { headers: corsHeaders });
     }
 
@@ -38,7 +39,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v22',
+        architecture: 'production-literal-ocr-v23',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -75,6 +76,22 @@ export default {
         return await handleOCR(request, env, corsHeaders);
       } catch (e) {
         return Response.json({ error: e.message || 'OCR request failed' }, { status: 500, headers: corsHeaders });
+      }
+    }
+
+    if (url.pathname === '/api/analyze-paper' && request.method === 'POST') {
+      try {
+        return await handlePaperAnalysis(request, env, corsHeaders);
+      } catch (e) {
+        if (isDailyFreeLimitError(e)) {
+          try { await markUsageExhausted(env); } catch (_) {}
+          return Response.json({ error: 'Daily free AI limit reached', code: 'FREE_AI_LIMIT_REACHED' }, { status: 429, headers: corsHeaders });
+        }
+        return Response.json({
+          status: 'completed',
+          analysis: fallbackPaperAnalysis([]),
+          warning: 'Paper continuity AI was unavailable: ' + (e?.message || 'unknown error')
+        }, { headers: corsHeaders });
       }
     }
 
@@ -581,6 +598,221 @@ function parseSuggestionJson(text) {
   return [];
 }
 
+function cleanPaperPage(value, fallbackIndex = 0) {
+  const page = value && typeof value === 'object' ? value : {};
+  return {
+    index: Number.isInteger(Number(page.index)) ? Number(page.index) : fallbackIndex,
+    filename: String(page.filename || '').slice(0, 180),
+    text: String(page.text || '').slice(0, 7000),
+    profile: page.profile && typeof page.profile === 'object' ? page.profile : {},
+  };
+}
+
+function fallbackPaperAnalysis(pages = []) {
+  const clean = Array.isArray(pages) ? pages.map(cleanPaperPage) : [];
+  return {
+    documents: clean.length ? [{
+      label: 'Paper 1',
+      class: null,
+      subject: null,
+      exam: null,
+      confidence: 'low',
+      page_indices: clean.map(p => p.index),
+      sections: [],
+      warnings: [],
+    }] : [],
+    pages: clean.map((p, order) => ({
+      index: p.index,
+      document: 0,
+      order,
+      continuation_of_section: null,
+      warnings: [],
+    })),
+    warnings: [],
+    source: 'fallback',
+  };
+}
+
+function parsePaperAnalysisJson(text, pages) {
+  const raw = String(text || '').trim();
+  const candidates = [raw];
+  const fenced = raw.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i);
+  if (fenced) candidates.unshift(fenced[1].trim());
+  const objectMatch = raw.match(/\{[\s\S]*\}/);
+  if (objectMatch) candidates.unshift(objectMatch[0]);
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (!parsed || !Array.isArray(parsed.documents) || !Array.isArray(parsed.pages)) continue;
+
+      const validIndices = new Set(pages.map(p => p.index));
+      const used = new Set();
+      const documents = [];
+
+      for (let d = 0; d < parsed.documents.length; d++) {
+        const doc = parsed.documents[d] || {};
+        const indices = Array.isArray(doc.page_indices)
+          ? doc.page_indices.map(Number).filter(i => validIndices.has(i) && !used.has(i))
+          : [];
+        for (const i of indices) used.add(i);
+        if (!indices.length) continue;
+
+        const sections = Array.isArray(doc.sections) ? doc.sections.slice(0, 24).map(section => ({
+          label: String(section?.label ?? '').slice(0, 24) || null,
+          title: String(section?.title ?? '').slice(0, 240) || null,
+          marks: String(section?.marks ?? '').slice(0, 40) || null,
+          expected_items: Number.isFinite(Number(section?.expected_items)) ? Number(section.expected_items) : null,
+          found_items: Number.isFinite(Number(section?.found_items)) ? Number(section.found_items) : null,
+          page_indices: Array.isArray(section?.page_indices)
+            ? section.page_indices.map(Number).filter(i => validIndices.has(i))
+            : [],
+          warnings: Array.isArray(section?.warnings) ? section.warnings.map(x => String(x).slice(0,180)).slice(0,8) : [],
+        })) : [];
+
+        documents.push({
+          label: String(doc.label || ('Paper ' + (documents.length + 1))).slice(0,80),
+          class: doc.class == null ? null : String(doc.class).slice(0,80),
+          subject: doc.subject == null ? null : String(doc.subject).slice(0,80),
+          exam: doc.exam == null ? null : String(doc.exam).slice(0,80),
+          confidence: ['high','medium','low'].includes(doc.confidence) ? doc.confidence : 'low',
+          page_indices: indices,
+          sections,
+          warnings: Array.isArray(doc.warnings) ? doc.warnings.map(x => String(x).slice(0,180)).slice(0,12) : [],
+        });
+      }
+
+      const unassigned = pages.map(p => p.index).filter(i => !used.has(i));
+      if (unassigned.length) {
+        documents.push({
+          label: 'Unmatched pages',
+          class: null,
+          subject: null,
+          exam: null,
+          confidence: 'low',
+          page_indices: unassigned,
+          sections: [],
+          warnings: ['These pages could not be confidently matched to another paper.'],
+        });
+      }
+
+      const pageRows = [];
+      for (let d = 0; d < documents.length; d++) {
+        documents[d].page_indices.forEach((index, order) => {
+          const supplied = parsed.pages.find(p => Number(p?.index) === index) || {};
+          pageRows.push({
+            index,
+            document: d,
+            order,
+            continuation_of_section: supplied.continuation_of_section == null
+              ? null
+              : String(supplied.continuation_of_section).slice(0,80),
+            warnings: Array.isArray(supplied.warnings)
+              ? supplied.warnings.map(x => String(x).slice(0,180)).slice(0,8)
+              : [],
+          });
+        });
+      }
+
+      return {
+        documents,
+        pages: pageRows,
+        warnings: Array.isArray(parsed.warnings)
+          ? parsed.warnings.map(x => String(x).slice(0,200)).slice(0,16)
+          : [],
+        source: 'workers-ai',
+      };
+    } catch (_) {}
+  }
+
+  return fallbackPaperAnalysis(pages);
+}
+
+async function handlePaperAnalysis(request, env, corsHeaders) {
+  const body = await request.json().catch(() => ({}));
+  const pages = Array.isArray(body?.pages)
+    ? body.pages.slice(0, 24).map((page, index) => cleanPaperPage(page, index))
+    : [];
+
+  if (!pages.length) {
+    return Response.json({ status: 'completed', analysis: fallbackPaperAnalysis([]) }, {
+      headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' }
+    });
+  }
+
+  if (!env.AI) {
+    return Response.json({ status: 'completed', analysis: fallbackPaperAnalysis(pages) }, {
+      headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' }
+    });
+  }
+
+  const pageText = pages.map(page => [
+    '--- PAGE INDEX ' + page.index + ' ---',
+    'Filename: ' + (page.filename || 'unknown'),
+    'Page profile: ' + JSON.stringify(page.profile || {}),
+    page.text || '[no readable text]'
+  ].join('\n')).join('\n\n');
+
+  const prompt = [
+    'You are PaperAI Paper Continuity Analyzer.',
+    'Analyze the organization of a batch of OCR pages. DO NOT rewrite, correct, translate, solve, or invent any source text.',
+    '',
+    'GOALS:',
+    '1. Decide which pages belong to the same school question paper/answer sheet.',
+    '2. Order pages inside each paper using visible header identity and section/question continuity.',
+    '3. Identify visible class, subject and exam/test name only when supported by OCR.',
+    '4. Detect section/bit sequence such as I, II, III, IV, V, VI and whether a page continues a section from another page.',
+    '5. For marks formulas like 3x2=6M or 4×1=4, expected_items is the first number. Count found numbered items literally; if they disagree, report a warning but NEVER delete/add an item.',
+    '6. Recognize common school-paper bits: short answers, word meanings, singular/plural, antonyms, fill-in-the-blanks with choices, matching, true/false, word-search/grid.',
+    '',
+    'GROUPING RULES:',
+    '- A shared school name alone is NOT enough to group pages.',
+    '- Prefer visible class/subject/exam header identity.',
+    '- A continuation page may have no header; attach it only when section numbering/content pattern strongly continues another page.',
+    '- A page beginning with later items of section IV and then sections V/VI is likely a continuation of a header page that ended in section IV.',
+    '- If two header pages show different exam labels/classes, keep them in separate documents even if both are Hindi and from the same school.',
+    '- Every input page index must appear exactly once.',
+    '- If uncertain, keep a page separate rather than forcing a match.',
+    '',
+    'ACCURACY RULES:',
+    '- Never reconstruct missing question wording from a class pattern.',
+    '- Never use textbook/world knowledge to fill unreadable text.',
+    '- Section patterns may be used only for grouping, ordering, count checks and formatting.',
+    '- Preserve OCR mistakes as evidence; this endpoint is structural analysis only.',
+    '',
+    'Return strict JSON only in this schema:',
+    '{"documents":[{"label":"Paper 1","class":"V","subject":"Hindi","exam":"FA-IV","confidence":"high","page_indices":[2,0],"sections":[{"label":"I","title":"visible heading","marks":"3x2=6M","expected_items":3,"found_items":3,"page_indices":[2],"warnings":[]}],"warnings":[]}],"pages":[{"index":2,"document":0,"order":0,"continuation_of_section":null,"warnings":[]},{"index":0,"document":0,"order":1,"continuation_of_section":"IV","warnings":[]}],"warnings":[]}',
+    '',
+    pageText
+  ].join('\n');
+
+  let response;
+  try {
+    response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
+      messages: [
+        { role: 'system', content: 'Return only strict JSON for question-paper grouping and continuity. Never rewrite source text.' },
+        { role: 'user', content: prompt },
+      ],
+      max_completion_tokens: 1800,
+      temperature: 0,
+      chat_template_kwargs: { enable_thinking: false },
+    }, { rejectIfBusy: true });
+  } catch (e) {
+    return Response.json({
+      status: 'completed',
+      analysis: fallbackPaperAnalysis(pages),
+      warning: 'Continuity analysis fell back to upload order.'
+    }, { headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' } });
+  }
+
+  try { await recordAiUsage(env, response?.usage || null); } catch (_) {}
+
+  const analysis = parsePaperAnalysisJson(extractAiText(response), pages);
+  return Response.json({ status: 'completed', analysis }, {
+    headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' }
+  });
+}
+
 async function handleWordSuggestion(request, env, corsHeaders) {
   if (!env.AI) return Response.json({ suggestions: [] }, { headers: corsHeaders });
 
@@ -690,6 +922,7 @@ async function handleOCR(request, env, corsHeaders) {
   let difficulty = 'auto';
   let imageMeta = {};
   let learningHints = [];
+  let paperContext = {};
   let layoutOptions = {
     preset: 'auto',
     density: 'auto',
@@ -722,6 +955,12 @@ async function handleOCR(request, env, corsHeaders) {
       learningHints = [];
     }
     try {
+      paperContext = JSON.parse(formData.get('paper_context') || '{}');
+      if (!paperContext || typeof paperContext !== 'object') paperContext = {};
+    } catch (_) {
+      paperContext = {};
+    }
+    try {
       const requested = JSON.parse(formData.get('layout_options') || '{}');
       layoutOptions = {
         preset: ['auto','question-paper','worksheet','form','table','preserve'].includes(requested?.preset) ? requested.preset : 'auto',
@@ -745,6 +984,7 @@ async function handleOCR(request, env, corsHeaders) {
     difficulty = normalizeDifficulty(body.difficulty);
     imageMeta = body.image_meta || {};
     learningHints = sanitizeLearningHints(body.learning_hints || []);
+    paperContext = body.paper_context && typeof body.paper_context === 'object' ? body.paper_context : {};
     const requestedLayout = body.layout_options || {};
     layoutOptions = {
       preset: ['auto','question-paper','worksheet','form','table','preserve'].includes(requestedLayout?.preset) ? requestedLayout.preset : 'auto',
@@ -859,7 +1099,7 @@ async function handleOCR(request, env, corsHeaders) {
   try {
     // FREE-ONLY MODE: one primary inference, with a conditional same-model
     // verification pass only when the first result is uncertain. No paid fallback.
-    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions);
+    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions, paperContext);
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
@@ -944,11 +1184,12 @@ async function handleOCR(request, env, corsHeaders) {
         requested_language: language,
         layout_profile: layoutProfileRaw,
         layout_options: layoutOptions,
+        paper_context_used: Boolean(paperContext && (paperContext.previous_page_tail || paperContext.page_index != null)),
         detected_language: detectedLanguage,
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v22',
+        architecture: 'production-literal-ocr-v23',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1231,7 +1472,7 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], layoutOptions = {}) {
+async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], layoutOptions = {}, paperContext = {}) {
   if (!env.AI) {
     throw new Error('Workers AI not available - check if AI binding is configured');
   }
@@ -1282,6 +1523,21 @@ If density/title alignment/text scale/heading weight are not "auto", treat them 
 `
     : '';
 
+  const previousPageTail = String(paperContext?.previous_page_tail || '').slice(-1800);
+  const paperContextInstruction = previousPageTail || paperContext?.page_index != null
+    ? `
+MULTI-PAGE PAPER CONTEXT (structural hint only):
+Current uploaded page position: ${Number(paperContext?.page_index || 0) + 1} of ${Number(paperContext?.page_total || 1)}.
+Previous page OCR tail, if any:
+---BEGIN PREVIOUS PAGE TAIL---
+${previousPageTail || '[none]'}
+---END PREVIOUS PAGE TAIL---
+Use this ONLY to notice likely continuation of section numbering/question patterns. Never copy words from the previous page into the current page. If the current page shows a different class/exam/header, ignore previous-page continuity.
+Preserve every visible question number, Roman section label, marks formula, option pair and answer blank on the current page.
+If a section heading or numbered question is visible, do not omit it merely because ruled notebook lines or faint show-through are nearby.
+`
+    : '';
+
   const languageHint = {
     auto: 'Auto-detect all visible languages and scripts. Mixed-language pages are common.',
     en: 'Main language: English. Preserve any Indian-language text exactly where it appears.',
@@ -1306,6 +1562,7 @@ ${languageHint}
 ${learningSection}
 ${layoutSection}
 ${layoutProfileInstruction}
+${paperContextInstruction}
 SCAN MODE:
 ${scanMode === 'line-by-line'
   ? 'The image has been locally reorganized into horizontal text strips in original top-to-bottom order. Read ONE strip at a time, left-to-right, and output one corresponding text line per strip. Blank vertical gaps were removed only to reduce wasted vision work. Do not invent strip numbers or separators.'
