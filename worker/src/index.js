@@ -30,7 +30,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v21',
+        architecture: 'production-literal-ocr-v22',
       }, { headers: corsHeaders });
     }
 
@@ -38,7 +38,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v21',
+        architecture: 'production-literal-ocr-v22',
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -690,6 +690,12 @@ async function handleOCR(request, env, corsHeaders) {
   let difficulty = 'auto';
   let imageMeta = {};
   let learningHints = [];
+  let layoutOptions = {
+    preset: 'auto',
+    density: 'auto',
+    aiLayoutCheck: true,
+    englishFont: 'Tahoma',
+  };
 
   if (contentType.includes('multipart/form-data')) {
     const formData = await request.formData();
@@ -712,6 +718,15 @@ async function handleOCR(request, env, corsHeaders) {
     } catch (_) {
       learningHints = [];
     }
+    try {
+      const requested = JSON.parse(formData.get('layout_options') || '{}');
+      layoutOptions = {
+        preset: ['auto','question-paper','worksheet','form','table','preserve'].includes(requested?.preset) ? requested.preset : 'auto',
+        density: ['auto','compact','normal','spacious'].includes(requested?.density) ? requested.density : 'auto',
+        aiLayoutCheck: requested?.aiLayoutCheck !== false,
+        englishFont: 'Tahoma',
+      };
+    } catch (_) {}
     const buffer = await file.arrayBuffer();
     fileBuffer = buffer;
     imageDataBase64 = arrayBufferToBase64(buffer);
@@ -724,6 +739,13 @@ async function handleOCR(request, env, corsHeaders) {
     difficulty = normalizeDifficulty(body.difficulty);
     imageMeta = body.image_meta || {};
     learningHints = sanitizeLearningHints(body.learning_hints || []);
+    const requestedLayout = body.layout_options || {};
+    layoutOptions = {
+      preset: ['auto','question-paper','worksheet','form','table','preserve'].includes(requestedLayout?.preset) ? requestedLayout.preset : 'auto',
+      density: ['auto','compact','normal','spacious'].includes(requestedLayout?.density) ? requestedLayout.density : 'auto',
+      aiLayoutCheck: requestedLayout?.aiLayoutCheck !== false,
+      englishFont: 'Tahoma',
+    };
     if (!imageDataBase64) {
       return Response.json({ error: 'No image data in JSON body. Send { "image": "base64..." }' }, { status: 400, headers: corsHeaders });
     }
@@ -828,7 +850,7 @@ async function handleOCR(request, env, corsHeaders) {
   try {
     // FREE-ONLY MODE: one primary inference, with a conditional same-model
     // verification pass only when the first result is uncertain. No paid fallback.
-    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints);
+    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions);
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
@@ -875,6 +897,8 @@ async function handleOCR(request, env, corsHeaders) {
   const allCorrections = [];
 
   const consistencyWarnings = checkConsistency(correctedText);
+  const profileMatch = correctedText.match(/^\s*\[\[PAGE_PROFILE:\s*([\s\S]*?)\]\]\s*$/mi);
+  const layoutProfileRaw = profileMatch ? profileMatch[1].trim() : '';
   const plainText = stripOcrMetadata(correctedText);
 
   // Compute post-correction confidence
@@ -909,11 +933,13 @@ async function handleOCR(request, env, corsHeaders) {
         error: aiResult.error || null,
         language: effectiveLanguage,
         requested_language: language,
+        layout_profile: layoutProfileRaw,
+        layout_options: layoutOptions,
         detected_language: detectedLanguage,
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v21',
+        architecture: 'production-literal-ocr-v22',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1196,7 +1222,7 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = []) {
+async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], layoutOptions = {}) {
   if (!env.AI) {
     throw new Error('Workers AI not available - check if AI binding is configured');
   }
@@ -1221,6 +1247,25 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
         (i + 1) + '. Previously confused "' + h.wrong + '" with "' + h.right + '". Re-check these shapes carefully if a visually similar token appears. NEVER force the corrected form unless the current pixels support it.'
       ).join('\n') + '\n'
     : '';
+  const layoutPreset = ['auto','question-paper','worksheet','form','table','preserve'].includes(layoutOptions?.preset)
+    ? layoutOptions.preset
+    : 'auto';
+  const requestedDensity = ['auto','compact','normal','spacious'].includes(layoutOptions?.density)
+    ? layoutOptions.density
+    : 'auto';
+  const aiLayoutCheck = layoutOptions?.aiLayoutCheck !== false;
+  const layoutProfileInstruction = aiLayoutCheck
+    ? `
+AI LAYOUT PROFILE (internal metadata only):
+Before the visible transcription, output exactly ONE line in this format:
+[[PAGE_PROFILE: kind=<question-paper|worksheet|form|table|general>; orientation=<portrait|landscape>; density=<compact|normal|spacious>; title_align=<left|center|right>; title_weight=<normal|bold>; columns=<1|2|3>; title_size=<12-20>; heading_size=<10-16>; body_size=<9-14>; english_font=Tahoma; confidence=<high|medium|low>]]
+Estimate ONLY relative layout/style that is clearly visible. Do not guess an exact source font name. PaperAI always uses Tahoma for English output. Do not put source text inside PAGE_PROFILE.
+User layout preset: ${layoutPreset}. Requested density: ${requestedDensity}.
+If preset is not "auto", use it as a reconstruction preference unless it contradicts the source geometry.
+If density is not "auto", use it as the final reconstruction density.
+`
+    : '';
+
   const languageHint = {
     auto: 'Auto-detect all visible languages and scripts. Mixed-language pages are common.',
     en: 'Main language: English. Preserve any Indian-language text exactly where it appears.',
@@ -1244,6 +1289,7 @@ LANGUAGE INSTRUCTION:
 ${languageHint}
 ${learningSection}
 ${layoutSection}
+${layoutProfileInstruction}
 SCAN MODE:
 ${scanMode === 'line-by-line'
   ? 'The image has been locally reorganized into horizontal text strips in original top-to-bottom order. Read ONE strip at a time, left-to-right, and output one corresponding text line per strip. Blank vertical gaps were removed only to reduce wasted vision work. Do not invent strip numbers or separators.'
@@ -1257,7 +1303,7 @@ Use nearby visible context only to choose between visually plausible characters;
 Before answering, silently inspect the complete page from top-left to bottom-right. For difficult pages, do a second visual check of every number, operator, mark, unit, punctuation symbol, and short handwritten word before producing the final transcription.
 
 STRICT TRANSCRIPTION RULES:
-1. Output ONLY text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
+1. Output ONLY the optional allowed [[PAGE_PROFILE: ...]] metadata line followed by text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
 2. Preserve the source exactly even when it contains mistakes. Do not correct an equation, date, spelling, answer, or fact.
 3. Preserve English, Hindi, Telugu, and every other visible script without transliteration. A Devanagari word must remain Devanagari; never output Roman spellings such as "rupaye" when the visible source is "रुपया". Legitimate printed/handwritten English words must remain English.
 4. Treat intentional handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
@@ -1690,6 +1736,13 @@ function stripBranchMetadata(text) {
   return out.join('\n');
 }
 
+function stripPageProfileMetadata(text) {
+  return String(text || '')
+    .split('\n')
+    .filter(line => !/^\s*\[\[PAGE_PROFILE:\s*[\s\S]*?\]\]\s*$/i.test(line))
+    .join('\n');
+}
+
 function stripStructuredMetadata(text) {
   const lines = String(text || '').split('\n');
   const out = [];
@@ -1755,7 +1808,7 @@ function stripStructuredMetadata(text) {
 function stripOcrMetadata(text) {
   if (!text) return '';
 
-  return stripBranchMetadata(stripStructuredMetadata(String(text)))
+  return stripBranchMetadata(stripStructuredMetadata(stripPageProfileMetadata(String(text))))
     .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
       return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
     })
