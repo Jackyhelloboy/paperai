@@ -823,11 +823,78 @@
             border-color: var(--accent);
         }
 
+        .teach-language-bar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            gap: 0.45rem;
+            align-items: end;
+            margin-bottom: 0.55rem;
+        }
+
+        .teach-lang-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.22rem;
+            min-width: 0;
+        }
+
+        .teach-lang-label {
+            font-size: 0.58rem;
+            font-weight: 700;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .teach-lang-select {
+            width: 100%;
+            min-height: 36px;
+            padding: 0.38rem 1.9rem 0.38rem 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            font: 600 0.72rem/1.2 Tahoma, 'Hind', 'Noto Sans Devanagari', 'Noto Sans Telugu', sans-serif;
+            outline: none;
+        }
+
+        .teach-lang-select:focus {
+            border-color: var(--accent);
+        }
+
+        .teach-lang-arrow {
+            align-self: center;
+            color: var(--text3);
+            font-size: 1rem;
+            font-weight: 700;
+            padding-bottom: 0.5rem;
+        }
+
+        .teach-language-status {
+            grid-column: 1 / -1;
+            font-size: 0.6rem;
+            color: var(--text3);
+            min-height: 1.2em;
+        }
+
         .teach-toolbar {
             display: flex;
             flex-wrap: wrap;
             gap: 0.4rem;
             margin-bottom: 0.5rem;
+        }
+
+        @media (max-width: 520px) {
+            .teach-language-bar {
+                grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+                gap: 0.3rem;
+            }
+
+            .teach-lang-select {
+                font-size: 0.66rem;
+                padding-left: 0.45rem;
+                padding-right: 1.35rem;
+            }
         }
 
         .teach-tool {
@@ -1635,7 +1702,36 @@
 
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
-                <div class="teach-sub">Smart multilingual typing is automatic. Roman phonetic typing is converted for the document language, and difficult words can receive AI suggestions. Edits preview instantly below.</div>
+                <div class="teach-sub">Choose where your Roman/English typing should go. Example: English → Hindi turns <strong>jawad</strong> into suggestions such as <strong>जवाद</strong>. Difficult words can also receive AI suggestions.</div>
+                <div class="teach-language-bar">
+                    <label class="teach-lang-field">
+                        <span class="teach-lang-label">From</span>
+                        <select class="teach-lang-select" id="teachFromSelect">
+                            <option value="roman" selected>English / Roman</option>
+                        </select>
+                    </label>
+                    <span class="teach-lang-arrow">→</span>
+                    <label class="teach-lang-field">
+                        <span class="teach-lang-label">To</span>
+                        <select class="teach-lang-select" id="teachToSelect">
+                            <option value="auto">Auto from document</option>
+                            <option value="en">English</option>
+                            <option value="hi">Hindi</option>
+                            <option value="mr">Marathi</option>
+                            <option value="te">Telugu</option>
+                            <option value="ta">Tamil</option>
+                            <option value="kn">Kannada</option>
+                            <option value="ml">Malayalam</option>
+                            <option value="bn">Bengali</option>
+                            <option value="gu">Gujarati</option>
+                            <option value="pa">Punjabi</option>
+                            <option value="or">Odia</option>
+                            <option value="ur">Urdu</option>
+                            <option value="ks">Kashmiri</option>
+                        </select>
+                    </label>
+                    <div class="teach-language-status" id="teachLanguageStatus"></div>
+                </div>
                 <div class="teach-toolbar">
                     <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                     <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
@@ -1683,6 +1779,7 @@ const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaN
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
+const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let file=null, lastResult=null, showingRaw=false;
 let teachOriginalText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
