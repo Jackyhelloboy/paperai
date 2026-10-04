@@ -5095,7 +5095,7 @@ async function sendFileToWorker(inputFile, signal) {
     return body;
 }
 
-async function sendToOCR(sourceBlob, signal, progressText = '') {
+async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {}) {
     let prepared = await prepareImageForOCR(sourceBlob, false);
 
     if (progressText) {
@@ -5115,6 +5115,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         formData.append('difficulty', prepared.difficulty);
         formData.append('image_meta', JSON.stringify(prepared.meta || {}));
         formData.append('layout_options', JSON.stringify(getLayoutOptions()));
+        formData.append('paper_context', JSON.stringify(paperContext || {}));
         appendLearningHints(formData);
 
         let res;
