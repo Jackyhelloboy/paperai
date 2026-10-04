@@ -1702,7 +1702,7 @@
 
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
-                <div class="teach-sub">Google-style smart conversion: names are transliterated, while real phrases are translated by meaning. Example: English → Hindi can turn <strong>jawad</strong> into <strong>जवाद</strong>, while a sentence such as <strong>i love you</strong> is translated instead of becoming phonetic Hindi.</div>
+                <div class="teach-sub">Google Input-style phonetic typing: keep the same spoken words and change only the script. Example: English → Hindi turns <strong>jawad</strong> into <strong>जवाद</strong> and <strong>i love you</strong> into <strong>इ लोवे योउ</strong>. Difficult spellings can receive AI phonetic suggestions.</div>
                 <div class="teach-language-bar">
                     <label class="teach-lang-field">
                         <span class="teach-lang-label">From</span>
@@ -3131,18 +3131,19 @@ function updateTeachLanguageStatus() {
         sourceLabel + ' → ' + targetLabel +
         (sourceLanguage === targetLanguage
             ? ' · spelling/script suggestions'
-            : ' · meanings translate · names transliterate');
+            : ' · phonetic transliteration only · meaning is not translated');
 }
 
 function getLocalSmartSuggestions(input) {
-    const roman = String(input || '').toLowerCase().trim();
-    if (!/^[a-z]+$/.test(roman)) return [input];
+    const roman = String(input || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!/^[a-z]+(?: [a-z]+)*$/.test(roman)) return [input];
 
     const script = currentTeachScript();
     if (script === 'latin') return [roman];
 
     const suggestions = [];
-    const override = getCanonicalPhoneticOverride(roman, script);
+    const isSingleWord = !roman.includes(' ');
+    const override = isSingleWord ? getCanonicalPhoneticOverride(roman, script) : '';
     if (override) suggestions.push(override);
 
     try {
@@ -3154,7 +3155,7 @@ function getLocalSmartSuggestions(input) {
     } catch (_) {}
 
     suggestions.push(roman);
-    return uniqueStrings(suggestions).slice(0, 6);
+    return uniqueStrings(suggestions).slice(0, 8);
 }
 
 function transliterateSmartWord(input) {
@@ -3275,34 +3276,32 @@ function showSmartSuggestions() {
     }
 
     const sourceText = smartComposition.source.replace(/\s+/g, ' ').trim();
-    const words = sourceText.split(/\s+/).filter(Boolean);
     const targetLanguage = currentTeachLanguage();
     const targetScript = currentTeachScript();
     const sourceLanguage = currentTeachSourceLanguage(sourceText);
-    const isPhrase = words.length >= 2;
     const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
 
     let localChoices = [];
-    if (!isPhrase && isRomanSource && targetScript !== 'latin') {
-        localChoices = getLocalSmartSuggestions(sourceText);
-        localChoices = localChoices.filter(choice => choice.toLowerCase() !== sourceText.toLowerCase());
+    if (isRomanSource && targetScript !== 'latin') {
+        localChoices = getLocalSmartSuggestions(sourceText)
+            .filter(choice => choice.toLowerCase() !== sourceText.toLowerCase());
     }
 
-    renderSuggestionChips(localChoices, [], true);
+    renderSuggestionChips(localChoices, [], localChoices.length === 0);
 
     const sequence = ++aiSuggestionSequence;
 
-    // Known phonetic names can still be applied instantly without an AI call.
-    if (!isPhrase && isRomanSource && targetScript !== 'latin') {
-        const canonical = getCanonicalPhoneticOverride(sourceText, targetScript);
-        if (canonical) {
-            aiSuggestionTimer = setTimeout(() => {
-                autoApplySmartSuggestion(sourceText, canonical, sequence);
-            }, 500);
-            return;
-        }
+    // Fast local Google-Input-style behavior: keep pronunciation and convert
+    // only the script. This intentionally does NOT translate sentence meaning.
+    if (isRomanSource && targetScript !== 'latin' && localChoices[0]) {
+        aiSuggestionTimer = setTimeout(() => {
+            autoApplySmartSuggestion(sourceText, localChoices[0], sequence);
+        }, 550);
+        return;
     }
 
+    // Difficult/non-Roman cases use AI only as a phonetic transliteration
+    // fallback. AI must preserve the spoken words, not translate semantics.
     aiSuggestionTimer = setTimeout(async () => {
         const aiChoices = await fetchAiTextSuggestions(
             sourceText,
@@ -3314,14 +3313,7 @@ function showSmartSuggestions() {
 
         if (sequence !== aiSuggestionSequence || !smartComposition) return;
         renderSuggestionChips(localChoices, aiChoices, false);
-
-        // Multi-word input is treated like Google Translate: translate meaning
-        // and replace automatically after the user pauses. Single words remain
-        // suggestions unless they are a known proper-name phonetic override.
-        if (isPhrase && sourceLanguage !== targetLanguage && aiChoices[0]) {
-            autoApplySmartSuggestion(sourceText, aiChoices[0], sequence);
-        }
-    }, isPhrase ? 700 : 900);
+    }, 900);
 }
 
 function chooseSmartSuggestion(choice) {
