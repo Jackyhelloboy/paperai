@@ -3,12 +3,35 @@
 
     const CIRCLED = /[⓪①-⑳❶-❿]/;
 
+    function normalizeQuestionMetadata(value) {
+        const label = token => String(token || '').trim().replace(/[.)।:;]+$/u, '');
+        let out = String(value || '').replace(/\[\[QUESTION_(SECTION|ITEM):\s*([^\n]*?)\]\]/gi, (raw, kind, body) => {
+            const fields = body.split(body.includes('||') ? /\s*\|\|\s*/ : /\s*\|\s*/).map(part => part.trim());
+            if (fields.length !== (kind.toUpperCase() === 'SECTION' ? 3 : 2)) return raw;
+            fields[0] = label(fields[0]);
+            return '[[QUESTION_' + kind.toUpperCase() + ': ' + fields.join(' || ') + ']]';
+        });
+        out = out.replace(/^[ \t]*\[\[ANSWER_RULE(?::[ \t]*_*)?\]\][ \t]*$/gmi, '[[ANSWER_RULE]]');
+        out = out.replace(/\[\[ANSWER_RULE:[ \t]*_*[ \t]*\]\]/gi, '\n[[ANSWER_RULE]]\n');
+        // The model sometimes prints a heading and immediately repeats it as metadata.
+        let previous = '';
+        return out.split('\n').filter(line => {
+            if (!line.trim()) return true;
+            const section = line.match(/^\[\[QUESTION_SECTION: (.*?) \|\| (.*?) \|\| (.*?)\]\]$/i);
+            const visible = section ? [section[1] + '.', section[2], section[3]].filter(Boolean).join(' ') : line;
+            const key = visible.trim().replace(/^([IVXivx]+)[.)।:;]+\s*/u, '$1. ').replace(/\s+/g, ' ');
+            const duplicate = /^(?:[IVXivx]+\.\s|\[\[QUESTION_SECTION:)/.test(visible) && key === previous;
+            previous = key;
+            return !duplicate;
+        }).join('\n');
+    }
+
     // Older results may include generated audit copy. It is not paper content.
     // Keep an ordinary source line beginning with "Review:" unless it belongs
     // to the specific generated block.
     function cleanOutputText(value) {
         let inAudit = false;
-        return String(value || '').split('\n').filter(line => {
+        return normalizeQuestionMetadata(String(value || '').split('\n').filter(line => {
             if (/^\s*(?:\*\*)?(?:AI reconstruction check|Paper pattern):(?:\*\*)?/i.test(line)) {
                 inAudit = true;
                 return false;
@@ -19,7 +42,7 @@
         }).join('\n').replace(
             /visible Roman\/section label|exact visible (?:instruction|marks formula|question number|question text)/gi,
             '[unclear]'
-        ).replace(/\[\[ANSWER_RULE:\s*\]\]/gi, '\n[[ANSWER_RULE]]\n');
+        ));
     }
 
     function circledNumberValue(ch) {
@@ -131,6 +154,7 @@
         if (!m) return null;
         const item = (num, raw) => ({
             number: readNumber(num),
+            rawNumber: num,
             text: raw.replace(/_{3,}\s*$/, '').trim(),
             hasBlank: /_{3,}\s*$/.test(raw)
         });
@@ -147,6 +171,7 @@
         return {
             type: 'singleExercise',
             number: readNumber(m[1]),
+            rawNumber: m[1],
             text,
             hasBlank: /_{3,}\s*$/.test(m[2]),
             raw: String(line || '')
@@ -432,6 +457,7 @@
     global.PaperAIDocumentModel = Object.freeze({
         parse,
         cleanOutputText,
+        normalizeQuestionMetadata,
         splitCells,
         circledNumberValue,
         readNumber,

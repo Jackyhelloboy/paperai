@@ -4661,7 +4661,8 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const cameraOriginalWidth = decoded.width || decoded.naturalWidth || 0;
     const cameraOriginalHeight = decoded.height || decoded.naturalHeight || 0;
 
-    const paperBounds = detectPaperBounds(decoded, cameraOriginalWidth, cameraOriginalHeight);
+    // Keep margin numbers and faint header letters in the full source frame.
+    const paperBounds = null;
     let workSource = decoded;
     let croppedSource = null;
     let originalWidth = cameraOriginalWidth;
@@ -4690,49 +4691,8 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const layout = detectTextLineLayout(workSource, originalWidth, originalHeight);
     const hard = analysis.difficulty === 'hard';
 
-    let lineMosaic = null;
-    if (layout.lineFriendly) {
-        try {
-            lineMosaic = await makeLineMosaic(workSource, layout, originalWidth, originalHeight, forceSafe);
-        } catch (_) {}
-    }
-
-    if (lineMosaic) {
-        if (croppedSource?.close) croppedSource.close();
-        if (decoded !== croppedSource && decoded.close) decoded.close();
-        return {
-            blob: lineMosaic.blob,
-            difficulty: hard ? 'hard' : 'easy',
-            meta: {
-                originalWidth,
-                originalHeight,
-                cameraOriginalWidth,
-                cameraOriginalHeight,
-                pageAutoCropped: Boolean(paperBounds && croppedSource),
-                paperCropConfidence: paperBounds?.confidence || 0,
-                width: lineMosaic.width,
-                height: lineMosaic.height,
-                originalBytes: source.size || 0,
-                bytes: lineMosaic.blob.size,
-                ...analysis,
-                safeRetry: forceSafe,
-                scanStrategy: 'line-mosaic',
-                lineCount: layout.lineCount,
-                lineCoverage: layout.coverage,
-                structuredLayout: false,
-                multiColumnRows: layout.multiColumnRows || 0,
-                multiColumnRatio: layout.multiColumnRatio || 0,
-                denseOptionRows: layout.denseOptionRows || 0,
-                longHorizontalRules: layout.longHorizontalRules || 0,
-                longVerticalRules: layout.longVerticalRules || 0,
-                branchingLayout: Boolean(layout.branchingLayout),
-                difficulty: hard ? 'hard' : 'easy'
-            }
-        };
-    }
-
-    const maxLongEdge = forceSafe ? 2200 : (hard ? 3200 : 2600);
-    const quality = forceSafe ? 0.88 : (hard ? 0.95 : 0.92);
+    const maxLongEdge = 3200;
+    const quality = 0.97;
     const longEdge = Math.max(originalWidth, originalHeight);
     const scale = Math.min(1, maxLongEdge / Math.max(1, longEdge));
     const targetWidth = Math.max(1, Math.round(originalWidth * scale));
@@ -4756,12 +4716,26 @@ async function prepareImageForOCR(source, forceSafe = false) {
         canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not optimize image')), preferredType, quality);
     });
 
+    const detailImages = [];
+    // Two overlapping source crops give the vision model a closer view of small
+    // handwriting. The full page remains the authority for order and layout.
+    for (const bounds of [[0, 0.58], [0.42, 1]]) {
+        const detail = document.createElement('canvas');
+        detail.width = targetWidth;
+        const top = Math.floor(targetHeight * bounds[0]);
+        detail.height = Math.ceil(targetHeight * bounds[1]) - top;
+        detail.getContext('2d').drawImage(canvas, 0, top, targetWidth, detail.height, 0, 0, targetWidth, detail.height);
+        const detailBlob = await new Promise(resolve => detail.toBlob(resolve, 'image/jpeg', 0.97));
+        if (detailBlob && detailBlob.size <= 4 * 1024 * 1024) detailImages.push(detailBlob);
+    }
+
     if (blob.size > 7 * 1024 * 1024 && !forceSafe) {
         return prepareImageForOCR(source, true);
     }
 
     return {
         blob,
+        detailImages,
         difficulty: forceSafe ? 'hard' : analysis.difficulty,
         meta: {
             originalWidth,
@@ -4776,7 +4750,7 @@ async function prepareImageForOCR(source, forceSafe = false) {
             bytes: blob.size,
             ...analysis,
             safeRetry: forceSafe,
-            scanStrategy: layout.structured ? 'structured-full-page' : 'full-page',
+            scanStrategy: 'full-page-with-details',
             lineCount: layout.lineCount,
             lineCoverage: layout.coverage,
             structuredLayout: layout.structured,
@@ -5942,7 +5916,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
         const lines = Number(prepared.meta?.lineCount) || 0;
         const lineInfo = lines > 0 ? ' · ' + lines + ' lines' : '';
         const strategy = prepared.meta?.scanStrategy === 'line-mosaic' ? ' · line-by-line scan' :
-            (prepared.difficulty === 'hard' ? ' · detailed layout scan' : ' · fast clear scan');
+            (prepared.difficulty === 'hard' ? ' · detailed layout scan' : ' · advanced full-page scan');
         setProg(18, progressText + lineInfo + strategy);
     }
 
@@ -5955,6 +5929,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
 
         const formData = new FormData();
         formData.append('file', prepared.blob, 'page.jpg');
+        (prepared.detailImages || []).forEach((detail, index) => formData.append('detail_' + index, detail, 'detail-' + index + '.jpg'));
         formData.append('language', languageSelect.value || 'auto');
         formData.append('preprocessing', 'smart');
         formData.append('engine', 'free-only');
@@ -5964,7 +5939,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
         formData.append('paper_context', JSON.stringify(paperContext || {}));
         appendLearningHints(formData);
 
-        const attemptControl = linkedAttemptSignal(signal, attempt === 0 ? 110000 : 105000);
+        const attemptControl = linkedAttemptSignal(signal, 180000);
         let res;
 
         try {
@@ -5985,7 +5960,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
             }
 
             if (attempt === 0) {
-                if (progressText) setProg(22, attemptTimedOut ? 'AI was slow · retrying safely...' : 'Connection interrupted · retrying...');
+                if (progressText) setProg(22, attemptTimedOut ? 'AI was slow · retrying the detailed read...' : 'Connection interrupted · retrying...');
                 await wait(350);
                 prepared = await prepareImageForOCR(sourceBlob, true);
                 continue;
@@ -7523,7 +7498,7 @@ goBtn.onclick = async () => {
     }
 };
 
-function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
+function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
 
 function currentExportText(){
     return currentPlainText();

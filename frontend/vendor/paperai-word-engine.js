@@ -23,6 +23,12 @@
         return String(n ?? '');
     }
 
+    function numberLabel(raw, number) {
+        const token = String(raw ?? number ?? '').trim();
+        if (/^\[\[CIRCLED:/i.test(token) || /^[⓪①-⑳❶-❿]$/.test(token)) return token;
+        return token.replace(/[.)।:;]+$/u, '') + '.';
+    }
+
     function headingLike(text, index, firstTextIndex) {
         const t = stripMarkup(text).trim();
         if (!t) return false;
@@ -171,7 +177,7 @@
                     cantSplit: true,
                     height: { value: 330, rule: d.HeightRule.ATLEAST },
                     children: [
-                        tableCell([para(circledNumber(node.number), { size: 20, center: true, after: 0, line: 240, font: 'Segoe UI Symbol' })], widths[0], { right: 20 }),
+                        tableCell([para(numberLabel(node.rawNumber, node.number), { size: 20, center: true, after: 0, line: 240 })], widths[0], { right: 20 }),
                         tableCell([para('', { after: 0, line: 240 })], widths[1], { bottom: true, bottomMargin: 65, left: 0, right: 0 })
                     ]
                 })
@@ -184,7 +190,7 @@
         const itemCells = (item) => {
             const numberW = 420, textW = 1050, blankW = 3450;
             return [
-                tableCell([para(circledNumber(item.number), { size: 19, center: true, after: 0, line: 230, font: 'Segoe UI Symbol' })], numberW, { right: 10 }),
+                tableCell([para(numberLabel(item.rawNumber, item.number), { size: 19, center: true, after: 0, line: 230 })], numberW, { right: 10 }),
                 tableCell([para(item.text, { size: 19, after: 0, line: 230 })], textW, { left: 0, right: 20 }),
                 tableCell([para('', { after: 0, line: 230 })], blankW, { bottom: item.hasBlank, bottomMargin: 60, left: 0, right: 35 })
             ];
@@ -448,7 +454,7 @@
                     cantSplit: true,
                     children: [
                         tableCell(
-                            [para(rawNumber + '.', { size: bodySize, right: true, after: 0, line })],
+                            [para(numberLabel(rawNumber, node.number), { size: bodySize, right: true, after: 0, line })],
                             widths[0],
                             { left: 0, right: 70, top: 0, bottomMargin: 0 }
                         ),
@@ -618,7 +624,7 @@
         if (!file) throw new Error('Generated Word package is missing document.xml.');
 
         const xml = await file.async('string');
-        if (/\[\[(?:PAGE_PROFILE:|LINE_STYLE:|WORDSEARCH_|BRANCH_|TABLE_|COLUMN_|CIRCLED:)/i.test(xml)) {
+        if (/\[\[(?:PAGE_PROFILE:|LINE_STYLE:|QUESTION_|ANSWER_RULE|WORDSEARCH_|BRANCH_|TABLE_|COLUMN_|CIRCLED:)/i.test(xml)) {
             throw new Error('Internal PaperAI structure metadata leaked into the Word document.');
         }
 

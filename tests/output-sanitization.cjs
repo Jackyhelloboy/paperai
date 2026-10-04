@@ -39,6 +39,8 @@ assert(context.portableText(audit + paper).includes('5. निगरानी'))
 assert(!context.normalizeQuestionMetadataForLegacy(audit + paper).includes('Review:'));
 
 const worker = fs.readFileSync(path.join(root, 'worker/src/index.js'), 'utf8');
+vm.runInContext(worker.slice(worker.indexOf('    function normalizeQuestionMetadata('), worker.indexOf('const FORBIDDEN_OCR_TEMPLATE_PHRASES')), context);
+loadFunction(worker, 'stripQuestionPaperMetadata');
 new vm.Script(worker.replace(/^import .*;\s*$/gm, '').replace(/export default /g, 'const workerDefault = ').replace(/export class /g, 'class '));
 const start = worker.indexOf('const FORBIDDEN_OCR_TEMPLATE_PHRASES');
 const end = worker.indexOf('function structuredPageNeedsVerification', start);
@@ -53,4 +55,8 @@ assert.equal(context.hasDegenerateOcr(runaway), true);
 assert.equal(context.hasDegenerateOcr('[[COLUMN_ROW: 1 फूल || (a) Dust]]'), false);
 assert.equal(context.shouldAcceptVerifiedText(runaway, 'I. निम्न लिखित प्रश्नों के उत्तर लिखिए।\n1. फूलों से हमें क्या मिलती है?'), true);
 assert.equal(context.shouldAcceptVerifiedText('1. फूल', runaway), false);
+const incomplete = '[[QUESTION_SECTION: I | उत्तर लिखिए। | 2x1=2]]\n[[QUESTION_ITEM: 1. | ]]\n[[QUESTION_ITEM: 2. | ]]';
+const recovered = '[[QUESTION_SECTION: I || उत्तर लिखिए। || 2x1=2]]\n[[QUESTION_ITEM: 1 || तीन मित्रों के क्या नाम थे?]]\n[[QUESTION_ITEM: 2 || बया खेतों से क्या लाती है?]]';
+assert.equal(context.shouldAcceptVerifiedText(incomplete, recovered), true);
+assert.equal(context.shouldAcceptVerifiedText(recovered, recovered.replace(/\n\[\[QUESTION_ITEM: 2[^\n]+/, '')), false);
 console.log('Output sanitization, source preservation, missing-word verification, and JavaScript syntax checks passed.');

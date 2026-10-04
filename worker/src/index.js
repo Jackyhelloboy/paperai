@@ -950,6 +950,7 @@ async function handleOCR(request, env, corsHeaders) {
   let language = 'auto';
   let difficulty = 'auto';
   let imageMeta = {};
+  const detailImages = [];
   let learningHints = [];
   let paperContext = {};
   let layoutOptions = {
@@ -970,6 +971,12 @@ async function handleOCR(request, env, corsHeaders) {
     }
     filename = file.name;
     mimeType = file.type || 'application/octet-stream';
+    for (let index = 0; index < 2; index++) {
+      const detail = formData.get('detail_' + index);
+      if (detail && typeof detail.arrayBuffer === 'function' && detail.size <= 4 * 1024 * 1024 && /^image\/(?:jpeg|png|webp)$/.test(detail.type)) {
+        detailImages.push({ mimeType: detail.type, base64: arrayBufferToBase64(await detail.arrayBuffer()) });
+      }
+    }
     language = formData.get('language') || 'auto';
     difficulty = normalizeDifficulty(formData.get('difficulty'));
     try {
@@ -1128,7 +1135,7 @@ async function handleOCR(request, env, corsHeaders) {
   try {
     // FREE-ONLY MODE: one primary inference, with a conditional same-model
     // verification pass only when the first result is uncertain. No paid fallback.
-    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions, paperContext);
+    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions, paperContext, detailImages);
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
@@ -1145,7 +1152,7 @@ async function handleOCR(request, env, corsHeaders) {
     }
     if (isAiTimeoutError(e)) {
       return Response.json({
-        error: 'AI OCR timed out on this image. PaperAI can automatically retry a lighter scan.',
+        error: 'The detailed AI read timed out. Retry this page with the same advanced model.',
         code: 'AI_TIMEOUT',
       }, { status: 408, headers: corsHeaders });
     }
@@ -1501,17 +1508,23 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], layoutOptions = {}, paperContext = {}) {
+async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], layoutOptions = {}, paperContext = {}, detailImages = []) {
   if (!env.AI) {
     throw new Error('Workers AI not available - check if AI binding is configured');
   }
 
   const model = '@cf/google/gemma-4-26b-a4b-it';
   const scanStrategy = imageMeta?.scanStrategy || 'full-page';
-  const scanMode = scanStrategy === 'line-mosaic'
-    ? 'line-by-line'
-    : (difficulty === 'easy' ? 'fast-clear' : 'detail-preserving');
+  const scanMode = 'advanced-detail-preserving';
   const dataUrl = `data:${mimeType};base64,${base64Image}`;
+  const imageContent = [
+    { type: 'text', text: 'Full source page. Use this frame for reading order, numbering and layout.' },
+    { type: 'image_url', image_url: { url: dataUrl } },
+    ...detailImages.flatMap((detail, index) => [
+      { type: 'text', text: index === 0 ? 'Closer view of the upper part of the SAME page.' : 'Closer view of the lower part of the SAME page. It overlaps the upper view; transcribe each source line only once.' },
+      { type: 'image_url', image_url: { url: `data:${detail.mimeType};base64,${detail.base64}` } }
+    ])
+  ];
   const layoutSection = imageMeta?.structuredLayout
     ? '\nVISUAL LAYOUT HINT:\nThis page contains structured geometry. Preserve rows, columns, long answer lines and connected relationships. Detected multi-column rows: ' +
       (Number(imageMeta?.multiColumnRows) || 0) +
@@ -1695,15 +1708,15 @@ Return only the final transcription plus the allowed [[...]] edit markers when n
       {
         role: 'user',
         content: [
-          { type: 'image_url', image_url: { url: dataUrl } },
+          ...imageContent,
           { type: 'text', text: prompt }
         ]
       }
     ],
-    max_completion_tokens: scanMode === 'fast-clear' ? 4096 : 6144,
+    max_completion_tokens: 8192,
     temperature: 0,
     chat_template_kwargs: {
-      enable_thinking: false
+      enable_thinking: true
     }
   };
 
@@ -1773,15 +1786,15 @@ VERIFICATION RULES:
           {
             role: 'user',
             content: [
-              { type: 'image_url', image_url: { url: dataUrl } },
+              ...imageContent,
               { type: 'text', text: rescuePrompt }
             ]
           }
         ],
-        max_completion_tokens: 4096,
+        max_completion_tokens: 8192,
         temperature: 0,
         chat_template_kwargs: {
-          enable_thinking: false
+          enable_thinking: true
         }
       }, { rejectIfBusy: true });
 
@@ -1807,6 +1820,30 @@ VERIFICATION RULES:
   return { text, raw: text, model, usage, scanMode, rescued };
 }
 
+    function normalizeQuestionMetadata(value) {
+        const label = token => String(token || '').trim().replace(/[.)।:;]+$/u, '');
+        let out = String(value || '').replace(/\[\[QUESTION_(SECTION|ITEM):\s*([^\n]*?)\]\]/gi, (raw, kind, body) => {
+            const fields = body.split(body.includes('||') ? /\s*\|\|\s*/ : /\s*\|\s*/).map(part => part.trim());
+            if (fields.length !== (kind.toUpperCase() === 'SECTION' ? 3 : 2)) return raw;
+            fields[0] = label(fields[0]);
+            return '[[QUESTION_' + kind.toUpperCase() + ': ' + fields.join(' || ') + ']]';
+        });
+        out = out.replace(/^[ \t]*\[\[ANSWER_RULE(?::[ \t]*_*)?\]\][ \t]*$/gmi, '[[ANSWER_RULE]]');
+        out = out.replace(/\[\[ANSWER_RULE:[ \t]*_*[ \t]*\]\]/gi, '\n[[ANSWER_RULE]]\n');
+        // The model sometimes prints a heading and immediately repeats it as metadata.
+        let previous = '';
+        return out.split('\n').filter(line => {
+            if (!line.trim()) return true;
+            const section = line.match(/^\[\[QUESTION_SECTION: (.*?) \|\| (.*?) \|\| (.*?)\]\]$/i);
+            const visible = section ? [section[1] + '.', section[2], section[3]].filter(Boolean).join(' ') : line;
+            const key = visible.trim().replace(/^([IVXivx]+)[.)।:;]+\s*/u, '$1. ').replace(/\s+/g, ' ');
+            const duplicate = /^(?:[IVXivx]+\.\s|\[\[QUESTION_SECTION:)/.test(visible) && key === previous;
+            previous = key;
+            return !duplicate;
+        }).join('\n');
+    }
+
+
 const FORBIDDEN_OCR_TEMPLATE_PHRASES = [
   'visible Roman/section label',
   'exact visible instruction',
@@ -1825,7 +1862,7 @@ function sanitizePromptTemplateLeakage(text) {
   for (const phrase of FORBIDDEN_OCR_TEMPLATE_PHRASES) {
     out = out.replace(new RegExp(phrase, 'gi'), '[unclear]');
   }
-  return out.replace(/\[\[ANSWER_RULE:\s*\]\]/gi, '\n[[ANSWER_RULE]]\n');
+  return normalizeQuestionMetadata(out);
 }
 function expectedItemsFromMarks(value) {
   const m = String(value || '').match(/(\d+|[०-९]+)\s*[x×X]\s*(\d+|[०-९]+)\s*=\s*(\d+|[०-९]+)/);
@@ -1836,7 +1873,7 @@ function expectedItemsFromMarks(value) {
 }
 
 function questionStructureNeedsVerification(text) {
-  const source = String(text || '');
+  const source = normalizeQuestionMetadata(text);
   const questionLike =
     /\[\[(?:QUESTION_SECTION|QUESTION_ITEM):/i.test(source) ||
     /(?:^|\n)\s*[IVX]{1,6}\s*[.)।:-]?\s+/m.test(source) ||
@@ -1971,8 +2008,12 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   if (hasDegenerateOcr(a)) return true;
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
 
-  const usefulLength = s => s
-    .replace(/\[\[[\s\S]*?\]\]/g, 'X')
+  const visible = s => stripQuestionPaperMetadata(s)
+    .replace(/\[\[(?:PAGE_PROFILE|LINE_STYLE):[^\n]*?\]\]/gi, '')
+    .replace(/\[\[(?:TABLE_ROW|COLUMN_ROW):\s*([^\n]*?)\]\]/gi, '$1')
+    .replace(/\[\[[^\n]*?\]\]/g, '')
+    .replace(/_{3,}/g, ' ');
+  const usefulLength = s => visible(s)
     .replace(/\s+/g, '')
     .length;
 
@@ -1981,8 +2022,7 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   const lineCount = s => s.split(/\n+/).filter(line => line.trim()).length;
 
   const tokenAgreement = (x, y) => {
-    const tokenize = s => String(s || '')
-      .replace(/\[\[[\s\S]*?\]\]/g, ' ')
+    const tokenize = s => visible(s)
       .replace(/[|()[\]{}.,;:!?/\\]+/g, ' ')
       .split(/\s+/)
       .map(t => t.trim())
@@ -2012,10 +2052,23 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   const expectedLines = Number(imageMeta?.lineCount) || 0;
   const bLines = lineCount(b);
   const agreement = tokenAgreement(a, b);
-  const firstWasUncertain = uncertainCount(a) > 0 || editCount(a) > 0;
+  const blankQuestions = s => /\[\[QUESTION_ITEM:\s*[^|]*\|\|\s*(?:_{3,}|\[unclear\])?\s*\]\]/i.test(normalizeQuestionMetadata(s));
+  const firstWasUncertain = uncertainCount(a) > 0 || editCount(a) > 0 || blankQuestions(a);
+  const itemNumbers = s => {
+    const counts = new Map();
+    for (const line of visible(s).split('\n')) {
+      const match = line.match(/^\s*([0-9०-९]+)\s*[.)।:-]?\s+/u);
+      if (match) counts.set(match[1], (counts.get(match[1]) || 0) + 1);
+    }
+    return counts;
+  };
+  const beforeNumbers = itemNumbers(a), afterNumbers = itemNumbers(b);
+  for (const [number, count] of beforeNumbers) {
+    if ((afterNumbers.get(number) || 0) < count) return false;
+  }
 
   if (bLen < Math.max(4, aLen * 0.68)) return false;
-  if (bLen > aLen * 1.55 && aLen > 20) return false;
+  if (bLen > aLen * 1.55 && aLen > 20 && !firstWasUncertain) return false;
   if (expectedLines >= 4 && bLines < Math.max(2, Math.floor(expectedLines * 0.40))) return false;
 
   // Verification may fix several characters, but it should not rewrite the
@@ -2171,7 +2224,7 @@ function stripBranchMetadata(text) {
 }
 
 function stripQuestionPaperMetadata(text) {
-  return String(text || '')
+  return normalizeQuestionMetadata(text)
     .replace(/^\s*\[\[QUESTION_SECTION:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,
       (_, label, instruction, marks) => [String(label || '').trim() + '.', String(instruction || '').trim(), String(marks || '').trim()].filter(Boolean).join(' '))
     .replace(/^\s*\[\[QUESTION_ITEM:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/gmi,
