@@ -65,7 +65,7 @@
             /^\s*((?:\[\[CIRCLED:\s*\d+\s*\]\]|[⓪①-⑳❶-❿]|\d+[.)]?))\s*_{8,}\s*$/
         );
         if (!m) return null;
-        return { type: 'answerBlank', number: readNumber(m[1]), rawNumber: m[1] };
+        return { type: 'answerBlank', number: readNumber(m[1]), rawNumber: m[1], raw: String(line || '') };
     }
 
     function parseTwoColumnExercise(line) {
@@ -78,7 +78,7 @@
             text: raw.replace(/_{3,}\s*$/, '').trim(),
             hasBlank: /_{3,}\s*$/.test(raw)
         });
-        return { type: 'twoColumnExercise', left: item(m[1], m[2]), right: item(m[3], m[4]) };
+        return { type: 'twoColumnExercise', left: item(m[1], m[2]), right: item(m[3], m[4]), raw: String(line || '') };
     }
 
     function parseSingleExercise(line) {
@@ -92,7 +92,8 @@
             type: 'singleExercise',
             number: readNumber(m[1]),
             text,
-            hasBlank: /_{3,}\s*$/.test(m[2])
+            hasBlank: /_{3,}\s*$/.test(m[2]),
+            raw: String(line || '')
         };
     }
 
