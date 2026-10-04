@@ -4608,7 +4608,57 @@ function renderStructuredHtmlTable(rows, mode = 'grid') {
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
-    const lines = repairLegacyBranchDiagram(String(text)).split('\n');
+    const repaired = repairLegacyBranchDiagram(String(text));
+
+    // One canonical parser now feeds both Extracted HTML and the modern Word
+    // exporter. Keep the older line parser as a fallback for cached clients.
+    if (window.PaperAIDocumentModel?.parse) {
+        const model = window.PaperAIDocumentModel.parse(repaired);
+        const firstTextIndex = model.nodes.findIndex(node =>
+            node.type === 'text' && String(node.text || '').trim()
+        );
+        let html = '';
+
+        model.nodes.forEach((node, index) => {
+            if (node.type === 'pageBreak') {
+                html += '<span class="output-page-break" aria-hidden="true"></span>';
+                return;
+            }
+            if (node.type === 'table') {
+                html += renderStructuredHtmlTable(node.rows, 'grid');
+                return;
+            }
+            if (node.type === 'columns') {
+                html += renderStructuredHtmlTable(node.rows, 'columns');
+                return;
+            }
+            if (node.type === 'branch') {
+                html += renderBranchDiagram(node.root, node.items);
+                return;
+            }
+            if (node.type === 'answerBlank') {
+                html += formatSingleAnswerBlankLine(node.raw || '');
+                return;
+            }
+            if (node.type === 'twoColumnExercise' || node.type === 'singleExercise') {
+                html += '<span class="output-line">' + formatOutputLine(node.raw || '') + '</span>';
+                return;
+            }
+            if (node.type === 'blank') {
+                html += '<span class="output-line"></span>';
+                return;
+            }
+            if (node.type === 'text') {
+                const heading = isOutputHeadingLine(node.text, index, firstTextIndex);
+                const cls = heading ? 'output-line output-heading' : 'output-line';
+                html += '<span class="' + cls + '">' + formatOutputLine(node.text) + '</span>';
+            }
+        });
+
+        return html;
+    }
+
+    const lines = repaired.split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     let html = '';
     let i = 0;
@@ -4646,15 +4696,7 @@ function formatOutput(text) {
         if (answerBlank) {
             html += answerBlank;
             i++;
-
-            // Collapse wrapped OCR fragments such as:
-            // ① __________
-            // ____________
-            // __
-            // into one visual answer line.
-            while (i < lines.length && isAnswerBlankContinuationLine(lines[i])) {
-                i++;
-            }
+            while (i < lines.length && isAnswerBlankContinuationLine(lines[i])) i++;
             continue;
         }
 
