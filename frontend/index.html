@@ -2644,6 +2644,9 @@ batchPreview.onclick = e => {
 [pagePresetSelect, densitySelect, titleAlignSelect, fontScaleSelect, headingWeightSelect, aiLayoutToggle].forEach(control => {
     control?.addEventListener('change', () => {
         saveLayoutPreferences();
+        if (lastResult?.layout_profile?.kind) {
+            learnLayoutPreference(lastResult.layout_profile.kind, getLayoutOptions());
+        }
         refreshLayoutFromControls();
     });
 });
@@ -5235,20 +5238,54 @@ function renderWordSearchBlock(rows, answers) {
     return '<div class="ocr-wordsearch-layout">' + grid + answerHtml + '</div>';
 }
 
+const LAYOUT_LEARNING_KEY = 'paperai_layout_learning_v1';
+
+function loadLayoutLearning() {
+    try {
+        const value = JSON.parse(localStorage.getItem(LAYOUT_LEARNING_KEY) || '{}');
+        return value && typeof value === 'object' ? value : {};
+    } catch (_) {
+        return {};
+    }
+}
+
+function learnLayoutPreference(kind, options) {
+    if (!kind || kind === 'general') return;
+    try {
+        const all = loadLayoutLearning();
+        const prev = all[kind] || {};
+        all[kind] = {
+            density: options.density !== 'auto' ? options.density : (prev.density || 'auto'),
+            titleAlign: options.titleAlign !== 'auto' ? options.titleAlign : (prev.titleAlign || 'auto'),
+            fontScale: options.fontScale !== 'auto' ? options.fontScale : (prev.fontScale || 'auto'),
+            headingWeight: options.headingWeight !== 'auto' ? options.headingWeight : (prev.headingWeight || 'auto'),
+            count: Math.min(99, Number(prev.count || 0) + 1),
+            updatedAt: Date.now()
+        };
+        localStorage.setItem(LAYOUT_LEARNING_KEY, JSON.stringify(all));
+    } catch (_) {}
+}
+
 function getEffectiveLayoutProfile(baseProfile = {}) {
     const options = getLayoutOptions();
     const profile = { ...baseProfile };
+    const learned = loadLayoutLearning()[profile.kind] || {};
+
+    const effectiveDensity = options.density !== 'auto' ? options.density : learned.density;
+    const effectiveTitleAlign = options.titleAlign !== 'auto' ? options.titleAlign : learned.titleAlign;
+    const effectiveFontScale = options.fontScale !== 'auto' ? options.fontScale : learned.fontScale;
+    const effectiveHeadingWeight = options.headingWeight !== 'auto' ? options.headingWeight : learned.headingWeight;
 
     if (options.preset !== 'auto' && options.preset !== 'preserve') {
         profile.kind = options.preset;
     }
-    if (options.density !== 'auto') profile.density = options.density;
-    if (options.titleAlign !== 'auto') profile.titleAlign = options.titleAlign;
-    if (options.headingWeight !== 'auto') profile.titleWeight = options.headingWeight;
+    if (effectiveDensity && effectiveDensity !== 'auto') profile.density = effectiveDensity;
+    if (effectiveTitleAlign && effectiveTitleAlign !== 'auto') profile.titleAlign = effectiveTitleAlign;
+    if (effectiveHeadingWeight && effectiveHeadingWeight !== 'auto') profile.titleWeight = effectiveHeadingWeight;
 
-    const factor = options.fontScale === 'small' ? 0.9 :
-        options.fontScale === 'large' ? 1.12 :
-        options.fontScale === 'normal' ? 1 : null;
+    const factor = effectiveFontScale === 'small' ? 0.9 :
+        effectiveFontScale === 'large' ? 1.12 :
+        effectiveFontScale === 'normal' ? 1 : null;
 
     if (factor) {
         profile.bodySize = Math.max(9, Math.min(14, Math.round((Number(profile.bodySize) || 10) * factor)));
