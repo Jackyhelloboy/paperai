@@ -1795,7 +1795,7 @@ const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSugg
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let file=null, lastResult=null, showingRaw=false;
-let teachOriginalText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
+let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
 const aiSuggestionCache = new Map();
@@ -2990,6 +2990,133 @@ function extractLearningPairs(before, after) {
     return pairs;
 }
 
+function tokenOccurrenceOnLine(tokens, index, token) {
+    let count = 0;
+    for (let i = 0; i <= index; i++) {
+        if (tokens[i] === token) count++;
+    }
+    return count;
+}
+
+function extractLayoutWordEdits(before, after) {
+    const beforeLines = String(before || '').split('\n');
+    const afterLines = String(after || '').split('\n');
+    const edits = [];
+
+    const collect = (leftText, rightText, lineIndex = null) => {
+        const a = tokeniseLearning(leftText);
+        const b = tokeniseLearning(rightText);
+        let i = 0, j = 0;
+
+        while (i < a.length && j < b.length && edits.length < 80) {
+            if (a[i] === b[j]) {
+                i++; j++;
+                continue;
+            }
+
+            let matched = false;
+            for (let look = 1; look <= 3; look++) {
+                if (i + look < a.length && a[i + look] === b[j]) {
+                    i += look;
+                    matched = true;
+                    break;
+                }
+                if (j + look < b.length && a[i] === b[j + look]) {
+                    j += look;
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched) continue;
+
+            const wrong = a[i];
+            const right = b[j];
+            const useful = s =>
+                s &&
+                s.length <= 80 &&
+                !/^[\s|()[\]{}.,;:!?/\\]+$/.test(s);
+
+            if (useful(wrong) && useful(right) && wrong !== right) {
+                edits.push({
+                    lineIndex,
+                    wrong,
+                    right,
+                    occurrence: tokenOccurrenceOnLine(a, i, wrong)
+                });
+            }
+            i++; j++;
+        }
+    };
+
+    if (beforeLines.length === afterLines.length) {
+        for (let line = 0; line < beforeLines.length; line++) {
+            collect(beforeLines[line], afterLines[line], line);
+        }
+    } else {
+        collect(before, after, null);
+    }
+
+    return edits;
+}
+
+function isTokenBoundary(text, index, length) {
+    const word = /[\p{L}\p{M}\p{N}_]/u;
+    const before = index > 0 ? text[index - 1] : '';
+    const after = index + length < text.length ? text[index + length] : '';
+    return (!before || !word.test(before)) && (!after || !word.test(after));
+}
+
+function replaceNthLiteralToken(text, token, replacement, occurrence) {
+    if (!token || occurrence < 1) return text;
+    let from = 0;
+    let seen = 0;
+
+    while (from <= text.length - token.length) {
+        const index = text.indexOf(token, from);
+        if (index < 0) break;
+        if (isTokenBoundary(text, index, token.length)) {
+            seen++;
+            if (seen === occurrence) {
+                return text.slice(0, index) + replacement + text.slice(index + token.length);
+            }
+        }
+        from = index + Math.max(1, token.length);
+    }
+    return text;
+}
+
+function applyTeachWordCorrectionsToLayout(layoutText, originalPlain, correctedPlain) {
+    const layout = String(layoutText || '');
+    if (!layout) return String(correctedPlain || '');
+    if (String(originalPlain || '') === String(correctedPlain || '')) return layout;
+
+    const edits = extractLayoutWordEdits(originalPlain, correctedPlain);
+    if (!edits.length) return layout;
+
+    let lines = layout.split('\n');
+    const lineEdits = edits
+        .filter(edit => Number.isInteger(edit.lineIndex) && edit.lineIndex >= 0 && edit.lineIndex < lines.length)
+        .sort((a, b) => (b.lineIndex - a.lineIndex) || (b.occurrence - a.occurrence));
+    const globalEdits = edits
+        .filter(edit => edit.lineIndex === null)
+        .sort((a, b) => b.occurrence - a.occurrence);
+
+    for (const edit of lineEdits) {
+        lines[edit.lineIndex] = replaceNthLiteralToken(
+            lines[edit.lineIndex],
+            edit.wrong,
+            edit.right,
+            edit.occurrence
+        );
+    }
+
+    let out = lines.join('\n');
+    for (const edit of globalEdits) {
+        out = replaceNthLiteralToken(out, edit.wrong, edit.right, edit.occurrence);
+    }
+    return out;
+}
+
 const CANONICAL_PHONETIC_OVERRIDES = Object.freeze({
     allah: 'अल्लाह',
     allaah: 'अल्लाह',
@@ -3176,6 +3303,42 @@ function getLocalSmartSuggestions(input) {
     return uniqueStrings(suggestions).slice(0, 8);
 }
 
+function getLearnedCorrectionSuggestions(input, localCandidates = []) {
+    const normalized = String(input || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+    if (!normalized) return [];
+
+    const rows = loadLearningHints();
+    const candidateSet = new Set(
+        [normalized, ...(localCandidates || [])]
+            .map(value => String(value || '').normalize('NFC').trim())
+            .filter(Boolean)
+    );
+
+    const ranked = [];
+    for (const row of rows) {
+        const wrong = String(row?.wrong || '').normalize('NFC').trim();
+        const right = String(row?.right || '').normalize('NFC').trim();
+        if (!wrong || !right || wrong === right) continue;
+
+        const exactSource = wrong.toLocaleLowerCase() === normalized.toLocaleLowerCase();
+        const localMatch = candidateSet.has(wrong);
+        const alreadyCorrect = candidateSet.has(right);
+
+        if (exactSource || localMatch || alreadyCorrect) {
+            ranked.push({
+                value: right,
+                score: (exactSource ? 1000 : 0) + (localMatch ? 500 : 0) + (Number(row.count) || 1)
+            });
+        }
+    }
+
+    return uniqueStrings(
+        ranked
+            .sort((a, b) => b.score - a.score)
+            .map(item => item.value)
+    ).slice(0, 5);
+}
+
 function transliterateSmartWord(input) {
     return getLocalSmartSuggestions(input)[0] || input;
 }
@@ -3211,7 +3374,7 @@ function findInputSegmentAtCaret() {
     };
 }
 
-async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage, localSuggestions, sequence) {
+async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage, localSuggestions, learnedSuggestions, sequence) {
     const normalized = String(sourceText || '').replace(/\s+/g, ' ').trim();
     const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000smart\u0000' + normalized.toLowerCase();
 
@@ -3230,6 +3393,7 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
                 language: targetLanguage,
                 context: getTeachContext(smartComposition?.start || teachEditor.selectionStart),
                 local_suggestions: localSuggestions.slice(0, 5),
+                learned_suggestions: (learnedSuggestions || []).slice(0, 5),
                 mode: 'smart'
             })
         });
@@ -3301,6 +3465,7 @@ function showSmartSuggestions() {
     const isPhrase = sourceText.split(/\s+/).filter(Boolean).length >= 2;
 
     let localChoices = [];
+    let learnedChoices = [];
 
     // Known phrases use pronunciation-based forms, not spelling-based forms.
     // Example: "i love you" -> "आई लव यू", not "इ लोवे योउ".
@@ -3318,15 +3483,23 @@ function showSmartSuggestions() {
     }
 
     localChoices = uniqueStrings(localChoices);
+    learnedChoices = getLearnedCorrectionSuggestions(sourceText, localChoices);
+    localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
     renderSuggestionChips(localChoices, [], localChoices.length === 0);
 
     const sequence = ++aiSuggestionSequence;
+    const highConfidenceChoice =
+        learnedChoices[0] ||
+        (isPhrase
+            ? getCanonicalPhraseOverride(sourceText, targetScript)
+            : getCanonicalPhoneticOverride(sourceText, targetScript));
 
-    // Known pronunciation forms can be safely applied locally.
-    if (isRomanSource && targetScript !== 'latin' && localChoices[0]) {
+    // Auto-apply only user-learned or canonical forms. Generic local guesses
+    // stay visible as selectable candidates and can still be improved by AI.
+    if (isRomanSource && targetScript !== 'latin' && highConfidenceChoice) {
         aiSuggestionTimer = setTimeout(() => {
-            autoApplySmartSuggestion(sourceText, localChoices[0], sequence);
-        }, 500);
+            autoApplySmartSuggestion(sourceText, highConfidenceChoice, sequence);
+        }, 450);
         return;
     }
 
@@ -3339,6 +3512,7 @@ function showSmartSuggestions() {
             sourceLanguage,
             targetLanguage,
             localChoices,
+            learnedChoices,
             sequence
         );
 
@@ -3371,8 +3545,14 @@ function chooseSmartSuggestion(choice) {
 function renderTeachPreview() {
     if (!lastResult || showingRaw) return;
     const preview = teachEditor.value.normalize('NFC');
+    const layoutPreview = applyTeachWordCorrectionsToLayout(
+        teachOriginalLayoutText || lastResult.text || '',
+        teachOriginalText,
+        preview
+    );
     lastResult.preview_text = preview;
-    textOut.innerHTML = formatOutput(preview);
+    lastResult.preview_layout_text = layoutPreview;
+    textOut.innerHTML = formatOutput(layoutPreview);
     textOut.className = 'output-body';
 }
 
@@ -3441,6 +3621,7 @@ function refreshSmartComposition() {
 function openTeachPanel() {
     if (!lastResult) return;
     teachOriginalText = lastResult.plain_text || lastResult.text || '';
+    teachOriginalLayoutText = lastResult.text || teachOriginalText;
     teachEditor.value = teachOriginalText;
     teachHistory = [teachOriginalText];
     teachHistoryIndex = 0;
@@ -3468,7 +3649,10 @@ function closeTeachPanel() {
     if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
     showSmartSuggestions();
 
-    if (lastResult) delete lastResult.preview_text;
+    if (lastResult) {
+        delete lastResult.preview_text;
+        delete lastResult.preview_layout_text;
+    }
 
     if (lastResult && !showingRaw) {
         textOut.innerHTML = formatOutput(lastResult.text || '');
@@ -3553,11 +3737,19 @@ function saveLearning() {
 
     saveLearningHints(saved);
 
+    const correctedLayout = applyTeachWordCorrectionsToLayout(
+        teachOriginalLayoutText || lastResult.text || '',
+        original,
+        corrected
+    );
+
     lastResult.plain_text = corrected;
-    lastResult.text = corrected;
+    lastResult.text = correctedLayout;
     lastResult.preview_text = corrected;
-    textOut.innerHTML = formatOutput(corrected);
+    lastResult.preview_layout_text = correctedLayout;
+    textOut.innerHTML = formatOutput(correctedLayout);
     textOut.className = 'output-body';
+    teachOriginalLayoutText = correctedLayout;
     closeTeachPanel();
 
     const learned = pairs.length;
