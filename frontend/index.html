@@ -2977,23 +2977,36 @@ function extractLearningPairs(before, after) {
     return pairs;
 }
 
-const PHONETIC_OVERRIDES = Object.freeze({
-    devanagari: Object.freeze({
-        allah: 'अल्लाह',
-        allaah: 'अल्लाह',
-        jawad: 'जवाद',
-        jawaad: 'जवाद',
-        rupaya: 'रुपया',
-        rupayaa: 'रुपया',
-        rupaye: 'रुपये',
-        aadmi: 'आदमी',
-        aadamii: 'आदमी',
-        gaadi: 'गाड़ी',
-        gaadii: 'गाड़ी',
-        birbal: 'बीरबल',
-        beerbal: 'बीरबल'
-    })
+const CANONICAL_PHONETIC_OVERRIDES = Object.freeze({
+    allah: 'अल्लाह',
+    allaah: 'अल्लाह',
+    jawad: 'जवाद',
+    jawaad: 'जवाद',
+    rupaya: 'रुपया',
+    rupayaa: 'रुपया',
+    rupaye: 'रुपये',
+    aadmi: 'आदमी',
+    aadamii: 'आदमी',
+    gaadi: 'गाड़ी',
+    gaadii: 'गाड़ी',
+    birbal: 'बीरबल',
+    beerbal: 'बीरबल'
 });
+
+function getCanonicalPhoneticOverride(roman, script) {
+    const devanagari = CANONICAL_PHONETIC_OVERRIDES[String(roman || '').toLowerCase()];
+    if (!devanagari || script === 'latin') return '';
+
+    if (script === 'devanagari') return devanagari;
+
+    try {
+        if (window.IndicTransliterate?.convertScript) {
+            return window.IndicTransliterate.convertScript(devanagari, script);
+        }
+    } catch (_) {}
+
+    return '';
+}
 
 const TEACH_LANGUAGE_META = Object.freeze({
     en: { label: 'English', script: 'latin' },
@@ -3098,7 +3111,7 @@ function getLocalSmartSuggestions(input) {
     if (script === 'latin') return [roman];
 
     const suggestions = [];
-    const override = PHONETIC_OVERRIDES[script]?.[roman];
+    const override = getCanonicalPhoneticOverride(roman, script);
     if (override) suggestions.push(override);
 
     try {
@@ -3160,7 +3173,7 @@ function shouldAskAiForWord(roman, localSuggestions) {
     const language = currentTeachLanguage();
     const script = currentTeachScript();
 
-    if (script !== 'latin' && PHONETIC_OVERRIDES[script]?.[roman.toLowerCase()]) return false;
+    if (script !== 'latin' && getCanonicalPhoneticOverride(roman, script)) return false;
     if (language === 'en') return roman.length >= 4;
 
     const nonRoman = localSuggestions.filter(x => x.toLowerCase() !== roman.toLowerCase());
