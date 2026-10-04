@@ -9531,7 +9531,13 @@ async function openDraft(draftId) {
     setDraftStatus('Opening draft...');
     try {
         const data = await fetchDraftEndpoint('/api/drafts/' + draftId);
-        activeDraft = data;
+        activeDraft = {
+            id: data.draft.id,
+            title: data.draft.title || '',
+            expires_at: data.draft.expires_at,
+            updated_at: data.draft.updated_at,
+            pages: Array.isArray(data.pages) ? data.pages : []
+        };
         renderDraftPages();
         setDraftStatus('');
     } catch (e) {
@@ -9649,7 +9655,16 @@ async function readDraftPage(pageId, quiet) {
 async function refreshActiveDraft() {
     if (!activeDraft) return;
     const data = await fetchDraftEndpoint('/api/drafts/' + activeDraft.id);
-    activeDraft = data;
+    // The endpoint wraps the draft, so keep the same flat shape used elsewhere.
+    // Assigning the whole response left id and expires_at undefined, which broke
+    // the photo urls and the countdown.
+    activeDraft = {
+        id: data.draft.id,
+        title: data.draft.title || '',
+        expires_at: data.draft.expires_at,
+        updated_at: data.draft.updated_at,
+        pages: Array.isArray(data.pages) ? data.pages : []
+    };
     await loadDraftList();
     renderDraftPages();
 }
