@@ -36,7 +36,9 @@ bucket_name = "paperai-pages"
 
 # Daily cleanup of expired drafts and their rows.
 [triggers]
-crons = ["17 3 * * *"]
+# Hourly, so a draft created just after a 03:00 run is not left in the
+# database for almost two days after its photos have already been deleted.
+crons = ["17 * * * *"]
 
 [[kv_namespaces]]
 binding = "KV"

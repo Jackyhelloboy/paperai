@@ -17,6 +17,13 @@ const MAX_DRAFTS_PER_OWNER = 40;
 const OWNER_PATTERN = /^[A-Za-z0-9_-]{20,64}$/;
 const PAGE_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 
+// R2 bills automatically once the free allowance is used up, and there is no
+// hard spending cap on the account, so the app stops itself well beforehand.
+// The caps sit below the free allowance, which means the app can never overrun
+// it and the account is never charged for storage.
+const STORAGE_CAP_BYTES = 5 * 1024 * 1024 * 1024;
+const OWNER_STORAGE_CAP_BYTES = 250 * 1024 * 1024;
+
 const now = () => Date.now();
 
 function json(data, status, corsHeaders) {
@@ -116,7 +123,18 @@ function imageKeyFor(draftId, pageId) {
   return draftId + '/' + pageId + '.jpg';
 }
 
-async function storePageImage(env, draftId, pageId, file) {
+// Live photo bytes, measured from the page rows. Expired pages stop counting as
+// soon as their row is cleaned up, so the number tracks what R2 still holds.
+async function storedPhotoBytes(env, owner) {
+  const sql = 'SELECT COALESCE(SUM(p.image_bytes), 0) AS total FROM draft_pages p'
+    + (owner ? ' JOIN drafts d ON d.id = p.draft_id WHERE p.image_bytes IS NOT NULL AND d.owner = ?'
+      : ' WHERE p.image_bytes IS NOT NULL');
+  const stmt = env.DB.prepare(sql);
+  const row = owner ? await stmt.bind(owner).first() : await stmt.first();
+  return Number(row?.total || 0);
+}
+
+async function storePageImage(env, draftId, pageId, file, owner, creditBytes = 0) {
   if (!env.PAGES_BUCKET) return { key: null, bytes: 0 };
   const type = String(file.type || '');
   if (!/^image\/(?:jpeg|jpg|png|webp)$/i.test(type)) {
@@ -125,6 +143,17 @@ async function storePageImage(env, draftId, pageId, file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (bytes.byteLength > PAGE_IMAGE_MAX_BYTES) {
     throw Object.assign(new Error('That page photo is larger than 3 MB. Please use a smaller photo.'), { status: 413 });
+  }
+  // Refuse before storing, so the cap can never be crossed by this upload.
+  const incoming = bytes.byteLength - Number(creditBytes || 0);
+  if (incoming > 0) {
+    const [total, mine] = await Promise.all([storedPhotoBytes(env), storedPhotoBytes(env, owner)]);
+    if (total + incoming > STORAGE_CAP_BYTES) {
+      throw Object.assign(new Error('Photo storage is full right now. Please try again later today.'), { status: 507 });
+    }
+    if (mine + incoming > OWNER_STORAGE_CAP_BYTES) {
+      throw Object.assign(new Error('You have reached your 250 MB of page photos. Delete a photo or draft to add more.'), { status: 409 });
+    }
   }
   const key = imageKeyFor(draftId, pageId);
   await env.PAGES_BUCKET.put(key, bytes, {
@@ -207,7 +236,14 @@ async function getDraft(request, env, corsHeaders, url, draftId) {
   return json({
     draft: serialiseDraft({ ...draft, page_count: Number(result?.total || 0) }),
     pages: pages.map(serialisePage),
-    limits: { max_pages: MAX_PAGES_PER_DRAFT, max_drafts: MAX_DRAFTS_PER_OWNER, ttl_days: TTL_DAYS }
+    limits: {
+      max_pages: MAX_PAGES_PER_DRAFT,
+      max_drafts: MAX_DRAFTS_PER_OWNER,
+      ttl_days: TTL_DAYS,
+      max_image_bytes: PAGE_IMAGE_MAX_BYTES,
+      owner_storage_cap_bytes: OWNER_STORAGE_CAP_BYTES,
+      storage_cap_bytes: STORAGE_CAP_BYTES
+    }
   }, 200, corsHeaders);
 }
 
@@ -271,7 +307,7 @@ async function addPage(request, env, corsHeaders, url, draftId) {
   let image = { key: null, bytes: 0 };
   if (file && typeof file === 'object' && typeof file.arrayBuffer === 'function') {
     try {
-      image = await storePageImage(env, draftId, pageId, file);
+image = await storePageImage(env, draftId, pageId, file, owner.key);
     } catch (e) {
       return fail(e.message || 'Could not store that page photo.', e.status || 400, corsHeaders, 'IMAGE_REJECTED');
     }
@@ -326,7 +362,7 @@ async function updatePage(request, env, corsHeaders, url, draftId, pageId) {
 
   let image;
   try {
-    image = await storePageImage(env, draftId, pageId, file);
+    image = await storePageImage(env, draftId, pageId, file, owner.key, existing.image_bytes);
   } catch (e) {
     return fail(e.message || 'Could not store that page photo.', e.status || 400, corsHeaders, 'IMAGE_REJECTED');
   }

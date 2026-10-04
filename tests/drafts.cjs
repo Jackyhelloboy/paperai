@@ -61,46 +61,57 @@ function makeEnv({ drafts = [], pages = [], orphans = [], expiredDrafts = [] } =
         calls,
         DB: {
             prepare(sql) {
-                return {
-                    bind(...args) {
-                        return {
-                            sql,
-                            args,
-                            async first() {
-                                if (/FROM drafts WHERE id = \?$/.test(sql)) {
-                                    return state.drafts.find(d => d.id === args[0]) || null;
-                                }
-                                if (/FROM draft_pages WHERE id = \? AND draft_id = \?$/.test(sql)) {
-                                    return state.pages.find(p => p.id === args[0] && p.draft_id === args[1]) || null;
-                                }
-                                if (/COALESCE\(MAX\(position\)/.test(sql)) {
-                                    const top = state.pages.filter(p => p.draft_id === args[0]).reduce((m, p) => Math.max(m, p.position), -1);
-                                    return { top };
-                                }
-                                if (/COUNT\(\*\)/.test(sql)) {
-                                    if (/FROM drafts/.test(sql)) return { total: state.drafts.filter(d => d.owner_key === args[0]).length };
-                                    return { total: state.pages.filter(p => p.draft_id === args[0]).length };
-                                }
-                                if (/FROM drafts WHERE expires_at < \?/.test(sql)) return { results: expiredDrafts };
-                                if (/LEFT JOIN drafts/.test(sql)) return { results: orphans };
-                                return null;
-                            },
-                            async all() {
-                                if (/FROM draft_pages WHERE draft_id = \? ORDER BY position/.test(sql)) {
-                                    return { results: state.pages.filter(p => p.draft_id === args[0]).slice().sort((a, b) => a.position - b.position) };
-                                }
-                                if (/FROM drafts WHERE expires_at < \?/.test(sql)) return { results: expiredDrafts };
-                                if (/LEFT JOIN drafts/.test(sql)) return { results: orphans };
-                                return { results: [] };
-                            },
-                            async run() {
-                                calls.run.push({ sql, args });
-                                applyWrite(state, sql, args);
-                                return { success: true, meta: { changes: 1 } };
-                            }
-                        };
+                const runner = (args) => ({
+                    sql,
+                    args,
+                    async first() {
+                        if (/COALESCE\(SUM\(/.test(sql)) {
+                            const owner = /JOIN drafts/.test(sql) ? String(args[0]) : null;
+                            const total = state.pages
+                                .filter(p => Number(p.image_bytes) > 0)
+                                .filter(p => {
+                                    if (!owner) return true;
+                                    const d = state.drafts.find(x => x.id === p.draft_id);
+                                    return d && String(d.owner ?? d.owner_key) === owner;
+                                })
+                                .reduce((sum, p) => sum + Number(p.image_bytes || 0), 0);
+                            return { total };
+                        }
+                        if (/FROM drafts WHERE id = \?$/.test(sql)) {
+                            return state.drafts.find(d => d.id === args[0]) || null;
+                        }
+                        if (/FROM draft_pages WHERE id = \? AND draft_id = \?$/.test(sql)) {
+                            return state.pages.find(p => p.id === args[0] && p.draft_id === args[1]) || null;
+                        }
+                        if (/COALESCE\(MAX\(position\)/.test(sql)) {
+                            const top = state.pages.filter(p => p.draft_id === args[0]).reduce((m, p) => Math.max(m, p.position), -1);
+                            return { top };
+                        }
+                        if (/COUNT\(\*\)/.test(sql)) {
+                            if (/FROM drafts/.test(sql)) return { total: state.drafts.filter(d => d.owner_key === args[0]).length };
+                            return { total: state.pages.filter(p => p.draft_id === args[0]).length };
+                        }
+                        if (/FROM drafts WHERE expires_at < \?/.test(sql)) return { results: expiredDrafts };
+                        if (/LEFT JOIN drafts/.test(sql)) return { results: orphans };
+                        return null;
+                    },
+                    async all() {
+                        if (/FROM draft_pages WHERE draft_id = \? ORDER BY position/.test(sql)) {
+                            return { results: state.pages.filter(p => p.draft_id === args[0]).slice().sort((a, b) => a.position - b.position) };
+                        }
+                        if (/FROM drafts WHERE expires_at < \?/.test(sql)) return { results: expiredDrafts };
+                        if (/LEFT JOIN drafts/.test(sql)) return { results: orphans };
+                        return { results: [] };
+                    },
+                    async run() {
+                        calls.run.push({ sql, args });
+                        applyWrite(state, sql, args);
+                        return { success: true, meta: { changes: 1 } };
                     }
-                };
+                });
+                const prepared = runner([]);
+                prepared.bind = (...args) => runner(args);
+                return prepared;
             },
             async batch(statements) {
                 calls.batch.push(statements.length);
@@ -218,6 +229,17 @@ const pageRow = {
 
     // 8. Working on a draft must not move its next-day deletion date, because the
     // photos are removed by R2 a day after upload and that timer cannot restart.
+
+    // 8a. The per-browser photo allowance must be enforced before anything is
+    // stored, so storage can never grow past the cap the account is billed on.
+    const heavy = { ...pageRow, image_bytes: 250 * 1024 * 1024, image_key: 'heavy.jpg' };
+    env = makeEnv({ drafts: [draftRow], pages: [heavy] });
+    const capForm = new FormData();
+    capForm.append('text', 'x');
+    capForm.append('file', new Blob([new Uint8Array(1024)], { type: 'image/jpeg' }), 'extra.jpg');
+    res = await call(request('/api/drafts/' + draftRow.id + '/pages', { method: 'POST', form: capForm }), env);
+    assert.equal(res.status, 409, 'A browser at its photo allowance must be refused');
+    assert.equal(env.calls.put.length, 0, 'Nothing may be stored once the allowance is reached');
     const expiresBefore = body.draft.expires_at;
     res = await call(request('/api/drafts/' + draftRow.id, { method: 'PATCH', json: { title: 'Renamed' } }), env);
     body = await res.json();

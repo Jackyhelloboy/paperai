@@ -63,6 +63,9 @@ jobs:
           # placeholder, or the tables are never created.
           sed "s/00000000-0000-0000-0000-000000000000/$DB_ID/" wrangler.toml > wrangler.deploy.toml
           grep -q "$DB_ID" wrangler.deploy.toml
+          # Patch the checked-in config too, so the placeholder can never reach
+          # the Cloudflare API and fail the deploy with "database not found".
+          sed -i "s/00000000-0000-0000-0000-000000000000/$DB_ID/" wrangler.toml
 
           npx wrangler@4 d1 migrations apply "$DB_NAME" --remote --config wrangler.deploy.toml
 
@@ -84,12 +87,11 @@ jobs:
           echo "Page photos expire after 1 day"
           echo "Generated worker/wrangler.deploy.toml"
 
+      # Uses an explicit npx wrangler call rather than wrangler-action, because the
+# action did not pass --config through and deployed the placeholder database id.
       - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: worker
-          wranglerVersion: "4"
-          command: deploy
-          args: --config wrangler.deploy.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: worker
+        run: npx wrangler@4 deploy --config wrangler.deploy.toml
