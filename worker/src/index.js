@@ -1898,13 +1898,14 @@ function shouldVerifyOcr(text, imageMeta = {}) {
     Boolean(imageMeta?.structuredLayout) ||
     Number(imageMeta?.multiColumnRows || 0) >= 2 ||
     Number(imageMeta?.denseOptionRows || 0) >= 2;
-  const hardPage =
-    imageMeta?.difficulty === 'hard' ||
-    Number(imageMeta?.score || 0) >= 2;
+  // A merely imperfect photo is not evidence of a bad read. Only a severely
+  // degraded page (heavy blur/washout) justifies a second full multimodal pass,
+  // which doubles image tokens and generation time.
+  const severeImageRisk = Number(imageMeta?.score || 0) >= 3;
   const structuredRisk =
     structuredPage &&
     (
-      hardPage ||
+      severeImageRisk ||
       lineMiss ||
       hasUnclear ||
       structuredPageNeedsVerification(visible, imageMeta)
@@ -1917,7 +1918,7 @@ function shouldVerifyOcr(text, imageMeta = {}) {
     hasUnclear ||
     hasEditMetadata ||
     structuredRisk ||
-    hardPage ||
+    severeImageRisk ||
     questionStructureRisk ||
     templateLeakage ||
     (plain.length < 12 && likelyInk);

@@ -3257,7 +3257,7 @@ function smartFileKey(f) {
 function smartWorkerLimit() {
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     const slow = connection?.saveData || /(?:^|-)2g$|3g/i.test(String(connection?.effectiveType || ''));
-    return slow ? 1 : 2;
+    return slow ? 1 : 3;
 }
 
 function updateSmartExtractionUI() {
