@@ -1685,7 +1685,7 @@ const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSugg
 
 let file=null, lastResult=null, showingRaw=false;
 let teachOriginalText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
-let hindiPhoneticOn=false, hindiComposition=null;
+let hindiPhoneticOn=false, hindiComposition=null, phoneticSelectionLock=false;
 
 const fmtSize = b => b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
 const showErr = m => { errText.textContent=m; errBox.classList.add('show'); };
@@ -3019,7 +3019,14 @@ function replaceTeachRange(start, end, replacement) {
     const after = teachEditor.value.slice(end);
     teachEditor.value = before + replacement + after;
     const caret = start + replacement.length;
+
+    // setSelectionRange fires a "select" event in some browsers/mobile WebViews.
+    // Without this guard, the active Roman word is cleared after every letter,
+    // so "allah" is transliterated as a + l + l + a + h -> "अललअह".
+    phoneticSelectionLock = true;
     teachEditor.setSelectionRange(caret, caret);
+    setTimeout(() => { phoneticSelectionLock = false; }, 0);
+
     return caret;
 }
 
@@ -3116,8 +3123,25 @@ teachEditor.addEventListener('input', () => {
     renderTeachPreview();
 });
 
-teachEditor.addEventListener('click', () => { hindiComposition = null; showHindiSuggestions(); });
-teachEditor.addEventListener('select', () => { hindiComposition = null; showHindiSuggestions(); });
+teachEditor.addEventListener('click', () => {
+    if (phoneticSelectionLock) return;
+    hindiComposition = null;
+    showHindiSuggestions();
+});
+
+teachEditor.addEventListener('select', () => {
+    if (phoneticSelectionLock) return;
+
+    const start = teachEditor.selectionStart;
+    const end = teachEditor.selectionEnd;
+
+    // Keep phonetic composition alive when selection/caret remains exactly at
+    // the end of the word PaperAI is currently composing.
+    if (hindiComposition && start === end && end === hindiComposition.end) return;
+
+    hindiComposition = null;
+    showHindiSuggestions();
+});
 
 function saveLearning() {
     if (!lastResult) return;
