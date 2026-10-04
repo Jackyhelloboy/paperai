@@ -4380,6 +4380,13 @@ function formatSingleAnswerBlankLine(line) {
         '</span>';
 }
 
+function isAnswerBlankContinuationLine(line) {
+    // OCR can split one very long answer blank into extra underscore-only
+    // rows. Once a numbered blank has started, these rows are visual
+    // continuations of that same blank and should not render separately.
+    return /^\s*_{2,}\s*$/.test(String(line || ''));
+}
+
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
@@ -4401,6 +4408,15 @@ function formatOutput(text) {
         if (answerBlank) {
             html += answerBlank;
             i++;
+
+            // Collapse wrapped OCR fragments such as:
+            // ① __________
+            // ____________
+            // __
+            // into one visual answer line.
+            while (i < lines.length && isAnswerBlankContinuationLine(lines[i])) {
+                i++;
+            }
             continue;
         }
 
