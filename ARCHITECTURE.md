@@ -122,3 +122,14 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Changing the target language while a Roman word is being composed immediately re-renders that same word in the newly selected script.
 - Local phonetic candidates appear immediately; ambiguous words can add capped Workers AI candidates after a short pause.
 - Canonical known spellings such as jawad, allah and rupayaa are converted across supported scripts, not only Devanagari.
+
+
+## v16 smart translation
+
+- Teach now behaves like a smart language converter instead of a pure phonetic keyboard.
+- The user can choose both source and target language.
+- Single names/proper nouns are transliterated into the target script.
+- Multi-word phrases are translated by meaning after a short pause; PaperAI no longer converts a sentence word-by-word phonetically.
+- Roman text stays visible while typing so the system can understand the full phrase before replacing it.
+- Mixed-language pages remain editable because source and target routing are explicit.
+- The same free Workers AI model is used for phrase suggestions; there is no paid fallback.
