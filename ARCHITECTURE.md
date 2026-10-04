@@ -92,3 +92,13 @@ No OCR system can guarantee 100% recovery when the source pixels do not contain 
 - Teach Hindi phonetic mode now turns on automatically when the extracted document contains Devanagari, even if OCR language was Auto.
 - Teach preview is live, and Copy/Download use the current unsaved Teach text while the editor is open.
 - Hindi verification explicitly rejects Roman transliteration when the image visibly contains Devanagari.
+
+
+## v12 branch-layout and transliteration fixes
+
+- Branch diagrams now use explicit OCR metadata: BRANCH_ROOT, BRANCH_ITEM and BRANCH_END.
+- The verified web view renders those blocks as SVG with the root centered and real connector arrows.
+- The central/root text is never concatenated into branch labels merely because the combined text forms a meaningful word.
+- Teach uses a vendored offline Indic phonetic transliteration engine with candidate suggestions and local high-confidence overrides for common spellings such as allah -> अल्लाह, jawad -> जवाद and rupayaa -> रुपया.
+- The Teach editor shows selectable transliteration candidates while typing and keeps all processing local to the browser.
+- The OCR/Teach font stack now includes Hind, Mukta, Noto Sans Devanagari, Noto Sans Telugu and Tiro Devanagari Hindi as script-appropriate fallbacks.
