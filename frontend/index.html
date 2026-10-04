@@ -1707,7 +1707,20 @@
                     <label class="teach-lang-field">
                         <span class="teach-lang-label">From</span>
                         <select class="teach-lang-select" id="teachFromSelect">
-                            <option value="roman" selected>English / Roman</option>
+                            <option value="auto">Auto detect</option>
+                            <option value="en" selected>English / Roman</option>
+                            <option value="hi">Hindi</option>
+                            <option value="mr">Marathi</option>
+                            <option value="te">Telugu</option>
+                            <option value="ta">Tamil</option>
+                            <option value="kn">Kannada</option>
+                            <option value="ml">Malayalam</option>
+                            <option value="bn">Bengali</option>
+                            <option value="gu">Gujarati</option>
+                            <option value="pa">Punjabi</option>
+                            <option value="or">Odia</option>
+                            <option value="ur">Urdu</option>
+                            <option value="ks">Kashmiri</option>
                         </select>
                     </label>
                     <span class="teach-lang-arrow">→</span>
@@ -3089,18 +3102,36 @@ function currentTeachScript() {
     return TEACH_LANGUAGE_META[currentTeachLanguage()]?.script || 'latin';
 }
 
+function detectLanguageFromSegment(text) {
+    const source = String(text || '');
+    const counts = countTeachScripts(source).sort((a,b) => b[1] - a[1]);
+    return counts[0]?.[1] > 0 ? counts[0][0] : 'en';
+}
+
+function currentTeachSourceLanguage(segmentText = '') {
+    const chosen = teachFromSelect?.value || 'en';
+    if (chosen !== 'auto' && TEACH_LANGUAGE_META[chosen]) return chosen;
+    return detectLanguageFromSegment(segmentText || smartComposition?.source || '');
+}
+
 function updateTeachLanguageStatus() {
-    const language = currentTeachLanguage();
-    const meta = TEACH_LANGUAGE_META[language] || TEACH_LANGUAGE_META.en;
+    const targetLanguage = currentTeachLanguage();
+    const targetMeta = TEACH_LANGUAGE_META[targetLanguage] || TEACH_LANGUAGE_META.en;
+    const sourceLanguage = currentTeachSourceLanguage(smartComposition?.source || '');
+    const sourceMeta = TEACH_LANGUAGE_META[sourceLanguage] || TEACH_LANGUAGE_META.en;
+
     const targetLabel = teachToSelect?.value === 'auto'
-        ? 'Auto → ' + meta.label
-        : meta.label;
+        ? 'Auto → ' + targetMeta.label
+        : targetMeta.label;
+    const sourceLabel = teachFromSelect?.value === 'auto'
+        ? 'Auto → ' + sourceMeta.label
+        : sourceMeta.label;
 
     teachLanguageStatus.textContent =
-        'English / Roman → ' + targetLabel +
-        (language === 'en'
-            ? ' · spelling & grammar suggestions'
-            : ' · names transliterate · phrases translate meaning');
+        sourceLabel + ' → ' + targetLabel +
+        (sourceLanguage === targetLanguage
+            ? ' · spelling/script suggestions'
+            : ' · meanings translate · names transliterate');
 }
 
 function getLocalSmartSuggestions(input) {
@@ -3137,30 +3168,33 @@ function getTeachContext(position) {
     return text.slice(start, end).replace(/\s+/g, ' ').trim();
 }
 
-function findRomanSegmentAtCaret() {
+function findInputSegmentAtCaret() {
     const value = teachEditor.value || '';
     const caret = teachEditor.selectionStart;
     const lineStart = value.lastIndexOf('\n', Math.max(0, caret - 1)) + 1;
     const before = value.slice(lineStart, caret);
-    const match = before.match(/([A-Za-z][A-Za-z'’\-]*(?:[ \t]+[A-Za-z][A-Za-z'’\-]*)*)$/);
 
+    // Unicode-aware phrase finder: letters/marks plus spaces, apostrophes and
+    // hyphens. Stops at question numbers, underscores and punctuation.
+    const match = before.match(/([\p{L}\p{M}][\p{L}\p{M}'’\-]*(?:[ \t]+[\p{L}\p{M}][\p{L}\p{M}'’\-]*)*)$/u);
     if (!match) return null;
 
-    const roman = match[1].replace(/[ \t]+/g, ' ').trim();
-    if (!roman || roman.length > 120) return null;
+    const source = match[1].replace(/[ \t]+/g, ' ').trim();
+    if (!source || source.length > 120) return null;
 
     const start = caret - match[1].length;
     return {
         start,
         end: caret,
-        roman,
-        words: roman.split(/\s+/).filter(Boolean).length
+        source,
+        roman: /^[A-Za-z][A-Za-z'’\-]*(?:\s+[A-Za-z][A-Za-z'’\-]*)*$/.test(source) ? source : '',
+        words: source.split(/\s+/).filter(Boolean).length
     };
 }
 
-async function fetchAiTextSuggestions(romanText, language, localSuggestions, sequence) {
-    const normalized = String(romanText || '').replace(/\s+/g, ' ').trim();
-    const cacheKey = language + '\u0000smart\u0000' + normalized.toLowerCase();
+async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage, localSuggestions, sequence) {
+    const normalized = String(sourceText || '').replace(/\s+/g, ' ').trim();
+    const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000smart\u0000' + normalized.toLowerCase();
 
     if (aiSuggestionCache.has(cacheKey)) return aiSuggestionCache.get(cacheKey);
     if (aiSuggestionCalls >= MAX_AI_SUGGESTIONS_PER_TEACH) return [];
@@ -3173,7 +3207,8 @@ async function fetchAiTextSuggestions(romanText, language, localSuggestions, seq
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 text: normalized,
-                language,
+                source_language: sourceLanguage,
+                language: targetLanguage,
                 context: getTeachContext(smartComposition?.start || teachEditor.selectionStart),
                 local_suggestions: localSuggestions.slice(0, 5),
                 mode: 'smart'
@@ -3209,13 +3244,13 @@ function renderSuggestionChips(choices, aiChoices = [], loading = false) {
     });
 }
 
-function autoApplySmartSuggestion(expectedRoman, choice, sequence) {
+function autoApplySmartSuggestion(expectedSource, choice, sequence) {
     if (!choice || sequence !== aiSuggestionSequence || !smartComposition) return;
 
-    const current = findRomanSegmentAtCaret();
+    const current = findInputSegmentAtCaret();
     if (!current) return;
     if (current.start !== smartComposition.start || current.end !== smartComposition.end) return;
-    if (current.roman.toLowerCase() !== String(expectedRoman).toLowerCase()) return;
+    if (current.source.normalize('NFC') !== String(expectedSource).normalize('NFC')) return;
 
     const newEnd = replaceTeachRange(current.start, current.end, choice);
     pushTeachHistory(teachEditor.value);
@@ -3233,54 +3268,58 @@ function showSmartSuggestions() {
         aiSuggestionTimer = null;
     }
 
-    if (!smartComposition?.roman) {
+    if (!smartComposition?.source) {
         translitSuggestions.classList.remove('show');
         translitSuggestions.innerHTML = '';
         return;
     }
 
-    const roman = smartComposition.roman.replace(/\s+/g, ' ').trim();
-    const words = roman.split(/\s+/).filter(Boolean);
-    const language = currentTeachLanguage();
-    const script = currentTeachScript();
+    const sourceText = smartComposition.source.replace(/\s+/g, ' ').trim();
+    const words = sourceText.split(/\s+/).filter(Boolean);
+    const targetLanguage = currentTeachLanguage();
+    const targetScript = currentTeachScript();
+    const sourceLanguage = currentTeachSourceLanguage(sourceText);
     const isPhrase = words.length >= 2;
+    const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
 
     let localChoices = [];
-    if (!isPhrase) {
-        localChoices = getLocalSmartSuggestions(roman);
-        if (script !== 'latin') {
-            localChoices = localChoices.filter(choice => choice.toLowerCase() !== roman.toLowerCase());
-        }
+    if (!isPhrase && isRomanSource && targetScript !== 'latin') {
+        localChoices = getLocalSmartSuggestions(sourceText);
+        localChoices = localChoices.filter(choice => choice.toLowerCase() !== sourceText.toLowerCase());
     }
 
-    renderSuggestionChips(localChoices, [], isPhrase || roman.length >= 2);
+    renderSuggestionChips(localChoices, [], true);
 
     const sequence = ++aiSuggestionSequence;
 
-    // Known names/spellings can be safely applied locally after the user pauses.
-    if (!isPhrase && script !== 'latin') {
-        const canonical = getCanonicalPhoneticOverride(roman, script);
+    // Known phonetic names can still be applied instantly without an AI call.
+    if (!isPhrase && isRomanSource && targetScript !== 'latin') {
+        const canonical = getCanonicalPhoneticOverride(sourceText, targetScript);
         if (canonical) {
             aiSuggestionTimer = setTimeout(() => {
-                autoApplySmartSuggestion(roman, canonical, sequence);
+                autoApplySmartSuggestion(sourceText, canonical, sequence);
             }, 500);
             return;
         }
     }
 
-    // For phrases, use AI for meaning translation rather than phonetic
-    // letter-by-letter conversion. For single words AI decides whether the
-    // token is an English word to translate or a name to transliterate.
     aiSuggestionTimer = setTimeout(async () => {
-        const aiChoices = await fetchAiTextSuggestions(roman, language, localChoices, sequence);
-        if (sequence !== aiSuggestionSequence || !smartComposition) return;
+        const aiChoices = await fetchAiTextSuggestions(
+            sourceText,
+            sourceLanguage,
+            targetLanguage,
+            localChoices,
+            sequence
+        );
 
+        if (sequence !== aiSuggestionSequence || !smartComposition) return;
         renderSuggestionChips(localChoices, aiChoices, false);
 
-        // A multi-word English phrase with a non-English target is a meaning
-        // translation request. Apply the best result automatically after pause.
-        if (isPhrase && script !== 'latin' && aiChoices[0]) {
-            autoApplySmartSuggestion(roman, aiChoices[0], sequence);
+        // Multi-word input is treated like Google Translate: translate meaning
+        // and replace automatically after the user pauses. Single words remain
+        // suggestions unless they are a known proper-name phonetic override.
+        if (isPhrase && sourceLanguage !== targetLanguage && aiChoices[0]) {
+            autoApplySmartSuggestion(sourceText, aiChoices[0], sequence);
         }
     }, isPhrase ? 700 : 900);
 }
@@ -3288,7 +3327,7 @@ function showSmartSuggestions() {
 function chooseSmartSuggestion(choice) {
     if (!smartComposition || !choice) return;
 
-    const current = findRomanSegmentAtCaret();
+    const current = findInputSegmentAtCaret();
     const start = current?.start ?? smartComposition.start;
     const end = current?.end ?? smartComposition.end;
     const newEnd = replaceTeachRange(start, end, choice);
@@ -3367,7 +3406,7 @@ function replaceTeachRange(start, end, replacement) {
 }
 
 function refreshSmartComposition() {
-    smartComposition = findRomanSegmentAtCaret();
+    smartComposition = findInputSegmentAtCaret();
     updateTeachLanguageStatus();
     showSmartSuggestions();
 }
@@ -3409,6 +3448,14 @@ function closeTeachPanel() {
         textOut.className = 'output-body';
     }
 }
+
+teachFromSelect.addEventListener('change', () => {
+    aiSuggestionSequence++;
+    if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
+    refreshSmartComposition();
+    updateTeachLanguageStatus();
+    teachEditor.focus();
+});
 
 teachToSelect.addEventListener('change', () => {
     aiSuggestionSequence++;
