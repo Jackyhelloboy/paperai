@@ -20,7 +20,7 @@ function load(name){
   const end=tail.slice(1).search(/\n(?:async )?function /);
   vm.runInContext(end<0?tail:tail.slice(0,end+1),ctx);
 }
-for(const name of ['circledNumberValue','collapsePortableAnswerBlankContinuations','portableText',
+for(const name of ['circledNumberValue','collapsePortableAnswerBlankContinuations','stripLeakedLayoutLabels','portableText',
   'publicPlainTextFromStructured','currentStructuredWordText','currentPlainText','extractedWordFilename','downloadText']) load(name);
 const worksheet='1. बाहर X\n2. कड़वे X\n3. विश्वास X\n4. गंदे X\n' +
   'V. सही शब्दों से खाली स्थान भरिए। 4X1 = 4M\n1. साँप बच्चे की ______ की तरफ बढ़ने लगा। (चारपाई / मेज)\n' +
