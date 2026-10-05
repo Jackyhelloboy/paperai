@@ -2917,8 +2917,8 @@
             }
 
             .teach-panel {
-                padding: 0.6rem !important;
-                border-radius: 10px !important;
+                padding: 0.75rem !important;
+                border-radius: 14px !important;
             }
 
             .preview-lightbox {
@@ -3327,7 +3327,7 @@
         #prog[data-stage="prepare"] [data-step="prepare"], #prog[data-stage="read"] [data-step="read"], #prog[data-stage="ready"] [data-step="ready"] { color:var(--accent); background:#dbeafe; border-color:#bfdbfe; font-weight:700; }
         .scan-note { margin:0.85rem 0 0; font-size:0.78rem; line-height:1.6; color:var(--text2); }
         .teach-toolbar { flex-wrap:wrap; }
-        .teach-ai-hint { font-size:0.8rem; line-height:1.6; color:var(--text2); margin:0.7rem 0; }
+        .teach-ai-hint { font-size:0.78rem; line-height:1.55; color:var(--text2); margin:0.45rem 0 0; }
         @keyframes scan-spin { to { transform:rotate(360deg); } }
         @keyframes scan-progress { 0% { transform:translateX(-110%); } 100% { transform:translateX(370%); } }
         @media (prefers-reduced-motion:reduce) { .scan-spinner, .progress-fill.indeterminate { animation:none; } }
@@ -5401,7 +5401,8 @@ async function shouldTryAlternateOcrRoute(res, heavyAiRequest) {
             // failure is handled by sendToOCR's single lighter retry, rather
             // than immediately repeating inference through the Pages proxy.
             if (['AI_OCR_FAILED', 'AI_TIMEOUT', 'FREE_MODEL_UNAVAILABLE',
-                'PROVIDER_AI_QUOTA_REACHED', 'AI_OUTPUT_TRUNCATED'].includes(body?.code)) return false;
+                'PROVIDER_AI_QUOTA_REACHED', 'AI_OUTPUT_TRUNCATED',
+                'SUGGESTION_SERVICE_UNAVAILABLE'].includes(body?.code)) return false;
         } catch (_) {}
     }
     return true;
