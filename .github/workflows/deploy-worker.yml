@@ -9,6 +9,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/deploy-worker.yml'
+      - '.github/scripts/remove-retired-settings.mjs'
   workflow_dispatch:
 
 jobs:

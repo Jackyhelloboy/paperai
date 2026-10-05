@@ -8,7 +8,10 @@ async function api(method, body) {
   const response = await fetch(endpoint, {method, body, redirect: 'error',
     headers: {Authorization: `Bearer ${token}`}, signal: AbortSignal.timeout(30000)});
   const data = await response.json();
-  if (!response.ok || !data.success) throw new Error(`Settings API failed: HTTP ${response.status}; codes ${(data.errors || []).map(x => x.code).join(',')}`);
+  if (!response.ok || !data.success) {
+    const message = (data.errors || []).map(x => `${x.code}: ${x.message}`).join(';').replaceAll(token,'[redacted]').replaceAll(account,'[redacted]').slice(0,600);
+    throw new Error(`Settings API failed: HTTP ${response.status}; ${message}`);
+  }
   return data.result;
 }
 const before = await api('GET');
@@ -18,11 +21,12 @@ for (const [name, type] of [['AI','ai'], ['DB','d1'], ['PAGES_BUCKET','r2_bucket
   if (!bindings.some(x => x.name === name && x.type === type)) throw new Error(`Missing required binding: ${name}`);
 }
 const removed = bindings.filter(x => retired.has(x.name));
+console.log(JSON.stringify({retired_binding_types:removed.map(x => ({name:x.name,type:x.type}))}));
 if (removed.some(x => !['plain_text','secret_text'].includes(x.type))) throw new Error('Unexpected retired binding type');
 if (removed.length) {
   const form = new FormData();
-  form.append('settings', JSON.stringify({bindings: bindings.filter(x => !retired.has(x.name))
-    .map(x => ({name:x.name, type:'inherit'}))}));
+  form.append('settings', new Blob([JSON.stringify({bindings: bindings.filter(x => !retired.has(x.name))
+    .map(x => ({name:x.name, type:'inherit'}))})], {type:'application/json'}), 'settings.json');
   await api('PATCH', form);
 }
 const after = await api('GET');
