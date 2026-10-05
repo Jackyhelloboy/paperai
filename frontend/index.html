@@ -6238,8 +6238,12 @@ async function makePageDetailCrops(source, originalWidth, originalHeight, forceS
     const overlap = Math.max(80, Math.round(originalHeight * 0.12));
     const halfHeight = Math.min(originalHeight, Math.ceil((originalHeight + overlap) / 2));
     const starts = [0, Math.max(0, originalHeight - halfHeight)];
-    const maxWidth = forceSafe ? 1700 : 2100;
-    const scale = Math.min(1, maxWidth / Math.max(1, originalWidth));
+    const maxWidth = forceSafe ? 1800 : 2400;
+    // Detail views are allowed a modest upscale because small section labels,
+    // marks formulas and one-character options are common OCR failure points.
+    const scale = originalWidth < maxWidth
+        ? Math.min(forceSafe ? 1.18 : 1.35, maxWidth / Math.max(1, originalWidth))
+        : maxWidth / Math.max(1, originalWidth);
     const out = [];
 
     for (const y0 of starts) {
