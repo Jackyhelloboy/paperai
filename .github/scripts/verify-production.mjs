@@ -16,7 +16,15 @@ const health = await fetch(worker+'/health',{signal:AbortSignal.timeout(30000)})
 assert.equal(health.status,200);
 assert.equal((await health.json()).model,'@cf/google/gemma-4-26b-a4b-it');
 console.log('Worker health: correct Cloudflare model');
-const usage = await call('/api/usage');
+// Worker versions propagate across Cloudflare locations after deploy.
+// Retry read-only reports briefly; never retry inference for this check.
+let usage;
+for (let attempt=0;attempt<10;attempt++) {
+  usage = await call('/api/usage?t='+Date.now());
+  if (usage.status===200 && usage.data.source==='cloudflare-analytics'
+      && Number.isFinite(usage.data.reported_used)) break;
+  if (attempt<9) await new Promise(resolve=>setTimeout(resolve,2000));
+}
 assert.equal(usage.status,200);
 assert.equal(usage.data.source,'cloudflare-analytics');
 assert.equal(usage.data.enforcement,'provider-only');
