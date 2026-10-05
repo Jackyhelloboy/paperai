@@ -2633,6 +2633,10 @@
                 min-height: 52px;
             }
 
+            #onlineCount {
+                display: none !important;
+            }
+
             .main {
                 width: 100% !important;
                 max-width: 100% !important;
@@ -4414,71 +4418,549 @@
             }
         }
 
-        /* v42 mobile-first simplification: one screen, one toolbar, less page scrolling */
-        .mobile-view-action,
-        .teach-secondary-restore {
+        /* v43 mobile UI rebuild — clean native document workspace */
+        .saved-papers-toggle {
             display: none;
         }
 
-        .draft-source-count {
-            color: var(--workspace-muted);
-            font-weight: 650;
+        .draft-library {
+            display: block;
         }
 
         @media (max-width: 700px) {
+            :root {
+                --mobile-ink: #111318;
+                --mobile-muted: #6b7280;
+                --mobile-line: #e5e7eb;
+                --mobile-soft: #f7f8fa;
+                --mobile-accent: #2563eb;
+            }
+
             html {
-                scroll-padding-top: 54px;
+                background: #fff;
+                scroll-padding-top: 58px;
             }
 
             body {
+                background: #fff !important;
+                color: var(--mobile-ink);
                 overflow-x: hidden;
             }
 
-            .main.workflow-active[data-view="result"] {
+            .header {
+                position: sticky !important;
+                top: 0;
+                z-index: 100;
+                height: 56px !important;
+                min-height: 56px !important;
+                padding: 0 16px !important;
+                border-bottom: 1px solid #f0f1f3 !important;
+                background: rgba(255,255,255,.96) !important;
+                backdrop-filter: blur(12px);
+                box-shadow: none !important;
+            }
+
+            .header-brand {
+                gap: 0 !important;
+            }
+
+            .header-logo {
+                display: none !important;
+            }
+
+            .header-title {
+                font-size: 18px !important;
+                font-weight: 800 !important;
+                letter-spacing: -.03em;
+                color: var(--mobile-ink) !important;
+            }
+
+            .header-status {
+                width: 30px;
+                min-width: 30px;
+                min-height: 30px;
+                padding: 0 !important;
+                justify-content: center !important;
+                border: 1px solid var(--mobile-line) !important;
+                border-radius: 999px !important;
+                background: #fff !important;
+                color: var(--mobile-muted) !important;
+                font-size: 11px !important;
+                box-shadow: none !important;
+            }
+
+            .main {
+                width: 100% !important;
+                max-width: none !important;
+                padding: 0 16px calc(28px + env(safe-area-inset-bottom)) !important;
+            }
+
+            .hero {
+                margin: 28px 0 20px !important;
+                padding: 0 !important;
+                text-align: left !important;
+            }
+
+            .hero h1 {
+                margin: 0 0 8px !important;
+                font-size: clamp(29px, 9vw, 36px) !important;
+                line-height: 1.04 !important;
+                letter-spacing: -.045em !important;
+                color: var(--mobile-ink) !important;
+            }
+
+            .hero p {
+                margin: 0 !important;
+                max-width: 34ch;
+                font-size: 14px !important;
+                line-height: 1.5 !important;
+                color: var(--mobile-muted) !important;
+            }
+
+            .quota-card {
+                display: none !important;
+            }
+
+            .upload-card {
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+            .upload-zone {
+                min-height: 178px !important;
+                padding: 26px 20px !important;
+                border: 1.5px dashed #cdd3dc !important;
+                border-radius: 20px !important;
+                background: #fafbfc !important;
+                box-shadow: none !important;
+                transition: border-color .16s ease, background .16s ease, transform .16s ease !important;
+            }
+
+            .upload-zone:active {
+                transform: scale(.995);
+            }
+
+            .upload-zone.over {
+                border-color: var(--mobile-accent) !important;
+                background: #f4f8ff !important;
+            }
+
+            .upload-icon {
+                width: 48px !important;
+                height: 48px !important;
+                margin: 0 auto 13px !important;
+                border: 1px solid #dfe3e8 !important;
+                border-radius: 15px !important;
+                background: #fff !important;
+                color: var(--mobile-ink) !important;
+                box-shadow: none !important;
+            }
+
+            .upload-icon svg {
+                width: 23px !important;
+                height: 23px !important;
+            }
+
+            .upload-title {
+                font-size: 17px !important;
+                line-height: 1.2 !important;
+                font-weight: 800 !important;
+                color: var(--mobile-ink) !important;
+            }
+
+            .upload-sub {
+                margin-top: 6px !important;
+                font-size: 12.5px !important;
+                line-height: 1.45 !important;
+                color: var(--mobile-muted) !important;
+            }
+
+            .batch-preview-shell {
+                margin: 14px 0 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+            }
+
+            .batch-preview-head {
+                min-height: 34px;
+                margin-bottom: 8px !important;
+                align-items: center !important;
+            }
+
+            .batch-preview-heading strong {
+                font-size: 12px !important;
+                font-weight: 750 !important;
+            }
+
+            .batch-preview-heading span {
+                display: none !important;
+            }
+
+            .batch-preview-count {
+                padding: 0 !important;
+                background: transparent !important;
+                color: var(--mobile-muted) !important;
+                font-size: 11px !important;
+                font-weight: 650 !important;
+            }
+
+            .batch-add-more {
+                min-height: 32px !important;
+                padding: 0 10px !important;
+                border: 1px solid var(--mobile-line) !important;
+                border-radius: 9px !important;
+                background: #fff !important;
+                color: var(--mobile-ink) !important;
+                font-size: 11px !important;
+                font-weight: 700 !important;
+            }
+
+            .batch-preview {
+                display: grid !important;
+                grid-template-columns: none !important;
+                grid-auto-flow: column !important;
+                grid-auto-columns: 96px !important;
+                gap: 8px !important;
+                margin: 0 !important;
+                padding: 0 0 4px !important;
+                overflow-x: auto !important;
+                overflow-y: visible !important;
+                scroll-snap-type: x proximity;
+                overscroll-behavior-inline: contain;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+
+            .batch-preview::-webkit-scrollbar,
+            .draft-pages::-webkit-scrollbar {
+                display: none;
+            }
+
+            .batch-preview-card {
+                width: 96px !important;
+                min-width: 96px !important;
+                padding: 4px !important;
+                border: 1px solid var(--mobile-line) !important;
+                border-radius: 12px !important;
+                background: #fff !important;
+                box-shadow: none !important;
+                scroll-snap-align: start;
+            }
+
+            .batch-preview-media {
+                width: 100% !important;
+                height: 122px !important;
+                border: 0 !important;
+                border-radius: 9px !important;
+                background: var(--mobile-soft) !important;
+            }
+
+            .batch-page-badge {
+                top: 7px !important;
+                left: 7px !important;
+                padding: 4px 6px !important;
+                background: rgba(17,19,24,.84) !important;
+                font-size: 9px !important;
+            }
+
+            .batch-preview-remove {
+                top: 7px !important;
+                right: 7px !important;
+                width: 26px !important;
+                height: 26px !important;
+                border: 0 !important;
+                background: rgba(255,255,255,.92) !important;
+                color: var(--mobile-ink) !important;
+                box-shadow: 0 1px 4px rgba(0,0,0,.08) !important;
+            }
+
+            .batch-preview-name,
+            .batch-preview-meta,
+            .batch-preview-order {
+                display: none !important;
+            }
+
+            .batch-preview-status {
+                margin: 6px 2px 2px !important;
+                font-size: 9.5px !important;
+                font-weight: 650 !important;
+            }
+
+            .file-preview {
+                display: none !important;
+            }
+
+            .btn-extract.show {
+                position: sticky !important;
+                bottom: calc(10px + env(safe-area-inset-bottom));
+                z-index: 40;
+                width: 100% !important;
+                min-height: 50px !important;
+                margin-top: 14px !important;
+                border: 0 !important;
+                border-radius: 14px !important;
+                background: var(--mobile-ink) !important;
+                color: #fff !important;
+                font-size: 14px !important;
+                font-weight: 800 !important;
+                box-shadow: 0 8px 24px rgba(17,19,24,.16) !important;
+            }
+
+            .btn-extract svg {
+                width: 18px !important;
+                height: 18px !important;
+            }
+
+            .progress-wrap {
+                margin-top: 14px !important;
+                padding: 12px 0 !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+            .progress-info {
+                margin-bottom: 8px !important;
+            }
+
+            .progress-label {
+                font-size: 12px !important;
+                font-weight: 700 !important;
+            }
+
+            .progress-pct {
+                font-size: 10px !important;
+                color: var(--mobile-muted) !important;
+            }
+
+            .scan-steps,
+            .scan-note {
+                display: none !important;
+            }
+
+            .error-toast {
+                margin-top: 12px !important;
+                border-radius: 12px !important;
+                font-size: 12px !important;
+            }
+
+            /* Saved papers are a single quiet row until the user asks for them. */
+            .drafts-card {
+                margin: 18px 0 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+            .saved-papers-toggle {
                 width: 100%;
-                max-width: 100% !important;
-                padding: 0.35rem 0.42rem 0.8rem !important;
+                min-height: 48px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 0;
+                border: 0;
+                border-top: 1px solid #f0f1f3;
+                border-bottom: 1px solid #f0f1f3;
+                background: #fff;
+                color: var(--mobile-ink);
+                font-family: inherit;
+                font-size: 13px;
+                font-weight: 750;
+                text-align: left;
+                cursor: pointer;
+            }
+
+            .saved-papers-toggle-meta {
+                display: inline-flex;
+                align-items: center;
+                gap: 9px;
+                color: var(--mobile-muted);
+                font-size: 12px;
+                font-weight: 650;
+            }
+
+            .saved-papers-toggle-meta > span:last-child {
+                font-size: 20px;
+                line-height: 1;
+                transform: translateY(-1px);
+                transition: transform .16s ease;
+            }
+
+            .drafts-card.library-open .saved-papers-toggle-meta > span:last-child {
+                transform: rotate(90deg);
+            }
+
+            .draft-library {
+                display: none;
+                padding: 12px 0 0;
+            }
+
+            .drafts-card.library-open .draft-library {
+                display: block;
+            }
+
+            .drafts-card.has-active-draft .saved-papers-toggle,
+            .drafts-card.has-active-draft .draft-library {
+                display: none !important;
+            }
+
+            .drafts-head {
+                margin: 0 0 8px !important;
+                padding: 0 !important;
+                align-items: center !important;
+            }
+
+            .drafts-title {
+                font-size: 13px !important;
+                font-weight: 800 !important;
+            }
+
+            .drafts-sub {
+                display: none !important;
+            }
+
+            .drafts-head .draft-btn {
+                min-height: 32px !important;
+                padding: 0 10px !important;
+                border: 1px solid var(--mobile-line) !important;
+                border-radius: 9px !important;
+                background: #fff !important;
+                font-size: 11px !important;
+            }
+
+            .draft-list {
+                display: grid !important;
+                gap: 0 !important;
+                border-top: 1px solid #f0f1f3;
+            }
+
+            .draft-item {
+                min-height: 58px !important;
+                padding: 10px 2px !important;
+                border: 0 !important;
+                border-bottom: 1px solid #f0f1f3 !important;
+                border-radius: 0 !important;
+                background: #fff !important;
+                box-shadow: none !important;
+                text-align: left !important;
+            }
+
+            .draft-item-title {
+                font-size: 13px !important;
+                font-weight: 750 !important;
+            }
+
+            .draft-item-meta {
+                margin-top: 3px !important;
+                font-size: 10.5px !important;
+                color: var(--mobile-muted) !important;
+            }
+
+            /* Result mode becomes a document, not a stack of cards. */
+            .main.workflow-active[data-view="result"] {
+                padding: 0 12px calc(86px + env(safe-area-inset-bottom)) !important;
+            }
+
+            .main.workflow-active[data-view="result"] .hero,
+            .main.workflow-active[data-view="result"] .quota-card {
+                display: none !important;
+            }
+
+            .main.workflow-active[data-view="result"] .upload-card {
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                min-height: 0 !important;
             }
 
             .main.workflow-active[data-view="result"] .extraction-nav {
-                min-height: 40px;
-                margin-bottom: 0.35rem;
+                min-height: 46px;
+                margin: 0 -2px 4px !important;
                 padding: 0 !important;
+                border: 0 !important;
                 align-items: center;
             }
 
             .main.workflow-active[data-view="result"] #extractionBack {
-                min-height: 34px;
-                height: 34px;
-                padding: 0.3rem 0.52rem;
-                border-radius: 9px;
-                font-size: 0.68rem;
+                min-width: 36px;
+                width: 36px;
+                height: 36px;
+                min-height: 36px;
+                padding: 0 !important;
+                overflow: hidden;
+                color: transparent !important;
+                border: 0 !important;
+                border-radius: 999px !important;
+                background: var(--mobile-soft) !important;
+                position: relative;
+            }
+
+            .main.workflow-active[data-view="result"] #extractionBack::after {
+                content: '‹';
+                position: absolute;
+                inset: 0;
+                display: grid;
+                place-items: center;
+                color: var(--mobile-ink);
+                font: 500 28px/1 system-ui, sans-serif;
+                transform: translateY(-1px);
+            }
+
+            .main.workflow-active[data-view="result"] .extraction-heading {
+                min-width: 0;
+                flex: 1;
             }
 
             .main.workflow-active[data-view="result"] #extractionStatus {
-                font-size: 0.72rem;
+                display: block;
+                font-size: 13px !important;
+                font-weight: 800 !important;
+                color: var(--mobile-ink) !important;
             }
 
             .main.workflow-active[data-view="result"] #extractionFileName {
-                display: none;
+                display: none !important;
+            }
+
+            .main.workflow-active[data-view="result"] #extractionRetry {
+                min-height: 34px !important;
+                border-radius: 9px !important;
+                font-size: 11px !important;
             }
 
             .drafts-card.has-active-draft {
-                margin-bottom: 0.35rem !important;
+                margin: 0 0 8px !important;
+            }
+
+            .drafts-card.has-active-draft .draft-editor {
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
             }
 
             .draft-editor-head {
-                min-height: 40px !important;
-                padding: 0.25rem 0.05rem 0.35rem !important;
-                border-bottom: 0 !important;
-                gap: 0.4rem !important;
+                min-height: 38px !important;
+                padding: 0 0 5px !important;
+                border: 0 !important;
             }
 
             .draft-title-input {
-                font-size: 0.88rem !important;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                font-size: 14px !important;
+                font-weight: 800 !important;
+                letter-spacing: -.01em;
             }
 
             .draft-meta {
@@ -4488,17 +4970,22 @@
             .draft-document-menu > summary {
                 width: 34px !important;
                 height: 34px !important;
-                border-radius: 9px !important;
+                border: 0 !important;
+                border-radius: 999px !important;
+                background: var(--mobile-soft) !important;
+                box-shadow: none !important;
             }
 
             .draft-sources {
-                padding: 0.22rem 0 0.2rem !important;
+                margin: 0 !important;
+                padding: 0 0 7px !important;
+                border: 0 !important;
             }
 
             .draft-sources-head {
-                min-height: 34px;
-                margin-bottom: 0.35rem !important;
-                align-items: center;
+                min-height: 30px;
+                margin: 0 0 6px !important;
+                align-items: center !important;
             }
 
             .draft-sources-head > div {
@@ -4506,31 +4993,34 @@
             }
 
             .draft-sources-head strong {
-                font-size: 0.7rem !important;
+                font-size: 11px !important;
+                font-weight: 750 !important;
+                color: var(--mobile-muted) !important;
             }
 
-            .draft-sources-head span:not(.draft-source-count) {
+            .draft-sources-head > div > span:not(.draft-source-count) {
                 display: none !important;
             }
 
             .draft-add-compact {
-                min-height: 32px !important;
-                height: 32px;
-                padding: 0.3rem 0.52rem !important;
-                border-radius: 9px !important;
-                font-size: 0.63rem !important;
+                min-height: 30px !important;
+                padding: 0 9px !important;
+                border: 0 !important;
+                border-radius: 8px !important;
+                background: var(--mobile-soft) !important;
+                color: var(--mobile-ink) !important;
+                font-size: 10.5px !important;
             }
 
-            /* Saved source pages: compact horizontal rail instead of a tall grid. */
             .draft-pages {
                 display: grid !important;
                 grid-template-columns: none !important;
                 grid-auto-flow: column !important;
-                grid-auto-columns: 82px !important;
-                gap: 0.42rem !important;
+                grid-auto-columns: 72px !important;
+                gap: 7px !important;
                 overflow-x: auto !important;
                 overflow-y: visible !important;
-                padding: 0 0 0.25rem !important;
+                padding: 0 0 3px !important;
                 margin: 0 !important;
                 scroll-snap-type: x proximity;
                 overscroll-behavior-inline: contain;
@@ -4538,34 +5028,31 @@
                 scrollbar-width: none;
             }
 
-            .draft-pages::-webkit-scrollbar,
-            .batch-preview::-webkit-scrollbar {
-                display: none;
-            }
-
             .draft-page {
-                width: 82px !important;
-                min-width: 82px !important;
+                width: 72px !important;
+                min-width: 72px !important;
+                padding: 0 !important;
+                border: 0 !important;
+                background: transparent !important;
                 scroll-snap-align: start;
                 position: relative !important;
             }
 
             .draft-page-preview {
-                width: 82px !important;
-                height: 108px !important;
+                width: 72px !important;
+                height: 94px !important;
                 aspect-ratio: auto !important;
+                border: 1px solid var(--mobile-line) !important;
                 border-radius: 9px !important;
+                background: var(--mobile-soft) !important;
             }
 
             .draft-page-row {
                 position: absolute !important;
-                z-index: 4;
-                top: 4px;
-                left: 4px;
-                right: 4px;
+                inset: 4px 4px auto 4px;
                 padding: 0 !important;
-                align-items: flex-start !important;
                 pointer-events: none;
+                align-items: flex-start !important;
             }
 
             .draft-page-row > div {
@@ -4573,13 +5060,12 @@
             }
 
             .draft-page-index {
-                display: inline-flex;
-                padding: 0.2rem 0.32rem;
+                padding: 3px 5px;
                 border-radius: 999px;
-                background: rgba(15, 23, 42, .78);
+                background: rgba(17,19,24,.78);
                 color: #fff !important;
-                font-size: 0.52rem !important;
-                line-height: 1;
+                font-size: 8px !important;
+                line-height: 1 !important;
             }
 
             .draft-page-state {
@@ -4592,153 +5078,133 @@
             }
 
             .draft-page-menu > summary {
-                width: 26px !important;
-                height: 26px !important;
+                width: 24px !important;
+                height: 24px !important;
                 border: 0 !important;
                 border-radius: 999px !important;
-                background: rgba(15, 23, 42, .78) !important;
-                color: #fff !important;
+                background: rgba(255,255,255,.9) !important;
+                color: var(--mobile-ink) !important;
+                box-shadow: 0 1px 4px rgba(0,0,0,.08) !important;
             }
 
-            .draft-page-menu-popover {
+            .draft-document-menu-popover,
+            .draft-page-menu-popover,
+            .document-more-popover {
                 position: fixed !important;
-                z-index: 120 !important;
+                z-index: 160 !important;
                 top: auto !important;
-                right: 0.6rem !important;
-                left: 0.6rem !important;
-                bottom: 0.7rem !important;
+                right: 10px !important;
+                left: 10px !important;
+                bottom: calc(10px + env(safe-area-inset-bottom)) !important;
                 min-width: 0 !important;
                 max-height: 58vh;
                 overflow-y: auto;
-                padding: 0.45rem !important;
-                border-radius: 14px !important;
-                box-shadow: 0 -12px 40px rgba(15, 23, 42, .2) !important;
+                padding: 7px !important;
+                border: 1px solid var(--mobile-line) !important;
+                border-radius: 16px !important;
+                background: #fff !important;
+                box-shadow: 0 20px 60px rgba(17,19,24,.18) !important;
             }
 
-            .draft-page-menu-popover button {
-                min-height: 44px !important;
-                font-size: 0.78rem !important;
-            }
-
-            /* New-upload previews: show several pages in one swipe row, not vertical cards. */
-            .batch-preview-shell {
-                padding: 0.55rem !important;
-                margin-top: 0.5rem !important;
-            }
-
-            .batch-preview-heading span {
-                display: none !important;
-            }
-
-            .batch-preview {
-                display: grid !important;
-                grid-template-columns: none !important;
-                grid-auto-flow: column !important;
-                grid-auto-columns: 104px !important;
-                gap: 0.45rem !important;
-                overflow-x: auto !important;
-                overflow-y: visible !important;
-                padding-bottom: 0.2rem !important;
-                scroll-snap-type: x proximity;
-                overscroll-behavior-inline: contain;
-                -webkit-overflow-scrolling: touch;
-                scrollbar-width: none;
-            }
-
-            .batch-preview-card {
-                width: 104px !important;
-                min-width: 104px !important;
-                scroll-snap-align: start;
-                padding: 0.3rem !important;
-            }
-
-            .batch-preview-media {
-                height: 118px !important;
-            }
-
-            .batch-preview-name,
-            .batch-preview-meta {
-                display: none !important;
-            }
-
-            .batch-preview-order {
-                margin-top: 0.28rem !important;
-                gap: 0.2rem !important;
-            }
-
-            .batch-preview-order button {
-                min-height: 28px !important;
-                height: 28px !important;
-                padding: 0.18rem !important;
-                font-size: 0.5rem !important;
-            }
-
-            /* One compact document surface. */
-            .output-card {
-                border-radius: 12px !important;
-                box-shadow: 0 3px 14px rgba(15, 23, 42, .05) !important;
-            }
-
-            .document-bar {
-                display: none !important;
-            }
-
-            .document-toolbar {
-                position: sticky !important;
-                top: 0 !important;
-                z-index: 30 !important;
+            .draft-document-menu-popover .draft-btn,
+            .draft-page-menu-popover button,
+            .document-menu-action {
                 min-height: 46px !important;
-                padding: 0.32rem !important;
-                border-top: 0 !important;
-                border-radius: 12px 12px 0 0;
-                background: rgba(255,255,255,.96) !important;
-                backdrop-filter: blur(8px);
+                padding: 0 12px !important;
+                border-radius: 10px !important;
+                font-size: 13px !important;
             }
 
+            .draft-status:empty {
+                display: none !important;
+            }
+
+            .draft-status {
+                margin: 4px 0 !important;
+                font-size: 11px !important;
+            }
+
+            .results {
+                margin: 0 !important;
+            }
+
+            .output-card {
+                margin: 0 !important;
+                overflow: visible !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: #fff !important;
+                box-shadow: none !important;
+            }
+
+            .document-bar,
             .output-tabs {
                 display: none !important;
             }
 
+            .document-toolbar {
+                position: fixed !important;
+                z-index: 120 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                top: auto !important;
+                min-height: 68px !important;
+                padding: 9px 12px calc(9px + env(safe-area-inset-bottom)) !important;
+                border: 0 !important;
+                border-top: 1px solid var(--mobile-line) !important;
+                border-radius: 0 !important;
+                background: rgba(255,255,255,.97) !important;
+                backdrop-filter: blur(14px);
+                box-shadow: 0 -8px 30px rgba(17,19,24,.06) !important;
+            }
+
             .results-actions {
                 width: 100% !important;
-                justify-content: stretch !important;
-                gap: 0.3rem !important;
+                display: grid !important;
+                grid-template-columns: 1fr 1fr 46px !important;
+                gap: 7px !important;
+                padding: 0 !important;
+                background: transparent !important;
+                overflow: visible !important;
             }
 
             .results-actions .action-btn {
-                flex: 1 1 0 !important;
-                min-height: 38px !important;
-                height: 38px !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                min-height: 44px !important;
+                height: 44px !important;
+                padding: 0 12px !important;
+                border-radius: 11px !important;
+                font-size: 13px !important;
+                font-weight: 800 !important;
+                box-shadow: none !important;
                 justify-content: center !important;
-                padding: 0.38rem 0.5rem !important;
-                font-size: 0.72rem !important;
             }
 
-            .document-more {
-                flex: 0 0 auto;
+            .document-edit-btn {
+                border: 1px solid var(--mobile-line) !important;
+                background: #fff !important;
+                color: var(--mobile-ink) !important;
+            }
+
+            .document-export-btn {
+                border: 0 !important;
+                background: var(--mobile-ink) !important;
+                color: #fff !important;
+            }
+
+            .results-actions .action-btn svg {
+                display: none !important;
             }
 
             .document-more > summary {
-                width: 38px !important;
-                height: 38px !important;
-            }
-
-            .document-more-popover {
-                position: fixed !important;
-                z-index: 120 !important;
-                top: auto !important;
-                right: 0.6rem !important;
-                left: 0.6rem !important;
-                bottom: 0.7rem !important;
-                min-width: 0 !important;
-                padding: 0.45rem !important;
-                border-radius: 14px !important;
-                box-shadow: 0 -12px 40px rgba(15, 23, 42, .2) !important;
-            }
-
-            .document-menu-action {
-                min-height: 44px !important;
-                font-size: 0.78rem !important;
+                width: 46px !important;
+                height: 44px !important;
+                border: 1px solid var(--mobile-line) !important;
+                border-radius: 11px !important;
+                background: #fff !important;
+                color: var(--mobile-ink) !important;
             }
 
             .mobile-view-action {
@@ -4746,26 +5212,50 @@
             }
 
             .output-body {
-                min-height: 0 !important;
-                padding: 0.9rem 0.78rem 1.1rem !important;
+                min-height: calc(100dvh - 190px) !important;
+                padding: 14px 3px 26px !important;
+                border: 0 !important;
+                background: #fff !important;
+                color: var(--mobile-ink) !important;
                 font-size: 15.5px !important;
                 line-height: 1.72 !important;
             }
 
-            /* Edit uses the same document area and its own viewport-sized text scroller. */
-            .output-card.editing {
-                border: 0 !important;
-                box-shadow: none !important;
-                background: transparent !important;
+            .flagged-card,
+            .paper-marks {
+                display: none !important;
             }
 
-            .output-card.editing .document-toolbar {
+            /* Editing takes over the workspace; page rails and navigation disappear. */
+            .main.editing-document {
+                padding-bottom: 0 !important;
+            }
+
+            .main.editing-document .extraction-nav,
+            .main.editing-document .drafts-card {
+                display: none !important;
+            }
+
+            .output-card.editing {
+                position: relative;
+                min-height: calc(100dvh - 56px);
+                border: 0 !important;
+                box-shadow: none !important;
+                background: #fff !important;
+            }
+
+            .output-card.editing .document-toolbar,
+            .output-card.editing .output-body {
                 display: none !important;
             }
 
             .teach-panel {
-                padding: 0 !important;
-                background: transparent !important;
+                display: none;
+                margin: 0 !important;
+                padding: 0 0 calc(74px + env(safe-area-inset-bottom)) !important;
+                border: 0 !important;
+                background: #fff !important;
+                box-shadow: none !important;
             }
 
             .teach-panel.show {
@@ -4774,47 +5264,71 @@
 
             .inline-edit-head {
                 position: sticky;
-                top: 0;
-                z-index: 35;
-                min-height: 44px !important;
+                top: 56px;
+                z-index: 125;
+                min-height: 48px !important;
                 margin: 0 !important;
-                padding: 0.28rem 0.2rem;
+                padding: 6px 4px !important;
+                border-bottom: 1px solid #f0f1f3;
                 background: rgba(255,255,255,.97);
-                backdrop-filter: blur(8px);
+                backdrop-filter: blur(12px);
+            }
+
+            .inline-edit-head > div {
+                gap: 6px !important;
             }
 
             .inline-edit-head strong {
-                font-size: 0.76rem !important;
+                font-size: 14px !important;
+                font-weight: 800 !important;
             }
 
             #paperSaveState {
-                font-size: 0.58rem !important;
+                font-size: 10px !important;
+                color: var(--mobile-muted) !important;
             }
 
             .inline-edit-close {
-                min-width: 64px;
+                min-width: 68px;
                 min-height: 36px !important;
-                border-radius: 9px !important;
+                padding: 0 12px !important;
+                border: 0 !important;
+                border-radius: 10px !important;
+                background: var(--mobile-ink) !important;
+                color: #fff !important;
+                font-size: 12px !important;
+                font-weight: 800 !important;
             }
 
             .teach-toolbar {
-                position: sticky;
-                top: 44px;
-                z-index: 34;
+                position: fixed !important;
+                z-index: 130 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                top: auto !important;
                 display: grid !important;
                 grid-template-columns: 1fr 1fr 1.35fr !important;
-                gap: 0.3rem !important;
+                gap: 7px !important;
                 margin: 0 !important;
-                padding: 0.3rem 0 0.35rem;
-                background: rgba(255,255,255,.97);
-                backdrop-filter: blur(8px);
+                padding: 9px 12px calc(9px + env(safe-area-inset-bottom)) !important;
+                border-top: 1px solid var(--mobile-line);
+                background: rgba(255,255,255,.98) !important;
+                backdrop-filter: blur(14px);
+                box-shadow: 0 -8px 30px rgba(17,19,24,.06);
             }
 
             .teach-tool {
-                min-height: 36px !important;
-                height: 36px !important;
-                padding: 0.32rem 0.4rem !important;
-                font-size: 0.66rem !important;
+                min-height: 44px !important;
+                height: 44px !important;
+                padding: 0 8px !important;
+                border: 1px solid var(--mobile-line) !important;
+                border-radius: 11px !important;
+                background: #fff !important;
+                color: var(--mobile-ink) !important;
+                font-size: 12px !important;
+                font-weight: 750 !important;
+                box-shadow: none !important;
             }
 
             #teachOriginalBtn {
@@ -4823,33 +5337,40 @@
 
             .teach-toolbar .ai-suggest-button {
                 grid-column: auto !important;
-                margin-left: 0 !important;
                 min-width: 0 !important;
-                min-height: 36px !important;
+                margin-left: 0 !important;
+                border: 0 !important;
+                background: #eef4ff !important;
+                color: #1d4ed8 !important;
             }
 
             .teach-settings {
-                margin: 0 0 0.35rem !important;
-                padding: 0 0.05rem;
+                margin: 8px 0 0 !important;
+                padding: 0 !important;
             }
 
             .teach-settings > summary {
-                min-height: 30px !important;
-                font-size: 0.62rem !important;
+                min-height: 34px !important;
+                width: max-content;
+                padding: 0 4px !important;
+                color: var(--mobile-muted) !important;
+                font-size: 11px !important;
+                font-weight: 700 !important;
             }
 
             .teach-secondary-restore {
+                display: none;
                 width: 100%;
-                min-height: 38px;
-                margin-bottom: 0.4rem;
-                padding: 0.42rem 0.55rem;
-                border: 1px solid var(--workspace-border);
-                border-radius: 9px;
+                min-height: 42px;
+                margin: 0 0 7px;
+                padding: 0 11px;
+                border: 1px solid var(--mobile-line);
+                border-radius: 10px;
                 background: #fff;
-                color: var(--text2);
-                font-size: 0.7rem;
-                font-weight: 700;
+                color: var(--mobile-ink);
                 font-family: inherit;
+                font-size: 12px;
+                font-weight: 700;
                 text-align: left;
             }
 
@@ -4858,79 +5379,103 @@
             }
 
             .teach-language-bar {
-                margin-top: 0 !important;
-                padding: 0.45rem !important;
-                gap: 0.28rem !important;
+                margin: 0 !important;
+                padding: 8px !important;
+                border: 1px solid var(--mobile-line) !important;
+                border-radius: 12px !important;
+                background: var(--mobile-soft) !important;
             }
 
             .teach-suggestion-card {
-                margin: 0 0 0.35rem !important;
-                padding: 0.5rem !important;
+                margin: 8px 0 0 !important;
+                padding: 9px !important;
+                border: 1px solid #dbe7ff !important;
+                border-radius: 12px !important;
+                background: #f7faff !important;
+                box-shadow: none !important;
+            }
+
+            .teach-suggestion-title {
+                font-size: 11px !important;
+            }
+
+            .teach-suggestion-source,
+            .teach-ai-hint {
+                font-size: 10.5px !important;
             }
 
             .translit-suggestions.show {
                 display: flex !important;
                 flex-direction: column !important;
-                gap: 0.3rem !important;
+                gap: 6px !important;
             }
 
             .translit-chip {
                 width: 100% !important;
-                min-height: 38px !important;
+                min-height: 40px !important;
+                border-radius: 10px !important;
+                font-size: 14px !important;
             }
 
             .teach-editor {
                 width: 100% !important;
-                height: calc(100dvh - 145px) !important;
-                min-height: 420px !important;
-                max-height: calc(100dvh - 145px) !important;
+                height: calc(100dvh - 166px - env(safe-area-inset-bottom)) !important;
+                min-height: 360px !important;
+                max-height: none !important;
+                margin-top: 8px !important;
+                padding: 12px 3px 24px !important;
                 resize: none !important;
                 overflow-y: auto !important;
                 overscroll-behavior: contain;
-                padding: 0.8rem !important;
-                border-radius: 10px !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: #fff !important;
+                color: var(--mobile-ink) !important;
                 font-size: 16px !important;
-                line-height: 1.68 !important;
+                line-height: 1.72 !important;
+                box-shadow: none !important;
                 box-sizing: border-box;
             }
 
             .footer {
-                margin-top: 0.5rem !important;
-            }
-
-            .main.workflow-active[data-view="result"] + .footer {
-                display: none;
+                display: none !important;
             }
         }
 
         @media (max-width: 380px) {
+            .main {
+                padding-left: 13px !important;
+                padding-right: 13px !important;
+            }
+
+            .batch-preview {
+                grid-auto-columns: 90px !important;
+            }
+
+            .batch-preview-card {
+                width: 90px !important;
+                min-width: 90px !important;
+            }
+
+            .batch-preview-media {
+                height: 116px !important;
+            }
+
             .draft-pages {
-                grid-auto-columns: 76px !important;
+                grid-auto-columns: 68px !important;
             }
 
             .draft-page,
             .draft-page-preview {
-                width: 76px !important;
+                width: 68px !important;
             }
 
             .draft-page-preview {
-                height: 101px !important;
-            }
-
-            .batch-preview {
-                grid-auto-columns: 96px !important;
-            }
-
-            .batch-preview-card {
-                width: 96px !important;
-                min-width: 96px !important;
-            }
-
-            .results-actions .action-btn {
-                font-size: 0.68rem !important;
+                height: 90px !important;
             }
         }
-</style>
+
+        </style>
 </head>
 <body>
     <header class="header">
@@ -4951,8 +5496,8 @@
             <button class="draft-btn" id="extractionRetry" type="button" hidden>Retry</button>
         </div>
         <div class="hero">
-            <h1>Extract text from anything</h1>
-            <p>Images, handwriting, PDFs, Word, PowerPoint, Excel and text — with free-only AI OCR</p>
+            <h1>Scan a paper</h1>
+            <p>Add up to 5 photos or one PDF. PaperAI reads the pages and rebuilds one clean document.</p>
         </div>
 
         <section class="quota-card" id="quotaCard" aria-live="polite">
@@ -5006,8 +5551,8 @@
                 <div class="upload-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 </div>
-                <div class="upload-title">Drop files here</div>
-                <div class="upload-sub">or tap to browse · <strong>Up to 5 images or 1 PDF</strong> · Office/text supported · 50 MB each</div>
+                <div class="upload-title">Add pages</div>
+                <div class="upload-sub">Tap to choose photos or a PDF · <strong>5 images max</strong></div>
                 <input type="file" id="fileInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
             </div>
 
@@ -5084,17 +5629,24 @@
         </div>
 
         <div class="drafts-card" id="draftsCard">
-            <div class="drafts-head">
-                <div>
-                    <div class="drafts-title">My drafts</div>
-                    <div class="drafts-sub">Build one document page by page. Saved until you delete them. Return using this browser to continue your paper.</div>
-                </div>
-                <button class="draft-btn" id="draftNewBtn" type="button">+ New draft</button>
-            </div>
+            <button class="saved-papers-toggle" id="savedPapersToggle" type="button" aria-expanded="false">
+                <span>Saved papers</span>
+                <span class="saved-papers-toggle-meta"><span id="savedPapersCount">0</span><span aria-hidden="true">›</span></span>
+            </button>
 
-            <div class="draft-list" id="draftList"></div>
-            <div id="paperRecovery" class="draft-status" hidden><span id="paperRecoveryText"></span> <button id="paperRecoveryBtn" class="draft-btn" type="button">Retry saving</button></div>
-            <button id="paperConflictBtn" class="draft-btn" type="button" hidden>Save browser copy as a new draft</button>
+            <div class="draft-library" id="draftLibrary">
+                <div class="drafts-head">
+                    <div>
+                        <div class="drafts-title">Saved papers</div>
+                        <div class="drafts-sub">Open a paper only when you need it.</div>
+                    </div>
+                    <button class="draft-btn" id="draftNewBtn" type="button">+ New</button>
+                </div>
+
+                <div class="draft-list" id="draftList"></div>
+                <div id="paperRecovery" class="draft-status" hidden><span id="paperRecoveryText"></span> <button id="paperRecoveryBtn" class="draft-btn" type="button">Retry saving</button></div>
+                <button id="paperConflictBtn" class="draft-btn" type="button" hidden>Save browser copy as a new draft</button>
+            </div>
 
             <div class="draft-editor" id="draftEditor" hidden>
                 <div class="draft-editor-head">
@@ -5105,8 +5657,8 @@
                     <details class="draft-document-menu">
                         <summary aria-label="Document options">•••</summary>
                         <div class="draft-document-menu-popover">
-                            <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close document</button>
-                            <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete document</button>
+                            <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close paper</button>
+                            <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete paper</button>
                         </div>
                     </details>
                 </div>
@@ -5115,9 +5667,9 @@
                     <div class="draft-sources-head">
                         <div>
                             <strong>Pages <span class="draft-source-count" id="draftSourceCount"></span></strong>
-                            <span>Original uploads stay here while you edit the paper below.</span>
+                            <span>Tap a page to enlarge it.</span>
                         </div>
-                        <button class="draft-add-compact" id="draftAddBtn" type="button">+ Add pages</button>
+                        <button class="draft-add-compact" id="draftAddBtn" type="button">+ Add</button>
                     </div>
                     <div class="draft-pages" id="draftPages"></div>
                     <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
@@ -5164,6 +5716,7 @@
                             <div class="document-more-popover">
                                 <button class="document-menu-action mobile-view-action" onclick="showTab('verified')" type="button">Preview</button>
                                 <button class="document-menu-action mobile-view-action" onclick="showTab('raw')" type="button">Plain text</button>
+                                <button class="document-menu-action" id="keepPaperBtn" onclick="keepCurrentPaper()" type="button" hidden>Save paper</button>
                                 <button class="document-menu-action" onclick="copyText(this)" type="button">Copy text</button>
                                 <button class="document-menu-action" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>Download TXT</button>
                             </div>
@@ -8033,6 +8586,7 @@ function openTeachPanel() {
 
     teachPanel.classList.add('show');
     $('outputCard')?.classList.add('editing');
+    document.querySelector('.main')?.classList.add('editing-document');
     $('tabRaw').disabled = true;
     $('tabVerified').disabled = true;
     const documentStatus = $('documentStatus');
@@ -8068,6 +8622,7 @@ function closeTeachPanel() {
 
     teachPanel.classList.remove('show');
     $('outputCard')?.classList.remove('editing');
+    document.querySelector('.main')?.classList.remove('editing-document');
     $('tabRaw').disabled = false;
     $('tabVerified').disabled = false;
     smartComposition = null;
@@ -8442,6 +8997,15 @@ function updateResultActionsForTab() {
     if (word) { word.hidden = showingRaw; word.disabled = showingRaw; }
     if (txt) { txt.hidden = !showingRaw; txt.disabled = !showingRaw; }
     if (edit) { edit.hidden = showingRaw; edit.disabled = showingRaw; }
+
+    const keep = $('keepPaperBtn');
+    if (keep) {
+        const draftId = typeof activeDraft !== 'undefined' ? activeDraft?.id : '';
+        const autoId = typeof sessionAutoDraftId === 'function' ? sessionAutoDraftId() : '';
+        const temporary = Boolean(draftId && autoId === draftId);
+        keep.hidden = !temporary;
+        keep.textContent = 'Save paper';
+    }
 
     const panel = $('teachPanel');
     const status = $('documentStatus');
@@ -9741,6 +10305,29 @@ function setExtractionView(view) {
     $('extractionStatus').textContent = view === 'processing' ? 'Extracting your document' : view === 'error' ? 'Ready when you are' : 'Ready to review';
     $('extractionFileName').textContent = files.length === 1 ? files[0].name : files.length + ' selected files';
 }
+async function returnToStart() {
+    const currentId = activeDraft?.id || '';
+    const temporary = currentId && sessionAutoDraftId() === currentId;
+
+    if (temporary) {
+        let deleted = false;
+        try {
+            await fetchDraftEndpoint('/api/drafts/' + encodeURIComponent(currentId), { method: 'DELETE' });
+            deleted = true;
+        } catch (_) {}
+        if (deleted) markSessionAutoDraft('');
+    }
+
+    activeDraft = null;
+    pendingPaperSave = null;
+    pendingSourceBatch = null;
+    paperSaveConflict = false;
+    rememberActivePaper();
+    renderDraftPages();
+    clearFile();
+    loadDraftList();
+}
+
 function goBackToUpload() {
     extractionEpoch++;
     extractionController?.abort();
@@ -9756,6 +10343,7 @@ function goBackToUpload() {
     }
     teachPanel.classList.remove('show');
     $('outputCard')?.classList.remove('editing');
+    document.querySelector('.main')?.classList.remove('editing-document');
     setExtractionView('select');
     goBtn.disabled = !files.length;
     updateSmartExtractionUI();
@@ -9922,7 +10510,7 @@ async function startExtraction() {
 }
 goBtn.onclick = startExtraction;
 $('extractionRetry').onclick = startExtraction;
-$('extractionBack').onclick = goBackToUpload;
+$('extractionBack').onclick = returnToStart;
 
 
 function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
@@ -11537,8 +12125,10 @@ function draftOwnerKey() {
     return key;
 }
 
-// Drafts are retained across reloads. No unload deletion request is sent.
+// Explicitly saved drafts persist. Ordinary scan-session drafts are temporary and
+// are discarded on Back or the next full page load unless the user chooses Save paper.
 const ACTIVE_PAPER_STORAGE = 'paperai_active_paper_v2';
+const SESSION_AUTO_DRAFT_STORAGE = 'paperai_session_auto_draft_v1';
 let paperSaveTimer = null;
 let paperSaveRunning = false;
 let pendingPaperSave = null;
@@ -11546,6 +12136,52 @@ let paperSaveConflict = false;
 let pendingSourceBatch = null;
 const PENDING_SOURCE_STORAGE = 'paperai_pending_pages_v2';
 function paperBackupKey(id) { return 'paperai_unsaved_paper_v2_' + id; }
+
+function sessionAutoDraftId() {
+    try { return localStorage.getItem(SESSION_AUTO_DRAFT_STORAGE) || ''; }
+    catch (_) { return ''; }
+}
+
+function markSessionAutoDraft(id) {
+    try {
+        if (id) localStorage.setItem(SESSION_AUTO_DRAFT_STORAGE, id);
+        else localStorage.removeItem(SESSION_AUTO_DRAFT_STORAGE);
+    } catch (_) {}
+}
+
+async function discardStaleSessionDraftOnLoad() {
+    const id = sessionAutoDraftId();
+    if (!id) return;
+    try {
+        await fetchDraftEndpoint('/api/drafts/' + encodeURIComponent(id), { method: 'DELETE' });
+        markSessionAutoDraft('');
+    } catch (_) {
+        // Keep the marker so the next full reload can retry cleanup.
+    }
+}
+
+async function keepCurrentPaper() {
+    if (!activeDraft) return;
+    if (sessionAutoDraftId() === activeDraft.id) markSessionAutoDraft('');
+    await loadDraftList();
+    setPaperSaveState('Saved');
+    setDraftStatus('');
+    updateResultActionsForTab();
+}
+
+function clearTransientBrowserSession() {
+    pendingPaperSave = null;
+    pendingSourceBatch = null;
+    paperSaveConflict = false;
+    try {
+        localStorage.removeItem(ACTIVE_PAPER_STORAGE);
+        localStorage.removeItem(PENDING_SOURCE_STORAGE);
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('paperai_unsaved_paper_v2_')) localStorage.removeItem(key);
+        }
+    } catch (_) {}
+}
 function rememberActivePaper() {
     try {
         if (activeDraft) localStorage.setItem(ACTIVE_PAPER_STORAGE, activeDraft.id);
@@ -11691,6 +12327,8 @@ function setDraftBusy(busy) {
 
 function renderDraftList() {
     draftHasAnything = draftItems.length > 0;
+    const savedCount = $('savedPapersCount');
+    if (savedCount) savedCount.textContent = String(draftItems.length);
     $('draftList').innerHTML = draftItems.map(draft => {
         const count = Number(draft.page_count) || 0;
         return '<button class="draft-item" type="button" data-draft-open="' + esc(draft.id) + '">' +
@@ -11765,7 +12403,9 @@ function renderDraftPages() {
 async function loadDraftList() {
     try {
         const data = await fetchDraftEndpoint('/api/drafts');
-        draftItems = Array.isArray(data.drafts) ? data.drafts : [];
+        const ephemeralId = sessionAutoDraftId();
+        draftItems = (Array.isArray(data.drafts) ? data.drafts : [])
+            .filter(draft => !ephemeralId || draft.id !== ephemeralId);
         renderDraftList();
     } catch (e) {
         setDraftStatus('Drafts are unavailable right now: ' + (e.message || 'connection failed'), true);
@@ -11781,6 +12421,9 @@ async function createNewDraft() {
         await requirePaperSaved();
         const data = await fetchDraftEndpoint('/api/drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
         activeDraft = { ...data.draft, pages: [] };
+        markSessionAutoDraft('');
+        $('draftsCard')?.classList.remove('library-open');
+        $('savedPapersToggle')?.setAttribute('aria-expanded', 'false');
         rememberActivePaper();
         lastResult = null;
         lastCompletedSelection = [];
@@ -11813,6 +12456,9 @@ async function openDraft(draftId) {
             updated_at: data.draft.updated_at,
             pages: Array.isArray(data.pages) ? data.pages : []
         };
+        markSessionAutoDraft('');
+        $('draftsCard')?.classList.remove('library-open');
+        $('savedPapersToggle')?.setAttribute('aria-expanded', 'false');
         rememberActivePaper();
         paperSaveConflict = false;
         let backup = null;
@@ -11908,6 +12554,7 @@ async function saveExtractionToPaper(records) {
         if (!activeDraft) {
             const data = await fetchDraftEndpoint('/api/drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: (records[0]?.filename || 'Question paper').replace(/\.[^.]+$/, '') }) });
             activeDraft = { ...data.draft, pages: [] };
+            markSessionAutoDraft(activeDraft.id);
             rememberActivePaper();
             rememberPendingSources({draft_id:activeDraft.id,records});
         }
@@ -12251,6 +12898,14 @@ async function exportDraftWord() {
 let draftReplaceTarget = null;
 
 function wireDrafts() {
+    const savedToggle = $('savedPapersToggle');
+    if (savedToggle) savedToggle.onclick = () => {
+        const card = $('draftsCard');
+        const open = !card?.classList.contains('library-open');
+        card?.classList.toggle('library-open', open);
+        savedToggle.setAttribute('aria-expanded', String(open));
+    };
+
     $('paperRecoveryBtn').onclick = retryPendingSources;
     $('paperConflictBtn').onclick = saveRecoveredCopy;
     $('draftNewBtn').onclick = createNewDraft;
@@ -12302,12 +12957,11 @@ function wireDrafts() {
 }
 
 wireDrafts();
-try { const recovered = JSON.parse(localStorage.getItem(PENDING_SOURCE_STORAGE) || 'null'); if (recovered?.records?.length) rememberPendingSources(recovered); } catch (_) {}
-loadDraftList().then(() => {
-    let id = '';
-    try { id = localStorage.getItem(ACTIVE_PAPER_STORAGE) || ''; } catch (_) {}
-    if (id && draftItems.some(draft => draft.id === id)) openDraft(id);
-});
+clearTransientBrowserSession();
+activeDraft = null;
+lastResult = null;
+setExtractionView('select');
+discardStaleSessionDraftOnLoad().finally(loadDraftList);
 addEventListener('online', () => { if (pendingPaperSave && !paperSaveConflict) flushPaperSave(); });
 </script>
 </body>
