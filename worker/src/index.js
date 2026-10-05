@@ -710,8 +710,7 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
         sections: Array.isArray(pattern?.sections)
           ? pattern.sections.slice(0,16).map(section => ({
               label: section?.label == null ? null : String(section.label).slice(0,24),
-              title: section?.title == null ? null : String(section.title).slice(0,140),
-              marks: section?.marks == null ? null : String(section.marks).slice(0,40),
+              has_marks: Boolean(section?.has_marks || section?.marks),
               expected_items: Number.isFinite(Number(section?.expected_items))
                 ? Number(section.expected_items)
                 : null,
@@ -736,7 +735,7 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
     ? [
         '',
         'SAFE HISTORICAL FORMAT HINTS:',
-        'These are user-local section skeletons from prior papers. Use them only as weak evidence for section ordering/count expectations when the current OCR visibly supports the same class/subject/exam. Never copy question wording or invent a missing section/item from these hints.',
+        'These are user-local section skeletons from prior papers. Exact prior section wording and marks values are intentionally omitted. Use them only as weak evidence for section ordering/count expectations when the current OCR visibly supports the same class/subject/exam. Never copy question wording, marks values, or invent a missing section/item from these hints.',
         JSON.stringify(knownPatterns)
       ].join('\n')
     : '';
@@ -2304,10 +2303,36 @@ function stripStructuredMetadata(text) {
   return out.join('\n');
 }
 
+function stripLeakedInternalLayoutLabels(value) {
+  return String(value || '').split('\n').map(line => {
+    const source = String(line || '').trim();
+    let m;
+
+    if (/^(?:\[\[\s*)?(?:TABLE|COLUMNS?|WORDSEARCH)[ _-]*(?:START|END)(?:\s*\]\])?$/i.test(source)) return '';
+    if (/^(?:\[\[\s*)?BRANCH[ _-]*END(?:\s*\]\])?$/i.test(source)) return '';
+
+    m = source.match(/^(?:\[\[\s*)?(?:TABLE|COLUMN|WORDSEARCH)[ _-]*ROW\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+    if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' | ').trim();
+
+    m = source.match(/^(?:\[\[\s*)?WORDSEARCH[ _-]*ANSWER\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+    if (m) return String(m[1] || '').trim() + '. ____________________';
+
+    m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ROOT\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+    if (m) return String(m[1] || '').trim();
+
+    m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ITEM\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+    if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' → ').trim();
+
+    return line;
+  }).filter(line => line !== '').join('\n');
+}
+
 function stripOcrMetadata(text) {
   if (!text) return '';
 
-  return stripBranchMetadata(stripStructuredMetadata(stripPageProfileMetadata(stripLineStyleMetadata(stripQuestionPaperMetadata(String(text))))))
+  return stripLeakedInternalLayoutLabels(
+    stripBranchMetadata(stripStructuredMetadata(stripPageProfileMetadata(stripLineStyleMetadata(stripQuestionPaperMetadata(String(text))))))
+  )
     .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
       return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
     })
