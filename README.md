@@ -97,3 +97,9 @@ Analytics can be delayed or sampled; they do not expose the internal quota enfor
 
 
 The Worker deployment also verifies production text extraction, draft creation/renaming and owner isolation with disposable owned test data. These smoke checks do not call AI; image inference availability is reported separately by the quota diagnostics workflow.
+
+## Extracted text and phone exports
+
+The Extracted preview, Copy, UTF-8 TXT download and Word download all use the same corrected structured source. Matching rows retain the adjacent columns from the photo without solving them. Android controls have readable text, 44–48px touch targets and a continuous document scroll. The auto-detection explanation panel has been removed.
+
+Handwriting scans retain the complete source image and focus close-ups on confidently detected page bounds. Hindi option and matching exercises receive one independent image verification pass to reduce anchoring to misread words. This can add inference time and neuron usage; it does not guarantee perfect handwriting recognition.

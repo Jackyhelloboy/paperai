@@ -31,7 +31,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v32',
+        architecture: 'production-literal-ocr-v33',
       }, { headers: corsHeaders });
     }
 
@@ -39,7 +39,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v32',
+        architecture: 'production-literal-ocr-v33',
         model: '@cf/google/gemma-4-26b-a4b-it',
         ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
@@ -1205,7 +1205,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v32',
+        architecture: 'production-literal-ocr-v33',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1608,6 +1608,8 @@ The other images are overlapping close-ups of the SAME source page. They are det
 
 Check the entire page, including small handwritten words and numbers in the left margin. Check printed school names and header fields letter by letter. Do not summarize, shorten a question, solve it, correct its spelling, or fill any answer blank. Keep Hindi in Devanagari and English in English.
 
+For handwritten Devanagari, inspect each base consonant, vowel sign, anusvara, chandrabindu and nukta from the close-ups before writing the word. Distinguish र/ज, ड/ड़, न/ण, ं/ँ and ा/ि/ी/े/ै/ो/ौ using the actual strokes. Re-read proper names and each bracketed option separately. Do not substitute a familiar story word. English matching entries must remain English, with the source's spelling and case; never translate them into Hindi. If a letter cannot be resolved visually, mark just that part [unclear].
+
 For a question paper, preserve EVERY visible Roman section label, item number, instruction, marks formula, option and word. Put each section heading and each numbered item on its own newline. Never join consecutive numbered items into one paragraph. Use ordinary numbered text lines, such as "1. ...", for questions; preserve the source's actual labels and numbering. A missing or unreadable word must be [unclear] in its exact position, never an omitted question. Do not infer a missing item from a marks formula or sequence. Preserve a continuation that starts at item 2 or later.
 
 Copy intentionally written answer blanks as underscores. Notebook ruling, reverse-side show-through, shadows and erased ghosts are background, not text or answer blanks. Preserve deliberate answer space without turning every notebook rule into a separate answer line.
@@ -1677,7 +1679,8 @@ ${paperContextInstruction}`;
   let rescued = false;
 
   if (shouldVerifyOcr(text, imageMeta) && !skipVerificationOnSafeRetry(text, imageMeta)) {
-    const rescuePrompt = hasDegenerateOcr(text)
+    const independentRead = hasDegenerateOcr(text) || needsIndependentHindiRead(text);
+    const rescuePrompt = independentRead
       ? 'Read the attached page again from the image alone. Return only its visible text, line by line, in reading order. Transcribe printed headers and every handwritten Hindi word independently from the pixels. Preserve visible question numbers, Roman section labels, marks, answer blanks and both columns of matching exercises. Never invent alphabet labels, missing words or repeated empty rows. Keep each source line on a separate output line. Use [unclear] only for the unreadable part. Do not copy or reconstruct another page. Do not explain the result.'
       : prompt + `
 
@@ -1715,7 +1718,9 @@ VERIFICATION RULES:
         messages: [
           {
             role: 'system',
-            content: 'You are a forensic literal OCR verifier. Your job is to compare the first transcription to the image and remove hallucinations while recovering only visually supported characters.'
+            content: independentRead
+              ? 'Read the image independently, without reconstructing familiar stories. Inspect handwritten Devanagari vowel signs and consonants from the close-ups. Keep English matching entries in English with their original case. Return only visually supported text and preserve all source rows.'
+              : 'You are a forensic literal OCR verifier. Your job is to compare the first transcription to the image and remove hallucinations while recovering only visually supported characters.'
           },
           {
             role: 'user',
@@ -1896,6 +1901,14 @@ function hasDegenerateOcr(text) {
   return emptyLabels.length > 24 || repeatedLabels.length >= 8;
 }
 
+function needsIndependentHindiRead(text) {
+  const source = String(text || '');
+  const hindiLetters = (source.match(/[\u0900-\u097f]/g) || []).length;
+  const matchingRows = (source.match(/\[\[COLUMN_ROW:/gi) || []).length;
+  const optionLines = source.split('\n').filter(line => /\([^\n]*[/|][^\n]*\)/.test(line)).length;
+  return hindiLetters >= 20 && (matchingRows >= 4 || optionLines >= 3);
+}
+
 function shouldVerifyOcr(text, imageMeta = {}) {
   if (hasDegenerateOcr(text)) return true;
   const visible = String(text || '').trim();
@@ -1952,7 +1965,7 @@ function shouldVerifyOcr(text, imageMeta = {}) {
   const questionStructureRisk = questionStructureNeedsVerification(visible);
   const templateLeakage = containsPromptTemplateLeakage(visible);
 
-  return emptyLike ||
+  return needsIndependentHindiRead(visible) || emptyLike ||
     lineMiss ||
     manyUnclear ||
     hasEditMetadata ||

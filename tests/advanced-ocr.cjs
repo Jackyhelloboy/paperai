@@ -25,5 +25,21 @@ const env = { AI: { run: async (model, body) => {
         assert.equal(images.length, 3);
         assert(images[0].image_url.url.endsWith('FULL'));
     }
+    const first = 'नागण नाम का एक ______ था। (ब्राह्मण / किसान)\n[[COLUMNS_START]]\n' +
+      '[[COLUMN_ROW: 1. फूल || (a) Dust]]\n[[COLUMN_ROW: 2. वर्षा || (b) प्याऊ]]\n' +
+      '[[COLUMN_ROW: 3. धूल || (c) Colour]]\n[[COLUMN_ROW: 4. कोयल || (d) Crow]]\n[[COLUMNS_END]]';
+    const corrected = first.replace('नागण','नारायण').replace('वर्षा','गंदा').replace('प्याऊ','Cuckoo');
+    const reads=[];
+    const photoEnv={AI:{run:async(model,body)=>{
+      reads.push(body);
+      return {choices:[{message:{content:reads.length===1?first:corrected},finish_reason:'stop'}]};
+    }}};
+    const checked=await context.runAI('FULL','image/jpeg',photoEnv,'hi','easy');
+    assert.equal(reads.length,2,'Hindi matching exercises get one independent verification read');
+    assert.equal(checked.text,corrected);
+    assert.equal(checked.rescued,true);
+    const verificationPrompt=reads[1].messages[1].content.find(part=>part.type==='text' && part.text.includes('Read the attached page again')).text;
+    assert(!verificationPrompt.includes('नागण') && !verificationPrompt.includes('FIRST OCR'), 'Do not anchor verification to the misread words');
+    assert.equal(context.needsIndependentHindiRead('Simple English paragraph.'),false);
     console.log('Advanced OCR preserves the full frame, two details, the same model, and skips thinking on plain pages.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

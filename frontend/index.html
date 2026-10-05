@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
     <script src="vendor/indic-transliterate.js"></script>
-    <script src="vendor/paperai-document-model.js?v=31"></script>
+    <script src="vendor/paperai-document-model.js?v=33"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
     <script src="vendor/paperai-word-engine.js"></script>
@@ -933,91 +933,6 @@
             .batch-preview-media { height: 68px !important; }
         }
 
-        .auto-detect-card {
-            padding: 0.72rem 0.78rem;
-            background: linear-gradient(180deg, var(--surface), var(--bg));
-            border-color: var(--border);
-        }
-
-        .auto-detect-main {
-            display: flex;
-            align-items: center;
-            gap: 0.62rem;
-            min-width: 0;
-        }
-
-        .auto-detect-icon {
-            width: 34px;
-            height: 34px;
-            flex: 0 0 34px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--accent-soft);
-            color: var(--accent);
-        }
-
-        .auto-detect-icon svg {
-            width: 20px;
-            height: 20px;
-        }
-
-        .auto-detect-copy {
-            min-width: 0;
-            flex: 1;
-        }
-
-        .auto-detect-title {
-            font-size: 0.75rem;
-            line-height: 1.2;
-            font-weight: 750;
-            color: var(--text);
-        }
-
-        .auto-detect-sub {
-            margin-top: 0.12rem;
-            font-size: 0.61rem;
-            line-height: 1.35;
-            color: var(--text3);
-        }
-
-        .auto-detect-badge {
-            flex: 0 0 auto;
-            padding: 0.24rem 0.42rem;
-            border-radius: 999px;
-            background: var(--accent-soft);
-            color: var(--accent);
-            font-size: 0.52rem;
-            font-weight: 800;
-            letter-spacing: 0.05em;
-        }
-
-        .auto-detect-features {
-            display: flex;
-            gap: 0.3rem;
-            margin-top: 0.52rem;
-            overflow-x: auto;
-            scrollbar-width: none;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .auto-detect-features::-webkit-scrollbar {
-            display: none;
-        }
-
-        .auto-detect-features span {
-            flex: 0 0 auto;
-            padding: 0.22rem 0.4rem;
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            background: var(--surface);
-            color: var(--text3);
-            font-size: 0.54rem;
-            font-weight: 650;
-            white-space: nowrap;
-        }
-
         .batch-preview-media {
             position: relative;
         }
@@ -1083,54 +998,6 @@
                 max-width: 285px;
                 font-size: 0.63rem;
                 line-height: 1.35;
-            }
-
-            .auto-detect-card {
-                margin-top: 0.5rem !important;
-                padding: 0.56rem 0.6rem !important;
-                border-radius: 12px !important;
-            }
-
-            .auto-detect-main {
-                gap: 0.48rem;
-            }
-
-            .auto-detect-icon {
-                width: 30px;
-                height: 30px;
-                flex-basis: 30px;
-                border-radius: 9px;
-            }
-
-            .auto-detect-icon svg {
-                width: 18px;
-                height: 18px;
-            }
-
-            .auto-detect-title {
-                font-size: 0.69rem;
-            }
-
-            .auto-detect-sub {
-                font-size: 0.55rem;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-
-            .auto-detect-badge {
-                padding: 0.2rem 0.34rem;
-                font-size: 0.48rem;
-            }
-
-            .auto-detect-features {
-                margin-top: 0.42rem;
-                gap: 0.24rem;
-            }
-
-            .auto-detect-features span {
-                padding: 0.18rem 0.34rem;
-                font-size: 0.5rem;
             }
 
             .batch-preview {
@@ -1224,9 +1091,6 @@
         }
 
         @media (max-width: 360px) {
-            .auto-detect-features span:nth-child(n+5) {
-                display: none;
-            }
 
             .batch-preview {
                 grid-auto-columns: 96px !important;
@@ -2718,7 +2582,6 @@
             }
 
             /* Everything is automatic, so do not spend phone space explaining it. */
-            .auto-detect-card,
             .language-row,
             .layout-controls,
             .layout-review-head,
@@ -3256,6 +3119,36 @@
 
         .draft-status.error { color: var(--red); }
 
+
+        /* Readable phone controls and one continuous document scroll. */
+        @media (max-width: 640px) {
+            .main {padding: 1rem 0.8rem 1.5rem !important;}
+            .hero h1 {font-size: 1.4rem !important; line-height:1.35;}
+            .upload-title {font-size:1rem !important;}
+            .upload-sub {font-size:0.8rem !important;line-height:1.5 !important;}
+            .upload-zone {min-height:132px !important;}
+            .quota-title {font-size:0.85rem !important;}
+            .quota-stat-label {font-size:0.7rem !important;}
+            .quota-stat-value {font-size:1rem !important;}
+            .quota-subtitle, .quota-times {display:block !important;font-size:0.75rem;}
+            .quota-times {display:grid !important;gap:0.5rem;}
+            .quota-time-label {font-size:0.65rem !important;}
+            .quota-time-value {font-size:0.72rem !important;overflow-wrap:anywhere;}
+            .quota-live {max-width:45%;white-space:normal;line-height:1.4;}
+            .quota-head {align-items:flex-start;gap:0.5rem;}
+            .results-actions {grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:0.5rem !important;}
+            .results-actions .action-btn {min-height:48px !important;height:48px !important;font-size:0.9rem !important;}
+            .output-body {font-size:16px !important;line-height:1.8 !important;padding:0.9rem !important;}
+            .output-question-row {gap:0.5rem;line-height:1.8 !important;margin-bottom:0.6rem;}
+            .output-line {line-height:1.8 !important;}
+            .output-question-section {font-size:1rem !important;line-height:1.7 !important;margin:0.9rem 0 0.6rem;}
+            .ocr-structured-table td, .ocr-structured-table th {padding-top:0.5rem;padding-bottom:0.5rem;}
+            .teach-editor, .draft-title-input, .teach-lang-select {font-size:16px !important;}
+            .teach-editor {min-height:240px;line-height:1.8;}
+            .draft-btn, .teach-tool, .output-tab {min-height:44px !important;}
+            .draft-actions {flex-wrap:wrap;gap:0.5rem;}
+            .draft-actions .draft-btn {flex:1 1 140px;}
+        }
     </style>
 </head>
 <body>
@@ -3337,28 +3230,6 @@
             <select id="languageSelect" aria-hidden="true" tabindex="-1" style="display:none">
                 <option value="auto" selected>Auto detect</option>
             </select>
-
-            <div class="layout-review auto-detect-card" id="layoutReview">
-                <div class="auto-detect-main">
-                    <div class="auto-detect-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3l1.35 3.65L17 8l-3.65 1.35L12 13l-1.35-3.65L7 8l3.65-1.35L12 3zM18.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2zM5.5 13l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z"/>
-                        </svg>
-                    </div>
-                    <div class="auto-detect-copy">
-                        <div class="auto-detect-title">AI Auto Detection</div>
-                        <div class="auto-detect-sub">PaperAI detects language, question pattern, layout and formatting automatically.</div>
-                    </div>
-                    <div class="auto-detect-badge">AUTO</div>
-                </div>
-                <div class="auto-detect-features" aria-label="Automatically detected features">
-                    <span>Language</span>
-                    <span>Questions</span>
-                    <span>Layout</span>
-                    <span>Tables</span>
-                    <span>Shapes</span>
-                </div>
-            </div>
 
             <div class="batch-preview" id="batchPreview"></div>
 
@@ -3462,6 +3333,7 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
                     Copy
                 </button>
+                <button class="action-btn" id="downloadTxtBtn" onclick="downloadText(this)" type="button">TXT</button>
                 <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     Word
@@ -3556,7 +3428,7 @@ const API_LOCAL = location.origin;
 const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageSelect=$('languageSelect');
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
-const batchPreview=$('batchPreview'),layoutReview=$('layoutReview');
+const batchPreview=$('batchPreview');
 const previewLightbox=$('previewLightbox'),previewLightboxImage=$('previewLightboxImage');
 const previewLightboxTitle=$('previewLightboxTitle'),previewLightboxSub=$('previewLightboxSub');
 const pagePresetSelect=$('pagePresetSelect'),densitySelect=$('densitySelect'),aiLayoutToggle=$('aiLayoutToggle');
@@ -3618,7 +3490,7 @@ function updateSmartExtractionUI() {
     } else if (failed > 0 && running === 0) {
         label.textContent = 'Retry & build';
     } else if (running > 0 || ready > 0) {
-        label.textContent = 'Preparing ' + ready + '/' + files.length;
+        label.textContent = 'Reading ' + ready + '/' + files.length;
     } else {
         label.textContent = files.length > 1 ? 'Scan ' + files.length + ' files' : 'Scan & Rebuild';
     }
@@ -4019,7 +3891,6 @@ function renderBatchPreview() {
     if (!files.length) {
         batchPreview.innerHTML = '';
         batchPreview.classList.remove('show');
-        layoutReview.classList.remove('show');
         return;
     }
 
@@ -4050,7 +3921,6 @@ function renderBatchPreview() {
     }).join('');
 
     batchPreview.classList.add('show');
-    layoutReview.classList.add('show');
 
     files.forEach((f, index) => {
         const ext = f.name.split('.').pop().toLowerCase();
@@ -4159,7 +4029,6 @@ function clearFile() {
     filePreview.classList.remove('show');
     batchPreview.classList.remove('show');
     batchPreview.innerHTML='';
-    layoutReview.classList.remove('show');
     goBtn.classList.remove('show');
     goBtn.disabled=true;
     const goLabel = $('goBtnLabel');
@@ -4974,6 +4843,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const cameraOriginalHeight = decoded.height || decoded.naturalHeight || 0;
 
     // Keep margin numbers and faint header letters in the full source frame.
+    const detectedPaper = forceSafe ? null : detectPaperBounds(decoded, cameraOriginalWidth, cameraOriginalHeight);
+    // Focus detail aids on a confident page region; never crop the full source.
+    const detailBounds = detectedPaper?.confidence >= 0.60 ? detectedPaper : null;
     const paperBounds = null;
     let workSource = decoded;
     let croppedSource = null;
@@ -5007,7 +4879,7 @@ async function prepareImageForOCR(source, forceSafe = false) {
     // vision model resamples every image to its own input size anyway. Easy pages
     // go as one 2560px frame; hard/dense/structured pages keep the full 3200px
     // frame plus close-ups. A lighter retry is genuinely light: one 2048px frame.
-    const needsDetail = !forceSafe && (hard || layout.structured || (Number(layout.lineCount) || 0) >= 22);
+    const needsDetail = !forceSafe && (hard || detailBounds || layout.structured || (Number(layout.lineCount) || 0) >= 22);
     const maxLongEdge = forceSafe ? 2048 : (needsDetail ? 3200 : 2560);
     const quality = forceSafe ? 0.88 : 0.92;
     const longEdge = Math.max(originalWidth, originalHeight);
@@ -5038,10 +4910,14 @@ async function prepareImageForOCR(source, forceSafe = false) {
     // handwriting. The full page remains the authority for order and layout.
     for (const bounds of (needsDetail ? [[0, 0.58], [0.42, 1]] : [])) {
         const detail = document.createElement('canvas');
-        detail.width = targetWidth;
-        const top = Math.floor(targetHeight * bounds[0]);
-        detail.height = Math.ceil(targetHeight * bounds[1]) - top;
-        detail.getContext('2d').drawImage(canvas, 0, top, targetWidth, detail.height, 0, 0, targetWidth, detail.height);
+        const region = detailBounds ? {
+            x: Math.floor(detailBounds.x * scale), y: Math.floor(detailBounds.y * scale),
+            width: Math.ceil(detailBounds.width * scale), height: Math.ceil(detailBounds.height * scale)
+        } : {x:0,y:0,width:targetWidth,height:targetHeight};
+        detail.width = Math.min(region.width, targetWidth-region.x);
+        const top = region.y + Math.floor(region.height * bounds[0]);
+        detail.height = Math.min(targetHeight-top, Math.ceil(region.height * bounds[1]) - Math.floor(region.height * bounds[0]));
+        detail.getContext('2d').drawImage(canvas, region.x, top, detail.width, detail.height, 0, 0, detail.width, detail.height);
         const detailBlob = await new Promise(resolve => detail.toBlob(resolve, 'image/jpeg', 0.92));
         if (detailBlob && detailBlob.size <= 4 * 1024 * 1024) detailImages.push(detailBlob);
     }
@@ -5060,7 +4936,8 @@ async function prepareImageForOCR(source, forceSafe = false) {
             cameraOriginalWidth,
             cameraOriginalHeight,
             pageAutoCropped: Boolean(paperBounds && croppedSource),
-            paperCropConfidence: paperBounds?.confidence || 0,
+            paperCropConfidence: detailBounds?.confidence || 0,
+            detailPageFocused: Boolean(detailBounds),
             width: targetWidth,
             height: targetHeight,
             originalBytes: source.size || 0,
@@ -6500,21 +6377,17 @@ function publicPlainTextFromStructured(value) {
 }
 
 function currentPlainText() {
-    if (!lastResult) return '';
-    const live = teachPanel.classList.contains('show')
-        ? (lastResult.preview_text || teachEditor.value)
-        : '';
-    return publicPlainTextFromStructured(
-        live || lastResult.plain_text || lastResult.text || ''
-    );
+    // Preview, Copy, TXT and Word all read the same corrected structured source.
+    return publicPlainTextFromStructured(currentStructuredWordText());
 }
 
 function updateResultActionsForTab() {
-    const downloadBtn = $('downloadWordBtn');
-
-    if (downloadBtn) {
-        downloadBtn.style.display = showingRaw ? 'none' : '';
-        downloadBtn.disabled = showingRaw;
+    for (const id of ['downloadWordBtn','downloadTxtBtn']) {
+        const btn = $(id);
+        if (btn) {
+            btn.style.display = showingRaw ? 'none' : '';
+            btn.disabled = showingRaw;
+        }
     }
 }
 
@@ -9450,6 +9323,15 @@ async function downloadWord(btn) {
             btn.innerHTML = original;
         }
     }
+}
+
+function downloadText(btn) {
+    if (!lastResult || showingRaw) return;
+    const text = currentPlainText();
+    if (!text.trim()) { showErr('Nothing was available to export.'); return; }
+    // UTF-8 preserves Devanagari, punctuation and answer blanks on Android.
+    dlBlob(new Blob([text], {type:'text/plain;charset=utf-8'}),
+        extractedWordFilename().replace(/\.docx$/, '.txt'));
 }
 
 function copyText(btn){

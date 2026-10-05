@@ -51,3 +51,11 @@ At 06:03 UTC, a post-cleanup production image probe returned HTTP 200 with an OC
 ## Daily usage dashboard update
 
 The five-minute display meter and local owner allowance have been retired. Account-wide Cloudflare Analytics neuron totals are synchronized into D1 on deployment and on a 15-minute GitHub schedule. UI values identify their source and last update, and never claim to be the internal quota ledger. Missing current-day reports show unavailable values; a clock rollover cannot clear an observed provider quota rejection. The daily reset is 00:00 UTC (05:30 IST).
+
+## Handwriting and Android export update
+
+- Removed the AI Auto Detection panel and its event references.
+- Copy, TXT and Word share the exact source rendered in Extracted, including saved or previewed corrections; stale backend plain-text fields no longer override it.
+- Verified character parity between a real DOCX file and UTF-8 TXT for a Hindi worksheet with numbered questions, blanks and six unsolved matching rows.
+- Added confident page-focused detail views while retaining the original full frame. Hindi option/matching exercises use an independent verification read, subject to the existing completeness checks and provider quota.
+- Larger Android typography/touch targets and visible usage report/reset timestamps replace the overly compressed phone presentation.
