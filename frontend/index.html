@@ -3885,11 +3885,22 @@ async function checkServiceHealth() {
 
     let healthy = false;
     for (const target of targets) {
-        const control = linkedAttemptSignal(null, 10000);
+        let signal;
+        let cleanup = () => {};
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+            signal = AbortSignal.timeout(10000);
+        } else {
+            const controller = new AbortController();
+            const timer = setTimeout(() => {
+                try { controller.abort('health-timeout'); } catch (_) { controller.abort(); }
+            }, 10000);
+            signal = controller.signal;
+            cleanup = () => clearTimeout(timer);
+        }
         try {
             // Prefer the same-origin Pages proxy. Some mobile/ISP networks block
             // direct workers.dev requests even while the backend itself is healthy.
-            const response = await fetch(target, { cache:'no-store', signal:control.signal });
+            const response = await fetch(target, { cache:'no-store', signal });
             if (!response.ok) continue;
             const health = await response.json().catch(() => ({}));
             if (health.status === 'healthy') {
@@ -3899,7 +3910,7 @@ async function checkServiceHealth() {
         } catch (_) {
             // Fall through to the next route before declaring the service offline.
         } finally {
-            control.cleanup();
+            cleanup();
         }
     }
 
