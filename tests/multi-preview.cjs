@@ -70,7 +70,7 @@ assert.equal(batchPreviewCount.textContent, '3/5 images');
 assert.equal(batchAddMore.hidden, false, 'Users can add more images while slots remain');
 
 const finalCss = html.slice(html.indexOf('/* v40 multi-page upload gallery'));
-assert(finalCss.includes('grid-auto-columns: 104px !important'), 'Mobile upload preview must use compact swipeable thumbnails');
+assert(finalCss.includes('grid-auto-columns: 96px !important'), 'Mobile upload preview must use compact swipeable thumbnails');
 assert(finalCss.includes('overflow-x: auto !important'), 'Every imported page must remain reachable by horizontal swipe');
 assert(finalCss.includes('scroll-snap-type: x proximity'), 'Mobile preview swipe should stop cleanly on page thumbnails');
 
