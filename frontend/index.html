@@ -3279,8 +3279,8 @@
         <section class="quota-card" id="quotaCard" aria-live="polite">
             <div class="quota-head">
                 <div>
-                    <div class="quota-title">Today's free AI OCR quota</div>
-                    <div class="quota-subtitle">Free AI usage today</div>
+                    <div class="quota-title">AI OCR usage · 5 minute window</div>
+                    <div class="quota-subtitle">Local meter resets every 5 minutes. Cloudflare's free allocation resets daily.</div>
                 </div>
                 <div class="quota-live" id="quotaBadge">
                     <span class="quota-live-dot"></span>
@@ -3290,7 +3290,7 @@
 
             <div class="quota-stats">
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Remaining</span>
+                    <span class="quota-stat-label">Reference remaining</span>
                     <span class="quota-stat-value" id="quotaRemaining">—</span>
                 </div>
                 <div class="quota-stat">
@@ -3299,19 +3299,19 @@
                 </div>
             </div>
 
-            <div class="quota-track" title="Daily AI quota used">
+            <div class="quota-track" title="Estimated AI usage in this five-minute window">
                 <div class="quota-fill" id="quotaFill"></div>
             </div>
             <div class="quota-scale">
                 <span id="quotaPercent">0% used</span>
-                <span>10,000 Neurons / day shared</span>
+                <span>10,000 Neurons reference</span>
             </div>
             <div class="quota-scale">
-                <span id="quotaMine">Your share loads here</span>
-                <span>1,000 Neurons / day per browser</span>
+                <span id="quotaMine">Usage estimate loads here</span>
+                <span>No local OCR limit</span>
             </div>
 
-            <svg class="quota-chart" viewBox="0 0 320 54" preserveAspectRatio="none" role="img" aria-label="AI usage trend today">
+            <svg class="quota-chart" viewBox="0 0 320 54" preserveAspectRatio="none" role="img" aria-label="AI usage trend in the current five-minute window">
                 <line class="quota-chart-grid" x1="0" y1="13.5" x2="320" y2="13.5"></line>
                 <line class="quota-chart-grid" x1="0" y1="27" x2="320" y2="27"></line>
                 <line class="quota-chart-grid" x1="0" y1="40.5" x2="320" y2="40.5"></line>
@@ -3324,7 +3324,7 @@
                     <span class="quota-time-value" id="quotaNow">—</span>
                 </div>
                 <div>
-                    <span class="quota-time-label">Renews</span>
+                    <span class="quota-time-label">Local meter resets</span>
                     <span class="quota-time-value" id="quotaReset">—</span>
                 </div>
             </div>
@@ -3777,6 +3777,8 @@ const hideErr = () => errBox.classList.remove('show');
 const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'%'; if(msg)pMsg.textContent=msg; };
 
 let quotaResetAt = null;
+let quotaClockOffset = 0, quotaLoading = false, quotaBoundaryCheckAt = 0;
+const QUOTA_REFRESH_MS = 5 * 60 * 1000;
 
 const fmtNeuron = n => {
     const value = Number(n);
@@ -3804,18 +3806,22 @@ function updateQuotaClock() {
     quotaNow.textContent = formatLocalDateTime(new Date());
     if (quotaResetAt) {
         const reset = new Date(quotaResetAt);
-        const ms = reset - Date.now();
-        const mins = Math.max(0, Math.ceil(ms / 60000));
-        const h = Math.floor(mins / 60);
-        const m = mins % 60;
-        quotaReset.textContent = 'in ' + h + 'h ' + m + 'm · ' + formatLocalDateTime(reset);
+        const ms = reset - (Date.now() + quotaClockOffset);
+        const seconds = Math.max(0, Math.ceil(ms / 1000));
+        const m = Math.floor(seconds / 60), s = seconds % 60;
+        quotaReset.textContent = 'in ' + m + 'm ' + String(s).padStart(2, '0') + 's · ' + formatLocalDateTime(reset);
+        if (ms <= 0 && !quotaLoading && Date.now() >= quotaBoundaryCheckAt) {
+            quotaBoundaryCheckAt = Date.now() + 30000;
+            void loadUsage();
+        }
     }
 }
 
-function drawQuotaHistory(history, limit, resetAt) {
+function drawQuotaHistory(history, limit, resetAt, windowStartAt) {
     const width = 320, height = 53;
     const reset = new Date(resetAt);
-    const start = new Date(reset.getTime() - 86400000);
+    if (!Number.isFinite(reset.getTime())) return;
+    const start = new Date(windowStartAt || reset.getTime() - QUOTA_REFRESH_MS);
     const startMs = start.getTime();
     const span = Math.max(1, reset.getTime() - startMs);
 
@@ -3836,14 +3842,16 @@ function drawQuotaHistory(history, limit, resetAt) {
 }
 
 async function loadUsage() {
+    if (quotaLoading) return;
+    quotaLoading = true;
     try {
         const usageHeaders = { 'X-PaperAI-Owner': draftOwnerKey() };
         let res;
         try {
-            res = await fetch(API_LOCAL + '/api/usage?t=' + Date.now(), { cache: 'no-store', headers: usageHeaders });
+            res = await fetch(API_LOCAL + '/api/usage?t=' + Date.now(), { cache: 'no-store', headers: usageHeaders, signal: AbortSignal.timeout(15000) });
             if (!res.ok && [404,405,502,503,504].includes(res.status)) throw new Error('proxy unavailable');
         } catch (_) {
-            res = await fetch(API_DIRECT + '/api/usage?t=' + Date.now(), { cache: 'no-store', headers: usageHeaders });
+            res = await fetch(API_DIRECT + '/api/usage?t=' + Date.now(), { cache: 'no-store', headers: usageHeaders, signal: AbortSignal.timeout(15000) });
         }
         if (!res.ok) throw new Error('status ' + res.status);
         const data = await res.json();
@@ -3858,17 +3866,19 @@ async function loadUsage() {
         quotaFill.style.width = pct.toFixed(2) + '%';
         quotaPercent.textContent = pct.toFixed(pct < 10 ? 1 : 0) + '% used';
         quotaResetAt = data.reset_at || null;
+        const serverTime = Date.parse(data.server_time);
+        quotaClockOffset = Number.isFinite(serverTime) ? serverTime - Date.now() : 0;
 
         const mine = document.getElementById('quotaMine');
         if (mine) {
-            mine.textContent = 'Usage estimate only · PaperAI does not block OCR from this meter';
+            mine.textContent = 'Local meter only · OCR stays enabled · Cloudflare daily quota is unchanged';
         }
 
         quotaCard.classList.toggle('warning', pct >= 75 && pct < 100);
         quotaCard.classList.remove('exhausted');
         quotaBadgeText.textContent = 'Usage estimate';
 
-        drawQuotaHistory(data.history || [], limit, data.reset_at);
+        drawQuotaHistory(data.history || [], limit, data.reset_at, data.window_start_at);
         updateQuotaClock();
 
         const requests = Number(data.ocr_requests_tracked) || 0;
@@ -3876,13 +3886,19 @@ async function loadUsage() {
     } catch (e) {
         quotaBadgeText.textContent = 'Unavailable';
         updateQuotaClock();
+    } finally {
+        quotaLoading = false;
     }
 }
 
 updateQuotaClock();
 setInterval(updateQuotaClock, 1000);
 loadUsage();
-setInterval(loadUsage, 120000);
+setInterval(loadUsage, QUOTA_REFRESH_MS);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void loadUsage();
+});
+window.addEventListener('online', () => { void loadUsage(); });
 
 let presenceSocket = null;
 let presenceRetry = null;

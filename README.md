@@ -85,3 +85,17 @@ python main.py
 |----------|-------------|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
+# Automatic usage updates
+
+The PaperAI usage estimate resets at five-minute boundaries (:00, :05, :10,
+and so on). Durable Object alarms clear the local usage, owner counts and
+chart history; a request also recovers a missed reset. The browser refreshes
+every five minutes, when the countdown reaches zero, and when a tab becomes
+visible or reconnects. OCR stays enabled when the local estimate reaches zero.
+
+This local meter does not refill Cloudflare Workers AI's real free allocation.
+Cloudflare controls its daily reset at 00:00 UTC (05:30 India time). The API
+reports that separately as `provider_reset_at`. No paid model or plan is enabled.
+
+Verify with `node tests/usage-reset.cjs`.
+

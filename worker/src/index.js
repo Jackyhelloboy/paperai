@@ -6,7 +6,9 @@ import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCo
 // Cloudflare Workers AI is the authority on real provider availability.
 const DAILY_FREE_NEURONS = 10000;
 const PER_USER_DAILY_NEURONS = 1000;
-// Guard against an unbounded owner map in a single day.
+// PaperAI's display window is separate from Cloudflare's daily allocation.
+const USAGE_WINDOW_MS = 5 * 60 * 1000;
+// Guard against an unbounded owner map in a usage window.
 const MAX_TRACKED_OWNERS = 600;
 const GEMMA4_INPUT_NEURONS_PER_MILLION = 9091;
 const GEMMA4_OUTPUT_NEURONS_PER_MILLION = 27273;
@@ -58,7 +60,7 @@ export default {
       return getPresenceStub(env).fetch(request);
     }
 
-    // Public daily free-AI quota dashboard. This is a PaperAI-side estimate
+    // Public five-minute usage dashboard. This is a PaperAI-side estimate
     // calculated from Workers AI token usage returned after each OCR request.
 if (url.pathname === '/api/usage' && request.method === 'GET') {
       try {
@@ -388,6 +390,16 @@ export class UsageTracker extends DurableObject {
     super(ctx, env);
   }
 
+  async alarm() {
+    const now = new Date();
+    const state = await this.ctx.storage.get('five-minute-usage');
+    if (!state || Date.parse(state.reset_at) <= now.getTime()) {
+      await this.ctx.storage.put('five-minute-usage', createUsageWindow(now));
+    } else {
+      await this.ctx.storage.setAlarm(Date.parse(state.reset_at));
+    }
+  }
+
   broadcastPresence(exclude = null) {
     const sockets = this.ctx.getWebSockets();
     const active = sockets.filter(ws => ws !== exclude).length;
@@ -424,17 +436,12 @@ export class UsageTracker extends DurableObject {
     const now = new Date();
     const utcDay = now.toISOString().slice(0, 10);
 
-    let state = await this.ctx.storage.get('daily');
-    if (!state || state.day !== utcDay) {
-      state = {
-        day: utcDay,
-        used: 0,
-        requests: 0,
-        history: [],
-        exhausted: false,
-        tracking_started_at: now.toISOString(),
-      };
+    let state = await this.ctx.storage.get('five-minute-usage');
+    if (!state || Date.parse(state.reset_at) <= now.getTime() || !Number.isFinite(Date.parse(state.reset_at))) {
+      state = createUsageWindow(now);
+      await this.ctx.storage.put('five-minute-usage', state);
     }
+    await this.ctx.storage.setAlarm(Date.parse(state.reset_at));
 
     if (request.method === 'POST' && url.pathname === '/add') {
       const body = await request.json();
@@ -459,7 +466,7 @@ export class UsageTracker extends DurableObject {
           used: Math.round(state.used * 100) / 100,
         });
 
-        // A whole day only needs a compact trend. Keep first/last and recent
+        // A usage window only needs a compact trend. Keep first/last and recent
         // points if traffic ever grows beyond the current small audience.
         if (state.history.length > 144) {
           const sampled = state.history.filter((_, i) => i % 2 === 0);
@@ -470,7 +477,7 @@ export class UsageTracker extends DurableObject {
         }
       }
 
-      await this.ctx.storage.put('daily', state);
+      await this.ctx.storage.put('five-minute-usage', state);
     }
 
     if (request.method === 'POST' && url.pathname === '/owner-check') {
@@ -492,14 +499,14 @@ export class UsageTracker extends DurableObject {
     }
 
     if (request.method === 'POST' && url.pathname === '/exhausted') {
-      // Compatibility endpoint only. Provider quota errors must not poison
-      // PaperAI's local usage state for the rest of the day.
+      // Compatibility endpoint only. Provider quota errors must not block OCR
+      // through PaperAI's local usage state.
       state.provider_limit_seen_at = now.toISOString();
       state.exhausted = false;
-      await this.ctx.storage.put('daily', state);
+      await this.ctx.storage.put('five-minute-usage', state);
     }
 
-    const reset = new Date(Date.UTC(
+    const providerReset = new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
       now.getUTCDate() + 1,
@@ -512,7 +519,12 @@ export class UsageTracker extends DurableObject {
     return Response.json({
       date_utc: utcDay,
       server_time: now.toISOString(),
-      reset_at: reset.toISOString(),
+      reset_at: state.reset_at,
+      window_start_at: state.window_start_at,
+      window_seconds: USAGE_WINDOW_MS / 1000,
+      refresh_seconds: USAGE_WINDOW_MS / 1000,
+      provider_reset_at: providerReset.toISOString(),
+      provider_reset_rule: '00:00 UTC daily; local resets do not replenish provider quota',
       free_limit: DAILY_FREE_NEURONS,
       estimated_used: Math.round(used * 100) / 100,
       estimated_remaining: Math.round(remaining * 100) / 100,
@@ -522,9 +534,9 @@ export class UsageTracker extends DurableObject {
       provider_limit_seen_at: state.provider_limit_seen_at || null,
       enforcement: 'provider-only',
       history: state.history || [],
-      scope: 'PaperAI OCR requests handled by this Worker',
+      scope: 'PaperAI OCR requests in the current five-minute window',
       accuracy: 'estimate',
-      reset_rule: '00:00 UTC daily',
+      reset_rule: 'Every five minutes (PaperAI usage estimate only)',
       tracking_started_at: state.tracking_started_at || null,
     }, {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
@@ -543,6 +555,21 @@ export class UsageTracker extends DurableObject {
   webSocketError(ws) {
     this.broadcastPresence(ws);
   }
+}
+
+function createUsageWindow(now) {
+  const start = Math.floor(now.getTime() / USAGE_WINDOW_MS) * USAGE_WINDOW_MS;
+  return {
+    day: now.toISOString().slice(0, 10),
+    window_start_at: new Date(start).toISOString(),
+    reset_at: new Date(start + USAGE_WINDOW_MS).toISOString(),
+    used: 0,
+    requests: 0,
+    owners: {},
+    history: [],
+    exhausted: false,
+    tracking_started_at: now.toISOString(),
+  };
 }
 
 function isAdminRequest(request, env) {
@@ -600,9 +627,8 @@ async function markUsageExhausted(env) {
   });
 }
 
-// Fair use: the daily allowance is shared, so check the caller's own daily
-// share before spending any of it. The browser key is not a security token, it
-// simply stops one visitor using up everyone else's allowance.
+// Browser usage telemetry only. The browser key is not a security token,
+// and the usage estimate never enforces a local OCR allowance.
 async function checkOwnerAllowance(env, request) {
   const owner = String(request.headers.get('X-PaperAI-Owner') || '').slice(0, 64);
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(owner)) {
