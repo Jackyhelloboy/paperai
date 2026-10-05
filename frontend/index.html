@@ -5364,8 +5364,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
 }
 
 async function fetchOcrEndpoint(path, options) {
-   const heavyAiRequest = ['/api/ocr','/api/analyze-paper','/api/suggest-word'].includes(path);
-   const targets = heavyAiRequest
+   const aiRequest = ['/api/ocr','/api/analyze-paper','/api/suggest-word'].includes(path);
+   const directOnlyAiRequest = ['/api/ocr','/api/analyze-paper'].includes(path);
+   const targets = directOnlyAiRequest
    ? [API_DIRECT + path]
    : [API_LOCAL + path, API_DIRECT + path];
    let lastError = null;
@@ -5377,7 +5378,7 @@ async function fetchOcrEndpoint(path, options) {
    for (let i = 0; i < targets.length; i++) {
    try {
    const res = await fetch(targets[i], opts);
-            if (!heavyAiRequest && i === 0 && await shouldTryAlternateOcrRoute(res, heavyAiRequest)) {
+            if (!directOnlyAiRequest && i === 0 && await shouldTryAlternateOcrRoute(res, aiRequest)) {
                 continue;
             }
             return res;
