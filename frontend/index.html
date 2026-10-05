@@ -2633,6 +2633,10 @@
                 min-height: 52px;
             }
 
+            #onlineCount {
+                display: none !important;
+            }
+
             .main {
                 width: 100% !important;
                 max-width: 100% !important;
@@ -4472,8 +4476,11 @@
             }
 
             .header-status {
+                width: 30px;
+                min-width: 30px;
                 min-height: 30px;
-                padding: 0 9px !important;
+                padding: 0 !important;
+                justify-content: center !important;
                 border: 1px solid var(--mobile-line) !important;
                 border-radius: 999px !important;
                 background: #fff !important;
@@ -8991,6 +8998,13 @@ function updateResultActionsForTab() {
     if (txt) { txt.hidden = !showingRaw; txt.disabled = !showingRaw; }
     if (edit) { edit.hidden = showingRaw; edit.disabled = showingRaw; }
 
+    const keep = $('keepPaperBtn');
+    if (keep) {
+        const temporary = Boolean(activeDraft?.id && sessionAutoDraftId() === activeDraft.id);
+        keep.hidden = !temporary;
+        keep.textContent = 'Save paper';
+    }
+
     const panel = $('teachPanel');
     const status = $('documentStatus');
     const editing = Boolean(panel?.classList?.contains?.('show'));
@@ -10289,6 +10303,26 @@ function setExtractionView(view) {
     $('extractionStatus').textContent = view === 'processing' ? 'Extracting your document' : view === 'error' ? 'Ready when you are' : 'Ready to review';
     $('extractionFileName').textContent = files.length === 1 ? files[0].name : files.length + ' selected files';
 }
+async function returnToStart() {
+    const currentId = activeDraft?.id || '';
+    const temporary = currentId && sessionAutoDraftId() === currentId;
+
+    if (temporary) {
+        try { await fetchDraftEndpoint('/api/drafts/' + encodeURIComponent(currentId), { method: 'DELETE' }); }
+        catch (_) {}
+        markSessionAutoDraft('');
+    }
+
+    activeDraft = null;
+    pendingPaperSave = null;
+    pendingSourceBatch = null;
+    paperSaveConflict = false;
+    rememberActivePaper();
+    renderDraftPages();
+    clearFile();
+    loadDraftList();
+}
+
 function goBackToUpload() {
     extractionEpoch++;
     extractionController?.abort();
@@ -10471,7 +10505,7 @@ async function startExtraction() {
 }
 goBtn.onclick = startExtraction;
 $('extractionRetry').onclick = startExtraction;
-$('extractionBack').onclick = goBackToUpload;
+$('extractionBack').onclick = returnToStart;
 
 
 function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
