@@ -7244,6 +7244,9 @@ function showSmartSuggestions() {
     localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
     renderSuggestionChips(localChoices, [], false);
 
+    const panel = $('aiSuggestionPanel');
+    if (panel && localChoices.length) panel.dataset.state = 'ready';
+
     aiSuggestionSequence++;
 }
 
