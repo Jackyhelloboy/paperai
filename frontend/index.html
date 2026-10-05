@@ -8578,6 +8578,7 @@ function openTeachPanel() {
 
     teachPanel.classList.add('show');
     $('outputCard')?.classList.add('editing');
+    document.querySelector('.main')?.classList.add('editing-document');
     $('tabRaw').disabled = true;
     $('tabVerified').disabled = true;
     const documentStatus = $('documentStatus');
@@ -8613,6 +8614,7 @@ function closeTeachPanel() {
 
     teachPanel.classList.remove('show');
     $('outputCard')?.classList.remove('editing');
+    document.querySelector('.main')?.classList.remove('editing-document');
     $('tabRaw').disabled = false;
     $('tabVerified').disabled = false;
     smartComposition = null;
@@ -10301,6 +10303,7 @@ function goBackToUpload() {
     }
     teachPanel.classList.remove('show');
     $('outputCard')?.classList.remove('editing');
+    document.querySelector('.main')?.classList.remove('editing-document');
     setExtractionView('select');
     goBtn.disabled = !files.length;
     updateSmartExtractionUI();
@@ -12091,6 +12094,20 @@ let paperSaveConflict = false;
 let pendingSourceBatch = null;
 const PENDING_SOURCE_STORAGE = 'paperai_pending_pages_v2';
 function paperBackupKey(id) { return 'paperai_unsaved_paper_v2_' + id; }
+
+function clearTransientBrowserSession() {
+    pendingPaperSave = null;
+    pendingSourceBatch = null;
+    paperSaveConflict = false;
+    try {
+        localStorage.removeItem(ACTIVE_PAPER_STORAGE);
+        localStorage.removeItem(PENDING_SOURCE_STORAGE);
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('paperai_unsaved_paper_v2_')) localStorage.removeItem(key);
+        }
+    } catch (_) {}
+}
 function rememberActivePaper() {
     try {
         if (activeDraft) localStorage.setItem(ACTIVE_PAPER_STORAGE, activeDraft.id);
@@ -12236,6 +12253,8 @@ function setDraftBusy(busy) {
 
 function renderDraftList() {
     draftHasAnything = draftItems.length > 0;
+    const savedCount = $('savedPapersCount');
+    if (savedCount) savedCount.textContent = String(draftItems.length);
     $('draftList').innerHTML = draftItems.map(draft => {
         const count = Number(draft.page_count) || 0;
         return '<button class="draft-item" type="button" data-draft-open="' + esc(draft.id) + '">' +
@@ -12326,6 +12345,8 @@ async function createNewDraft() {
         await requirePaperSaved();
         const data = await fetchDraftEndpoint('/api/drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
         activeDraft = { ...data.draft, pages: [] };
+        $('draftsCard')?.classList.remove('library-open');
+        $('savedPapersToggle')?.setAttribute('aria-expanded', 'false');
         rememberActivePaper();
         lastResult = null;
         lastCompletedSelection = [];
@@ -12358,6 +12379,8 @@ async function openDraft(draftId) {
             updated_at: data.draft.updated_at,
             pages: Array.isArray(data.pages) ? data.pages : []
         };
+        $('draftsCard')?.classList.remove('library-open');
+        $('savedPapersToggle')?.setAttribute('aria-expanded', 'false');
         rememberActivePaper();
         paperSaveConflict = false;
         let backup = null;
@@ -12796,6 +12819,14 @@ async function exportDraftWord() {
 let draftReplaceTarget = null;
 
 function wireDrafts() {
+    const savedToggle = $('savedPapersToggle');
+    if (savedToggle) savedToggle.onclick = () => {
+        const card = $('draftsCard');
+        const open = !card?.classList.contains('library-open');
+        card?.classList.toggle('library-open', open);
+        savedToggle.setAttribute('aria-expanded', String(open));
+    };
+
     $('paperRecoveryBtn').onclick = retryPendingSources;
     $('paperConflictBtn').onclick = saveRecoveredCopy;
     $('draftNewBtn').onclick = createNewDraft;
@@ -12847,12 +12878,11 @@ function wireDrafts() {
 }
 
 wireDrafts();
-try { const recovered = JSON.parse(localStorage.getItem(PENDING_SOURCE_STORAGE) || 'null'); if (recovered?.records?.length) rememberPendingSources(recovered); } catch (_) {}
-loadDraftList().then(() => {
-    let id = '';
-    try { id = localStorage.getItem(ACTIVE_PAPER_STORAGE) || ''; } catch (_) {}
-    if (id && draftItems.some(draft => draft.id === id)) openDraft(id);
-});
+clearTransientBrowserSession();
+activeDraft = null;
+lastResult = null;
+loadDraftList();
+setExtractionView('select');
 addEventListener('online', () => { if (pendingPaperSave && !paperSaveConflict) flushPaperSave(); });
 </script>
 </body>
