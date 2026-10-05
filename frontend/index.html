@@ -3335,7 +3335,7 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 </div>
                 <div class="upload-title">Drop files here</div>
-                <div class="upload-sub">or tap to browse · <strong>Bulk JPG, PNG, PDF + Office/text</strong> · 50 MB each</div>
+                <div class="upload-sub">or tap to browse · <strong>Up to 5 images or 1 PDF</strong> · Office/text supported · 50 MB each</div>
                 <input type="file" id="fileInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
             </div>
 
@@ -3610,7 +3610,7 @@ function updateSmartExtractionUI() {
     if (!label) return;
 
     if (ready === files.length) {
-        label.textContent = 'Review saved result';
+        label.textContent = 'Open extracted result';
     } else if (failed > 0 && running === 0) {
         label.textContent = 'Retry & build';
     } else if (running > 0 || ready > 0) {
@@ -4115,9 +4115,19 @@ function setFiles(inputFiles, append = false) {
     if (!valid.length) return;
 
     const next = append ? [...files, ...valid] : valid;
-    const selectionNotice = '';
+    const imageCount = next.filter(f => IMAGE_EXTS.includes(f.name.split('.').pop().toLowerCase())).length;
+    const pdfCount = next.filter(f => PDF_EXTS.includes(f.name.split('.').pop().toLowerCase())).length;
+
+    if (pdfCount > SMART_MAX_PDFS || (pdfCount > 0 && next.length > 1)) {
+        showErr('Upload 1 PDF at a time. Do not combine a PDF with other files in the same upload.');
+        return;
+    }
+    if (imageCount > SMART_MAX_IMAGES) {
+        showErr('Upload up to ' + SMART_MAX_IMAGES + ' images at a time.');
+        return;
+    }
     if (next.length > 20) {
-        showErr('Choose up to 20 files in one batch. Add another batch to the same draft afterwards.');
+        showErr('Choose fewer files in one batch.');
         return;
     }
 
@@ -4133,8 +4143,10 @@ function setFiles(inputFiles, append = false) {
     resBox.classList.remove('show');
     renderBatchPreview();
 
-    // Browser preparation is safe before consent; AI starts only on Extract.
-    files.filter(f => getFileCategory(f.name.split('.').pop().toLowerCase()) === 'img').slice(0, 1).forEach(prefetchPreparedImage);
+    // Start local preparation immediately, then let the low-concurrency background
+    // queue begin OCR without waiting for the user to press the action button.
+    files.filter(f => getFileCategory(f.name.split('.').pop().toLowerCase()) === 'img').forEach(prefetchPreparedImage);
+    startSmartExtractionForFiles();
     updateSmartExtractionUI();
 }
 function setFile(f) {
@@ -4921,6 +4933,42 @@ function detectTextLineLayout(source, originalWidth, originalHeight) {
     };
 }
 
+async function makePageDetailCrops(source, originalWidth, originalHeight, forceSafe = false) {
+    if (!source || originalWidth < 900 || originalHeight < 1100) return [];
+
+    const overlap = Math.max(80, Math.round(originalHeight * 0.12));
+    const halfHeight = Math.min(originalHeight, Math.ceil((originalHeight + overlap) / 2));
+    const starts = [0, Math.max(0, originalHeight - halfHeight)];
+    const maxWidth = forceSafe ? 1700 : 2100;
+    const scale = Math.min(1, maxWidth / Math.max(1, originalWidth));
+    const out = [];
+
+    for (const y0 of starts) {
+        const srcH = Math.min(halfHeight, originalHeight - y0);
+        if (srcH <= 0) continue;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(originalWidth * scale));
+        canvas.height = Math.max(1, Math.round(srcH * scale));
+        const ctx = canvas.getContext('2d', { alpha: false });
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(source, 0, y0, originalWidth, srcH, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(
+                b => b ? resolve(b) : reject(new Error('Could not build detail scan')),
+                'image/webp',
+                forceSafe ? 0.86 : 0.91
+            );
+        });
+        if (blob.size <= 4 * 1024 * 1024) out.push(blob);
+        canvas.width = canvas.height = 0;
+    }
+
+    return out.slice(0, 2);
+}
+
 async function makeLineMosaic(source, layout, originalWidth, originalHeight, forceSafe = false) {
     if (!layout?.lineFriendly || !layout.bands?.length) return null;
 
@@ -5035,6 +5083,15 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const targetWidth = Math.max(1, Math.round(originalWidth * scale));
     const targetHeight = Math.max(1, Math.round(originalHeight * scale));
 
+    const detailImages = [];
+    if (layout.lineFriendly) {
+        const mosaic = await makeLineMosaic(workSource, layout, originalWidth, originalHeight, forceSafe).catch(() => null);
+        if (mosaic?.blob && mosaic.blob.size <= 4 * 1024 * 1024) detailImages.push(mosaic.blob);
+    } else if (layout.structured) {
+        const detailCrops = await makePageDetailCrops(workSource, originalWidth, originalHeight, forceSafe).catch(() => []);
+        detailImages.push(...detailCrops);
+    }
+
     const canvas = document.createElement('canvas');
     canvas.width = targetWidth;
     canvas.height = targetHeight;
@@ -5053,7 +5110,6 @@ async function prepareImageForOCR(source, forceSafe = false) {
         canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not optimize image')), preferredType, quality);
     });
 
-    const detailImages = [];
     if (blob.size > 7 * 1024 * 1024 && !forceSafe) {
         return prepareImageForOCR(source, true);
     }
@@ -5069,7 +5125,7 @@ async function prepareImageForOCR(source, forceSafe = false) {
             cameraOriginalHeight,
             pageAutoCropped: Boolean(paperBounds && croppedSource),
             paperCropConfidence: detailBounds?.confidence || 0,
-            detailPageFocused: false,
+            detailPageFocused: detailImages.length > 0,
             width: targetWidth,
             height: targetHeight,
             originalBytes: source.size || 0,
@@ -6285,9 +6341,20 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
     formData.append('difficulty', prepared.difficulty);
     formData.append('image_meta', JSON.stringify(prepared.meta || {}));
     formData.append('layout_options', JSON.stringify(getLayoutOptions()));
-    formData.append('paper_context', JSON.stringify(paperContext || {}));
+    const structuralContext = {
+        ...(paperContext || {}),
+        pattern_hints: typeof safeQuestionPatternHints === 'function' ? safeQuestionPatternHints() : []
+    };
+    formData.append('paper_context', JSON.stringify(structuralContext));
+    (prepared.detailImages || []).slice(0, 2).forEach((detail, index) => {
+        const detailBlob = detail?.blob || detail;
+        if (detailBlob instanceof Blob && detailBlob.size <= 4 * 1024 * 1024) {
+            const ext = detailBlob.type === 'image/webp' ? 'webp' : detailBlob.type === 'image/png' ? 'png' : 'jpg';
+            formData.append('detail_' + index, detailBlob, 'detail-' + (index + 1) + '.' + ext);
+        }
+    });
     appendLearningHints(formData);
-    const control = linkedAttemptSignal(signal, 150000);
+    const control = linkedAttemptSignal(signal, 240000);
     try {
         const res = await fetchOcrEndpoint('/api/ocr', { method: 'POST', body: formData, signal: control.signal });
         const body = await res.json().catch(() => ({}));
@@ -6298,7 +6365,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
         throw new Error(body.error || 'This read could not finish. Press Retry when you want another attempt.');
     } catch (error) {
         if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-        if (control.timedOut()) throw new Error('This read took too long. No automatic rescan was started. Press Retry to try again.');
+        if (control.timedOut()) throw new Error('The OCR service did not finish this page. Your upload is still selected; use Retry to continue.');
         throw error;
     } finally { control.cleanup(); }
 }
@@ -7343,7 +7410,6 @@ function safeQuestionPatternHints() {
             sections: Array.isArray(row.sections)
                 ? row.sections.slice(0, 16).map(section => ({
                     label: section.label,
-                    title: section.title,
                     marks: section.marks,
                     expected_items: section.expected_items
                 }))
@@ -7378,7 +7444,33 @@ function localPaperAnalysis(pageRecords) {
 
 async function analyzePaperBatch(pageRecords, signal) {
     if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-    return localPaperAnalysis(Array.isArray(pageRecords) ? pageRecords : []);
+    const pages = Array.isArray(pageRecords) ? pageRecords : [];
+    if (pages.length <= 1) return localPaperAnalysis(pages);
+
+    const control = linkedAttemptSignal(signal, 60000);
+    try {
+        const response = await fetchOcrEndpoint('/api/analyze-paper', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: control.signal,
+            body: JSON.stringify({
+                pages: pages.map(page => ({
+                    index: page.index,
+                    filename: page.filename,
+                    text: page.plain || page.text || '',
+                    profile: page.profile || {}
+                })),
+                known_patterns: safeQuestionPatternHints()
+            })
+        });
+        const body = await response.json().catch(() => ({}));
+        if (response.ok && body?.analysis?.pages) return body.analysis;
+    } catch (error) {
+        if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+    } finally {
+        control.cleanup();
+    }
+    return localPaperAnalysis(pages);
 }
 
 function orderedPaperPages(pageRecords, analysis) {
@@ -7808,8 +7900,8 @@ async function startExtraction() {
         resetSmartExtraction();
         preparedImageCache = new WeakMap();
         setProg(100, paperCount > 1
-            ? 'Ready · ' + paperCount + ' papers to review'
-            : 'Ready for your review');
+            ? 'Ready · ' + paperCount + ' papers'
+            : 'Ready');
         setTimeout(() => { if (active()) prog.classList.remove('show'); }, 900);
         updatePaperMarks(lastResult.text);
         await saveExtractionToPaper(assembled.ordered);
@@ -9521,15 +9613,10 @@ function updateDraftPreview() {
 }
 function updatePaperMarks(text) {
     const report = window.PaperAITeacherTools?.marksSummary(publicPlainTextFromStructured(text));
-    if (!report) return;
-    $('paperMarks').hidden = false;
-    $('paperMarksSummary').textContent = (report.items ? report.items + ' numbered items · ' : '') +
-        (report.sections.length ? report.sectionMarks + ' detected section marks' : 'Marks not detected') +
-        (report.declared !== null ? ' · stated total ' + report.declared : '') +
-        (report.warnings.length ? ' · Review needed' : '');
-    $('paperMarksDetail').innerHTML = '<p>Calculated from explicit section expressions. Numbered items can include subquestions. Review against the source; missing marks are not guessed.</p>' +
-        report.sections.map(section => '<div>' + esc(section.count + ' × ' + section.each + ' = ' + section.marks) + (section.correct ? '' : ' — check arithmetic') + '</div>').join('') +
-        report.warnings.map(warning => '<p class="marks-warning">' + esc(warning) + '</p>').join('');
+    if (lastResult) lastResult.paper_marks = report || null;
+    // Marks/section diagnostics are quality-control metadata only. They must
+    // never appear in the user-visible Extracted result.
+    if ($('paperMarks')) $('paperMarks').hidden = true;
 }
 async function requirePaperSaved() {
     if (pendingPaperSave || paperSaveRunning) {
