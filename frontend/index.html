@@ -6284,8 +6284,27 @@ function linkedAttemptSignal(parentSignal, timeoutMs) {
     };
 }
 
+// Preparing a page (decode, paper crop, line analysis, resize, encode) runs in the
+// browser, not on the AI service. For multi-page scans the next page is prepared
+// while the current page is being read, so that work is hidden behind the AI wait.
+const preparedImageCache = new WeakMap();
+function prefetchPreparedImage(blob) {
+    if (!blob || typeof blob !== 'object' || preparedImageCache.has(blob)) return;
+    const pending = prepareImageForOCR(blob, false);
+    pending.catch(() => {});
+    preparedImageCache.set(blob, pending);
+}
+async function takePreparedImage(blob) {
+    const pending = blob && typeof blob === 'object' ? preparedImageCache.get(blob) : null;
+    if (blob && typeof blob === 'object') preparedImageCache.delete(blob);
+    if (pending) {
+        try { return await pending; } catch (_) { /* fall back to a fresh preparation */ }
+    }
+    return prepareImageForOCR(blob, false);
+}
+
 async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {}) {
-    let prepared = await prepareImageForOCR(sourceBlob, false);
+    let prepared = await takePreparedImage(sourceBlob);
 
     if (progressText) {
         const lines = Number(prepared.meta?.lineCount) || 0;
@@ -7647,6 +7666,10 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
                 abortError.name = 'AbortError';
                 throw abortError;
             }
+
+            // Overlap: prepare the next scanned page while this one is being read.
+            const nextImagePage = pages.slice(i + 1).find(p => p.type === 'image');
+            if (nextImagePage) prefetchPreparedImage(nextImagePage.blob);
 
             const result = await sendToOCR(
                 pages[i].blob,

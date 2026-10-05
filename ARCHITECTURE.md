@@ -407,4 +407,6 @@ Measured causes of multi-minute reads, and the changes made:
 
 Not changed: model, prompts, the literal-transcription rules, anti-hallucination rules, post-processing, or the free-only policy.
 
-Known remaining latency sources (not addressed here): scanned PDF pages are read sequentially (each page receives the previous page's tail as a hint), and a 502/503/504 from the direct endpoint triggers a second request through the Pages proxy while the first may still be running.
+- **Hidden preparation time.** For multi-page scans, the next page is decoded, cropped, analyzed and encoded in the browser while the current page is being read by the AI, instead of after it.
+
+Known remaining latency source (not addressed here): scanned PDF pages are still read one after another, because each page receives the previous page's tail as a continuity hint for question numbering. Reading pages in parallel would remove that hint, so it is deliberately not done without sample pages to check the accuracy effect. A 502/503/504 from the direct endpoint is retried once through the Pages proxy after the first response has already returned, so the two requests do not overlap.
