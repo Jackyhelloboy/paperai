@@ -4543,7 +4543,7 @@
                     <div class="progress-fill indeterminate" id="pFill"></div>
                 </div>
                 <div class="scan-steps" aria-hidden="true"><span data-step="prepare">1 · Prepare</span><span data-step="read">2 · Extract</span><span data-step="ready">3 · Ready</span></div>
-                <p class="scan-note">One AI read per scanned page. Review and correct the result with Teach.</p>
+                <p class="scan-note">One AI read per scanned page. Review and edit directly in the document preview.</p>
             </div>
 
             <div class="error-toast" id="errBox">
@@ -11032,7 +11032,12 @@ async function flushPaperSave() {
 }
 function updateDraftPreview() {
     // Source pages remain historical evidence; the whole-paper text is canonical.
-    if (activeDraft) $('draftMeta').textContent = (activeDraft.pages || []).length + ' source pages · saved until deleted';
+    if (activeDraft) {
+        const count = (activeDraft.pages || []).length;
+        $('draftMeta').textContent = count + (count === 1 ? ' source page' : ' source pages') + ' · Saved';
+        const status = $('documentStatus');
+        if (status && !teachPanel.classList.contains('show')) status.textContent = 'Saved';
+    }
 }
 function updatePaperMarks(text) {
     const report = window.PaperAITeacherTools?.marksSummary(publicPlainTextFromStructured(text));
