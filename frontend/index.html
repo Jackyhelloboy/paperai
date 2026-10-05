@@ -5716,7 +5716,7 @@
                             <div class="document-more-popover">
                                 <button class="document-menu-action mobile-view-action" onclick="showTab('verified')" type="button">Preview</button>
                                 <button class="document-menu-action mobile-view-action" onclick="showTab('raw')" type="button">Plain text</button>
-                                <button class="document-menu-action" id="keepPaperBtn" onclick="keepCurrentPaper()" type="button">Save paper</button>
+                                <button class="document-menu-action" id="keepPaperBtn" onclick="keepCurrentPaper()" type="button" hidden>Save paper</button>
                                 <button class="document-menu-action" onclick="copyText(this)" type="button">Copy text</button>
                                 <button class="document-menu-action" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>Download TXT</button>
                             </div>
@@ -9000,7 +9000,9 @@ function updateResultActionsForTab() {
 
     const keep = $('keepPaperBtn');
     if (keep) {
-        const temporary = Boolean(activeDraft?.id && sessionAutoDraftId() === activeDraft.id);
+        const draftId = typeof activeDraft !== 'undefined' ? activeDraft?.id : '';
+        const autoId = typeof sessionAutoDraftId === 'function' ? sessionAutoDraftId() : '';
+        const temporary = Boolean(draftId && autoId === draftId);
         keep.hidden = !temporary;
         keep.textContent = 'Save paper';
     }
@@ -10308,9 +10310,12 @@ async function returnToStart() {
     const temporary = currentId && sessionAutoDraftId() === currentId;
 
     if (temporary) {
-        try { await fetchDraftEndpoint('/api/drafts/' + encodeURIComponent(currentId), { method: 'DELETE' }); }
-        catch (_) {}
-        markSessionAutoDraft('');
+        let deleted = false;
+        try {
+            await fetchDraftEndpoint('/api/drafts/' + encodeURIComponent(currentId), { method: 'DELETE' });
+            deleted = true;
+        } catch (_) {}
+        if (deleted) markSessionAutoDraft('');
     }
 
     activeDraft = null;
@@ -12120,7 +12125,8 @@ function draftOwnerKey() {
     return key;
 }
 
-// Drafts are retained across reloads. No unload deletion request is sent.
+// Explicitly saved drafts persist. Ordinary scan-session drafts are temporary and
+// are discarded on Back or the next full page load unless the user chooses Save paper.
 const ACTIVE_PAPER_STORAGE = 'paperai_active_paper_v2';
 const SESSION_AUTO_DRAFT_STORAGE = 'paperai_session_auto_draft_v1';
 let paperSaveTimer = null;
@@ -12160,8 +12166,7 @@ async function keepCurrentPaper() {
     await loadDraftList();
     setPaperSaveState('Saved');
     setDraftStatus('');
-    const button = $('keepPaperBtn');
-    if (button) button.textContent = 'Saved';
+    updateResultActionsForTab();
 }
 
 function clearTransientBrowserSession() {
