@@ -4951,8 +4951,8 @@
             <button class="draft-btn" id="extractionRetry" type="button" hidden>Retry</button>
         </div>
         <div class="hero">
-            <h1>Extract text from anything</h1>
-            <p>Images, handwriting, PDFs, Word, PowerPoint, Excel and text — with free-only AI OCR</p>
+            <h1>Scan a paper</h1>
+            <p>Add up to 5 photos or one PDF. PaperAI reads the pages and rebuilds one clean document.</p>
         </div>
 
         <section class="quota-card" id="quotaCard" aria-live="polite">
@@ -5006,8 +5006,8 @@
                 <div class="upload-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 </div>
-                <div class="upload-title">Drop files here</div>
-                <div class="upload-sub">or tap to browse · <strong>Up to 5 images or 1 PDF</strong> · Office/text supported · 50 MB each</div>
+                <div class="upload-title">Add pages</div>
+                <div class="upload-sub">Tap to choose photos or a PDF · <strong>5 images max</strong></div>
                 <input type="file" id="fileInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
             </div>
 
@@ -5084,17 +5084,24 @@
         </div>
 
         <div class="drafts-card" id="draftsCard">
-            <div class="drafts-head">
-                <div>
-                    <div class="drafts-title">My drafts</div>
-                    <div class="drafts-sub">Build one document page by page. Saved until you delete them. Return using this browser to continue your paper.</div>
-                </div>
-                <button class="draft-btn" id="draftNewBtn" type="button">+ New draft</button>
-            </div>
+            <button class="saved-papers-toggle" id="savedPapersToggle" type="button" aria-expanded="false">
+                <span>Saved papers</span>
+                <span class="saved-papers-toggle-meta"><span id="savedPapersCount">0</span><span aria-hidden="true">›</span></span>
+            </button>
 
-            <div class="draft-list" id="draftList"></div>
-            <div id="paperRecovery" class="draft-status" hidden><span id="paperRecoveryText"></span> <button id="paperRecoveryBtn" class="draft-btn" type="button">Retry saving</button></div>
-            <button id="paperConflictBtn" class="draft-btn" type="button" hidden>Save browser copy as a new draft</button>
+            <div class="draft-library" id="draftLibrary">
+                <div class="drafts-head">
+                    <div>
+                        <div class="drafts-title">Saved papers</div>
+                        <div class="drafts-sub">Open a paper only when you need it.</div>
+                    </div>
+                    <button class="draft-btn" id="draftNewBtn" type="button">+ New</button>
+                </div>
+
+                <div class="draft-list" id="draftList"></div>
+                <div id="paperRecovery" class="draft-status" hidden><span id="paperRecoveryText"></span> <button id="paperRecoveryBtn" class="draft-btn" type="button">Retry saving</button></div>
+                <button id="paperConflictBtn" class="draft-btn" type="button" hidden>Save browser copy as a new draft</button>
+            </div>
 
             <div class="draft-editor" id="draftEditor" hidden>
                 <div class="draft-editor-head">
@@ -5105,8 +5112,8 @@
                     <details class="draft-document-menu">
                         <summary aria-label="Document options">•••</summary>
                         <div class="draft-document-menu-popover">
-                            <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close document</button>
-                            <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete document</button>
+                            <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close paper</button>
+                            <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete paper</button>
                         </div>
                     </details>
                 </div>
@@ -5115,9 +5122,9 @@
                     <div class="draft-sources-head">
                         <div>
                             <strong>Pages <span class="draft-source-count" id="draftSourceCount"></span></strong>
-                            <span>Original uploads stay here while you edit the paper below.</span>
+                            <span>Tap a page to enlarge it.</span>
                         </div>
-                        <button class="draft-add-compact" id="draftAddBtn" type="button">+ Add pages</button>
+                        <button class="draft-add-compact" id="draftAddBtn" type="button">+ Add</button>
                     </div>
                     <div class="draft-pages" id="draftPages"></div>
                     <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
