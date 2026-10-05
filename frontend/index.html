@@ -3821,7 +3821,7 @@
             border-radius: 8px;
             background: transparent;
             color: var(--text);
-            font: 650 0.74rem/1.2 inherit;
+            font-size: 0.74rem;\n            font-weight: 650;\n            font-family: inherit;
             text-align: left;
             cursor: pointer;
         }
@@ -3877,7 +3877,7 @@
             border-radius: 10px;
             background: #eff6ff;
             color: #1d4ed8;
-            font: 750 0.68rem/1 inherit;
+            font-size: 0.68rem;\n            font-weight: 750;\n            font-family: inherit;
             cursor: pointer;
         }
 
@@ -4178,7 +4178,7 @@
             border-radius: 9px;
             background: var(--accent);
             color: #fff;
-            font: 800 0.7rem/1 inherit;
+            font-size: 0.7rem;\n            font-weight: 800;\n            font-family: inherit;
             cursor: pointer;
         }
 
@@ -7899,9 +7899,13 @@ function updateResultActionsForTab() {
     if (word) { word.hidden = showingRaw; word.disabled = showingRaw; }
     if (txt) { txt.hidden = !showingRaw; txt.disabled = !showingRaw; }
     if (edit) { edit.hidden = showingRaw; edit.disabled = showingRaw; }
+
+    const panel = $('teachPanel');
     const status = $('documentStatus');
-    if (status && !teachPanel.classList.contains('show')) {
-        status.textContent = showingRaw ? 'Plain text view' : (lastResult?.draft_id ? 'Saved document' : 'Ready to review');
+    const editing = Boolean(panel?.classList?.contains?.('show'));
+    const draftLoaded = typeof lastResult !== 'undefined' && Boolean(lastResult?.draft_id);
+    if (status && !editing) {
+        status.textContent = showingRaw ? 'Plain text view' : (draftLoaded ? 'Saved document' : 'Ready to review');
     }
 }
 
