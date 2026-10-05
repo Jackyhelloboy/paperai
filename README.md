@@ -43,16 +43,24 @@ paperai/
 ## Deploy
 
 ### Frontend (Cloudflare Pages)
+Push website changes to `main` in `Jackyhelloboy/paperai`. The
+`Deploy to Cloudflare Pages` GitHub Actions workflow validates and deploys
+the static files automatically. The root `wrangler.toml` specifies
+`pages_build_output_dir = "./frontend"`; no frontend build is required.
+
+For a manual deployment, run this from the repository root:
 ```bash
-npx wrangler pages deploy frontend --project-name=paperai
+npx --yes wrangler@4.147.0 pages deploy --project-name=paperai --branch=main
 ```
 
+The frontend Pages configuration is separate from `worker/wrangler.toml`.
+Use the `Deploy Cloudflare Worker` workflow for the OCR service, including
+its database migrations and page-photo bucket setup.
+
 ### Worker (Cloudflare Workers)
-```bash
-cd worker
-pip install pywrangler
-pywrangler deploy
-```
+In GitHub, open **Actions → Deploy Cloudflare Worker → Run workflow**.
+This provisions the D1 database and R2 bucket, applies migrations, and
+deploys using `worker/wrangler.toml` with the generated database ID.
 
 ## Local Development
 
@@ -98,4 +106,3 @@ Cloudflare controls its daily reset at 00:00 UTC (05:30 India time). The API
 reports that separately as `provider_reset_at`. No paid model or plan is enabled.
 
 Verify with `node tests/usage-reset.cjs`.
-
