@@ -3820,130 +3820,154 @@
 
             <div class="draft-editor" id="draftEditor" hidden>
                 <div class="draft-editor-head">
-                    <input class="draft-title-input" id="draftTitleInput" maxlength="120" placeholder="Draft name" aria-label="Draft name">
-                    <span class="draft-meta" id="draftMeta"></span>
-                    <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close</button>
-                    <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete</button>
+                    <div class="draft-identity">
+                        <input class="draft-title-input" id="draftTitleInput" maxlength="120" placeholder="Untitled paper" aria-label="Paper name">
+                        <span class="draft-meta" id="draftMeta"></span>
+                    </div>
+                    <details class="draft-document-menu">
+                        <summary aria-label="Document options">•••</summary>
+                        <div class="draft-document-menu-popover">
+                            <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close document</button>
+                            <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete document</button>
+                        </div>
+                    </details>
                 </div>
 
-                <details class="draft-sources"><summary>Source pages · kept separately from your corrected paper</summary><div class="draft-pages" id="draftPages"></div></details>
+                <section class="draft-sources" aria-label="Source pages">
+                    <div class="draft-sources-head">
+                        <div>
+                            <strong>Source pages</strong>
+                            <span>Original uploads stay here while you edit the paper below.</span>
+                        </div>
+                        <button class="draft-add-compact" id="draftAddBtn" type="button">+ Add pages</button>
+                    </div>
+                    <div class="draft-pages" id="draftPages"></div>
+                    <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
+                    <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
+                </section>
 
                 <div class="draft-status" id="draftStatus" aria-live="polite"></div>
 
-                <div class="draft-add">
-                    <button class="btn-extract show" id="draftAddBtn" type="button">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16m8-8H4"/></svg>
-                        <span>Add pages</span>
-                    </button>
-                    <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
-                    <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
-                    <span class="draft-hint">Add images, PDFs or text · one read per scanned page · one continuous paper</span>
-                </div>
-
-                <div class="draft-actions">
-                    <button class="draft-btn" id="draftTeachBtn" type="button" title="Edit and save the whole paper. New uploads append after your corrections.">Review &amp; edit</button>
+                <div class="draft-actions" hidden>
+                    <button class="draft-btn" id="draftTeachBtn" type="button">Edit</button>
                     <button class="draft-btn primary" id="draftWordBtn" type="button">Export Word</button>
                 </div>
             </div>
         </div>
 
         <div class="results" id="resBox">
-            <div class="results-header">
-                <span class="results-title">Extracted Text</span>
-                <div class="results-badges" id="statsBar"></div>
-            </div>
-
             <details class="paper-marks" id="paperMarks" hidden><summary id="paperMarksSummary"></summary><div id="paperMarksDetail"></div></details>
-            <div class="results-actions">
-                <button class="action-btn" onclick="copyText(this)">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-                    Copy
-                </button>
-                <button class="action-btn" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>TXT</button>
-                <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)" type="button">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Word
-                </button>
-                <button class="action-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
-                    Edit text
-                </button>
-            </div>
-<div class="teach-panel" id="teachPanel">
-                <div class="teach-title">Review & correct <span id="paperSaveState" role="status" aria-live="polite"></span></div>
-                <div class="teach-sub">Edit the extracted text directly. For help, select a word or sentence—or place the cursor inside it—then tap <strong>Get AI suggestions</strong>. Nothing changes until you choose a suggestion.</div>
-                <div class="teach-language-bar">
-                    <label class="teach-lang-field">
-                        <span class="teach-lang-label">Input language</span>
-                        <select class="teach-lang-select" id="teachFromSelect">
-                            <option value="auto" selected>Auto detect</option>
-                            <option value="en">English / Roman</option>
-                            <option value="hi">Hindi</option>
-                            <option value="mr">Marathi</option>
-                            <option value="te">Telugu</option>
-                            <option value="ta">Tamil</option>
-                            <option value="kn">Kannada</option>
-                            <option value="ml">Malayalam</option>
-                            <option value="bn">Bengali</option>
-                            <option value="gu">Gujarati</option>
-                            <option value="pa">Punjabi</option>
-                            <option value="or">Odia</option>
-                            <option value="ur">Urdu</option>
-                            <option value="ks">Kashmiri</option>
-                        </select>
-                    </label>
-                    <span class="teach-lang-arrow">→</span>
-                    <label class="teach-lang-field">
-                        <span class="teach-lang-label">Suggestion language</span>
-                        <select class="teach-lang-select" id="teachToSelect">
-                            <option value="auto">Auto from document</option>
-                            <option value="en">English</option>
-                            <option value="hi">Hindi</option>
-                            <option value="mr">Marathi</option>
-                            <option value="te">Telugu</option>
-                            <option value="ta">Tamil</option>
-                            <option value="kn">Kannada</option>
-                            <option value="ml">Malayalam</option>
-                            <option value="bn">Bengali</option>
-                            <option value="gu">Gujarati</option>
-                            <option value="pa">Punjabi</option>
-                            <option value="or">Odia</option>
-                            <option value="ur">Urdu</option>
-                            <option value="ks">Kashmiri</option>
-                        </select>
-                    </label>
-                    <div class="teach-language-status" id="teachLanguageStatus"></div>
-                </div>
-                <div class="teach-toolbar">
-                    <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
-                    <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
-                    <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
-                    <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ Get AI suggestions</button>
-                </div>
-                <div class="teach-suggestion-card" id="aiSuggestionPanel" data-state="idle">
-                    <div class="teach-suggestion-head">
-                        <div>
-                            <div class="teach-suggestion-title">AI suggestions</div>
-                            <div class="teach-suggestion-source" id="aiSuggestionSource">Select text or place the cursor in a sentence.</div>
-                        </div>
-                    </div>
-                    <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Tap “Get AI suggestions” when you want help. Your document will not change automatically.</div>
-                    <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
-                </div>
-                <div class="teach-editor-label"><strong>Edit extracted text</strong><span>Changes preview live</span></div>
-                <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
-                <div class="teach-actions">
-                    <button class="action-btn teach-save-btn" onclick="saveLearning()">Save changes</button>
-                    <button class="action-btn" onclick="closeTeachPanel()">Done</button>
-                </div>
-            </div>
 
-            <div class="output-card">
-                <div class="output-tabs">
-                    <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
-                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
+            <div class="output-card" id="outputCard">
+                <div class="document-bar">
+                    <div class="document-bar-title">
+                        <strong>Document</strong>
+                        <span id="documentStatus">Ready to review</span>
+                    </div>
+                    <div class="results-badges" id="statsBar"></div>
                 </div>
-                <div class="output-body" id="textOut"></div>
+
+                <div class="document-toolbar">
+                    <div class="output-tabs" aria-label="Document view">
+                        <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Preview</button>
+                        <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
+                    </div>
+                    <div class="results-actions">
+                        <button class="action-btn document-edit-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
+                            Edit
+                        </button>
+                        <button class="action-btn document-export-btn" id="downloadWordBtn" onclick="downloadWord(this)" type="button">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Word
+                        </button>
+                        <details class="document-more">
+                            <summary aria-label="More document actions">•••</summary>
+                            <div class="document-more-popover">
+                                <button class="document-menu-action" onclick="copyText(this)" type="button">Copy text</button>
+                                <button class="document-menu-action" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>Download TXT</button>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <div class="teach-panel" id="teachPanel">
+                    <div class="inline-edit-head">
+                        <div>
+                            <strong>Edit preview</strong>
+                            <span id="paperSaveState" role="status" aria-live="polite"></span>
+                        </div>
+                        <button class="inline-edit-close" type="button" onclick="saveLearning()">Done</button>
+                    </div>
+
+                    <div class="teach-toolbar">
+                        <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
+                        <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
+                        <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
+                        <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI suggestions</button>
+                    </div>
+
+                    <details class="teach-settings">
+                        <summary>Language options</summary>
+                        <div class="teach-language-bar">
+                            <label class="teach-lang-field">
+                                <span class="teach-lang-label">Input</span>
+                                <select class="teach-lang-select" id="teachFromSelect">
+                                    <option value="auto" selected>Auto detect</option>
+                                    <option value="en">English / Roman</option>
+                                    <option value="hi">Hindi</option>
+                                    <option value="mr">Marathi</option>
+                                    <option value="te">Telugu</option>
+                                    <option value="ta">Tamil</option>
+                                    <option value="kn">Kannada</option>
+                                    <option value="ml">Malayalam</option>
+                                    <option value="bn">Bengali</option>
+                                    <option value="gu">Gujarati</option>
+                                    <option value="pa">Punjabi</option>
+                                    <option value="or">Odia</option>
+                                    <option value="ur">Urdu</option>
+                                    <option value="ks">Kashmiri</option>
+                                </select>
+                            </label>
+                            <span class="teach-lang-arrow">→</span>
+                            <label class="teach-lang-field">
+                                <span class="teach-lang-label">Suggestions</span>
+                                <select class="teach-lang-select" id="teachToSelect">
+                                    <option value="auto">Auto from document</option>
+                                    <option value="en">English</option>
+                                    <option value="hi">Hindi</option>
+                                    <option value="mr">Marathi</option>
+                                    <option value="te">Telugu</option>
+                                    <option value="ta">Tamil</option>
+                                    <option value="kn">Kannada</option>
+                                    <option value="ml">Malayalam</option>
+                                    <option value="bn">Bengali</option>
+                                    <option value="gu">Gujarati</option>
+                                    <option value="pa">Punjabi</option>
+                                    <option value="or">Odia</option>
+                                    <option value="ur">Urdu</option>
+                                    <option value="ks">Kashmiri</option>
+                                </select>
+                            </label>
+                            <div class="teach-language-status" id="teachLanguageStatus"></div>
+                        </div>
+                    </details>
+
+                    <div class="teach-suggestion-card" id="aiSuggestionPanel" data-state="idle">
+                        <div class="teach-suggestion-head">
+                            <div>
+                                <div class="teach-suggestion-title">AI suggestions</div>
+                                <div class="teach-suggestion-source" id="aiSuggestionSource">Tap inside a sentence or select text.</div>
+                            </div>
+                        </div>
+                        <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Choose AI suggestions only when you want help. Nothing changes automatically.</div>
+                        <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
+                    </div>
+
+                    <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
+                </div>
+
+                <div class="output-body" id="textOut" aria-label="Extracted document preview"></div>
             </div>
 
             <div class="flagged-card" id="flaggedBox">
