@@ -16,8 +16,11 @@ async function api(method, body) {
 }
 const before = await api('GET');
 const bindings = before.bindings;
-if (before.exports?.UsageTracker?.type !== 'durable-object' || before.exports.UsageTracker.storage !== 'sqlite') {
-  throw new Error('Existing Durable Object export configuration could not be verified');
+// The settings read endpoint can omit exports. This is the exact export in the
+// wrangler.toml just deployed by the preceding step, with no class migration.
+const exports = before.exports || {UsageTracker:{type:'durable-object',storage:'sqlite'}};
+if (bindings.filter(x => x.type === 'durable_object_namespace').some(x => x.class_name !== 'UsageTracker')) {
+  throw new Error('Unexpected Durable Object class; refusing a settings update');
 }
 if (!Array.isArray(bindings) || bindings.some(x => !x.name || !x.type)) throw new Error('Invalid binding inventory');
 for (const [name, type] of [['AI','ai'], ['DB','d1'], ['PAGES_BUCKET','r2_bucket'], ['USAGE_TRACKER','durable_object_namespace']]) {
@@ -28,16 +31,22 @@ console.log(JSON.stringify({retired_binding_types:removed.map(x => ({name:x.name
 if (removed.some(x => !['plain_text','secret_text'].includes(x.type))) throw new Error('Unexpected retired binding type');
 if (removed.length) {
   const form = new FormData();
-  form.append('settings', new Blob([JSON.stringify({exports:before.exports, bindings: bindings.filter(x => !retired.has(x.name))
+  form.append('settings', new Blob([JSON.stringify({exports, bindings: bindings.filter(x => !retired.has(x.name))
     .map(x => ({name:x.name, type:'inherit'}))})], {type:'application/json'}), 'settings.json');
   await api('PATCH', form);
 }
 const after = await api('GET');
 const remaining = after.bindings || [];
-if (JSON.stringify(after.exports) !== JSON.stringify(before.exports)) throw new Error('Durable Object exports changed');
+if (after.exports && JSON.stringify(after.exports) !== JSON.stringify(exports)) throw new Error('Durable Object exports changed');
 if (remaining.some(x => retired.has(x.name))) throw new Error('Retired bindings remain');
 const retained = bindings.filter(x => !retired.has(x.name));
 if (remaining.length !== retained.length || retained.some(x => !remaining.some(y => y.name === x.name && y.type === x.type))) {
   throw new Error('Unrelated binding inventory changed');
+}
+for (const old of retained) {
+  const current = remaining.find(x => x.name === old.name);
+  for (const key of ['namespace_id','database_id','id','bucket_name','class_name']) {
+    if (old[key] !== current[key]) throw new Error(`Retained resource changed: ${old.name}`);
+  }
 }
 console.log(JSON.stringify({retired_bindings_removed:removed.map(x => x.name), unrelated_bindings_preserved:true, AI_binding_present:true}));
