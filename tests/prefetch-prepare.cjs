@@ -27,6 +27,20 @@ vm.runInContext(html.slice(start, end), context);
     assert.equal(recovered.blob, b); assert.equal(calls.length, 2);
     // The PDF loop prefetches only the next scanned image page.
     assert(html.includes("pages.slice(i + 1).find(p => p.type === 'image')"));
-    console.log('Prefetch: next-page preparation is reused once, falls back cleanly, and is wired into the PDF loop.');
+
+    const setFilesStart = html.indexOf('function setFiles(');
+    const setFilesEnd = html.indexOf('\nfunction setFile(', setFilesStart);
+    const setFilesSource = html.slice(setFilesStart, setFilesEnd);
+    assert(setFilesSource.includes('imageCount > SMART_MAX_IMAGES'), 'Upload path must enforce the five-image limit');
+    assert(setFilesSource.includes('pdfCount > SMART_MAX_PDFS'), 'Upload path must enforce the one-PDF limit');
+    assert(setFilesSource.includes('startSmartExtractionForFiles();'), 'Background extraction must start when files are selected');
+    assert(setFilesSource.includes('forEach(prefetchPreparedImage)'), 'All selected images should begin local preparation immediately');
+
+    const sendStart = html.indexOf('async function sendToOCR(');
+    const sendEnd = html.indexOf('\nfunction publicPlainTextFromStructured', sendStart);
+    const sendSource = html.slice(sendStart, sendEnd);
+    assert(sendSource.includes("formData.append('detail_' + index"), 'Prepared detail views must be sent with the full page');
+    assert(sendSource.includes('pattern_hints'), 'OCR request must carry structural-only question-paper hints');
+    console.log('Prefetch/upload: local preparation and OCR auto-start on selection with 5-image/1-PDF limits and same-page detail aids.');
 })().catch(e => { console.error(e); process.exitCode = 1; });
 
