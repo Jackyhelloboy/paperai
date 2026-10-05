@@ -1,4 +1,4 @@
-# PaperAI Production Architecture v30
+# PaperAI Production Architecture v31
 
 ## Goals
 

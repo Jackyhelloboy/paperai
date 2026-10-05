@@ -95,3 +95,5 @@ Run **Actions → Verify Cloudflare AI quota → Run workflow** to read Worker b
 
 Analytics can be delayed or sampled; they do not expose the internal quota enforcement counter. See [PROJECT_AUDIT.md](PROJECT_AUDIT.md) for the restoration findings.
 
+
+The Worker deployment also verifies production text extraction, draft creation/renaming and owner isolation with disposable owned test data. These smoke checks do not call AI; image inference availability is reported separately by the quota diagnostics workflow.

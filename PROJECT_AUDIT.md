@@ -8,7 +8,9 @@ Inspected the complete tracked-file inventory (40 files), production frontend an
 
 ## Production provider
 
-Production uses `@cf/google/gemma-4-26b-a4b-it` through the `AI` binding, the same model and binding as before the external-provider experiment. The external adapter and notebook files were removed on 4 October. The unused provider configuration and the test that simulated stale settings are being removed as the final cleanup.
+Production uses `@cf/google/gemma-4-26b-a4b-it` through the `AI` binding, the same model and binding as before the external-provider experiment. The external adapter and notebook files were removed on 4 October. The unused provider configuration and the test that simulated stale settings have been removed.
+
+At 06:01 UTC on 5 October, the cleanup successfully removed the three retired runtime bindings. Readback verified every unrelated binding's name, type and resource identity was preserved, including AI, draft storage and the usage tracker. The one-time cleanup script was then removed from the project.
 
 The original `backend/` service is a separate legacy implementation and is not called by the production website. Its workflows are manual only.
 
