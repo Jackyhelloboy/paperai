@@ -5709,6 +5709,7 @@
                             <div class="document-more-popover">
                                 <button class="document-menu-action mobile-view-action" onclick="showTab('verified')" type="button">Preview</button>
                                 <button class="document-menu-action mobile-view-action" onclick="showTab('raw')" type="button">Plain text</button>
+                                <button class="document-menu-action" id="keepPaperBtn" onclick="keepCurrentPaper()" type="button">Save paper</button>
                                 <button class="document-menu-action" onclick="copyText(this)" type="button">Copy text</button>
                                 <button class="document-menu-action" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>Download TXT</button>
                             </div>
@@ -12087,6 +12088,7 @@ function draftOwnerKey() {
 
 // Drafts are retained across reloads. No unload deletion request is sent.
 const ACTIVE_PAPER_STORAGE = 'paperai_active_paper_v2';
+const SESSION_AUTO_DRAFT_STORAGE = 'paperai_session_auto_draft_v1';
 let paperSaveTimer = null;
 let paperSaveRunning = false;
 let pendingPaperSave = null;
@@ -12094,6 +12096,39 @@ let paperSaveConflict = false;
 let pendingSourceBatch = null;
 const PENDING_SOURCE_STORAGE = 'paperai_pending_pages_v2';
 function paperBackupKey(id) { return 'paperai_unsaved_paper_v2_' + id; }
+
+function sessionAutoDraftId() {
+    try { return localStorage.getItem(SESSION_AUTO_DRAFT_STORAGE) || ''; }
+    catch (_) { return ''; }
+}
+
+function markSessionAutoDraft(id) {
+    try {
+        if (id) localStorage.setItem(SESSION_AUTO_DRAFT_STORAGE, id);
+        else localStorage.removeItem(SESSION_AUTO_DRAFT_STORAGE);
+    } catch (_) {}
+}
+
+async function discardStaleSessionDraftOnLoad() {
+    const id = sessionAutoDraftId();
+    if (!id) return;
+    try {
+        await fetchDraftEndpoint('/api/drafts/' + encodeURIComponent(id), { method: 'DELETE' });
+        markSessionAutoDraft('');
+    } catch (_) {
+        // Keep the marker so the next full reload can retry cleanup.
+    }
+}
+
+async function keepCurrentPaper() {
+    if (!activeDraft) return;
+    if (sessionAutoDraftId() === activeDraft.id) markSessionAutoDraft('');
+    await loadDraftList();
+    setPaperSaveState('Saved');
+    setDraftStatus('');
+    const button = $('keepPaperBtn');
+    if (button) button.textContent = 'Saved';
+}
 
 function clearTransientBrowserSession() {
     pendingPaperSave = null;
@@ -12329,7 +12364,9 @@ function renderDraftPages() {
 async function loadDraftList() {
     try {
         const data = await fetchDraftEndpoint('/api/drafts');
-        draftItems = Array.isArray(data.drafts) ? data.drafts : [];
+        const ephemeralId = sessionAutoDraftId();
+        draftItems = (Array.isArray(data.drafts) ? data.drafts : [])
+            .filter(draft => !ephemeralId || draft.id !== ephemeralId);
         renderDraftList();
     } catch (e) {
         setDraftStatus('Drafts are unavailable right now: ' + (e.message || 'connection failed'), true);
@@ -12345,6 +12382,7 @@ async function createNewDraft() {
         await requirePaperSaved();
         const data = await fetchDraftEndpoint('/api/drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
         activeDraft = { ...data.draft, pages: [] };
+        markSessionAutoDraft('');
         $('draftsCard')?.classList.remove('library-open');
         $('savedPapersToggle')?.setAttribute('aria-expanded', 'false');
         rememberActivePaper();
@@ -12379,6 +12417,7 @@ async function openDraft(draftId) {
             updated_at: data.draft.updated_at,
             pages: Array.isArray(data.pages) ? data.pages : []
         };
+        markSessionAutoDraft('');
         $('draftsCard')?.classList.remove('library-open');
         $('savedPapersToggle')?.setAttribute('aria-expanded', 'false');
         rememberActivePaper();
@@ -12476,6 +12515,7 @@ async function saveExtractionToPaper(records) {
         if (!activeDraft) {
             const data = await fetchDraftEndpoint('/api/drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: (records[0]?.filename || 'Question paper').replace(/\.[^.]+$/, '') }) });
             activeDraft = { ...data.draft, pages: [] };
+            markSessionAutoDraft(activeDraft.id);
             rememberActivePaper();
             rememberPendingSources({draft_id:activeDraft.id,records});
         }
@@ -12881,8 +12921,8 @@ wireDrafts();
 clearTransientBrowserSession();
 activeDraft = null;
 lastResult = null;
-loadDraftList();
 setExtractionView('select');
+discardStaleSessionDraftOnLoad().finally(loadDraftList);
 addEventListener('online', () => { if (pendingPaperSave && !paperSaveConflict) flushPaperSave(); });
 </script>
 </body>
