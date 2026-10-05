@@ -123,7 +123,7 @@ function makeEnv({ drafts = [], pages = [], orphans = [], expiredDrafts = [] } =
             },
             async batch(statements) {
                 calls.batch.push(statements.length);
-                for (const s of statements) applyWrite(state, s.sql, s.args);
+                for (const s of statements) { calls.run.push({sql:s.sql,args:s.args}); applyWrite(state, s.sql, s.args); }
                 return statements;
             }
         },
@@ -209,7 +209,8 @@ const pageRow = {
     assert.equal(body.pages.length, 1);
     assert.equal(body.pages[0].text, '1. गिनो');
     assert.equal(body.pages[0].has_image, true);
-    assert.equal(body.limits.idle_minutes, 30, 'Drafts must expire after 30 idle minutes');
+    assert.equal(body.limits.retention, 'until-manual-deletion');
+    assert.equal(body.draft.expires_at, 0, 'Drafts never receive a deletion deadline');
     assert(!('image_key' in body.pages[0]), 'Internal storage keys must stay private');
 
     // 4. A Teach correction for one page wins over the raw OCR text.
@@ -264,12 +265,12 @@ const pageRow = {
     res = await call(request('/api/drafts/' + draftRow.id, { method: 'PATCH', json: { title: 'Renamed' } }), env);
     body = await res.json();
     assert.equal(res.status, 200, 'Renaming a draft must work');
-    assert(body.draft.expires_at > expiresBefore, 'Using a draft must push its deletion back');
+    assert.equal(body.draft.expires_at, 0, 'Renaming must not create a deadline');
     await call(request('/api/drafts/' + draftRow.id + '/pages/' + secondPage.id, { method: 'PUT', json: { edited_text: 'और बदलाव' } }), env);
     res = await call(request('/api/drafts/' + draftRow.id), env);
     body = await res.json();
-    assert(body.draft.expires_at > expiresBefore, 'Editing a page must push its deletion back too');
-    assert(body.draft.expires_at <= Date.now() + 30 * 60 * 1000, 'A draft must never be kept beyond the idle window');
+    assert.equal(body.draft.expires_at, 0);
+    assert.equal(body.limits.retention, 'until-manual-deletion');
 
     // 9. Adding a page stores one photo and one row, at the end of the draft.
     env = makeEnv({ drafts: [draftRow], pages: [] });
@@ -324,7 +325,7 @@ const pageRow = {
     // 10. Cleanup removes only what has already expired.
     env = makeEnv({ drafts: [draftRow], expiredDrafts: [{ id: draftRow.id }], orphans: [{ id: 'page-old', image_key: 'stale/old.jpg' }] });
     const purged = await purgeExpiredDrafts(env);
-    assert.equal(purged.drafts_removed, 1);
+    assert.equal(purged.drafts_removed, 0);
     assert.equal(purged.pages_removed, 1);
     assert(env.calls.delete.includes('stale/old.jpg'), 'An orphaned photo must be deleted');
 
@@ -336,15 +337,14 @@ const pageRow = {
     assert.equal(res.status, 200, 'The discard hook must answer a beacon');
     assert.equal((await res.json()).discarded, 0, 'Drafts belonging to another browser must survive');
     res = await call(request('/api/drafts/discard', { method: 'POST', json: { owner: OWNER } }), env);
-    assert.equal((await res.json()).discarded, 1, 'Every draft for the calling browser must be discarded');
-    assert(env.calls.deleteMany.some(keys => keys.includes(pageRow.image_key)),
-    'Discarding must delete the stored photos too');
+    assert.equal((await res.json()).discarded, 0, 'Cached unload beacons must not delete persistent drafts');
+    assert.equal(env.calls.deleteMany.length, 0, 'Unload must not delete source photos');
     res = await call(request('/api/drafts/discard', { method: 'POST', json: { owner: 'nope' } }), makeEnv());
-    assert.equal(res.status, 401, 'A malformed owner key must be refused');
+    assert.equal(res.status, 200, 'Deprecated unload route is an unconditional harmless no-op');
 
     // 12. Unknown draft routes still answer with a JSON 404.
     res = await call(request('/api/drafts/unknown-route'), makeEnv());
     assert.equal(res.status, 404);
 
-    console.log('Draft paging, ownership, 3 MB page limit, 30 minute idle cleanup and discard checks passed.');
+    console.log('Draft paging, ownership, 3 MB page limit, persistent retention and harmless unload checks passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

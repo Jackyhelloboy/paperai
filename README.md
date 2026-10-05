@@ -117,3 +117,26 @@ Word exports use native editable paragraphs for ordinary questions and tab-align
 OCR makes one Workers AI inference request per scanned page. Verification passes, reasoning, retry loops, alternate AI routes and automatic AI batch grouping are disabled. Errors offer a manual Retry. Selecting files, ordering pages, switching tabs and typing corrections do not call AI. One optimized full-page frame is sent without additional close-up image tokens. Completed selected files and PDF page reads are reused in this tab; Back also preserves saved corrections.
 
 The top result actions are exactly three: Copy, Word and Teach in Extracted; Copy, TXT and Teach in Plain text. AI Suggestions lives inside Teach and runs only on an explicit click for a selected word/short phrase, with cached suggestions and no automatic application. Save & apply retains the selected export tab. The progress card shows preparation/read/ready stages rather than a made-up percentage of model work.
+
+## Teacher papers and exports
+
+Uploads save as source pages in the active teacher draft. Add pages continues the
+same paper; start a new draft for a different paper. Whole-paper corrections are
+autosaved, with a browser recovery copy and revision checks to prevent a stale tab
+from overwriting a newer save. Draft text and photos remain until manual deletion.
+The previous unload beacon and automatic photo-expiry rule are disabled.
+
+Extracted offers Word export; Plain text offers UTF-8 TXT. Both use the latest
+edited document. Already downloaded files are snapshots. Uploaded page boundaries
+do not force a Word page break. Hindi and Telugu fonts are embedded in Word files.
+
+AI Suggestions accepts a selected word or sentence, or the sentence at the cursor,
+up to 600 characters. Each request is manual. Known Roman Telugu forms such as
+`enti → ఏంటి` work without AI. Explicit section marks are calculated locally;
+unclear marks and mismatched totals are flagged for review. Math supports literal
+LaTeX in `$...$`, including fractions, roots, scripts, sums, integrals and matrices.
+Unrecognized notation remains visible for correction; equations are never solved.
+
+Usage refreshes in the page every 20 seconds. Cloudflare analytics snapshots are
+scheduled every five minutes and may be delayed by Cloudflare or GitHub Actions.
+No usage estimate, local quota reset or automatic inference retry is introduced.

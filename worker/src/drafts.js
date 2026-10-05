@@ -1,26 +1,4 @@
-// PaperAI drafts: build one document page by page inside a single sitting.
-//
-// A draft is a list of pages. Each page holds the OCR text plus a copy of the
-// page photo in R2.
-//
-// Retention is deliberately short. The browser asks the server to delete its
-// drafts when the tab closes or refreshes, but that request is best effort: a
-// crash, a killed mobile tab or a lost connection sends nothing. So the server
-// also deletes any draft that has been idle for IDLE_MINUTES, which is the
-// guarantee; the browser request is only the fast path.
-//
-// There is no login. A draft is reachable only by its unguessable id, and every
-// read and write must present the same owner key. That keeps a draft private
-// without accounts, but it is not a password: anyone who obtains both the draft
-// id and the owner key can read it. Do not treat a draft link as a secret.
-
-const IDLE_MINUTES = 30;
-const MS_PER_MINUTE = 60 * 1000;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-// Backstop only, for pages whose draft row vanished. Matches the R2 lifecycle
-// rule so nothing is ever counted before R2 would have dropped it anyway.
-const ORPHAN_GRACE_MS = MS_PER_DAY;
-
+// Persistent teacher papers. Only an explicit owner DELETE removes a draft.
 const MAX_PAGES_PER_DRAFT = 200;
 const MAX_DRAFTS_PER_OWNER = 40;
 const OWNER_PATTERN = /^[A-Za-z0-9_-]{20,64}$/;
@@ -62,14 +40,14 @@ function newId() {
 }
 
 function expiresAt() {
-  return now() + IDLE_MINUTES * MS_PER_MINUTE;
+  return 0;
 }
 
 // ── reads ────────────────────────────────────────────────────────────────────
 
 async function loadDraft(env, draftId, ownerKey) {
   const draft = await env.DB.prepare(
-    'SELECT id, owner_key, title, status, created_at, updated_at, expires_at FROM drafts WHERE id = ?'
+    'SELECT id, owner_key, title, status, created_at, updated_at, expires_at, document_text, document_revision FROM drafts WHERE id = ?'
   ).bind(draftId).first();
   if (!draft || draft.owner_key !== ownerKey) return null;
   return draft;
@@ -83,7 +61,9 @@ function serialiseDraft(draft) {
     page_count: Number(draft.page_count) || 0,
     created_at: draft.created_at,
     updated_at: draft.updated_at,
-    expires_at: draft.expires_at,
+    expires_at: 0,
+    document_text: draft.document_text ?? null,
+    document_revision: Number(draft.document_revision) || 0,
   };
 }
 
@@ -112,13 +92,11 @@ async function listPages(env, draftId) {
   return result.results || [];
 }
 
-// Marks the draft as just used and pushes its deadline out. Because we now
-// delete the R2 objects ourselves the moment a draft expires, the deadline can
-// slide on activity instead of being pinned to the creation time.
+// Track activity without setting a deletion deadline.
 async function touchDraft(env, draftId) {
   const stamp = now();
   await env.DB.prepare('UPDATE drafts SET updated_at = ?, expires_at = ? WHERE id = ?')
-    .bind(stamp, stamp + IDLE_MINUTES * MS_PER_MINUTE, draftId).run();
+    .bind(stamp, 0, draftId).run();
 }
 
 async function nextPosition(env, draftId) {
@@ -249,7 +227,7 @@ async function getDraft(request, env, corsHeaders, url, draftId) {
     limits: {
       max_pages: MAX_PAGES_PER_DRAFT,
       max_drafts: MAX_DRAFTS_PER_OWNER,
-      idle_minutes: IDLE_MINUTES,
+      retention: 'until-manual-deletion',
       max_image_bytes: PAGE_IMAGE_MAX_BYTES,
       owner_storage_cap_bytes: OWNER_STORAGE_CAP_BYTES,
       storage_cap_bytes: STORAGE_CAP_BYTES
@@ -277,7 +255,7 @@ async function renameDraft(request, env, corsHeaders, url, draftId) {
     .bind(title, draftId).run();
 
   const fresh = await loadDraft(env, draftId, owner.key);
-  return json({ draft: { ...fresh, title } }, 200, corsHeaders);
+  return json({ draft: serialiseDraft(fresh) }, 200, corsHeaders);
 }
 
 async function deleteDraft(request, env, corsHeaders, url, draftId) {
@@ -297,36 +275,36 @@ async function deleteDraft(request, env, corsHeaders, url, draftId) {
   return json({ deleted: true, pages_removed: pages.length }, 200, corsHeaders);
 }
 
-// Deletes every draft belonging to one browser. This is what the close and
-// refresh handler calls, so it takes the owner key from the body rather than a
-// header: sendBeacon cannot set headers.
+// Older cached clients send unload beacons. They must never delete saved papers.
 async function discardOwnerDrafts(request, env, corsHeaders) {
-  let ownerKey = '';
-  try {
-    const body = await request.json();
-    ownerKey = String((body || {}).owner || '').trim();
-  } catch (_) {
-    return fail('Expected a JSON body with an owner key.', 400, corsHeaders);
+  return json({ discarded: 0, retention: 'until-manual-deletion' }, 200, corsHeaders);
+}
+
+const MAX_DOCUMENT_CHARS = 1000000;
+async function saveDocument(request, env, corsHeaders, url, draftId) {
+  const owner = requireOwner(request, url, corsHeaders);
+  if (!owner.ok) return owner.response;
+  const draft = await loadDraft(env, draftId, owner.key);
+  if (!draft) return fail('Draft not found.', 404, corsHeaders, 'DRAFT_NOT_FOUND');
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body.text !== 'string' || body.text.length > MAX_DOCUMENT_CHARS || !Number.isInteger(body.revision) || body.revision < 0) {
+    return fail('Send document text (up to 1,000,000 characters) and its revision.', 400, corsHeaders);
   }
+  const result = await env.DB.prepare('UPDATE drafts SET document_text = ?, document_revision = document_revision + 1, updated_at = ?, expires_at = 0 WHERE id = ? AND owner_key = ? AND document_revision = ?')
+    .bind(body.text, now(), draftId, owner.key, body.revision).run();
+  if (!result.meta?.changes) return fail('This paper changed in another tab. Your edits remain in this browser. Reopen the draft and review before replacing it.', 409, corsHeaders, 'DOCUMENT_CONFLICT');
+  return json({ draft: serialiseDraft(await loadDraft(env, draftId, owner.key)) }, 200, corsHeaders);
+}
 
-  if (!OWNER_PATTERN.test(ownerKey)) {
-    return fail('Missing or invalid owner key.', 401, corsHeaders, 'OWNER_REQUIRED');
-  }
-
-  const drafts = await env.DB.prepare('SELECT id FROM drafts WHERE owner_key = ?').bind(ownerKey).all();
-  const ids = (drafts.results || []).map(d => d.id);
-
-  for (const id of ids) await deleteDraftImages(env, id);
-
-  if (ids.length) {
-    const placeholders = ids.map(() => '?').join(',');
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM draft_pages WHERE draft_id IN (' + placeholders + ')').bind(...ids),
-      env.DB.prepare('DELETE FROM drafts WHERE id IN (' + placeholders + ')').bind(...ids)
-    ]);
-  }
-
-  return json({ discarded: ids.length }, 200, corsHeaders);
+// Append only new source text to an already corrected paper. This SQL operation
+// preserves simultaneous document saves by advancing the same revision counter.
+function appendStatement(env, draftId, text) {
+  return env.DB.prepare("UPDATE drafts SET document_text = CASE WHEN document_text IS NULL OR ? = '' THEN document_text ELSE document_text || CASE WHEN document_text = '' THEN '' ELSE char(10) || char(10) END || ? END, document_revision = document_revision + 1, updated_at = ?, expires_at = 0 WHERE id = ?")
+    .bind(text, text, now(), draftId);
+}
+function sourceLocked(draft, corsHeaders) {
+  return draft.document_text === null || draft.document_text === undefined ? null
+    : fail('This paper has saved corrections. Edit the combined paper; source changes cannot replace those corrections.', 409, corsHeaders, 'DOCUMENT_EDITED');
 }
 
 async function addPage(request, env, corsHeaders, url, draftId) {
@@ -347,7 +325,12 @@ async function addPage(request, env, corsHeaders, url, draftId) {
   const sourceName = String(form.get('source_name') || '').slice(0, 160);
   const profile = String(form.get('page_profile') || '').slice(0, 400);
 
-  const pageId = newId();
+  const requestedId = String(form.get('page_id') || '');
+  if (requestedId && !/^[a-f0-9-]{36}$/i.test(requestedId)) return fail('Invalid page id.', 400, corsHeaders);
+  const pageId = requestedId || newId();
+  const prior = await env.DB.prepare('SELECT * FROM draft_pages WHERE id = ? AND draft_id = ?').bind(pageId, draftId).first();
+  if (prior) return json({ page: serialisePage(prior), reused: true }, 200, corsHeaders);
+  if (text.length > MAX_DOCUMENT_CHARS) return fail('Page text is too large.', 413, corsHeaders);
   let image = { key: null, bytes: 0 };
   if (file && typeof file === 'object' && typeof file.arrayBuffer === 'function') {
     try {
@@ -359,10 +342,11 @@ image = await storePageImage(env, draftId, pageId, file, owner.key);
 
   const stamp = now();
   const position = await nextPosition(env, draftId);
-  await env.DB.prepare(
-    'INSERT INTO draft_pages (id, draft_id, position, source_name, image_key, image_bytes, ocr_text, edited_text, page_profile, reading, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?)'
-  ).bind(pageId, draftId, position, sourceName, image.key, image.bytes, text, profile, text ? 'ready' : 'pending', stamp, stamp).run();
-  await touchDraft(env, draftId);
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO draft_pages (id, draft_id, position, source_name, image_key, image_bytes, ocr_text, edited_text, page_profile, reading, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?)')
+      .bind(pageId, draftId, position, sourceName, image.key, image.bytes, text, profile, text ? 'ready' : 'pending', stamp, stamp),
+    appendStatement(env, draftId, text)
+  ]);
 
   const pages = await listPages(env, draftId);
   return json({ page: serialisePage(pages.find(p => p.id === pageId)), page_count: pages.length }, 201, corsHeaders);
@@ -388,13 +372,18 @@ async function updatePage(request, env, corsHeaders, url, draftId, pageId) {
       return fail('Expected an edited_text field.', 400, corsHeaders);
     }
     const edited = body.edited_text == null ? null : String(body.edited_text);
-    await env.DB.prepare('UPDATE draft_pages SET edited_text = ?, updated_at = ? WHERE id = ? AND draft_id = ?')
-      .bind(edited, now(), pageId, draftId).run();
-    await touchDraft(env, draftId);
+    if (edited !== null && edited.length > MAX_DOCUMENT_CHARS) return fail('Page text is too large.', 413, corsHeaders);
+    const originalText = existing.edited_text ?? existing.ocr_text ?? '';
+    if (originalText && sourceLocked(draft, corsHeaders)) return sourceLocked(draft, corsHeaders);
+    await env.DB.batch([
+      env.DB.prepare('UPDATE draft_pages SET edited_text = ?, updated_at = ? WHERE id = ? AND draft_id = ?').bind(edited, now(), pageId, draftId),
+      appendStatement(env, draftId, originalText ? '' : (edited || ''))
+    ]);
     const pages = await listPages(env, draftId);
     return json({ page: serialisePage(pages.find(p => p.id === pageId)) }, 200, corsHeaders);
   }
 
+  if (sourceLocked(draft, corsHeaders)) return sourceLocked(draft, corsHeaders);
   // Multipart: the page photo was wrong, so read it again and swap it in place.
   const form = await request.formData();
   const file = form.get('file');
@@ -426,6 +415,7 @@ async function deletePage(request, env, corsHeaders, url, draftId, pageId) {
 
   const draft = await loadDraft(env, draftId, owner.key);
   if (!draft) return fail('Draft not found.', 404, corsHeaders, 'DRAFT_NOT_FOUND');
+  if (sourceLocked(draft, corsHeaders)) return sourceLocked(draft, corsHeaders);
 
   const existing = await env.DB.prepare('SELECT * FROM draft_pages WHERE id = ? AND draft_id = ?').bind(pageId, draftId).first();
   if (!existing) return fail('Page not found.', 404, corsHeaders, 'PAGE_NOT_FOUND');
@@ -453,6 +443,7 @@ async function reorderPages(request, env, corsHeaders, url, draftId) {
 
   const draft = await loadDraft(env, draftId, owner.key);
   if (!draft) return fail('Draft not found.', 404, corsHeaders, 'DRAFT_NOT_FOUND');
+  if (sourceLocked(draft, corsHeaders)) return sourceLocked(draft, corsHeaders);
 
   let order;
   try {
@@ -463,7 +454,7 @@ async function reorderPages(request, env, corsHeaders, url, draftId) {
 
   const pages = await listPages(env, draftId);
   const known = new Set(pages.map(p => p.id));
-  if (order.length !== pages.length || order.some(id => !known.has(id))) {
+  if (order.length !== pages.length || new Set(order).size !== pages.length || order.some(id => !known.has(id))) {
     return fail('The new page order must list every page in this draft exactly once.', 400, corsHeaders, 'ORDER_MISMATCH');
   }
 
@@ -498,37 +489,16 @@ async function getPageImage(request, env, corsHeaders, url, draftId, pageId) {
 
 // ── scheduled cleanup ────────────────────────────────────────────────────────
 
-// Runs once a day. The R2 lifecycle rule removes the photos; this removes the
-// rows and drafts that pointed at them, so a draft never outlives its own photo.
+// Only true orphan rows are cleaned up; live drafts and their photos never expire.
 export async function purgeExpiredDrafts(env) {
-  const stamp = now();
-
-  const drafts = await env.DB.prepare('SELECT id FROM drafts WHERE expires_at < ? LIMIT 200').bind(stamp).all();
-  const stale = drafts.results || [];
-  for (const draft of stale) await deleteDraftImages(env, draft.id);
-
-  const orphanPages = await env.DB.prepare(
-    'SELECT p.id, p.image_key FROM draft_pages p LEFT JOIN drafts d ON d.id = p.draft_id WHERE d.id IS NULL OR p.updated_at < ? LIMIT 500'
-  ).bind(stamp - ORPHAN_GRACE_MS).all();
+  const orphanPages = await env.DB.prepare('SELECT p.id, p.image_key FROM draft_pages p LEFT JOIN drafts d ON d.id = p.draft_id WHERE d.id IS NULL LIMIT 500').all();
   for (const page of (orphanPages.results || [])) await deleteImage(env, page.image_key);
-
-  if (stale.length) {
-    const ids = stale.map(d => d.id);
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM draft_pages WHERE draft_id IN (' + ids.map(() => '?').join(',') + ')').bind(...ids),
-      env.DB.prepare('DELETE FROM drafts WHERE id IN (' + ids.map(() => '?').join(',') + ')').bind(...ids)
-    ]);
+  const ids = (orphanPages.results || []).map(p => p.id);
+  for (let i = 0; i < ids.length; i += 50) {
+    const slice = ids.slice(i, i + 50);
+    await env.DB.prepare('DELETE FROM draft_pages WHERE id IN (' + slice.map(() => '?').join(',') + ')').bind(...slice).run();
   }
-
-  const orphanIds = (orphanPages.results || []).map(p => p.id);
-  if (orphanIds.length) {
-    for (let i = 0; i < orphanIds.length; i += 50) {
-      const slice = orphanIds.slice(i, i + 50);
-      await env.DB.prepare('DELETE FROM draft_pages WHERE id IN (' + slice.map(() => '?').join(',') + ')').bind(...slice).run();
-    }
-  }
-
-  return { drafts_removed: stale.length, pages_removed: orphanIds.length };
+  return { drafts_removed: 0, pages_removed: ids.length };
 }
 
 // ── router ───────────────────────────────────────────────────────────────────
@@ -538,11 +508,11 @@ export async function handleDrafts(request, env, corsHeaders, url) {
   if (url.pathname === '/api/drafts' && request.method === 'GET') return listDrafts(request, env, corsHeaders, url);
   if (url.pathname === '/api/drafts/purge' && request.method === 'POST') return purgeRoute(request, env, corsHeaders);
 
-  // Called from navigator.sendBeacon when the tab closes or refreshes. POST
-  // because beacons cannot send DELETE, and the owner key travels in the body
-  // so no custom header is needed. Best effort by nature: the idle timeout in
-  // purgeExpiredDrafts is what actually guarantees deletion.
+  // Compatibility no-op for cached clients that still send unload beacons.
   if (url.pathname === '/api/drafts/discard' && request.method === 'POST') return discardOwnerDrafts(request, env, corsHeaders);
+
+  const documentMatch = url.pathname.match(/^\/api\/drafts\/([A-Za-z0-9-]{8,64})\/document$/);
+  if (documentMatch && request.method === 'PUT') return saveDocument(request, env, corsHeaders, url, documentMatch[1]);
 
   let match = url.pathname.match(/^\/api\/drafts\/([A-Za-z0-9-]{8,64})$/);
   if (match) {

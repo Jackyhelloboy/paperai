@@ -13,7 +13,7 @@ const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,smartCo
  aiSuggestionTimer:null,aiSuggestionSequence:0,aiSuggestionCalls:0,aiSuggestionPending:false,aiSuggestionCache:new Map(),
  teachPanel:{classList:{contains:()=>true}},currentTeachLanguage:()=> 'hi',currentTeachScript:()=> 'devanagari',currentTeachSourceLanguage:()=> 'en',
  uniqueStrings:a=>[...new Set(a)],getTeachContext:()=> 'a flower',getLocalSmartSuggestions:()=> ['फ्लावर'],getLearnedCorrectionSuggestions:()=>[],getCanonicalPhraseOverride:()=>null,
- renderSuggestionChips:(local,ai)=>chips=[...local,...(ai||[])],hideErr(){},showErr:msg=>{throw Error(msg);},clearTimeout(){},
+ renderSuggestionChips:(local,ai)=>chips=[...local,...(ai||[])],hideErr(){},showErr:msg=>{throw Error(msg);},clearTimeout(){},loadUsage(){},
  findInputSegmentAtCaret:()=>({source:editor.value,start:0,end:editor.value.length}),
  fetchOcrEndpoint:async()=>{calls++;return Response.json({suggestions:['फूल','फ्लावर']});},
  replaceTeachRange:(a,b,v)=>{editor.value=editor.value.slice(0,a)+v+editor.value.slice(b);return a+v.length;},pushTeachHistory(){},renderTeachPreview(){},

@@ -16,3 +16,12 @@ permits installable embedding.
 The font loads only when a Devanagari Word export is requested. Export then
 embeds the complete font in the DOCX, using the ECMA-376 first-32-byte XOR
 obfuscation. Text remains Unicode, searchable and editable.
+
+## Telugu
+
+PaperAITelugu-Regular.ttf is a complete static renamed Noto Sans Telugu instance
+at weight 400 and width 100, with installable embedding (fsType=0).
+Source: https://github.com/google/fonts/blob/main/ofl/notosanstelugu/NotoSansTelugu%5Bwdth%2Cwght%5D.ttf
+License: SIL Open Font License 1.1, included in OFL-Telugu.txt.
+It is downloaded only for Telugu Word exports and embedded with the same
+ECMA-376 obfuscation. Mixed Hindi/Telugu runs are split without changing text.

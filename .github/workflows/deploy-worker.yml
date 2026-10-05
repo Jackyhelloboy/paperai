@@ -78,20 +78,15 @@ jobs:
             npx wrangler@4 r2 bucket create "$BUCKET"
           fi
 
-          # Named rule with explicit flags, so it can never be mistaken for a prefix
-          # condition. Adding a rule whose name already exists is refused by R2
-          # ("Rule IDs must be unique"), so remove it first. That keeps the bucket
-          # converging on a one-day expiry even if an older rule is already there.
+          # Retain teacher photos until explicit deletion. Remove the old expiry.
           npx wrangler@4 r2 bucket lifecycle remove "$BUCKET" \
             --name expire-draft-pages || true
-          npx wrangler@4 r2 bucket lifecycle add "$BUCKET" \
-            --name expire-draft-pages --expire-days 1 --force
-
           RULES="$(npx wrangler@4 r2 bucket lifecycle list "$BUCKET")"
-          grep -q "expire-draft-pages" <<<"$RULES"
-          echo "Lifecycle rules on $BUCKET:"
-          echo "$RULES"
-          echo "Page photos expire after 1 day"
+          if grep -q "expire-draft-pages" <<<"$RULES"; then
+            echo "Old photo expiry rule remains; refusing to deploy persistent drafts"
+            exit 1
+          fi
+          echo "Draft photos retained until manual deletion"
           echo "Generated worker/wrangler.deploy.toml"
 
       # Uses an explicit npx wrangler call rather than wrangler-action, because the

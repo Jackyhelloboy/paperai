@@ -13,7 +13,7 @@ const ctx = vm.createContext({$,document:{querySelector:()=>$("main")},AbortCont
   goBtn:$('goBtn'),resBox:$('resBox'),prog:$('prog'),teachPanel:$('teachPanel'),textOut:$('textOut'),
   preparedImageCache:new WeakMap(),lastResult:null,showingRaw:false,
   resetSmartExtraction:()=>clears++,startSmartExtractionForFiles:()=>calls++,updateSmartExtractionUI(){},
-  hideErr(){},showErr:e=>errors.push(e),setProg(){},loadUsage(){},
+  hideErr(){},showErr:e=>errors.push(e),setProg(){},loadUsage(){},updatePaperMarks(){},saveExtractionToPaper:async()=>{},
   getSmartExtractionResult:async(f,i,n,signal)=>{seenSignal=signal;if(mode==='pending')return new Promise(r=>resolvePending=r);if(mode==='error')throw new Error('Network offline');return {pages:[{text:'1. Hindi worksheet',plain:'1. Hindi worksheet'}],pageCount:1};},
   analyzePaperBatch:async()=>({documents:[{}]}),saveQuestionPatternsFromAnalysis(){},
   assemblePaperPages:p=>({text:p[0].text,plain:p[0].plain,raw:p[0].text,ordered:p}),repairLegacyBranchDiagram:s=>s,

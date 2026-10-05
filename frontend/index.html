@@ -12,11 +12,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
     <script src="vendor/indic-transliterate.js"></script>
-    <script src="vendor/paperai-document-model.js?v=37"></script>
+    <script src="vendor/paperai-teacher-tools.js?v=1"></script>
+    <script src="vendor/paperai-math.js?v=1"></script>
+    <script src="vendor/paperai-document-model.js?v=38"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
-    <script src="vendor/paperai-word-engine.js?v=37"></script>
-    <script src="vendor/paperai-word-fonts.js?v=1"></script>
+    <script src="vendor/paperai-word-engine.js?v=38"></script>
+    <script src="vendor/paperai-word-fonts.js?v=2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -3230,7 +3232,33 @@
             .extraction-nav { flex-wrap:nowrap; }
             #extractionRetry { font-size:0.75rem; padding:0.45rem; }
         }
-    </style>
+            .draft-sources { margin:0.7rem 0; border-top:1px solid var(--border); padding-top:0.65rem; }
+        .draft-sources summary { font-size:0.78rem; color:var(--text-muted); cursor:pointer; }
+        .draft-sources .draft-pages { margin-top:0.8rem; }
+        .paper-marks { margin:0.5rem 0 0.75rem; padding:0.65rem 0.8rem; border:1px solid #dbeafe; border-radius:10px; background:#f8fbff; font-size:0.78rem; }
+        .paper-marks summary { cursor:pointer; color:#1e40af; font-weight:600; }
+        #paperMarksDetail { line-height:1.6; padding-top:0.4rem; }
+        .marks-warning { color:#9a3412; }
+        #paperSaveState { display:inline-block; margin-left:0.6rem; font-size:0.73rem; color:#15803d; font-weight:500; }
+        #paperSaveState[data-error="true"] { color:#b45309; }
+        .translit-chip { white-space:normal; max-width:100%; text-align:left; overflow-wrap:anywhere; }
+        .drafts-card { margin-bottom:0.75rem; }
+        .workflow-active .drafts-head, .workflow-active .draft-list, .workflow-active .draft-actions { display:none; }
+        .workflow-active .drafts-card { margin-top:0; padding:0.8rem 1rem; }
+        .workflow-active .draft-editor { margin-top:0; border-top:0; padding-top:0; }
+        .paper-marks math, .output-body math { font-family:'Cambria Math',serif; font-size:1.1em; }
+        .draft-editor-head { flex-wrap:wrap; gap:0.5rem; }
+        .draft-title-input { flex:1 1 180px; min-width:0; }
+        .draft-actions { display:flex; flex-wrap:wrap; gap:0.5rem; }
+        .draft-add { flex-wrap:wrap; }
+        @media(max-width:600px) {
+            .drafts-card { padding:0.85rem; }
+            .draft-meta { width:100%; order:5; }
+            .draft-hint { width:100%; line-height:1.5; }
+            #paperSaveState { display:block; margin:0.3rem 0 0; }
+            .teach-editor { font-size:16px; }
+        }
+</style>
 </head>
 <body>
     <header class="header">
@@ -3258,7 +3286,7 @@
         <section class="quota-card" id="quotaCard" aria-live="polite">
             <div class="quota-head">
                 <div>
-                    <div class="quota-title"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 18a5 5 0 1 1 .1-10A6 6 0 0 1 19 9a4.5 4.5 0 0 1-1 9H7Z"/></svg><span>Cloudflare AI · daily usage</span></div>
+                    <div class="quota-title"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 18a5 5 0 1 1 .1-10A6 6 0 0 1 19 9a4.5 4.5 0 0 1-1 9H7Z"/></svg><span>Developed by Jawad</span></div>
                 </div>
                 <div class="quota-live" id="quotaBadge" data-state="checking" title="Checking the PaperAI backend connection">
                     <span class="quota-live-dot"></span>
@@ -3375,12 +3403,14 @@
             <div class="drafts-head">
                 <div>
                     <div class="drafts-title">My drafts</div>
-                    <div class="drafts-sub">Build one document page by page. Drafts are deleted when you close this tab.</div>
+                    <div class="drafts-sub">Build one document page by page. Saved until you delete them. Return using this browser to continue your paper.</div>
                 </div>
                 <button class="draft-btn" id="draftNewBtn" type="button">+ New draft</button>
             </div>
 
             <div class="draft-list" id="draftList"></div>
+            <div id="paperRecovery" class="draft-status" hidden><span id="paperRecoveryText"></span> <button id="paperRecoveryBtn" class="draft-btn" type="button">Retry saving</button></div>
+            <button id="paperConflictBtn" class="draft-btn" type="button" hidden>Save browser copy as a new draft</button>
 
             <div class="draft-editor" id="draftEditor" hidden>
                 <div class="draft-editor-head">
@@ -3390,23 +3420,23 @@
                     <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete</button>
                 </div>
 
-                <div class="draft-pages" id="draftPages"></div>
+                <details class="draft-sources"><summary>Source pages · kept separately from your corrected paper</summary><div class="draft-pages" id="draftPages"></div></details>
 
                 <div class="draft-status" id="draftStatus" aria-live="polite"></div>
 
                 <div class="draft-add">
                     <button class="btn-extract" id="draftAddBtn" type="button">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16m8-8H4"/></svg>
-                        <span>Add a page</span>
+                        <span>Add pages</span>
                     </button>
-                    <input type="file" id="draftAddInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
+                    <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
                     <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
-                    <span class="draft-hint">Up to 200 pages · 3 MB each · photos save first, Read adds the text</span>
+                    <span class="draft-hint">Add images, PDFs or text · one read per scanned page · one continuous paper</span>
                 </div>
 
                 <div class="draft-actions">
-                    <button class="draft-btn" id="draftTeachBtn" type="button" title="Correct the whole document before exporting. Changes here affect the Word file only — use a page's Edit button to save a change for good.">Correct for export</button>
-                    <button class="draft-btn primary" id="draftWordBtn" type="button">Combine &amp; export Word</button>
+                    <button class="draft-btn" id="draftTeachBtn" type="button" title="Edit and save the whole paper. New uploads append after your corrections.">Review &amp; edit</button>
+                    <button class="draft-btn primary" id="draftWordBtn" type="button">Export Word</button>
                 </div>
             </div>
         </div>
@@ -3417,6 +3447,7 @@
                 <div class="results-badges" id="statsBar"></div>
             </div>
 
+            <details class="paper-marks" id="paperMarks" hidden><summary id="paperMarksSummary"></summary><div id="paperMarksDetail"></div></details>
             <div class="results-actions">
                 <button class="action-btn" onclick="copyText(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
@@ -3433,8 +3464,8 @@
                 </button>
             </div>
 <div class="teach-panel" id="teachPanel">
-                <div class="teach-title">Correct OCR to teach this browser</div>
-                <div class="teach-sub">Pronunciation-based script typing: keep the same spoken English words and write how they sound in the target script. Example: <strong>jawad</strong> → <strong>जवाद</strong> and <strong>i love you</strong> → <strong>आई लव यू</strong>. Select a word or short phrase and press AI Suggestions. Typing uses no AI quota; a suggestion applies only when you choose it.</div>
+                <div class="teach-title">Review your question paper <span id="paperSaveState" role="status" aria-live="polite"></span></div>
+                <div class="teach-sub">Correct words or whole sentences. Telugu typing supports <strong>enti → ఏంటి</strong>. Select text, or place the cursor in a sentence, then press AI Suggestions. Typing and marks checking use no AI. Choose a suggestion to apply it.</div>
                 <div class="teach-language-bar">
                     <label class="teach-lang-field">
                         <span class="teach-lang-label">From</span>
@@ -3488,7 +3519,7 @@
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
                 <div class="teach-actions">
                     <button class="action-btn" onclick="saveLearning()">Save & apply</button>
-                    <button class="action-btn" onclick="closeTeachPanel()">Cancel</button>
+                    <button class="action-btn" onclick="closeTeachPanel()">Done</button>
                 </div>
             </div>
 
@@ -3510,7 +3541,7 @@
     </main>
 
     <footer class="footer">
-        <div class="footer-text">PaperAI — Free-only OCR · no paid fallback</div>
+        <div class="footer-text">© 2026 Jawad · PaperAI for teachers</div>
     </footer>
 
 <script>
@@ -3742,7 +3773,7 @@ const setProg = (pct,msg) => {
 
 let quotaResetAt = null;
 let quotaClockOffset = 0, quotaLoading = false, quotaBoundaryCheckAt = 0;
-const QUOTA_REFRESH_MS = 60 * 1000;
+const QUOTA_REFRESH_MS = 20 * 1000;
 
 const fmtNeuron = n => n == null || !Number.isFinite(Number(n)) ? '—'
     : Number(n).toLocaleString(undefined, {maximumFractionDigits:2});
@@ -5713,6 +5744,8 @@ function getLocalSmartSuggestions(input) {
     if (script === 'latin') return [roman];
 
     const suggestions = [];
+    const native = window.PaperAITeacherTools?.nativeRoman(roman, currentTeachLanguage());
+    if (native) suggestions.push(native);
     const isSingleWord = !roman.includes(' ');
     const phraseOverride = !isSingleWord ? getCanonicalPhraseOverride(roman, script) : '';
     const override = isSingleWord ? getCanonicalPhoneticOverride(roman, script) : '';
@@ -5790,7 +5823,7 @@ function findInputSegmentAtCaret() {
     if (!match) return null;
 
     const source = match[1].replace(/[ \t]+/g, ' ').trim();
-    if (!source || source.length > 120) return null;
+    if (!source || source.length > 600) return null;
 
     const start = caret - match[1].length;
     return {
@@ -5804,7 +5837,7 @@ function findInputSegmentAtCaret() {
 
 async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage, localSuggestions, learnedSuggestions, sequence) {
     const normalized = String(sourceText || '').replace(/\s+/g, ' ').trim();
-    const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000smart\u0000' + normalized.toLowerCase();
+    const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000smart\u0000' + normalized.toLowerCase() + '\u0000' + getTeachContext(smartComposition?.start || teachEditor.selectionStart);
 
     if (aiSuggestionCache.has(cacheKey)) return aiSuggestionCache.get(cacheKey);
 
@@ -5905,17 +5938,17 @@ function manualSuggestionSegment() {
     if (b > a) {
         const raw = teachEditor.value.slice(a, b);
         const source = raw.trim();
-        if (!source || source.length > 120) return null;
+        if (!source || source.length > 600) return null;
         const start = a + raw.indexOf(source);
         return { start, end: start + source.length, source };
     }
-    return findInputSegmentAtCaret();
+    return window.PaperAITeacherTools?.sentenceAt(teachEditor.value, a) || findInputSegmentAtCaret();
 }
 
 async function requestManualAiSuggestions() {
     if (aiSuggestionPending) return;
     const segment = manualSuggestionSegment();
-    if (!segment) { showErr('Select a word or short phrase (up to 120 characters) for AI Suggestions.'); return; }
+    if (!segment) { showErr('Select a word or sentence (up to 600 characters) for AI Suggestions.'); return; }
     smartComposition = segment;
     const sequence = ++aiSuggestionSequence;
     const btn = $('aiSuggestBtn');
@@ -5940,6 +5973,7 @@ async function requestManualAiSuggestions() {
         aiSuggestionPending = false;
         btn.disabled = false;
         btn.textContent = '✦ AI Suggestions';
+        loadUsage();
     }
 }
 
@@ -5973,6 +6007,8 @@ function renderTeachPreview() {
     // current unsaved Teach corrections immediately.
     lastResult.preview_text = preview;
     lastResult.preview_layout_text = layoutPreview;
+    updatePaperMarks(layoutPreview);
+    queuePaperSave(layoutPreview);
 
     if (!showingRaw) {
         textOut.innerHTML = formatOutput(layoutPreview);
@@ -6071,6 +6107,12 @@ function openTeachPanel() {
 }
 
 function closeTeachPanel() {
+    if (lastResult?.draft_id && lastResult.preview_layout_text !== undefined) {
+        lastResult.text = lastResult.preview_layout_text;
+        lastResult.plain_text = publicPlainTextFromStructured(lastResult.text);
+        queuePaperSave(lastResult.text);
+        flushPaperSave();
+    }
     teachPanel.classList.remove('show');
     smartComposition = null;
     aiSuggestionSequence++;
@@ -6181,6 +6223,8 @@ function saveLearning() {
     // untouched, but every Extracted render/copy/download now uses this value.
     lastResult.plain_text = corrected;
     lastResult.text = correctedLayout;
+    queuePaperSave(correctedLayout);
+    flushPaperSave();
     lastResult.preview_text = corrected;
     lastResult.preview_layout_text = correctedLayout;
 
@@ -6294,7 +6338,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
     try {
         const res = await fetchOcrEndpoint('/api/ocr', { method: 'POST', body: formData, signal: control.signal });
         const body = await res.json().catch(() => ({}));
-        if (res.ok) return body;
+        if (res.ok) return {...body, source_image:prepared.blob};
         if (['PROVIDER_AI_QUOTA_REACHED','FREE_AI_LIMIT_REACHED'].includes(body?.code)) {
             throw new Error("Cloudflare's daily AI quota is reached. Your files are kept. PaperAI cannot reset Cloudflare's quota.");
         }
@@ -6474,7 +6518,7 @@ function formatVisibleText(value) {
 
     const flush = () => {
         if (!buffer) return;
-        html += esc(buffer);
+        html += window.PaperAIMath?.preview ? window.PaperAIMath.preview(buffer) : esc(buffer);
         buffer = '';
     };
 
@@ -7486,6 +7530,7 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
             text: payload.text || payload.plain || '',
             plain: payload.plain || payload.text || '',
             raw: payload.raw || payload.text || payload.plain || '',
+            source_image: payload.source_image,
             profile: payload.profile || pageProfileFromText(payload.text || payload.plain || '')
         };
         records.push(record);
@@ -7550,6 +7595,7 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
                     text: annotated,
                     plain: pagePlain,
                     raw: result.result.raw_text || annotated,
+                    source_image: result.source_image,
                     profile: pageProfileFromText(annotated)
                 });
             }
@@ -7596,6 +7642,7 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
             text,
             plain,
             raw: result.result.raw_text || text,
+            source_image: result.source_image,
             profile: pageProfileFromText(text)
         });
 
@@ -7650,7 +7697,7 @@ function setExtractionView(view) {
     document.querySelector('.main').classList.toggle('workflow-active', view !== 'select');
     $('uploadControls').hidden = view !== 'select';
     $('extractionNav').hidden = view === 'select';
-    $('draftsCard').hidden = view !== 'select';
+    $('draftsCard').hidden = view === 'processing' || view === 'error';
     $('extractionRetry').hidden = view !== 'error';
     $('extractionRetry').disabled = view === 'processing';
     $('extractionStatus').textContent = view === 'processing' ? 'Extracting your document' : view === 'error' ? 'Ready when you are' : 'Ready to review';
@@ -7665,6 +7712,10 @@ function goBackToUpload() {
     hideErr();
     prog.classList.remove('show');
     resBox.classList.remove('show');
+    if (lastResult?.preview_layout_text !== undefined) {
+        lastResult.text = lastResult.preview_layout_text;
+        lastResult.plain_text = publicPlainTextFromStructured(lastResult.text);
+    }
     teachPanel.classList.remove('show');
     setExtractionView('select');
     goBtn.disabled = !files.length;
@@ -7672,7 +7723,8 @@ function goBackToUpload() {
 }
 
 async function startExtraction() {
-    if (!files.length || extractionView === 'processing') return;
+    if (!files.length || extractionView === 'processing' || (typeof draftBusy !== 'undefined' && draftBusy)) return;
+    if (typeof pendingSourceBatch !== 'undefined' && pendingSourceBatch) { showErr('Use Retry saving for your extracted pages before starting a new scan.'); return; }
     if (lastResult && lastCompletedSelection.length === files.length && files.every((f, i) => f === lastCompletedSelection[i])) {
         hideErr();
         prog.classList.remove('show');
@@ -7806,6 +7858,8 @@ async function startExtraction() {
             ? 'Ready · ' + paperCount + ' papers to review'
             : 'Ready for your review');
         setTimeout(() => { if (active()) prog.classList.remove('show'); }, 900);
+        updatePaperMarks(lastResult.text);
+        await saveExtractionToPaper(assembled.ordered);
         loadUsage();
 
         if (window.matchMedia('(max-width: 479px)').matches) {
@@ -9420,7 +9474,7 @@ function copyText(btn){
 // ── drafts ────────────────────────────────────────────────────────────────────
 // A draft is a document the user builds one photo at a time. Pages keep their own
 // OCR text and corrections in the Worker, so work survives closing the tab and can
-// continue days later. Photos and text are deleted the next day.
+// continue days later. Photos and text stay until the owner deletes the draft.
 
 const DRAFT_OWNER_STORAGE = 'paperai_owner_key_v1';
 const DRAFT_PAGE_BREAK = '\n[[PAGE_BREAK]]\n';
@@ -9444,40 +9498,101 @@ function draftOwnerKey() {
     return key;
 }
 
-// Drafts are meant to disappear with the tab. Closing a page cannot be relied on
-// to report itself, so this is only the fast path: pagehide covers close,
-// refresh and navigation, and the server's idle timeout is the real guarantee.
-(function discardDraftsOnUnload() {
-    if (window.__paperaiDiscardHooked) return;
-    window.__paperaiDiscardHooked = true;
-
-    const discard = () => {
-        let key = '';
-        try { key = localStorage.getItem(DRAFT_OWNER_STORAGE) || ''; } catch (_) { return; }
-        if (!/^[A-Za-z0-9_-]{20,64}$/.test(key)) return;
-        if (!draftHasAnything) return;
-
-        const body = new Blob([JSON.stringify({ owner: key })], { type: 'application/json' });
-        // Beacon survives the unload; a plain fetch usually does not.
-        try {
-            if (navigator.sendBeacon && navigator.sendBeacon(API_LOCAL + '/api/drafts/discard', body)) return;
-        } catch (_) {}
-        try { fetch(API_LOCAL + '/api/drafts/discard', { method: 'POST', body, keepalive: true }); } catch (_) {}
-    };
-
-    addEventListener('pagehide', discard);
-    addEventListener('beforeunload', discard);
-})();
-
+// Drafts are retained across reloads. No unload deletion request is sent.
+const ACTIVE_PAPER_STORAGE = 'paperai_active_paper_v2';
+let paperSaveTimer = null;
+let paperSaveRunning = false;
+let pendingPaperSave = null;
+let paperSaveConflict = false;
+let pendingSourceBatch = null;
+const PENDING_SOURCE_STORAGE = 'paperai_pending_pages_v2';
+function paperBackupKey(id) { return 'paperai_unsaved_paper_v2_' + id; }
+function rememberActivePaper() {
+    try {
+        if (activeDraft) localStorage.setItem(ACTIVE_PAPER_STORAGE, activeDraft.id);
+        else localStorage.removeItem(ACTIVE_PAPER_STORAGE);
+    } catch (_) {}
+}
+function setPaperSaveState(text, error = false) {
+    $('paperConflictBtn').hidden = !paperSaveConflict;
+    const node = $('paperSaveState');
+    if (node) { node.textContent = text; node.dataset.error = String(error); }
+}
+function queuePaperSave(text) {
+    if (!lastResult?.draft_id || !activeDraft || lastResult.draft_id !== activeDraft.id) return;
+    if (!pendingPaperSave && text === draftCombinedText(activeDraft)) return;
+    pendingPaperSave = { id: activeDraft.id, text, revision: activeDraft.document_revision || 0 };
+    try { localStorage.setItem(paperBackupKey(activeDraft.id), JSON.stringify(pendingPaperSave)); }
+    catch (_) { setPaperSaveState('Browser backup unavailable — keep this tab open', true); }
+    clearTimeout(paperSaveTimer);
+    if (paperSaveConflict) { setPaperSaveState('Another tab changed this paper — review your saved browser copy', true); return; }
+    setPaperSaveState('Saving…');
+    paperSaveTimer = setTimeout(flushPaperSave, 700);
+}
+async function flushPaperSave() {
+    clearTimeout(paperSaveTimer);
+    if (paperSaveRunning || !pendingPaperSave || paperSaveConflict) return false;
+    paperSaveRunning = true;
+    const pending = { ...pendingPaperSave };
+    try {
+        const data = await fetchDraftEndpoint('/api/drafts/' + pending.id + '/document', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: pending.text, revision: pending.revision })
+        });
+        if (activeDraft?.id === pending.id) Object.assign(activeDraft, data.draft);
+        if (pendingPaperSave?.id === pending.id) {
+            pendingPaperSave.revision = data.draft.document_revision;
+            if (pendingPaperSave.text === pending.text) {
+                pendingPaperSave = null;
+                try { localStorage.removeItem(paperBackupKey(pending.id)); } catch (_) {}
+                setPaperSaveState('Saved to draft');
+            } else {
+                try { localStorage.setItem(paperBackupKey(pending.id), JSON.stringify(pendingPaperSave)); } catch (_) {}
+            }
+        }
+        updateDraftPreview();
+        return true;
+    } catch (error) {
+        paperSaveConflict = error.status === 409;
+        setPaperSaveState(paperSaveConflict ? 'Another tab changed this paper — your edits are kept in this browser' : 'Connection unavailable — edits kept in this browser', true);
+        setDraftStatus(error.message || 'Could not save yet. Your browser copy is retained.', true);
+        return false;
+    } finally {
+        paperSaveRunning = false;
+        if (pendingPaperSave && !paperSaveConflict && pendingPaperSave.text !== pending.text) paperSaveTimer = setTimeout(flushPaperSave, 700);
+    }
+}
+function updateDraftPreview() {
+    // Source pages remain historical evidence; the whole-paper text is canonical.
+    if (activeDraft) $('draftMeta').textContent = (activeDraft.pages || []).length + ' source pages · saved until deleted';
+}
+function updatePaperMarks(text) {
+    const report = window.PaperAITeacherTools?.marksSummary(publicPlainTextFromStructured(text));
+    if (!report) return;
+    $('paperMarks').hidden = false;
+    $('paperMarksSummary').textContent = (report.items ? report.items + ' numbered items · ' : '') +
+        (report.sections.length ? report.sectionMarks + ' detected section marks' : 'Marks not detected') +
+        (report.declared !== null ? ' · stated total ' + report.declared : '') +
+        (report.warnings.length ? ' · Review needed' : '');
+    $('paperMarksDetail').innerHTML = '<p>Calculated from explicit section expressions. Numbered items can include subquestions. Review against the source; missing marks are not guessed.</p>' +
+        report.sections.map(section => '<div>' + esc(section.count + ' × ' + section.each + ' = ' + section.marks) + (section.correct ? '' : ' — check arithmetic') + '</div>').join('') +
+        report.warnings.map(warning => '<p class="marks-warning">' + esc(warning) + '</p>').join('');
+}
+async function requirePaperSaved() {
+    if (pendingPaperSave || paperSaveRunning) {
+        await flushPaperSave();
+        if (pendingPaperSave || paperSaveRunning) throw new Error('Save the current corrections before adding pages or changing drafts. Your edits are kept in this browser.');
+    }
+}
 async function fetchDraftEndpoint(path, options = {}) {
     const headers = { 'X-PaperAI-Owner': draftOwnerKey(), ...(options.headers || {}) };
-    const targets = [API_DIRECT + path, API_LOCAL + path];
+    const targets = !options.method || options.method === 'GET' ? [API_DIRECT + path, API_LOCAL + path] : [API_DIRECT + path];
     let lastError = null;
 
     for (let i = 0; i < targets.length; i++) {
         try {
-            const res = await fetch(targets[i], { ...options, headers });
-            if (i === 0 && ([404, 405, 502, 503, 504].includes(res.status) || res.headers.get('X-PaperAI-Proxy-Error') === '1')) continue;
+            const res = await fetch(targets[i], { ...options, headers, signal: options.signal || AbortSignal.timeout(20000) });
+            if (targets.length > 1 && i === 0 && ([404, 405, 502, 503, 504].includes(res.status) || res.headers.get('X-PaperAI-Proxy-Error') === '1')) continue;
             if (!res.ok) {
                 let detail = {};
                 try { detail = await res.json(); } catch (_) {}
@@ -9500,6 +9615,7 @@ function draftImageUrl(draftId, pageId) {
 }
 
 function draftCombinedText(draft) {
+    if (draft?.document_text !== null && draft?.document_text !== undefined) return draft.document_text;
     return (draft?.pages || [])
         .map(page => String(page.text || '').trim())
         .filter(Boolean)
@@ -9513,11 +9629,6 @@ function draftDate(stamp) {
     } catch (_) {
         return '';
     }
-}
-
-function draftMinutesLeft(draft) {
-    const left = Math.ceil((Number(draft?.expires_at || 0) - Date.now()) / 60000);
-    return left > 0 ? left : 0;
 }
 
 function setDraftStatus(message, isError) {
@@ -9586,11 +9697,13 @@ function renderDraftPages() {
     if (!draft) return;
 
     $('draftTitleInput').value = draft.title || '';
-    const mins = draftMinutesLeft(draft);
-    $('draftMeta').textContent = pages.length + (pages.length === 1 ? ' page' : ' pages')
-        + (mins ? ' · deleted in ' + mins + (mins === 1 ? ' minute' : ' minutes') : ' · deleting now');
-    $('draftWordBtn').disabled = draftBusy || !pages.length;
-    $('draftTeachBtn').disabled = draftBusy || !pages.length;
+    updateDraftPreview();
+    $('draftWordBtn').disabled = draftBusy || !draftCombinedText(draft).trim();
+    $('draftTeachBtn').disabled = draftBusy || !draftCombinedText(draft).trim();
+    if (draft.document_text !== null && draft.document_text !== undefined) {
+        $('draftPages').querySelectorAll('[data-page-up], [data-page-down], [data-page-fix], [data-page-del], [data-page-replace]').forEach(node => { node.disabled = true; node.title = 'Edit the combined paper to preserve saved corrections.'; });
+        $('draftPages').querySelectorAll('[data-page-read]').forEach(node => { const page = pages.find(p => p.id === node.dataset.pageRead); if (page?.text) node.disabled = true; });
+    }
 }
 
 async function loadDraftList() {
@@ -9605,11 +9718,18 @@ async function loadDraftList() {
 
 async function createNewDraft() {
     if (draftBusy) return;
+    if (pendingSourceBatch) { setDraftStatus('Retry saving your extracted pages before starting a new draft.', true); return; }
     setDraftBusy(true);
     setDraftStatus('Creating a draft...');
     try {
+        await requirePaperSaved();
         const data = await fetchDraftEndpoint('/api/drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-        activeDraft = { id: data.draft.id, title: data.draft.title || '', pages: [], expires_at: data.draft.expires_at, updated_at: data.draft.updated_at };
+        activeDraft = { ...data.draft, pages: [] };
+        rememberActivePaper();
+        lastResult = null;
+        lastCompletedSelection = [];
+        clearFile();
+        goBackToUpload();
         await loadDraftList();
         renderDraftPages();
         setDraftStatus('');
@@ -9627,16 +9747,30 @@ async function openDraft(draftId) {
     setDraftBusy(true);
     setDraftStatus('Opening draft...');
     try {
+        await requirePaperSaved();
         const data = await fetchDraftEndpoint('/api/drafts/' + draftId);
         activeDraft = {
+            ...data.draft,
             id: data.draft.id,
             title: data.draft.title || '',
             expires_at: data.draft.expires_at,
             updated_at: data.draft.updated_at,
             pages: Array.isArray(data.pages) ? data.pages : []
         };
+        rememberActivePaper();
+        paperSaveConflict = false;
+        let backup = null;
+        try { backup = JSON.parse(localStorage.getItem(paperBackupKey(draftId)) || 'null'); } catch (_) {}
+        if (backup && backup.id === draftId && typeof backup.text === 'string') {
+            pendingPaperSave = backup;
+            paperSaveConflict = backup.revision !== activeDraft.document_revision;
+            activeDraft.document_text = backup.text;
+            setPaperSaveState(paperSaveConflict ? 'Browser copy restored — another tab changed this paper' : 'Browser copy restored', paperSaveConflict);
+        } else setPaperSaveState('Saved to draft');
         renderDraftPages();
-        setDraftStatus('');
+        loadDraftIntoResults();
+        if (pendingPaperSave && !paperSaveConflict) flushPaperSave();
+        setDraftStatus(paperSaveConflict ? 'Recovered browser copy. Export it to keep your edits; reopen after reviewing the other tab.' : '');
     } catch (e) {
         setDraftStatus('Could not open that draft: ' + (e.message || 'unknown error'), true);
     } finally {
@@ -9644,8 +9778,11 @@ async function openDraft(draftId) {
     }
 }
 
-function closeDraft() {
+async function closeDraft() {
+    try { await requirePaperSaved(); } catch (e) { setDraftStatus(e.message, true); return; }
     activeDraft = null;
+    rememberActivePaper();
+    goBackToUpload();
     renderDraftPages();
     setDraftStatus('');
 }
@@ -9659,6 +9796,14 @@ async function deleteActiveDraft() {
     try {
         await fetchDraftEndpoint('/api/drafts/' + id, { method: 'DELETE' });
         activeDraft = null;
+        pendingPaperSave = null;
+        paperSaveConflict = false;
+        clearTimeout(paperSaveTimer);
+        try { localStorage.removeItem(paperBackupKey(id)); } catch (_) {}
+        rememberActivePaper();
+        lastResult = null;
+        resBox.classList.remove('show');
+        goBackToUpload();
         await loadDraftList();
         renderDraftPages();
         setDraftStatus('Draft deleted.');
@@ -9680,7 +9825,7 @@ async function renameActiveDraft(value) {
             body: JSON.stringify({ title })
         });
         await loadDraftList();
-    } catch (_) {}
+    } catch (error) { setDraftStatus('Could not save the title: ' + error.message, true); }
 }
 
 async function runOcrForPage(imageFile) {
@@ -9690,6 +9835,109 @@ async function runOcrForPage(imageFile) {
 
 // Store the photo first, so a page never depends on AI being available. Reading
 // the text is a separate, retryable step the user chooses to run.
+function rememberPendingSources(batch) {
+    pendingSourceBatch = batch;
+    try {
+        if (batch) localStorage.setItem(PENDING_SOURCE_STORAGE, JSON.stringify({draft_id:batch.draft_id,records:batch.records.map(({source_image,...record})=>record)}));
+        else localStorage.removeItem(PENDING_SOURCE_STORAGE);
+    } catch (_) {}
+    $('paperRecovery').hidden = !batch;
+    $('paperRecoveryText').textContent = batch ? 'Extracted text is kept in this browser until its draft save completes.' : '';
+}
+async function saveExtractionToPaper(records) {
+    try {
+        await requirePaperSaved();
+        for (const record of records) record.draft_page_id ||= crypto.randomUUID();
+        rememberPendingSources({draft_id:activeDraft?.id || null,records});
+        if (!activeDraft) {
+            const data = await fetchDraftEndpoint('/api/drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: (records[0]?.filename || 'Question paper').replace(/\.[^.]+$/, '') }) });
+            activeDraft = { ...data.draft, pages: [] };
+            rememberActivePaper();
+            rememberPendingSources({draft_id:activeDraft.id,records});
+        }
+        for (const record of records) {
+            const body = new FormData();
+            body.append('page_id', record.draft_page_id);
+            body.append('text', record.text || record.plain || '');
+            body.append('source_name', record.filename || 'Page');
+            if (record.source_image?.size && record.source_image.size <= 3 * 1024 * 1024 && /^image\/(?:jpeg|png|webp)$/.test(record.source_image.type)) body.append('file', record.source_image, 'source-page.jpg');
+            await fetchDraftEndpoint('/api/drafts/' + activeDraft.id + '/pages', { method: 'POST', body });
+        }
+        await refreshActiveDraft();
+        rememberPendingSources(null);
+        loadDraftIntoResults();
+        setPaperSaveState('Saved to draft');
+        setDraftStatus('Saved. Add more pages to continue this paper, or start a new draft.');
+        return true;
+    } catch (error) {
+        setDraftStatus('Text is ready. Draft save could not finish: ' + error.message + ' Use Retry saving; it does not scan again.', true);
+        $('draftsCard').hidden = false;
+        return false;
+    }
+}
+async function retryPendingSources() {
+    if (!pendingSourceBatch || draftBusy) return;
+    setDraftBusy(true);
+    $('paperRecoveryBtn').disabled = true;
+    try {
+        await requirePaperSaved();
+        const batch = pendingSourceBatch;
+        if (batch.draft_id && activeDraft?.id !== batch.draft_id) {
+            const data = await fetchDraftEndpoint('/api/drafts/' + batch.draft_id);
+            activeDraft = {...data.draft,pages:data.pages}; rememberActivePaper();
+        }
+        if (!batch.draft_id) activeDraft = null;
+        await saveExtractionToPaper(batch.records);
+    } catch (error) { setDraftStatus(error.message, true); }
+    finally { setDraftBusy(false); $('paperRecoveryBtn').disabled = false; renderDraftPages(); }
+}
+async function saveRecoveredCopy() {
+    if (!pendingPaperSave || !paperSaveConflict || draftBusy) return;
+    const pending = {...pendingPaperSave};
+    setDraftBusy(true);
+    try {
+        const created = await fetchDraftEndpoint('/api/drafts', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:(activeDraft?.title || 'Question paper') + ' — recovered copy'})});
+        const saved = await fetchDraftEndpoint('/api/drafts/' + created.draft.id + '/document', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:pending.text,revision:0})});
+        activeDraft = {...saved.draft,pages:[]};
+        pendingPaperSave = null; paperSaveConflict = false;
+        try { localStorage.removeItem(paperBackupKey(pending.id)); } catch (_) {}
+        rememberActivePaper(); await loadDraftList(); renderDraftPages(); loadDraftIntoResults();
+        setPaperSaveState('Recovered copy saved'); setDraftStatus('Your browser copy is saved as a separate paper. The other version remains in My drafts.');
+    } catch (error) { setDraftStatus(error.message, true); }
+    finally { setDraftBusy(false); }
+}
+async function addFilesToPaper(files) {
+    if (!activeDraft || draftBusy || !files.length) return;
+    if (pendingSourceBatch) { setDraftStatus('Retry saving your extracted pages before adding more.', true); return; }
+    try { await requirePaperSaved(); } catch (error) { setDraftStatus(error.message, true); return; }
+    setDraftBusy(true);
+    const controller = new AbortController();
+    extractionController = controller;
+    setExtractionView('processing');
+    resBox.classList.remove('show');
+    prog.classList.add('show');
+    const completed = [];
+    try {
+        for (let i = 0; i < files.length; i++) {
+            setDraftStatus('Reading ' + (i + 1) + '/' + files.length + ' · ' + files[i].name);
+            if (controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+            const result = await extractOneInputFile(files[i], i, files.length, '', {signal:controller.signal});
+            const records = result.pages?.length ? result.pages : [{ text: result.text || result.plain, filename: files[i].name }];
+            // Save each successful file immediately. Later failures keep earlier work.
+            for (const record of records) record.filename ||= files[i].name;
+            if (!await saveExtractionToPaper(records)) return;
+            completed.push(files[i].name);
+        }
+        setDraftStatus('Added ' + completed.length + ' file(s). Review the combined paper below.');
+    } catch (error) {
+        setDraftStatus(error.name === 'AbortError' ? 'Reading stopped. Completed pages remain saved.' : 'Stopped at the failed file. Earlier pages are saved. ' + error.message, error.name !== 'AbortError');
+    } finally {
+        setDraftBusy(false); renderDraftPages(); prog.classList.remove('show'); loadUsage();
+        if (extractionController === controller) extractionController = null;
+        if (!controller.signal.aborted) { setExtractionView('result'); if (lastResult) resBox.classList.add('show'); }
+    }
+}
+
 async function addPageToDraft(imageFile) {
     if (!activeDraft || draftBusy) return;
     if (imageFile.size > 3 * 1024 * 1024) {
@@ -9769,8 +10017,9 @@ async function refreshActiveDraft() {
     const data = await fetchDraftEndpoint('/api/drafts/' + activeDraft.id);
     // The endpoint wraps the draft, so keep the same flat shape used elsewhere.
     // Assigning the whole response left id and expires_at undefined, which broke
-    // the photo urls and the countdown.
+    // the source photo URLs and draft metadata.
     activeDraft = {
+        ...data.draft,
         id: data.draft.id,
         title: data.draft.title || '',
         expires_at: data.draft.expires_at,
@@ -9877,13 +10126,13 @@ async function fixDraftPage(pageId) {
 // Puts the whole draft through the existing result panel, so Teach, Plain text and
 // Word export all work on the combined document exactly as they do for one scan.
 function loadDraftIntoResults() {
-    const text = draftCombinedText(activeDraft);
+    const text = pendingPaperSave?.id === activeDraft?.id ? pendingPaperSave.text : draftCombinedText(activeDraft);
     if (!text.trim()) {
         setDraftStatus('Add at least one page with text before exporting.', true);
         return false;
     }
 
-    const plain = text.split(/\[\[PAGE_BREAK\]\]/).map(s => s.trim()).filter(Boolean).join('\n\n');
+    const plain = publicPlainTextFromStructured(text);
     lastResult = {
         text,
         plain_text: plain,
@@ -9909,8 +10158,9 @@ function loadDraftIntoResults() {
     applyOutputProfile(window.PaperAIDocumentModel?.parse?.(adjusted)?.profile || {});
     $('flaggedBox').classList.remove('show');
     resBox.classList.add('show');
-    prog.classList.add('show');
-    setProg(100, 'Draft combined: ' + (activeDraft.pages || []).length + ' pages');
+    setExtractionView('result');
+    updatePaperMarks(text);
+    prog.classList.remove('show');
     return true;
 }
 
@@ -9944,6 +10194,8 @@ async function exportDraftWord() {
 let draftReplaceTarget = null;
 
 function wireDrafts() {
+    $('paperRecoveryBtn').onclick = retryPendingSources;
+    $('paperConflictBtn').onclick = saveRecoveredCopy;
     $('draftNewBtn').onclick = createNewDraft;
     $('draftCloseBtn').onclick = closeDraft;
     $('draftDeleteBtn').onclick = deleteActiveDraft;
@@ -9952,9 +10204,9 @@ function wireDrafts() {
 
     $('draftAddBtn').onclick = () => $('draftAddInput').click();
     $('draftAddInput').onchange = event => {
-        const imageFile = event.target.files?.[0];
+        const files = Array.from(event.target.files || []);
         event.target.value = '';
-        if (imageFile) addPageToDraft(imageFile);
+        if (files.length) addFilesToPaper(files);
     };
 
     $('draftTitleInput').onchange = event => renameActiveDraft(event.target.value);
@@ -9987,7 +10239,13 @@ function wireDrafts() {
 }
 
 wireDrafts();
-loadDraftList();
+try { const recovered = JSON.parse(localStorage.getItem(PENDING_SOURCE_STORAGE) || 'null'); if (recovered?.records?.length) rememberPendingSources(recovered); } catch (_) {}
+loadDraftList().then(() => {
+    let id = '';
+    try { id = localStorage.getItem(ACTIVE_PAPER_STORAGE) || ''; } catch (_) {}
+    if (id && draftItems.some(draft => draft.id === id)) openDraft(id);
+});
+addEventListener('online', () => { if (pendingPaperSave && !paperSaveConflict) flushPaperSave(); });
 </script>
 </body>
 </html>

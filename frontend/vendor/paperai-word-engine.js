@@ -94,14 +94,18 @@
 
         const pushText = (text) => {
             if (!text) return;
+            const mathParts = global.PaperAIMath?.parts(text) || [{text}];
+            for (const part of mathParts) {
+            if (part.math) { runs.push(global.PaperAIMath.word(part, d)); continue; }
             runs.push(new d.TextRun({
-                text: stripMarkup(text),
+                text: stripMarkup(part.text),
                 bold: !!options.bold,
                 italics: !!options.italics,
                 size: options.size ?? 21,
                 font: textFont(text),
                 color: options.color || '000000'
             }));
+            }
         };
 
         while ((match = token.exec(source)) !== null) {

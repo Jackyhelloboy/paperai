@@ -61,7 +61,21 @@ try {
   assert.equal(renamed.data.draft.title,'Owned test verified');
   const isolated = await call('/api/drafts/'+id,'GET',undefined,{'X-PaperAI-Owner':randomBytes(24).toString('base64url')});
   assert.equal(isolated.status,404);
-  console.log('Draft storage: create, rename and owner isolation passed');
+  const save = await call('/api/drafts/'+id+'/document','PUT',{text:'1. Saved తెలుగు and हिन्दी question.',revision:0});
+  assert.equal(save.status,200);
+  assert.equal(save.data.draft.expires_at,0);
+  const readBack = await call('/api/drafts/'+id);
+  assert.equal(readBack.data.draft.document_text,'1. Saved తెలుగు and हिन्दी question.');
+  assert.equal(readBack.data.limits.retention,'until-manual-deletion');
+  const stale = await call('/api/drafts/'+id+'/document','PUT',{text:'stale overwrite',revision:0});
+  assert.equal(stale.status,409);
+  await call('/api/drafts/discard','POST',{owner});
+  assert.equal((await call('/api/drafts/'+id)).status,200);
+  const telugu = await call('/api/suggest-word','POST',{text:'enti',source_language:'en',language:'te'});
+  assert.equal(telugu.status,200);
+  assert.deepEqual(telugu.data.suggestions,['ఏంటి']);
+  assert.equal(telugu.data.source,'offline-lexicon');
+  console.log('Persistent draft text, stale-save protection, harmless unload, owner isolation and zero-AI Telugu suggestion passed');
 } finally {
   if(id) {
     const deleted = await call('/api/drafts/'+id,'DELETE');
