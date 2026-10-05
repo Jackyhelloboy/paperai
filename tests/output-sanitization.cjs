@@ -45,7 +45,7 @@ function loadFunction(source, name) {
     const next = source.indexOf('\nfunction ', start + 1);
     vm.runInContext(source.slice(start, next < 0 ? undefined : next), context);
 }
-for (const name of ['circledNumberValue', 'collapsePortableAnswerBlankContinuations', 'portableText', 'normalizeQuestionMetadataForLegacy']) loadFunction(inline, name);
+for (const name of ['circledNumberValue', 'collapsePortableAnswerBlankContinuations', 'stripLeakedLayoutLabels', 'portableText', 'normalizeQuestionMetadataForLegacy']) loadFunction(inline, name);
 for (const name of ['esc','formatVisibleText','formatOutputLine','repairLegacyBranchDiagram','renderStructuredHtmlTable','formatOutput']) loadFunction(inline,name);
 const preview = context.formatOutput(compactPaper);
 assert.equal((preview.match(/class="output-question-row"/g) || []).length,8);
@@ -55,10 +55,22 @@ assert(!context.portableText(audit + paper).includes('Paper pattern'));
 assert(context.portableText(audit + paper).includes('5. निगरानी'));
 assert(!context.normalizeQuestionMetadataForLegacy(audit + paper).includes('Review:'));
 
+const malformedTable = 'TABLE START\nTABLE ROW: Name || Marks\nTABLE ROW: Ravi || 4×1=4M\nTABLE END';
+const malformedBranch = 'BRANCH ROOT: Water\nBRANCH ITEM: River || Sea\nBRANCH ITEM: Rain || Cloud\nBRANCH END';
+const recoveredTable = model.parse(malformedTable);
+assert.equal(recoveredTable.nodes.filter(n => n.type === 'table').length, 1, 'Malformed internal table labels must be recovered as structure');
+assert.equal(recoveredTable.nodes.find(n => n.type === 'table').rows[1][1], '4×1=4M');
+assert(!context.portableText(malformedTable).match(/TABLE\s*(?:START|ROW|END)/i), 'Public text must never expose table implementation labels');
+assert(context.portableText(malformedTable).includes('Ravi | 4×1=4M'), 'Public text keeps real table cell content and literal marks');
+assert(!context.portableText(malformedBranch).match(/BRANCH\s*(?:ROOT|ITEM|END)/i), 'Public text must never expose branch implementation labels');
+assert(context.portableText(malformedBranch).includes('Water'));
+assert(context.portableText(malformedBranch).includes('River'));
+
 const worker = fs.readFileSync(path.join(root, 'worker/src/index.js'), 'utf8');
-vm.runInContext(worker.slice(worker.indexOf('    function normalizeQuestionMetadata('), worker.indexOf('const FORBIDDEN_OCR_TEMPLATE_PHRASES')), context);
+vm.runInContext(worker.slice(worker.indexOf('    function normalizeInternalLayoutMarkers('), worker.indexOf('const FORBIDDEN_OCR_TEMPLATE_PHRASES')), context);
 loadFunction(worker, 'stripQuestionPaperMetadata');
 assert.equal(context.normalizeQuestionMetadata(compactPaper), model.normalizeQuestionMetadata(compactPaper));
+assert.equal(context.normalizeQuestionMetadata(malformedTable), model.normalizeQuestionMetadata(malformedTable), 'Worker and frontend recover malformed layout tags identically');
 loadFunction(worker, 'stripStructuredMetadata');
 const publicColumns = context.stripStructuredMetadata(context.normalizeQuestionMetadata(compactColumns));
 assert(!publicColumns.includes('[['));
