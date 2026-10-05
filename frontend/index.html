@@ -14,7 +14,7 @@
     <script src="vendor/indic-transliterate.js"></script>
     <script src="vendor/paperai-teacher-tools.js?v=1"></script>
     <script src="vendor/paperai-math.js?v=1"></script>
-    <script src="vendor/paperai-document-model.js?v=39"></script>
+    <script src="vendor/paperai-document-model.js?v=40"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
     <script src="vendor/paperai-word-engine.js?v=39"></script>
@@ -8002,8 +8002,38 @@ function collapsePortableAnswerBlankContinuations(value) {
     return out.join('\n');
 }
 
+function stripLeakedLayoutLabels(value) {
+    return String(value || '').split('\n').map(line => {
+        const source = String(line || '').trim();
+        let m;
+
+        if (/^(?:\[\[\s*)?(?:TABLE|COLUMNS?|WORDSEARCH)[ _-]*(?:START|END)(?:\s*\]\])?$/i.test(source)) return '';
+        if (/^(?:\[\[\s*)?BRANCH[ _-]*END(?:\s*\]\])?$/i.test(source)) return '';
+
+        m = source.match(/^(?:\[\[\s*)?(?:TABLE|COLUMN|WORDSEARCH)[ _-]*ROW\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+        if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' | ').trim();
+
+        m = source.match(/^(?:\[\[\s*)?WORDSEARCH[ _-]*ANSWER\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+        if (m) return String(m[1] || '').trim() + '. ____________________';
+
+        m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ROOT\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+        if (m) return String(m[1] || '').trim();
+
+        m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ITEM\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+        if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' → ').trim();
+
+        // Final safety net for a broken internal tag. Preserve its payload, never
+        // the implementation label itself.
+        m = source.match(/^\[?\[?\s*(?:TABLE|COLUMN|COLUMNS|BRANCH|WORDSEARCH)[ _-]*(?:ROW|ROOT|ITEM|ANSWER)\s*[:\-]\s*(.*?)\s*\]?\]?$/i);
+        if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' | ').trim();
+
+        return line;
+    }).filter(line => line !== '').join('\n');
+}
+
 function portableText(value) {
     let out = window.PaperAIDocumentModel?.cleanOutputText?.(value) ?? String(value || '');
+    out = stripLeakedLayoutLabels(out);
 
     out = out
         .replace(/^\s*\[\[PAGE_PROFILE:\s*[\s\S]*?\]\]\s*$/gmi, '')
@@ -8836,8 +8866,8 @@ function safeQuestionPatternHints() {
             sections: Array.isArray(row.sections)
                 ? row.sections.slice(0, 16).map(section => ({
                     label: section.label,
-                    marks: section.marks,
-                    expected_items: section.expected_items
+                    expected_items: section.expected_items,
+                    has_marks: Boolean(section.marks)
                 }))
                 : []
         }));
