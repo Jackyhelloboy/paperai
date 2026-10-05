@@ -4014,12 +4014,28 @@ function updateSmartExtractionUI() {
     let running = 0;
     let failed = 0;
 
-    for (const f of files) {
+    files.forEach((f, index) => {
         const job = smartExtractionJobs.get(smartFileKey(f));
-        if (job?.status === 'done' || completedExtractionCache.has(f)) ready++;
+        const cached = completedExtractionCache.has(f);
+        if (job?.status === 'done' || cached) ready++;
         else if (job?.status === 'running' || job?.status === 'queued') running++;
         else if (job?.status === 'error') failed++;
-    }
+
+        const statusNode = $('batchStatus_' + index);
+        if (statusNode) {
+            const state = job?.status === 'done' || cached ? 'done'
+                : job?.status === 'running' ? 'running'
+                : job?.status === 'queued' ? 'running'
+                : job?.status === 'error' ? 'error'
+                : 'selected';
+            statusNode.dataset.state = state;
+            statusNode.textContent = state === 'done' ? 'Ready'
+                : job?.status === 'running' ? 'Reading'
+                : job?.status === 'queued' ? 'Waiting'
+                : state === 'error' ? 'Retry needed'
+                : 'Selected';
+        }
+    });
 
     const label = $('goBtnLabel');
     if (!label) return;
@@ -4531,7 +4547,26 @@ function renderBatchPreview() {
     if (!files.length) {
         batchPreview.innerHTML = '';
         batchPreview.classList.remove('show');
+        batchPreviewShell?.classList.remove('show');
+        if (batchPreviewCount) batchPreviewCount.textContent = '0 selected';
         return;
+    }
+
+    const imageCount = files.filter(f => IMAGE_EXTS.includes(f.name.split('.').pop().toLowerCase())).length;
+    const pdfCount = files.filter(f => PDF_EXTS.includes(f.name.split('.').pop().toLowerCase())).length;
+    const allImages = imageCount === files.length;
+
+    batchPreview.dataset.count = String(files.length);
+    if (batchPreviewCount) {
+        batchPreviewCount.textContent = allImages
+            ? imageCount + '/' + SMART_MAX_IMAGES + ' images'
+            : pdfCount === 1
+                ? '1 PDF'
+                : files.length + ' selected';
+    }
+    if (batchAddMore) {
+        batchAddMore.hidden = pdfCount > 0 || (allImages && imageCount >= SMART_MAX_IMAGES);
+        batchAddMore.textContent = allImages ? '+ Add images' : '+ Add more';
     }
 
     batchPreview.innerHTML = files.map((f, index) => {
@@ -4543,24 +4578,28 @@ function renderBatchPreview() {
         if (isImage) {
             const url = URL.createObjectURL(f);
             previewObjectUrls.push(url);
-            media = '<img src="' + esc(url) + '" alt="">';
+            media = '<img src="' + esc(url) + '" alt="Page ' + (index + 1) + ' preview">';
         } else if (isPdf) {
             media = '<div id="pdfPreview_' + index + '" class="pdf-mini-pages"><div class="batch-preview-type">PDF</div></div>';
         }
 
+        const pageLabel = isImage ? 'Page ' + (index + 1) : 'Item ' + (index + 1);
         return '<div class="batch-preview-card" data-index="' + index + '" data-file-name="' + esc(f.name) + '">' +
-            '<button class="batch-preview-remove" data-remove-index="' + index + '" title="Remove">×</button>' +
-            '<div class="batch-preview-media" title="Tap to preview">' + media + '<span class="batch-preview-zoom">View</span></div>' +
+            '<span class="batch-page-badge">' + pageLabel + '</span>' +
+            '<button class="batch-preview-remove" data-remove-index="' + index + '" title="Remove ' + pageLabel.toLowerCase() + '" aria-label="Remove ' + pageLabel.toLowerCase() + '">×</button>' +
+            '<div class="batch-preview-media" title="Tap to enlarge">' + media + '<span class="batch-preview-zoom">View</span></div>' +
             '<div class="batch-preview-name">' + esc(f.name) + '</div>' +
-            '<div class="batch-preview-meta" id="batchMeta_' + index + '">' + fmtSize(f.size) + ' · ' + ext.toUpperCase() + ' · item ' + (index + 1) + '</div>' +
+            '<div class="batch-preview-meta" id="batchMeta_' + index + '">' + fmtSize(f.size) + ' · ' + ext.toUpperCase() + '</div>' +
+            '<div class="batch-preview-status" id="batchStatus_' + index + '" data-state="selected">Selected</div>' +
             '<div class="batch-preview-order">' +
-                '<button data-move-index="' + index + '" data-move-dir="-1"' + (index === 0 ? ' disabled' : '') + '>↑ Earlier</button>' +
-                '<button data-move-index="' + index + '" data-move-dir="1"' + (index === files.length - 1 ? ' disabled' : '') + '>Later ↓</button>' +
+                '<button data-move-index="' + index + '" data-move-dir="-1"' + (index === 0 ? ' disabled' : '') + '>← Earlier</button>' +
+                '<button data-move-index="' + index + '" data-move-dir="1"' + (index === files.length - 1 ? ' disabled' : '') + '>Later →</button>' +
             '</div>' +
         '</div>';
     }).join('');
 
     batchPreview.classList.add('show');
+    batchPreviewShell?.classList.add('show');
 
     files.forEach((f, index) => {
         const ext = f.name.split('.').pop().toLowerCase();
@@ -4569,6 +4608,8 @@ function renderBatchPreview() {
             if (pdfContainer) renderPdfPreviewCard(f, pdfContainer);
         }
     });
+
+    updateSmartExtractionUI();
 }
 
 function setFiles(inputFiles, append = false) {
@@ -4639,6 +4680,8 @@ function clearFile() {
     dropZone.style.display = '';
     filePreview.classList.remove('show');
     batchPreview.classList.remove('show');
+    batchPreviewShell?.classList.remove('show');
+    if (batchPreviewCount) batchPreviewCount.textContent = '0 selected';
     batchPreview.innerHTML='';
     goBtn.classList.remove('show');
     goBtn.disabled=true;
@@ -4652,6 +4695,7 @@ function clearFile() {
 }
 
 dropZone.onclick = () => fileInput.click();
+batchAddMore?.addEventListener('click', () => fileInput.click());
 fileInput.onchange = e => {
     if(e.target.files?.length) setFiles(e.target.files, files.length > 0);
     fileInput.value = '';
