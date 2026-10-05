@@ -162,9 +162,7 @@ def main():
         status, settings = request('/accounts/' + ACCOUNT + '/workers/scripts/paperai-ocr/settings')
         result = settings.get('result') or {}
         emit('Worker AI binding', {'http_status': status, 'AI_binding_present': any(
-            row.get('type') == 'ai' and row.get('name') == 'AI' for row in result.get('bindings') or []),
-            'unused_legacy_ocr_binding_names': [row.get('name') for row in result.get('bindings') or []
-                if row.get('name') in {'OCR_PROVIDER', 'UNLIMITED_OCR_BASE_URL', 'UNLIMITED_OCR_API_KEY'}]})
+            row.get('type') == 'ai' and row.get('name') == 'AI' for row in result.get('bindings') or [])})
         if status != 200:
             emit('Settings read errors', settings.get('errors'))
     except Exception as error:

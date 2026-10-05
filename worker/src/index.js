@@ -39,7 +39,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v30',
+        architecture: 'production-literal-ocr-v31',
       }, { headers: corsHeaders });
     }
 
@@ -47,7 +47,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v30',
+        architecture: 'production-literal-ocr-v31',
         model: '@cf/google/gemma-4-26b-a4b-it',
         ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
@@ -1372,7 +1372,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v30',
+        architecture: 'production-literal-ocr-v31',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1775,14 +1775,14 @@ The other images are overlapping close-ups of the SAME source page. They are det
 
 Check the entire page, including small handwritten words and numbers in the left margin. Check printed school names and header fields letter by letter. Do not summarize, shorten a question, solve it, correct its spelling, or fill any answer blank. Keep Hindi in Devanagari and English in English.
 
-For a question paper, preserve EVERY visible Roman section label, item number, instruction, marks formula, option and word. Use ordinary numbered text lines, such as "1. ...", for questions; preserve the source's actual labels and numbering. A missing or unreadable word must be [unclear] in its exact position, never an omitted question. Do not infer a missing item from a marks formula or sequence. Preserve a continuation that starts at item 2 or later.
+For a question paper, preserve EVERY visible Roman section label, item number, instruction, marks formula, option and word. Put each section heading and each numbered item on its own newline. Never join consecutive numbered items into one paragraph. Use ordinary numbered text lines, such as "1. ...", for questions; preserve the source's actual labels and numbering. A missing or unreadable word must be [unclear] in its exact position, never an omitted question. Do not infer a missing item from a marks formula or sequence. Preserve a continuation that starts at item 2 or later.
 
 Copy intentionally written answer blanks as underscores. Notebook ruling, reverse-side show-through, shadows and erased ghosts are background, not text or answer blanks. Preserve deliberate answer space without turning every notebook rule into a separate answer line.
 
 For matching exercises and columns, keep each left entry and its adjacent right entry on the same row using:
-[[COLUMN_START]]
+[[COLUMNS_START]]
 [[COLUMN_ROW: actual left text || actual right text]]
-[[COLUMN_END]]
+[[COLUMNS_END]]
 Use one COLUMN_ROW per actual source row, including its visible item number. Never pair or solve the entries. For a bordered table, use TABLE_START/TABLE_ROW/TABLE_END with the same row fields and preserve every visible row and column. For a labelled branch diagram, use BRANCH_ROOT, BRANCH_ITEM (left label || right label), and BRANCH_END. Preserve visible mathematics, arrows and editing marks without inventing shapes or labels.
 
 Before the final answer, check that every visible question/item number has its text and that no header, section, short word or option was dropped. Return only the complete transcription, with no discussion, thinking text, duplicate headings, filenames or invented sections.
@@ -1941,6 +1941,21 @@ VERIFICATION RULES:
         });
         out = out.replace(/^[ \t]*\[\[ANSWER_RULE(?::[ \t]*_*)?\]\][ \t]*$/gmi, '[[ANSWER_RULE]]');
         out = out.replace(/\[\[ANSWER_RULE:[ \t]*_*[ \t]*\]\]/gi, '\n[[ANSWER_RULE]]\n');
+        out = out.replace(/\[\[COLUMN_(START|END)\]\]/gi, (_, edge) => '[[COLUMNS_' + edge.toUpperCase() + ']]');
+        // Accept compact model responses without exposing internal layout markers.
+        out = out.replace(/([^\n])(\[\[(?:COLUMNS|TABLE|WORDSEARCH)_(?:START|END)\]\])/gi, '$1\n$2')
+            .replace(/(\[\[(?:COLUMNS|TABLE|WORDSEARCH)_(?:START|END)\]\])(?=[^\n])/gi, '$1\n')
+            .replace(/\]\](?=\[\[(?:COLUMN_ROW|TABLE_ROW|WORDSEARCH_ROW|WORDSEARCH_ANSWER):)/gi, ']]\n')
+            .replace(/([^\n])(\*\*[IVXivx]{1,8}[.)]\s+[^\n]*?\*\*)/g, '$1\n$2')
+            .replace(/(\*\*[IVXivx]{1,8}[.)]\s+[^\n]*?\*\*)(?=\d+[.)]\p{L})/gu, '$1\n');
+        // Repair only an unspaced, consecutive list of at least three items.
+        // Decimal numbers, prose, source words and nonconsecutive labels stay intact.
+        out = out.split('\n').map(line => {
+            if (!/^\s*\d+[.)]\p{L}/u.test(line)) return line;
+            const labels = [...line.matchAll(/\d+[.)](?=\p{L})/gu)];
+            if (labels.length < 3 || labels.some((m, i) => i && Number.parseInt(m[0], 10) !== Number.parseInt(labels[i - 1][0], 10) + 1)) return line;
+            return labels.map((m, i) => line.slice(i ? m.index : 0, labels[i + 1]?.index ?? line.length)).join('\n');
+        }).join('\n');
         // The model sometimes prints a heading and immediately repeats it as metadata.
         let previous = '';
         return out.split('\n').filter(line => {
@@ -2030,7 +2045,7 @@ function questionStructureNeedsVerification(text) {
 function structuredPageNeedsVerification(text, imageMeta = {}) {
   const source = String(text || '');
   const hasStructuredMetadata =
-    /\[\[(?:TABLE_START|COLUMN_START|WORDSEARCH_START|BRANCH_ROOT|QUESTION_SECTION|QUESTION_ITEM):?/i.test(source);
+    /\[\[(?:TABLE_START|COLUMNS?_START|WORDSEARCH_START|BRANCH_ROOT|QUESTION_SECTION|QUESTION_ITEM):?/i.test(source);
 
   if (imageMeta?.branchingLayout) return true;
   if (Number(imageMeta?.denseOptionRows || 0) >= 4) return true;

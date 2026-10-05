@@ -22,6 +22,21 @@
         });
         out = out.replace(/^[ \t]*\[\[ANSWER_RULE(?::[ \t]*_*)?\]\][ \t]*$/gmi, '[[ANSWER_RULE]]');
         out = out.replace(/\[\[ANSWER_RULE:[ \t]*_*[ \t]*\]\]/gi, '\n[[ANSWER_RULE]]\n');
+        out = out.replace(/\[\[COLUMN_(START|END)\]\]/gi, (_, edge) => '[[COLUMNS_' + edge.toUpperCase() + ']]');
+        // Accept compact model responses without exposing internal layout markers.
+        out = out.replace(/([^\n])(\[\[(?:COLUMNS|TABLE|WORDSEARCH)_(?:START|END)\]\])/gi, '$1\n$2')
+            .replace(/(\[\[(?:COLUMNS|TABLE|WORDSEARCH)_(?:START|END)\]\])(?=[^\n])/gi, '$1\n')
+            .replace(/\]\](?=\[\[(?:COLUMN_ROW|TABLE_ROW|WORDSEARCH_ROW|WORDSEARCH_ANSWER):)/gi, ']]\n')
+            .replace(/([^\n])(\*\*[IVXivx]{1,8}[.)]\s+[^\n]*?\*\*)/g, '$1\n$2')
+            .replace(/(\*\*[IVXivx]{1,8}[.)]\s+[^\n]*?\*\*)(?=\d+[.)]\p{L})/gu, '$1\n');
+        // Repair only an unspaced, consecutive list of at least three items.
+        // Decimal numbers, prose, source words and nonconsecutive labels stay intact.
+        out = out.split('\n').map(line => {
+            if (!/^\s*\d+[.)]\p{L}/u.test(line)) return line;
+            const labels = [...line.matchAll(/\d+[.)](?=\p{L})/gu)];
+            if (labels.length < 3 || labels.some((m, i) => i && Number.parseInt(m[0], 10) !== Number.parseInt(labels[i - 1][0], 10) + 1)) return line;
+            return labels.map((m, i) => line.slice(i ? m.index : 0, labels[i + 1]?.index ?? line.length)).join('\n');
+        }).join('\n');
         // The model sometimes prints a heading and immediately repeats it as metadata.
         let previous = '';
         return out.split('\n').filter(line => {
@@ -473,3 +488,4 @@
         parseMarksPattern
     });
 })(window);
+

@@ -20,7 +20,7 @@ OCR Worker: https://paperai-ocr.mdjawaadkhan57.workers.dev
 
 Images and scanned PDFs use Cloudflare AI. The browser reads embedded PDF text, modern Office files, spreadsheets and text files locally where supported. Draft photos can be saved before OCR succeeds.
 
-The Unlimited-OCR/vLLM/Kaggle experiment was removed on 4 October 2026 in commit `10b0342296a681cfd52dbfa432256185bc843af9`. Production does not call that server or read its provider-selection variables. The `backend/` Python PaddleOCR/EasyOCR service is legacy code, separate from that experiment, and is not called by the production website. Its Render deployment and keep-alive workflows are manual only. It has not been validated as a replacement production service.
+The `backend/` Python PaddleOCR/EasyOCR service is legacy code, is not called by the production website. Its Render deployment and keep-alive workflows are manual only. It has not been validated as a replacement production service.
 
 ## OCR behavior
 

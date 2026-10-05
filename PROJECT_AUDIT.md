@@ -4,18 +4,13 @@ Baseline: `9b892635d10333273254b83c5534b6b901547fe2` on `main`.
 
 ## Scope
 
-Inspected the complete tracked-file inventory (40 files), production frontend and vendor modules, Worker and draft storage code, Pages proxy, configuration, legacy Python service, GitHub workflows and regression tests. Read the recent commit history and the Unlimited-OCR introduction/removal patches. Compared the active model and binding with the configuration immediately before the experiment.
+Inspected the complete tracked-file inventory (40 files), production frontend and vendor modules, Worker and draft storage code, Pages proxy, configuration, legacy Python service, GitHub workflows and regression tests. Read the recent commit history and the external adapter introduction/removal patches. Compared the active model and binding with the configuration immediately before the experiment.
 
-## Provider history and current state
+## Production provider
 
-- Before the experiment, commit `3b220a8a40344bd8cf930c42e1556a38e6c5874f` used `@cf/google/gemma-4-26b-a4b-it` through the `AI` binding.
-- `7515f4f7556de42fabff8a4d4d5ed357ce02dc0b` introduced an optional external `baidu/Unlimited-OCR` GPU adapter on 4 October.
-- `51a603d9592c71fe98505b3788e254899e18cdc0` and `525806c5c972fdd6a3ee9fa975f6d902f15684be` added Kaggle notebook/API experiments.
-- `10b0342296a681cfd52dbfa432256185bc843af9` removed the adapter, notebook files and their tests/workflow at **15:41 UTC on 4 October (21:11 IST)**.
-- The current production OCR path calls Cloudflare `env.AI.run` directly. It uses the same model as before the experiment. Old `OCR_PROVIDER`/`UNLIMITED_OCR_*` settings cannot select a GPU endpoint in this code.
-- The original `backend/` PaddleOCR/EasyOCR service is a separate legacy implementation; it is not the removed Unlimited-OCR checkpoint and is not called by the production website.
+Production uses `@cf/google/gemma-4-26b-a4b-it` through the `AI` binding, the same model and binding as before the external-provider experiment. The external adapter and notebook files were removed on 4 October. The unused provider configuration and the test that simulated stale settings are being removed as the final cleanup.
 
-The restoration regression test passes even with legacy variables present and an exhausted local usage tracker. It fails if OCR tries to contact an external GPU server.
+The original `backend/` service is a separate legacy implementation and is not called by the production website. Its workflows are manual only.
 
 ## Issues corrected
 
@@ -44,3 +39,7 @@ The source audit does not establish why Cloudflare's recorded usage and quota en
 
 Use the latest **Verify Cloudflare AI quota** workflow output for the post-deployment inference result; a successful diagnostic job means diagnostics completed, not necessarily that the provider accepted inference.
 
+
+## Extracted-view correction
+
+The OCR prompt used singular column boundary tokens while the shared preview/Word parser expected plural boundary tokens. Both forms now normalize to one canonical block, including adjacent compact rows. Unspaced consecutive lists and attached section headings receive line boundaries without changing their source words or labels. The same normalization runs on Worker output and saved frontend results. Recognition errors in source words require a successful image inference and a visual check; formatting fixes do not establish recognition accuracy.

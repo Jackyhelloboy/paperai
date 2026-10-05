@@ -3,8 +3,8 @@ main = "src/index.js"
 compatibility_date = "2026-09-08"
 account_id = "9195bc9144b0e1c8811dfae71e58c7e4"
 
-# Runtime connection settings are managed in the Cloudflare dashboard.
-# Preserve them across code deployments; keep API keys as encrypted secrets.
+# Preserve unrelated dashboard settings across code deployments.
+# OCR uses the AI binding below and needs no external provider credentials.
 keep_vars = true
 
 [ai]

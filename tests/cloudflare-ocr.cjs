@@ -6,7 +6,7 @@ const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'worker/src/index.js'), 'utf8');
 const context = vm.createContext({
   DurableObject: class {}, Request, Response, URL, console, setTimeout,
-  fetch: () => { throw new Error('Restored OCR must never contact the removed GPU server'); },
+  fetch: () => { throw new Error('OCR must use the Cloudflare AI binding'); },
 });
 vm.runInContext(source.replace(/^import .*;\s*$/gm, '')
   .replace(/export default /g, 'const workerDefault = ')
@@ -19,10 +19,6 @@ let mode = 'ok';
 let verificationCalls = 0;
 const uncertainText = text + ' [unclear] [unclear] [unclear]';
 const env = {
-  // These dashboard variables could survive the experiment's removal.
-  OCR_PROVIDER: 'unlimited-ocr',
-  UNLIMITED_OCR_BASE_URL: 'https://removed-gpu.example/v1',
-  UNLIMITED_OCR_API_KEY: 'test-only-unused-secret',
   USAGE_TRACKER: {
     idFromName: value => value,
     get: () => ({ fetch: async url => { telemetry.push(String(url)); return Response.json({ allowed: false, exhausted: true }); } }),
@@ -82,5 +78,5 @@ function request() {
   const preflight = await worker.fetch(new Request('https://paperai.example/api/drafts/example', { method: 'OPTIONS' }), env);
   assert(preflight.headers.get('Access-Control-Allow-Methods').split(',').includes('PATCH'));
   assert(calls.every(call => call.model === '@cf/google/gemma-4-26b-a4b-it'));
-  console.log('Cloudflare-only restoration ignores old GPU settings, keeps local quotas advisory, reports truncation/4006 and permits draft PATCH.');
+  console.log('Cloudflare OCR keeps local usage advisory, reports truncation/4006 and permits draft PATCH.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
