@@ -1277,6 +1277,8 @@ async function handleOCR(request, env, corsHeaders) {
       return Response.json({
         error: 'Cloudflare AI free allocation is temporarily unavailable. PaperAI is not blocking this request with its own quota meter.',
         code: 'PROVIDER_AI_QUOTA_REACHED',
+        provider_error_code: getAiProviderErrorCode(e),
+        observed_at: new Date().toISOString(),
         retryable: true,
         provider: 'cloudflare-workers-ai'
       }, { status: 429, headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' } });
@@ -2201,11 +2203,22 @@ function aiErrorText(error) {
 }
 
 function isDailyFreeLimitError(error) {
+  const code = getAiProviderErrorCode(error);
+  if (code) return code === 3036;
   const s = aiErrorText(error);
-  return s.includes('3036') ||
-    s.includes('daily free allocation') ||
-    s.includes('used up your daily free') ||
-    (s.includes('429') && (s.includes('neuron') || s.includes('allocation')));
+  return s.includes('daily free allocation') || s.includes('used up your daily free');
+}
+
+function getAiProviderErrorCode(error) {
+  // Report only documented provider codes, never arbitrary exception contents.
+  const known = [3036, 3040, 5035, 3023, 3041, 5018, 5016, 3007, 3008, 5007, 3042];
+  const candidates = [error?.code, error?.cause?.code, error?.errors?.[0]?.code];
+  for (const value of candidates) {
+    const code = Number(value);
+    if (known.includes(code)) return code;
+  }
+  const match = aiErrorText(error).match(/\b(3036|3040|5035|3023|3041|5018|5016|3007|3008|5007|3042)\b/);
+  return match ? Number(match[1]) : null;
 }
 
 function isPaidModelRequiredError(error) {
