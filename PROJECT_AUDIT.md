@@ -47,3 +47,7 @@ Use the latest **Verify Cloudflare AI quota** workflow output for the post-deplo
 The OCR prompt used singular column boundary tokens while the shared preview/Word parser expected plural boundary tokens. Both forms now normalize to one canonical block, including adjacent compact rows. Unspaced consecutive lists and attached section headings receive line boundaries without changing their source words or labels. The same normalization runs on Worker output and saved frontend results. Recognition errors in source words require a successful image inference and a visual check; formatting fixes do not establish recognition accuracy.
 
 At 06:03 UTC, a post-cleanup production image probe returned HTTP 200 with an OCR result. The account accepted inference in this test; this does not establish the cause of the earlier quota discrepancy or guarantee every handwritten word. The production smoke test also found that JSON document uploads did not decode base64 into the reader buffer; this is now corrected and covered for plain base64, data URLs and invalid input.
+
+## Daily usage dashboard update
+
+The five-minute display meter and local owner allowance have been retired. Account-wide Cloudflare Analytics neuron totals are synchronized into D1 on deployment and on a 15-minute GitHub schedule. UI values identify their source and last update, and never claim to be the internal quota ledger. Missing current-day reports show unavailable values; a clock rollover cannot clear an observed provider quota rejection. The daily reset is 00:00 UTC (05:30 IST).

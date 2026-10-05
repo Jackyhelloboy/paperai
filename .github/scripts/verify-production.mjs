@@ -16,6 +16,23 @@ const health = await fetch(worker+'/health',{signal:AbortSignal.timeout(30000)})
 assert.equal(health.status,200);
 assert.equal((await health.json()).model,'@cf/google/gemma-4-26b-a4b-it');
 console.log('Worker health: correct Cloudflare model');
+const usage = await call('/api/usage');
+assert.equal(usage.status,200);
+assert.equal(usage.data.source,'cloudflare-analytics');
+assert.equal(usage.data.enforcement,'provider-only');
+assert.equal(usage.data.date_utc,new Date().toISOString().slice(0,10));
+assert(Number.isFinite(usage.data.reported_used));
+assert(usage.data.reported_used >= 0);
+assert(Number.isFinite(Date.parse(usage.data.last_updated)));
+assert.equal(usage.data.reported_remaining,Math.max(0,10000-usage.data.reported_used));
+const reset = new Date(usage.data.reset_at);
+assert.equal(reset.getUTCHours(),0);
+assert.equal(reset.getUTCMinutes(),0);
+assert(reset > new Date(usage.data.server_time));
+assert.equal('estimated_used' in usage.data,false);
+assert.equal('window_minutes' in usage.data,false);
+console.log('Cloudflare daily usage:',JSON.stringify({used:usage.data.reported_used,
+  remaining:usage.data.reported_remaining,last_updated:usage.data.last_updated,reset_at:usage.data.reset_at}));
 const sample = '1. Preserve the source number.\n2. Keep the blank ______.\n3. हिन्दी पाठ।';
 const text = await call('/api/ocr','POST',{filename:'owned-smoke-test.txt',mimeType:'text/plain',image:Buffer.from(sample).toString('base64')});
 assert.equal(text.status,200);

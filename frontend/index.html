@@ -3279,8 +3279,8 @@
         <section class="quota-card" id="quotaCard" aria-live="polite">
             <div class="quota-head">
                 <div>
-                    <div class="quota-title">AI OCR usage · 5 minute window</div>
-                    <div class="quota-subtitle">Local meter resets every 5 minutes. Cloudflare's free allocation resets daily.</div>
+                    <div class="quota-title">Cloudflare AI · daily usage</div>
+                    <div class="quota-subtitle">Cloudflare's daily allowance resets at 05:30 IST (00:00 UTC).</div>
                 </div>
                 <div class="quota-live" id="quotaBadge">
                     <span class="quota-live-dot"></span>
@@ -3290,7 +3290,7 @@
 
             <div class="quota-stats">
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Reference remaining</span>
+                    <span class="quota-stat-label">Reported remaining</span>
                     <span class="quota-stat-value" id="quotaRemaining">—</span>
                 </div>
                 <div class="quota-stat">
@@ -3299,32 +3299,25 @@
                 </div>
             </div>
 
-            <div class="quota-track" title="Estimated AI usage in this five-minute window">
+            <div class="quota-track" title="Cloudflare-reported daily neuron usage">
                 <div class="quota-fill" id="quotaFill"></div>
             </div>
             <div class="quota-scale">
                 <span id="quotaPercent">0% used</span>
-                <span>10,000 Neurons reference</span>
+                <span>10,000 Neurons per day</span>
             </div>
             <div class="quota-scale">
-                <span id="quotaMine">Usage estimate loads here</span>
-                <span>No local OCR limit</span>
+                <span id="quotaMine">Loading Cloudflare usage</span>
+                <span>Controlled by Cloudflare</span>
             </div>
-
-            <svg class="quota-chart" viewBox="0 0 320 54" preserveAspectRatio="none" role="img" aria-label="AI usage trend in the current five-minute window">
-                <line class="quota-chart-grid" x1="0" y1="13.5" x2="320" y2="13.5"></line>
-                <line class="quota-chart-grid" x1="0" y1="27" x2="320" y2="27"></line>
-                <line class="quota-chart-grid" x1="0" y1="40.5" x2="320" y2="40.5"></line>
-                <polyline class="quota-chart-line" id="quotaLine" points="0,53 320,53"></polyline>
-            </svg>
 
             <div class="quota-times">
                 <div>
-                    <span class="quota-time-label">Now</span>
+                    <span class="quota-time-label">Usage last updated</span>
                     <span class="quota-time-value" id="quotaNow">—</span>
                 </div>
                 <div>
-                    <span class="quota-time-label">Local meter resets</span>
+                    <span class="quota-time-label">Cloudflare daily reset</span>
                     <span class="quota-time-value" id="quotaReset">—</span>
                 </div>
             </div>
@@ -3571,7 +3564,7 @@ const titleAlignSelect=$('titleAlignSelect'),fontScaleSelect=$('fontScaleSelect'
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
-const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
+const quotaPercent=$('quotaPercent'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
@@ -3778,122 +3771,76 @@ const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'
 
 let quotaResetAt = null;
 let quotaClockOffset = 0, quotaLoading = false, quotaBoundaryCheckAt = 0;
-const QUOTA_REFRESH_MS = 5 * 60 * 1000;
+const QUOTA_REFRESH_MS = 60 * 1000;
 
-const fmtNeuron = n => {
-    const value = Number(n);
-    if (!Number.isFinite(value)) return '—';
-    if (value >= 1000) return Math.round(value).toLocaleString();
-    if (value >= 100) return value.toFixed(0);
-    return value.toFixed(1);
-};
+const fmtNeuron = n => n == null || !Number.isFinite(Number(n)) ? '—'
+    : Number(n).toLocaleString(undefined, {maximumFractionDigits:2});
 
 function formatLocalDateTime(value) {
     const d = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(d.getTime())) return '—';
-    return new Intl.DateTimeFormat(undefined, {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        timeZoneName: 'short'
-    }).format(d);
+    if (!value || Number.isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat(undefined, {day:'2-digit',month:'short',year:'numeric',
+        hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata',timeZoneName:'short'}).format(d);
 }
 
 function updateQuotaClock() {
-    quotaNow.textContent = formatLocalDateTime(new Date());
-    if (quotaResetAt) {
-        const reset = new Date(quotaResetAt);
-        const ms = reset - (Date.now() + quotaClockOffset);
-        const seconds = Math.max(0, Math.ceil(ms / 1000));
-        const m = Math.floor(seconds / 60), s = seconds % 60;
-        quotaReset.textContent = 'in ' + m + 'm ' + String(s).padStart(2, '0') + 's · ' + formatLocalDateTime(reset);
-        if (ms <= 0 && !quotaLoading && Date.now() >= quotaBoundaryCheckAt) {
-            quotaBoundaryCheckAt = Date.now() + 30000;
-            void loadUsage();
-        }
+    if (!quotaResetAt) return;
+    const reset = new Date(quotaResetAt);
+    const ms = reset - (Date.now() + quotaClockOffset);
+    // A scheduled reset is not proof that Cloudflare has accepted a request.
+    quotaReset.textContent = ms > 0 ? formatLocalDateTime(reset) + ' · 00:00 UTC'
+        : 'Scheduled reset passed · waiting for Cloudflare usage';
+    if (ms <= 0 && !quotaLoading && Date.now() >= quotaBoundaryCheckAt) {
+        quotaBoundaryCheckAt = Date.now() + 30000;
+        void loadUsage();
     }
-}
-
-function drawQuotaHistory(history, limit, resetAt, windowStartAt) {
-    const width = 320, height = 53;
-    const reset = new Date(resetAt);
-    if (!Number.isFinite(reset.getTime())) return;
-    const start = new Date(windowStartAt || reset.getTime() - QUOTA_REFRESH_MS);
-    const startMs = start.getTime();
-    const span = Math.max(1, reset.getTime() - startMs);
-
-    const rows = Array.isArray(history) ? history.slice() : [];
-    const points = [{ at: start.toISOString(), used: 0 }, ...rows];
-
-    const lastUsed = Number(points[points.length - 1]?.used || 0);
-    points.push({ at: new Date().toISOString(), used: lastUsed });
-
-    const mapped = points.map(p => {
-        const t = new Date(p.at).getTime();
-        const x = Math.max(0, Math.min(width, ((t - startMs) / span) * width));
-        const y = Math.max(1, Math.min(height, height - ((Number(p.used) || 0) / Math.max(1, limit)) * height));
-        return x.toFixed(1) + ',' + y.toFixed(1);
-    });
-
-    quotaLine.setAttribute('points', mapped.join(' '));
 }
 
 async function loadUsage() {
     if (quotaLoading) return;
     quotaLoading = true;
     try {
-        const usageHeaders = { 'X-PaperAI-Owner': draftOwnerKey() };
         let res;
         try {
-            res = await fetch(API_LOCAL + '/api/usage?t=' + Date.now(), { cache: 'no-store', headers: usageHeaders, signal: AbortSignal.timeout(15000) });
+            res = await fetch(API_LOCAL + '/api/usage?t=' + Date.now(), {cache:'no-store',signal:AbortSignal.timeout(15000)});
             if (!res.ok && [404,405,502,503,504].includes(res.status)) throw new Error('proxy unavailable');
         } catch (_) {
-            res = await fetch(API_DIRECT + '/api/usage?t=' + Date.now(), { cache: 'no-store', headers: usageHeaders, signal: AbortSignal.timeout(15000) });
+            res = await fetch(API_DIRECT + '/api/usage?t=' + Date.now(), {cache:'no-store',signal:AbortSignal.timeout(15000)});
         }
         if (!res.ok) throw new Error('status ' + res.status);
         const data = await res.json();
-
         const limit = Number(data.free_limit) || 10000;
-        const used = Math.max(0, Number(data.estimated_used) || 0);
-        const remaining = Math.max(0, Number(data.estimated_remaining ?? (limit - used)) || 0);
-        const pct = Math.max(0, Math.min(100, Number(data.percent_used) || (used / limit * 100)));
-
-        quotaRemaining.textContent = fmtNeuron(remaining);
+        const known = data.reported_used != null && Number.isFinite(Number(data.reported_used));
+        const used = known ? Number(data.reported_used) : null;
+        const pct = known ? Math.max(0,Math.min(100,used/limit*100)) : 0;
+        quotaRemaining.textContent = fmtNeuron(data.reported_remaining);
         quotaUsed.textContent = fmtNeuron(used);
         quotaFill.style.width = pct.toFixed(2) + '%';
-        quotaPercent.textContent = pct.toFixed(pct < 10 ? 1 : 0) + '% used';
+        quotaPercent.textContent = known ? pct.toFixed(1) + '% reported used' : 'Usage unavailable';
         quotaResetAt = data.reset_at || null;
         const serverTime = Date.parse(data.server_time);
         quotaClockOffset = Number.isFinite(serverTime) ? serverTime - Date.now() : 0;
-
+        quotaNow.textContent = formatLocalDateTime(data.last_updated);
+        const observation = data.provider_status || {};
         const mine = document.getElementById('quotaMine');
-        if (mine) {
-            mine.textContent = 'Local meter only · OCR stays enabled · Cloudflare daily quota is unchanged';
-        }
-
-        quotaCard.classList.toggle('warning', pct >= 75 && pct < 100);
-        quotaCard.classList.remove('exhausted');
-        quotaBadgeText.textContent = 'Usage estimate';
-
-        drawQuotaHistory(data.history || [], limit, data.reset_at, data.window_start_at);
+        if (mine) mine.textContent = observation.state === 'quota-reached'
+            ? 'Cloudflare rejected a request for daily quota · ' + formatLocalDateTime(observation.observed_at)
+            : 'Cloudflare-reported usage may be delayed.';
+        quotaCard.classList.toggle('warning', known && pct >= 75 && pct < 100);
+        quotaCard.classList.toggle('exhausted', observation.state === 'quota-reached');
+        quotaBadgeText.textContent = observation.state === 'quota-reached' ? 'Cloudflare quota reached'
+            : data.report_status === 'stale' ? 'Last report' : known ? 'Cloudflare reported' : 'Unavailable';
         updateQuotaClock();
-
-        const requests = Number(data.ocr_requests_tracked) || 0;
-        quotaCard.dataset.requests = String(requests);
-    } catch (e) {
-        quotaBadgeText.textContent = 'Unavailable';
+    } catch (_) {
+        // Do not fabricate a full allowance when the report cannot be read.
+        quotaBadgeText.textContent = 'Update unavailable';
         updateQuotaClock();
-    } finally {
-        quotaLoading = false;
-    }
+    } finally { quotaLoading = false; }
 }
 
 updateQuotaClock();
 setInterval(updateQuotaClock, 1000);
-loadUsage();
+void loadUsage();
 setInterval(loadUsage, QUOTA_REFRESH_MS);
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void loadUsage();

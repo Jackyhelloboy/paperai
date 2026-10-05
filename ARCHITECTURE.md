@@ -1,4 +1,4 @@
-# PaperAI Production Architecture v31
+# PaperAI Production Architecture v32
 
 ## Goals
 
@@ -47,7 +47,7 @@ If a portion is genuinely unreadable, PaperAI keeps `[unclear]` rather than inve
 
 ## Live monitoring
 
-- `/api/usage` exposes PaperAI's five-minute usage estimate. It is advisory; Cloudflare's separate daily allocation remains the provider's responsibility.
+- `/api/usage` serves Cloudflare-reported account-wide daily usage from D1, plus the last actual provider response. Credentials remain in GitHub Actions. There is no app-owned quota renewal; only Cloudflare controls inference availability.
 - `/api/live` is a hibernatable Durable Object WebSocket used only to show the number of currently connected browser sessions.
 - The live count does not use IP addresses, fingerprinting or persistent user identifiers.
 

@@ -61,7 +61,7 @@ function request() {
   assert.equal(result.metadata.engine, 'cloudflare-ai');
   assert.equal(result.full_text, text);
   assert.equal(calls.length, 1);
-  assert(telemetry.every(url => url.endsWith('/add')), 'Local exhaustion cannot block inference');
+  assert(telemetry.every(url => url.endsWith('/provider-status')), 'Provider observation must never consult a local allowance');
 
   mode = 'truncated';
   const before = calls.length;
@@ -89,5 +89,5 @@ function request() {
   const preflight = await worker.fetch(new Request('https://paperai.example/api/drafts/example', { method: 'OPTIONS' }), env);
   assert(preflight.headers.get('Access-Control-Allow-Methods').split(',').includes('PATCH'));
   assert(calls.every(call => call.model === '@cf/google/gemma-4-26b-a4b-it'));
-  console.log('Cloudflare OCR keeps local usage advisory, reports truncation/4006 and permits draft PATCH.');
+  console.log('Cloudflare OCR records provider observations, reports truncation/4006 and permits draft PATCH.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

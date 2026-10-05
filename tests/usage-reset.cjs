@@ -1,126 +1,54 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const path = require('node:path');
 const vm = require('node:vm');
-
 let clock = Date.parse('2026-10-05T12:01:00Z');
-class ClockDate extends Date {
-  constructor(...args) { super(...(args.length ? args : [clock])); }
-  static now() { return clock; }
-}
-const values = new Map();
-let alarmAt;
-const ctx = { storage: {
-  async get(key) { return structuredClone(values.get(key)); },
-  async put(key, value) { values.set(key, structuredClone(value)); },
-  async setAlarm(at) { alarmAt = at; },
-} };
-const worker = vm.createContext({
-  Date: ClockDate, URL, Request, Response, console,
-  DurableObject: class { constructor(ctx) { this.ctx = ctx; } },
-});
-const source = fs.readFileSync(path.join(__dirname, '../worker/src/index.js'), 'utf8');
-vm.runInContext(source.replace(/^import .*;\s*$/gm, '')
-  .replace(/export default /g, 'const workerDefault = ')
-  .replace(/export class /g, 'class '), worker);
-const Tracker = vm.runInContext('UsageTracker', worker);
-const tracker = new Tracker(ctx, {});
-async function call(route, body) {
-  return (await tracker.fetch(new Request('https://usage.internal' + route, body === undefined ? {} : {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  }))).json();
-}
-async function flush() { await new Promise(resolve => setImmediate(resolve)); }
-
-(async () => {
-  // An old daily exhaustion flag must not migrate into or block the new meter.
-  values.set('daily', { day: '2026-10-05', used: 10000, exhausted: true });
-  const initial = await call('/status');
-  assert.equal(initial.estimated_used, 0);
-  assert.equal(initial.window_seconds, 300);
-  assert.equal(initial.reset_at, '2026-10-05T12:05:00.000Z');
-  assert.equal(initial.provider_reset_at, '2026-10-06T00:00:00.000Z');
-  assert.equal(alarmAt, Date.parse(initial.reset_at));
-  const full = await call('/add', { neurons: 10000, owner: 'test-owner-12345678901234' });
-  assert.equal(full.estimated_remaining, 0);
-  assert.equal(full.exhausted, false);
-  assert.equal((await call('/owner-check', { owner: 'test-owner-12345678901234' })).allowed, true);
-  clock = Date.parse('2026-10-05T12:04:59.999Z');
-  assert.equal((await call('/status')).estimated_used, 10000);
-  clock += 1;
-  await tracker.alarm();
-  assert.equal(values.get('five-minute-usage').used, 0);
-  assert.equal(values.get('five-minute-usage').requests, 0);
-  assert.equal(Object.keys(values.get('five-minute-usage').owners).length, 0);
-  const reset = await call('/status');
-  assert.equal(reset.reset_at, '2026-10-05T12:10:00.000Z');
-  assert.equal(reset.estimated_remaining, 10000);
-  assert.equal(reset.history.length, 0);
-  assert.equal(reset.provider_reset_at, initial.provider_reset_at);
-  await call('/add', { neurons: 42, owner: 'test-owner-12345678901234' });
-  clock = Date.parse('2026-10-05T12:17:00Z');
-  // Missed alarms or sleeping clients recover lazily on the next read.
-  assert.equal((await call('/status')).estimated_used, 0);
-  await call('/exhausted', {});
-  assert.equal((await call('/status')).exhausted, false);
-  clock = Date.parse('2026-10-05T23:59:00Z');
-  await call('/add', { neurons: 50 });
-  clock = Date.parse('2026-10-06T00:00:00Z');
-  assert.equal((await call('/status')).estimated_used, 0);
-
-  // Exercise the actual UI functions with a controllable clock and fetch.
-  const elements = {};
-  for (const name of ['quotaNow', 'quotaReset', 'quotaRemaining', 'quotaUsed', 'quotaFill',
-    'quotaPercent', 'quotaBadgeText', 'quotaMine', 'quotaLine', 'quotaCard']) {
-    elements[name] = { textContent: '', style: {}, dataset: {},
-      classList: { toggle() {}, remove() {} }, setAttribute(key, value) { this[key] = value; } };
-  }
-  const intervals = [], listeners = {};
-  let fetches = 0, fail = false;
-  const front = vm.createContext({
-    ...elements, Date: ClockDate, Intl, Number, AbortSignal, console,
-    API_LOCAL: '/api-local', API_DIRECT: 'https://worker.example', draftOwnerKey: () => 'test-owner-12345678901234',
-    document: { visibilityState: 'visible', getElementById: id => elements[id],
-      addEventListener: (name, fn) => { listeners[name] = fn; } },
-    window: { addEventListener: (name, fn) => { listeners[name] = fn; } },
-    setInterval: (fn, ms) => { intervals.push({ fn, ms }); },
-    fetch: async () => {
-      fetches++;
-      if (fail) throw new Error('offline');
-      return { ok: true, json: () => call('/status') };
-    },
-  });
-  const html = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
-  vm.runInContext(html.slice(html.indexOf('let quotaResetAt = null;'), html.indexOf('let presenceSocket = null;')), front);
-  await flush();
-  assert(intervals.some(row => row.ms === 300000));
-  assert.equal(elements.quotaUsed.textContent, '0.0');
-  await call('/add', { neurons: 200 });
-  await vm.runInContext('loadUsage()', front);
-  assert.equal(elements.quotaUsed.textContent, '200');
-  assert(elements.quotaLine.points.includes('0.0,'));
-  clock = Date.parse('2026-10-06T00:05:00Z');
-  vm.runInContext('updateQuotaClock()', front);
-  await flush();
-  assert.equal(elements.quotaUsed.textContent, '0.0');
-  assert(elements.quotaReset.textContent.startsWith('in 5m 00s'));
-  // Expired displays retry after a network failure without a request each second.
-  fail = true;
-  clock = Date.parse('2026-10-06T00:10:00Z');
-  vm.runInContext('updateQuotaClock(); updateQuotaClock()', front);
-  await flush();
-  const afterFailure = fetches;
-  vm.runInContext('updateQuotaClock()', front);
-  await flush();
-  assert.equal(fetches, afterFailure);
-  assert.equal(elements.quotaBadgeText.textContent, 'Unavailable');
-  fail = false;
-  listeners.online();
-  await flush();
-  assert.equal(elements.quotaBadgeText.textContent, 'Usage estimate');
-  await call('/add', { neurons: 12 });
-  listeners.visibilitychange();
-  await flush();
-  assert.equal(elements.quotaUsed.textContent, '12.0');
-  console.log('Five-minute resets, alarm recovery, owner counts, provider separation, UI countdown, and reconnect refresh passed.');
-})().catch(error => { console.error(error); process.exitCode = 1; });
+class ClockDate extends Date {constructor(...args){super(...(args.length?args:[clock]));} static now(){return clock;}}
+const values = new Map();let cancelledAlarms=0;
+const ctx={storage:{get:async key=>values.get(key),put:async(key,value)=>values.set(key,value),
+ delete:async key=>values.delete(key),deleteAlarm:async()=>{cancelledAlarms++;}}};
+const worker=vm.createContext({Date:ClockDate,URL,Request,Response,console,DurableObject:class{constructor(ctx){this.ctx=ctx;}}});
+const source=fs.readFileSync('worker/src/index.js','utf8');
+vm.runInContext(source.replace(/^import .*;\s*$/gm,'').replace(/export default /g,'const workerDefault = ').replace(/export class /g,'class '),worker);
+const Tracker=vm.runInContext('UsageTracker',worker);const tracker=new Tracker(ctx,{});
+let snapshot={report_date_utc:'2026-10-05',reported_used:740.10,fetched_at:'2026-10-05T12:00:00Z'};
+const env={DB:{prepare:()=>({first:async()=>({snapshot_json:JSON.stringify(snapshot)})})},USAGE_TRACKER:{idFromName:name=>name,get:()=>({fetch:request=>tracker.fetch(new Request(request))})}};
+async function observe(state){return tracker.fetch(new Request('https://usage.internal/provider-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state})}));}
+async function flush(){await new Promise(resolve=>setImmediate(resolve));}
+(async()=>{
+ const initial=await worker.getUsageStatus(env);
+ assert.equal(initial.reported_used,740.10);assert.equal(initial.reported_remaining,9259.90);
+ assert.equal(initial.reset_at,'2026-10-06T00:00:00.000Z');assert.equal(initial.estimated_used,undefined);
+ await observe('quota-reached');values.set('five-minute-usage',{used:10000});
+ clock+=300000;await tracker.alarm();
+ const later=await worker.getUsageStatus(env);assert.equal(later.reported_used,740.10);
+ assert.equal(later.provider_status.state,'quota-reached');assert.equal(cancelledAlarms,1);
+ assert(!values.has('five-minute-usage'));
+ clock=Date.parse('2026-10-06T00:00:01Z');const nextDay=await worker.getUsageStatus(env);
+ assert.equal(nextDay.reported_used,null);assert.equal(nextDay.reported_remaining,null);
+ assert.equal(nextDay.provider_status.state,'quota-reached','A clock rollover must not clear a provider rejection');
+ snapshot={report_date_utc:'2026-10-06',reported_used:12.5,fetched_at:'2026-10-06T00:00:00Z'};
+ await observe('accepted');assert.equal((await worker.getUsageStatus(env)).reported_used,12.5);
+ assert.equal((await worker.getUsageStatus(env)).provider_status.state,'accepted');
+ const missing=await worker.getUsageStatus({});assert.equal(missing.reported_used,null);assert.equal(missing.reported_remaining,null);
+ snapshot.reported_used=12500;assert.equal((await worker.getUsageStatus(env)).reported_used,12500);
+ assert.equal((await worker.getUsageStatus(env)).reported_remaining,0,'Do not truncate account-wide usage to the free allowance');
+ snapshot.reported_used=12.5;
+ const elements={};for(const name of ['quotaNow','quotaReset','quotaRemaining','quotaUsed','quotaFill','quotaPercent','quotaBadgeText','quotaMine','quotaCard'])
+  elements[name]={textContent:'',style:{},classList:{toggle(){},remove(){}}};
+ const intervals=[],listeners={};let offline=false;
+ const front=vm.createContext({...elements,Date:ClockDate,Intl,Number,AbortSignal,console,API_LOCAL:'/local',API_DIRECT:'https://worker.example',
+  document:{visibilityState:'visible',getElementById:id=>elements[id],addEventListener:(name,fn)=>listeners[name]=fn},
+  window:{addEventListener:(name,fn)=>listeners[name]=fn},setInterval:(fn,ms)=>intervals.push({fn,ms}),
+  fetch:async()=>{if(offline)throw new Error('offline');return {ok:true,json:()=>worker.getUsageStatus(env)};}});
+ const html=fs.readFileSync('frontend/index.html','utf8');vm.runInContext(html.slice(html.indexOf('let quotaResetAt = null;'),html.indexOf('let presenceSocket = null;')),front);
+ await flush();assert.equal(elements.quotaUsed.textContent,'12.5');assert.equal(elements.quotaBadgeText.textContent,'Cloudflare reported');
+ assert(!html.includes('5 minute window') && !html.includes('Local meter resets'));
+ assert(elements.quotaReset.textContent.includes('00:00 UTC'));assert(!intervals.some(x=>x.ms===300000));
+ clock+=300000;vm.runInContext('updateQuotaClock()',front);assert.equal(elements.quotaUsed.textContent,'12.5');
+ clock=Date.parse('2026-10-07T00:00:01Z');vm.runInContext('updateQuotaClock()',front);await flush();
+ assert.equal(elements.quotaUsed.textContent,'—');assert.equal(elements.quotaRemaining.textContent,'—');
+ snapshot={report_date_utc:'2026-10-07',reported_used:48,fetched_at:'2026-10-07T00:00:00Z'};listeners.online();await flush();
+ assert.equal(elements.quotaUsed.textContent,'48');offline=true;await vm.runInContext('loadUsage()',front);
+ assert.equal(elements.quotaUsed.textContent,'48','Failed refresh must not fabricate a full allowance');assert.equal(elements.quotaBadgeText.textContent,'Update unavailable');
+ console.log('Cloudflare daily reporting, stale/missing data, midnight rollover, provider-only availability and UI refresh passed.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

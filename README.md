@@ -35,9 +35,9 @@ The `backend/` Python PaddleOCR/EasyOCR service is legacy code, is not called by
 
 ## Usage and quota
 
-The displayed PaperAI usage estimate resets at five-minute boundaries (:00, :05, :10, and so on). It is informational and does not block OCR.
+The dashboard displays Cloudflare-reported, account-wide Workers AI neuron usage for the current UTC day. A credential-protected GitHub job copies Cloudflare Analytics totals into the existing D1 database on deployment and on a 15-minute schedule. The public app never receives an API token. Reports can lag or be sampled; they are not the internal enforcement ledger. The panel shows when the report was fetched.
 
-Cloudflare controls its separate daily free allocation. Its documented reset is 00:00 UTC (05:30 IST). Resetting the local display does not reset Cloudflare's quota. The Worker reports provider rejections when they occur and never treats its local estimate as proof of the account's remaining allowance.
+Cloudflare's daily allowance resets at 00:00 UTC (05:30 IST). There is no local quota renewal or per-user limit. A new day with no report shows unavailable values rather than an invented full allowance. Actual provider rejections remain visible until a later inference is accepted; refreshing the dashboard never consumes AI or resets its quota.
 
 ## Deploy
 
@@ -81,7 +81,7 @@ Local testing does not validate the real account's AI quota or production bindin
 | --- | --- | --- |
 | `/health` | GET | Worker release, model and provider |
 | `/api/ocr` | POST | File extraction or image OCR |
-| `/api/usage` | GET | Informational five-minute usage estimate |
+| `/api/usage` | GET | Cloudflare-reported daily usage and observed provider status |
 | `/api/analyze-paper` | POST | Page grouping and continuity |
 | `/api/suggest-word` | POST | Capped same-model suggestions |
 | `/api/drafts` and subroutes | GET/POST/PUT/PATCH/DELETE | Draft creation, photos, text, titles and ordering |

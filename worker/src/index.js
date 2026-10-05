@@ -2,16 +2,8 @@ import { DurableObject } from 'cloudflare:workers';
 import { handleDrafts, purgeExpiredDrafts } from './drafts.js';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
 
-// Usage telemetry reference values only. These MUST NOT block OCR.
-// Cloudflare Workers AI is the authority on real provider availability.
+// Cloudflare controls inference availability and the daily free allocation.
 const DAILY_FREE_NEURONS = 10000;
-const PER_USER_DAILY_NEURONS = 1000;
-// PaperAI's display window is separate from Cloudflare's daily allocation.
-const USAGE_WINDOW_MS = 5 * 60 * 1000;
-// Guard against an unbounded owner map in a usage window.
-const MAX_TRACKED_OWNERS = 600;
-const GEMMA4_INPUT_NEURONS_PER_MILLION = 9091;
-const GEMMA4_OUTPUT_NEURONS_PER_MILLION = 27273;
 
 export default {
   async fetch(request, env) {
@@ -39,7 +31,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v31',
+        architecture: 'production-literal-ocr-v32',
       }, { headers: corsHeaders });
     }
 
@@ -47,7 +39,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v31',
+        architecture: 'production-literal-ocr-v32',
         model: '@cf/google/gemma-4-26b-a4b-it',
         ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
@@ -60,37 +52,10 @@ export default {
       return getPresenceStub(env).fetch(request);
     }
 
-    // Public five-minute usage dashboard. This is a PaperAI-side estimate
-    // calculated from Workers AI token usage returned after each OCR request.
-if (url.pathname === '/api/usage' && request.method === 'GET') {
-      try {
-        const usage = await getUsageStatus(env);
-        const owner = String(request.headers.get('X-PaperAI-Owner') || '').slice(0, 64);
-        const check = /^[A-Za-z0-9_-]{20,64}$/.test(owner)
-          ? await checkOwnerAllowance(env, new Request(request.url, { headers: { 'X-PaperAI-Owner': owner } }))
-          : null;
-        return Response.json({
-          ...usage,
-          per_user_limit: PER_USER_DAILY_NEURONS,
-          owner_remaining: check?.status?.owner_remaining ?? null,
-          owner_allowed: true,
-          owner_blocked_reason: '',
-          enforcement: 'provider-only',
-          tracking_only: true,
-        }, {
-          headers: {
-            ...corsHeaders,
-            'Cache-Control': 'no-store, max-age=0',
-          },
-        });
-      } catch (e) {
-        return Response.json({
-          error: 'Usage tracker unavailable',
-          detail: e.message,
-          free_limit: DAILY_FREE_NEURONS,
-          per_user_limit: PER_USER_DAILY_NEURONS,
-        }, { status: 503, headers: corsHeaders });
-      }
+    if (url.pathname === '/api/usage' && request.method === 'GET') {
+      return Response.json(await getUsageStatus(env), {
+        headers: {...corsHeaders, 'Cache-Control':'no-store, max-age=0'},
+      });
     }
 
     if (url.pathname === '/api/ocr' && request.method === 'POST') {
@@ -391,13 +356,9 @@ export class UsageTracker extends DurableObject {
   }
 
   async alarm() {
-    const now = new Date();
-    const state = await this.ctx.storage.get('five-minute-usage');
-    if (!state || Date.parse(state.reset_at) <= now.getTime()) {
-      await this.ctx.storage.put('five-minute-usage', createUsageWindow(now));
-    } else {
-      await this.ctx.storage.setAlarm(Date.parse(state.reset_at));
-    }
+    // Retire alarms from the previous display meter; never renew provider quota.
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.delete('five-minute-usage');
   }
 
   broadcastPresence(exclude = null) {
@@ -433,114 +394,18 @@ export class UsageTracker extends DurableObject {
       });
     }
 
-    const now = new Date();
-    const utcDay = now.toISOString().slice(0, 10);
-
-    let state = await this.ctx.storage.get('five-minute-usage');
-    if (!state || Date.parse(state.reset_at) <= now.getTime() || !Number.isFinite(Date.parse(state.reset_at))) {
-      state = createUsageWindow(now);
-      await this.ctx.storage.put('five-minute-usage', state);
-    }
-    await this.ctx.storage.setAlarm(Date.parse(state.reset_at));
-
-    if (request.method === 'POST' && url.pathname === '/add') {
-      const body = await request.json();
-      const neurons = Number(body.neurons) || 0;
-      const owner = String(body.owner || '').slice(0, 64);
-
-      if (Number.isFinite(neurons) && neurons > 0) {
-        state.used = Math.min(DAILY_FREE_NEURONS, state.used + neurons);
-        state.requests += 1;
-        if (owner) {
-          const owners = state.owners || (state.owners = {});
-          owners[owner] = Math.round(((Number(owners[owner]) || 0) + neurons) * 100) / 100;
-          const keys = Object.keys(owners);
-          if (keys.length > MAX_TRACKED_OWNERS) {
-            // Drop the smallest consumers first, so heavy users stay counted.
-            keys.sort((a, b) => (owners[b] || 0) - (owners[a] || 0));
-            for (const key of keys.slice(MAX_TRACKED_OWNERS)) delete owners[key];
-          }
+    if (url.pathname === '/provider-status') {
+      if (request.method === 'POST') {
+        const body = await request.json();
+        if (!['accepted','quota-reached','model-unavailable'].includes(body.state)) {
+          return Response.json({error:'Invalid provider state'}, {status:400});
         }
-        state.history.push({
-          at: now.toISOString(),
-          used: Math.round(state.used * 100) / 100,
-        });
-
-        // A usage window only needs a compact trend. Keep first/last and recent
-        // points if traffic ever grows beyond the current small audience.
-        if (state.history.length > 144) {
-          const sampled = state.history.filter((_, i) => i % 2 === 0);
-          if (sampled[sampled.length - 1]?.at !== state.history[state.history.length - 1]?.at) {
-            sampled.push(state.history[state.history.length - 1]);
-          }
-          state.history = sampled.slice(-144);
-        }
+        await this.ctx.storage.put('provider-observation', {state:body.state, observed_at:new Date().toISOString()});
       }
-
-      await this.ctx.storage.put('five-minute-usage', state);
+      return Response.json(await this.ctx.storage.get('provider-observation') || {state:'unknown',observed_at:null},
+        {headers:{'Cache-Control':'no-store'}});
     }
-
-    if (request.method === 'POST' && url.pathname === '/owner-check') {
-      const owner = String((await request.json())?.owner || '').slice(0, 64);
-      const used = owner ? Number((state.owners || {})[owner]) || 0 : 0;
-      const remaining = Math.max(0, PER_USER_DAILY_NEURONS - used);
-      const sharedRemaining = Math.max(0, DAILY_FREE_NEURONS - (Number(state.used) || 0));
-      return Response.json({
-        owner_tracked: Boolean(owner),
-        per_user_limit: PER_USER_DAILY_NEURONS,
-        owner_used: Math.round(used * 100) / 100,
-        owner_remaining: Math.round(remaining * 100) / 100,
-        shared_remaining: Math.round(sharedRemaining * 100) / 100,
-        // Monitoring only. Never block OCR from this Durable Object estimate.
-        allowed: true,
-        reason: '',
-        enforcement: 'provider-only',
-      }, { headers: { 'Cache-Control': 'no-store' } });
-    }
-
-    if (request.method === 'POST' && url.pathname === '/exhausted') {
-      // Compatibility endpoint only. Provider quota errors must not block OCR
-      // through PaperAI's local usage state.
-      state.provider_limit_seen_at = now.toISOString();
-      state.exhausted = false;
-      await this.ctx.storage.put('five-minute-usage', state);
-    }
-
-    const providerReset = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate() + 1,
-      0, 0, 0, 0
-    ));
-
-    const used = Math.min(DAILY_FREE_NEURONS, Math.max(0, Number(state.used) || 0));
-    const remaining = Math.max(0, DAILY_FREE_NEURONS - used);
-
-    return Response.json({
-      date_utc: utcDay,
-      server_time: now.toISOString(),
-      reset_at: state.reset_at,
-      window_start_at: state.window_start_at,
-      window_seconds: USAGE_WINDOW_MS / 1000,
-      refresh_seconds: USAGE_WINDOW_MS / 1000,
-      provider_reset_at: providerReset.toISOString(),
-      provider_reset_rule: '00:00 UTC daily; local resets do not replenish provider quota',
-      free_limit: DAILY_FREE_NEURONS,
-      estimated_used: Math.round(used * 100) / 100,
-      estimated_remaining: Math.round(remaining * 100) / 100,
-      percent_used: Math.round((used / DAILY_FREE_NEURONS) * 10000) / 100,
-      ocr_requests_tracked: Number(state.requests) || 0,
-      exhausted: false,
-      provider_limit_seen_at: state.provider_limit_seen_at || null,
-      enforcement: 'provider-only',
-      history: state.history || [],
-      scope: 'PaperAI OCR requests in the current five-minute window',
-      accuracy: 'estimate',
-      reset_rule: 'Every five minutes (PaperAI usage estimate only)',
-      tracking_started_at: state.tracking_started_at || null,
-    }, {
-      headers: { 'Cache-Control': 'no-store, max-age=0' },
-    });
+    return Response.json({error:'Not found'}, {status:404});
   }
 
   webSocketMessage(ws, message) {
@@ -555,21 +420,6 @@ export class UsageTracker extends DurableObject {
   webSocketError(ws) {
     this.broadcastPresence(ws);
   }
-}
-
-function createUsageWindow(now) {
-  const start = Math.floor(now.getTime() / USAGE_WINDOW_MS) * USAGE_WINDOW_MS;
-  return {
-    day: now.toISOString().slice(0, 10),
-    window_start_at: new Date(start).toISOString(),
-    reset_at: new Date(start + USAGE_WINDOW_MS).toISOString(),
-    used: 0,
-    requests: 0,
-    owners: {},
-    history: [],
-    exhausted: false,
-    tracking_started_at: now.toISOString(),
-  };
 }
 
 function isAdminRequest(request, env) {
@@ -593,71 +443,52 @@ function getUsageStub(env) {
   return env.USAGE_TRACKER.get(id);
 }
 
-async function getUsageStatus(env) {
-  const res = await getUsageStub(env).fetch('https://usage.internal/status');
-  if (!res.ok) throw new Error('Usage tracker returned ' + res.status);
-  return await res.json();
-}
-
-function estimateGemma4Neurons(usage) {
-  if (!usage) return 0;
-  const promptTokens = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0) || 0;
-  const completionTokens = Number(usage.completion_tokens ?? usage.output_tokens ?? 0) || 0;
-
-  return (
-    (promptTokens * GEMMA4_INPUT_NEURONS_PER_MILLION / 1_000_000) +
-    (completionTokens * GEMMA4_OUTPUT_NEURONS_PER_MILLION / 1_000_000)
-  );
-}
-
-async function recordAiUsage(env, usage, owner) {
-  const neurons = estimateGemma4Neurons(usage);
-  if (!(neurons > 0)) return;
-
-  await getUsageStub(env).fetch('https://usage.internal/add', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ neurons, owner: String(owner || '') }),
-  });
-}
-
-async function markUsageExhausted(env) {
-  await getUsageStub(env).fetch('https://usage.internal/exhausted', {
-    method: 'POST',
-  });
-}
-
-// Browser usage telemetry only. The browser key is not a security token,
-// and the usage estimate never enforces a local OCR allowance.
-async function checkOwnerAllowance(env, request) {
-  const owner = String(request.headers.get('X-PaperAI-Owner') || '').slice(0, 64);
-  if (!/^[A-Za-z0-9_-]{20,64}$/.test(owner)) {
-    return { ok: false, status: 400, error: 'Missing browser key.', code: 'OWNER_REQUIRED' };
-  }
-
+async function getUsageStatus(env, now = new Date()) {
+  const day = now.toISOString().slice(0,10);
+  const reset = new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1));
+  let snapshot = null, observation = {state:'unknown',observed_at:null};
   try {
-    const res = await getUsageStub(env).fetch('https://usage.internal/owner-check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ owner }),
-    });
-    const status = await res.json();
-    if (status?.allowed) return { ok: true, owner, status };
+    const row = await env.DB.prepare("SELECT snapshot_json FROM provider_usage WHERE provider = 'cloudflare-workers-ai'").first();
+    snapshot = row ? JSON.parse(row.snapshot_json) : null;
+  } catch (_) {}
+  try {
+    const response = await getUsageStub(env).fetch('https://usage.internal/provider-status');
+    if (response.ok) observation = await response.json();
+  } catch (_) {}
+  const valid = snapshot?.report_date_utc === day && Number.isFinite(snapshot.reported_used)
+    && snapshot.reported_used >= 0 && Number.isFinite(Date.parse(snapshot.fetched_at))
+    && Date.parse(snapshot.fetched_at) <= now.getTime();
+  const used = valid ? snapshot.reported_used : null;
+  return {
+    date_utc:day, server_time:now.toISOString(), reset_at:reset.toISOString(),
+    reset_rule:'00:00 UTC daily (05:30 IST), controlled by Cloudflare',
+    free_limit:DAILY_FREE_NEURONS, reported_used:used,
+    reported_remaining:valid ? Math.max(0,DAILY_FREE_NEURONS-used) : null,
+    percent_used:valid ? used/DAILY_FREE_NEURONS*100 : null,
+    last_updated:valid ? snapshot.fetched_at : null,
+    report_status:valid ? (now.getTime()-Date.parse(snapshot.fetched_at)>3600000 ? 'stale' : 'reported') : 'unavailable',
+    source:'cloudflare-analytics', scope:'Cloudflare account, all Workers AI models, current UTC day',
+    accuracy:'Cloudflare-reported analytics; may be delayed or sampled, not the quota enforcement ledger',
+    provider_status:observation, enforcement:'provider-only',
+  };
+}
 
-    const perUser = status?.reason === 'PER_USER_LIMIT';
-    return {
-      ok: false,
-      owner,
-      status,
-      status_code: perUser ? 429 : 503,
-      error: perUser
-        ? 'You have used your ' + PER_USER_DAILY_NEURONS + ' free Neurons for today. The shared daily free limit resets at 00:00 UTC.'
-        : 'The shared daily free AI limit has been reached today. It resets at 00:00 UTC.',
-      code: perUser ? 'PER_USER_AI_LIMIT_REACHED' : 'FREE_AI_LIMIT_REACHED',
-    };
-  } catch (e) {
-    // If the tracker cannot answer, do not silently spend the shared pool.
-    return { ok: false, owner, status_code: 503, error: 'Usage check unavailable. Please try again.', code: 'USAGE_CHECK_FAILED' };
+async function recordProviderObservation(env, state) {
+  if (!env.USAGE_TRACKER) return;
+  await getUsageStub(env).fetch('https://usage.internal/provider-status', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({state}),
+  });
+}
+
+async function runCloudflareAI(env, model, body, options) {
+  try {
+    const result = await env.AI.run(model, body, options);
+    try { await recordProviderObservation(env,'accepted'); } catch (_) {}
+    return result;
+  } catch (error) {
+    const state = isDailyFreeLimitError(error) ? 'quota-reached' : isPaidModelRequiredError(error) ? 'model-unavailable' : null;
+    if (state) { try { await recordProviderObservation(env,state); } catch (_) {} }
+    throw error;
   }
 }
 
@@ -950,7 +781,7 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
 
   let response;
   try {
-    response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
+    response = await runCloudflareAI(env,'@cf/google/gemma-4-26b-a4b-it', {
       messages: [
         { role: 'system', content: 'Return only strict JSON for question-paper grouping and continuity. Never rewrite source text.' },
         { role: 'user', content: prompt },
@@ -967,7 +798,6 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
     }, { headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' } });
   }
 
-  try { await recordAiUsage(env, response?.usage || null); } catch (_) {}
 
   const analysis = parsePaperAnalysisJson(extractAiText(response), pages);
   return Response.json({ status: 'completed', analysis }, {
@@ -1042,7 +872,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     '- Output strict JSON exactly like {"suggestions":["candidate1","candidate2"]}.',
   ].join('\n');
 
-  const response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
+  const response = await runCloudflareAI(env,'@cf/google/gemma-4-26b-a4b-it', {
     messages: [
       { role: 'system', content: 'Return only compact JSON pronunciation-based transliteration suggestions. For English, convert the actual spoken pronunciation into the target script, not the raw spelling. Preserve the spoken words and never semantically translate them.' },
       { role: 'user', content: prompt },
@@ -1052,7 +882,6 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     chat_template_kwargs: { enable_thinking: false },
   }, { rejectIfBusy: true });
 
-  try { await recordAiUsage(env, response?.usage || null); } catch (_) {}
 
   const aiSuggestions = parseSuggestionJson(extractAiText(response))
     .filter(candidate => candidateMatchesSuggestionScript(candidate, language));
@@ -1279,10 +1108,7 @@ async function handleOCR(request, env, corsHeaders) {
     return Response.json({ error: 'Image too large (max ~10MB base64)' }, { status: 400, headers: corsHeaders });
   }
 
-  // Usage tracking is advisory only. Never refuse OCR because PaperAI's
-  // own estimate says a browser/shared pool is "used up". The actual Workers AI
-  // provider response is the only quota authority.
-  const owner = String(request.headers.get('X-PaperAI-Owner') || '').slice(0, 64);
+  // Cloudflare's inference response is the only quota authority.
 
   let aiResult;
   try {
@@ -1297,7 +1123,7 @@ async function handleOCR(request, env, corsHeaders) {
     }
     if (isDailyFreeLimitError(e)) {
       return Response.json({
-        error: 'Cloudflare rejected this OCR request with a daily free-quota error. PaperAI’s local usage meter does not block OCR.',
+        error: 'Cloudflare rejected this OCR request with a daily free-quota error. Cloudflare controls when the daily allocation becomes available again.',
         code: 'PROVIDER_AI_QUOTA_REACHED',
         provider_error_code: getAiProviderErrorCode(e),
         provider_message: getAiQuotaMessage(e),
@@ -1322,14 +1148,6 @@ async function handleOCR(request, env, corsHeaders) {
       error: 'AI OCR failed: ' + (e?.message || 'unknown error'),
       code: 'AI_OCR_FAILED',
     }, { status: 502, headers: corsHeaders });
-  }
-
-  // Record this successful inference for the public daily usage graph.
-  // Failure to write analytics must never block the OCR result.
-  try {
-    await recordAiUsage(env, aiResult.usage || null, owner);
-  } catch (e) {
-    console.log('[Usage tracker] Could not record usage:', e.message);
   }
 
   const rawOcrText = aiResult.raw || aiResult.text || '';
@@ -1387,7 +1205,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v31',
+        architecture: 'production-literal-ocr-v32',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1837,7 +1655,7 @@ ${paperContextInstruction}`;
 
   for (let attempt = 0; attempt < AI_MAX_ATTEMPTS; attempt++) {
     try {
-      response = await env.AI.run(model, requestBody, { rejectIfBusy: true });
+      response = await runCloudflareAI(env,model, requestBody, { rejectIfBusy: true });
       break;
     } catch (e) {
       lastError = e;
@@ -1851,7 +1669,6 @@ ${paperContextInstruction}`;
   if (!response) throw lastError || new Error('AI OCR unavailable');
 
   if (isAiOutputTruncated(response)) {
-    try { await recordAiUsage(env, response.usage || null); } catch (_) {}
     throw Object.assign(new Error('The AI read reached its output token limit.'), { code: 'AI_OUTPUT_TRUNCATED' });
   }
 
@@ -1894,7 +1711,7 @@ VERIFICATION RULES:
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
 
     try {
-      const rescueResponse = await env.AI.run(model, {
+      const rescueResponse = await runCloudflareAI(env,model, {
         messages: [
           {
             role: 'system',
@@ -1930,7 +1747,6 @@ VERIFICATION RULES:
   }
 
   if (hasDegenerateOcr(text)) {
-    try { await recordAiUsage(env, usage); } catch (_) {}
     throw new Error('The image read produced repetitive empty rows. Please retry with a clearer page image.');
   }
   text = sanitizePromptTemplateLeakage(text);
