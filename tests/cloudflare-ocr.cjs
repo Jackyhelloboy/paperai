@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'worker/src/index.js'), 'utf8');
 const context = vm.createContext({
-  DurableObject: class {}, Request, Response, URL, console, setTimeout,
+  DurableObject: class {}, Request, Response, URL, console, setTimeout, atob, TextDecoder,
   fetch: () => { throw new Error('OCR must use the Cloudflare AI binding'); },
 });
 vm.runInContext(source.replace(/^import .*;\s*$/gm, '')
@@ -43,6 +43,17 @@ function request() {
 }
 
 (async () => {
+  const documentText = '1. हिन्दी पाठ।\n2. Preserve this blank: ______';
+  for (const image of [Buffer.from(documentText).toString('base64'), 'data:text/plain;base64,' + Buffer.from(documentText).toString('base64')]) {
+    const doc = await worker.fetch(new Request('https://paperai.example/api/ocr', {method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({image,filename:'sample.txt',mimeType:'text/plain'})}), env);
+    assert.equal(doc.status,200);
+    assert.equal((await doc.json()).result.full_text,documentText);
+  }
+  const invalid = await worker.fetch(new Request('https://paperai.example/api/ocr', {method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({image:'***invalid***',filename:'sample.txt',mimeType:'text/plain'})}), env);
+  assert.equal(invalid.status,400);
+  assert.equal(calls.length,0,'Text documents must not call AI');
   const response = await worker.fetch(request(), env);
   assert.equal(response.status, 200);
   const result = (await response.json()).result;

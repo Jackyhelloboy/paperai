@@ -23,6 +23,7 @@ const compactColumns = '[[COLUMN_START]][[COLUMN_ROW: 1. फूल || (a) dust]]
 const compactPaper = compactList + '**v. सही शब्दों से खाली स्थान भरिए। 4X1 = 4M**1.पहला ______2.दूसरा ______3.तीसरा ______4.चौथा ______' + compactColumns;
 const compactModel = model.parse(compactPaper);
 assert.equal(compactModel.nodes.filter(n => n.type === 'questionLine').length, 8);
+assert.equal(compactModel.nodes.filter(n => n.type === 'sectionHeading').length, 1);
 const compactRows = compactModel.nodes.find(n => n.type === 'columns').rows;
 assert.equal(compactRows.length, 2);
 assert.equal(compactRows[1][1], '(b) प्याऊ'); // Preserve wording; never guess a correction.
@@ -45,6 +46,11 @@ function loadFunction(source, name) {
     vm.runInContext(source.slice(start, next < 0 ? undefined : next), context);
 }
 for (const name of ['circledNumberValue', 'collapsePortableAnswerBlankContinuations', 'portableText', 'normalizeQuestionMetadataForLegacy']) loadFunction(inline, name);
+for (const name of ['esc','formatVisibleText','formatOutputLine','repairLegacyBranchDiagram','renderStructuredHtmlTable','formatOutput']) loadFunction(inline,name);
+const preview = context.formatOutput(compactPaper);
+assert.equal((preview.match(/class="output-question-row"/g) || []).length,8);
+assert(preview.includes('<table') && preview.includes('(b) प्याऊ'));
+assert(!preview.includes('[[COLUMN') && !preview.includes('**v.'));
 assert(!context.portableText(audit + paper).includes('Paper pattern'));
 assert(context.portableText(audit + paper).includes('5. निगरानी'));
 assert(!context.normalizeQuestionMetadataForLegacy(audit + paper).includes('Review:'));

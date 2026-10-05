@@ -1176,6 +1176,21 @@ async function handleOCR(request, env, corsHeaders) {
   const DOC_EXTS = ['doc','docx','odt','rtf','ppt','pptx','odp'];
   const XLS_EXTS = ['xls','xlsx','ods'];
 
+  // JSON uploads carry bytes in base64; multipart uploads already set this.
+  // Decode documents before passing them to the text/PDF/Office readers.
+  if (!fileBuffer && (TEXT_EXTS.includes(ext) || DOC_EXTS.includes(ext) || XLS_EXTS.includes(ext) || ext === 'pdf' || mimeType.startsWith('text/') || mimeType === 'application/pdf')) {
+    if (typeof imageDataBase64 !== 'string' || imageDataBase64.length > 15 * 1024 * 1024) {
+      return Response.json({error:'Document JSON payload too large or invalid.'}, {status:413, headers:corsHeaders});
+    }
+    try {
+      const encoded = imageDataBase64.replace(/^data:[^,]*;base64,/i, '');
+      const binary = atob(encoded);
+      fileBuffer = Uint8Array.from(binary, ch => ch.charCodeAt(0)).buffer;
+    } catch (_) {
+      return Response.json({error:'Document data must be valid base64.'}, {status:400, headers:corsHeaders});
+    }
+  }
+
   // ── Text files: read directly ──
   if (TEXT_EXTS.includes(ext) || mimeType.startsWith('text/')) {
     const textContent = new TextDecoder('utf-8', { fatal: false }).decode(fileBuffer);
@@ -1956,6 +1971,7 @@ VERIFICATION RULES:
             if (labels.length < 3 || labels.some((m, i) => i && Number.parseInt(m[0], 10) !== Number.parseInt(labels[i - 1][0], 10) + 1)) return line;
             return labels.map((m, i) => line.slice(i ? m.index : 0, labels[i + 1]?.index ?? line.length)).join('\n');
         }).join('\n');
+        out = out.replace(/^\*\*([IVXivx]{1,8}[.)]\s+.+)\*\*$/gm, '$1');
         // The model sometimes prints a heading and immediately repeats it as metadata.
         let previous = '';
         return out.split('\n').filter(line => {

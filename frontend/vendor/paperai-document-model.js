@@ -37,6 +37,7 @@
             if (labels.length < 3 || labels.some((m, i) => i && Number.parseInt(m[0], 10) !== Number.parseInt(labels[i - 1][0], 10) + 1)) return line;
             return labels.map((m, i) => line.slice(i ? m.index : 0, labels[i + 1]?.index ?? line.length)).join('\n');
         }).join('\n');
+        out = out.replace(/^\*\*([IVXivx]{1,8}[.)]\s+.+)\*\*$/gm, '$1');
         // The model sometimes prints a heading and immediately repeats it as metadata.
         let previous = '';
         return out.split('\n').filter(line => {
