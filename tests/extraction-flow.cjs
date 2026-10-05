@@ -65,5 +65,16 @@ vm.runInContext(html.slice(html.indexOf("let extractionView = 'select'"),html.in
   cancelPDF=true;
   await assert.rejects(pdf.pdfToPages({arrayBuffer:async()=>new ArrayBuffer(1)},pdfController.signal),{name:'AbortError'});
   assert(destroyed>=2,'PDF cancellation destroys the loading task');
+  let previewDestroyed = 0, previewCleaned = 0;
+  const preview = vm.createContext({Promise,Math,Number,String,$:()=>null,fmtSize:()=> '1 KB',
+    document:{createDocumentFragment:()=>({appendChild(){}}),createElement:tag=>tag==='canvas'?{getContext:()=>({fillRect(){}}),toDataURL:()=> 'preview-image'}:{}},
+    pdfjsLib:{GlobalWorkerOptions:{},getDocument:()=>({destroy:async()=>previewDestroyed++,promise:Promise.resolve({numPages:10,getPage:async()=>({getViewport:()=>({width:100,height:200}),render:()=>({promise:Promise.resolve()}),cleanup:()=>previewCleaned++})})})}});
+  vm.runInContext(html.slice(html.indexOf('async function renderPdfPreviewCard('),html.indexOf('function openPreviewLightbox(')),preview);
+  await preview.renderPdfPreviewCard({arrayBuffer:async()=>new ArrayBuffer(1),size:100},{isConnected:true,id:'pdfPreview_0',appendChild(){}});
+  assert.equal(previewCleaned,3,'Only first three preview pages render and release resources');
+  assert.equal(previewDestroyed,1,'Preview PDF worker is released after rendering');
+  await preview.renderPdfPreviewCard({arrayBuffer:async()=>new ArrayBuffer(1)},{isConnected:false});
+  assert.equal(previewCleaned,3,'Removed preview cards must abandon rendering');
+  assert.equal(previewDestroyed,2,'Abandoned preview jobs still release their worker');
   console.log('Extraction hides uploads, cancels safely, ignores stale results, retains selected files and recovers through Retry.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

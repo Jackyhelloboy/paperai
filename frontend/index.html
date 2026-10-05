@@ -12,10 +12,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
     <script src="vendor/indic-transliterate.js"></script>
-    <script src="vendor/paperai-document-model.js?v=34"></script>
+    <script src="vendor/paperai-document-model.js?v=35"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
-    <script src="vendor/paperai-word-engine.js?v=34"></script>
+    <script src="vendor/paperai-word-engine.js?v=35"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -3835,14 +3835,17 @@ function loadLayoutPreferences() {
 }
 
 async function renderPdfPreviewCard(f, container) {
+    let loadingTask;
     try {
         const data = await f.arrayBuffer();
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        loadingTask = pdfjsLib.getDocument({ data });
+        const pdf = await loadingTask.promise;
         const limit = Math.min(pdf.numPages, 3);
         const fragment = document.createDocumentFragment();
 
         for (let pageNumber = 1; pageNumber <= limit; pageNumber++) {
+            if (!container.isConnected) return;
             const page = await pdf.getPage(pageNumber);
             const viewport = page.getViewport({ scale: 0.32 });
             const canvas = document.createElement('canvas');
@@ -3857,8 +3860,11 @@ async function renderPdfPreviewCard(f, container) {
             img.alt = 'PDF page ' + pageNumber;
             img.src = canvas.toDataURL('image/jpeg', 0.72);
             fragment.appendChild(img);
+            canvas.width = canvas.height = 0;
+            page.cleanup();
         }
 
+        if (!container.isConnected) return;
         container.innerHTML = '';
         container.appendChild(fragment);
 
@@ -3871,6 +3877,7 @@ async function renderPdfPreviewCard(f, container) {
                 ' · item ' + (index + 1);
         }
     } catch (_) {}
+    finally { if (loadingTask) await loadingTask.destroy().catch(() => {}); }
 }
 
 function openPreviewLightbox(src, title = 'Preview', sub = '') {
@@ -4321,12 +4328,25 @@ function xmlParagraphText(xmlText, paragraphLocalName = 'p', textLocalName = 't'
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('Invalid Office XML');
     const paragraphs = Array.from(doc.getElementsByTagNameNS('*', paragraphLocalName));
-    const lines = paragraphs.map(p => {
-        const nodes = Array.from(p.getElementsByTagNameNS('*', textLocalName));
-        return nodes.map(n => n.textContent || '').join('').trim();
-    }).filter(Boolean);
+    const lines = [];
+    let inColumns = false;
+    for (const p of paragraphs) {
+        const text = Array.from(p.getElementsByTagNameNS('*', '*')).map(n => {
+            if (n.localName === textLocalName) return n.textContent || '';
+            if (n.localName === 'tab') return '\t';
+            if (n.localName === 'br' || n.localName === 'cr') return '\n';
+            return '';
+        }).join('').trim();
+        if (text.includes('\t')) {
+            if (!inColumns) { lines.push('[[COLUMNS_START]]'); inColumns = true; }
+            lines.push('[[COLUMN_ROW: ' + text.split('\t').map(cell => cell.trim()).join(' || ') + ']]');
+        } else {
+            if (inColumns) { lines.push('[[COLUMNS_END]]'); inColumns = false; }
+            if (text) lines.push(text);
+        }
+    }
+    if (inColumns) lines.push('[[COLUMNS_END]]');
     if (lines.length) return lines.join('\n');
-
     const textNodes = Array.from(doc.getElementsByTagNameNS('*', textLocalName));
     return textNodes.map(n => n.textContent || '').filter(Boolean).join(' ').trim();
 }
