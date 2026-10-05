@@ -35,7 +35,11 @@ assert(!render.includes('class="draft-page-text"'), 'Long OCR snippets must not 
 const css = html.slice(html.indexOf('/* v41 unified document workspace */'));
 assert(css.includes('.main.workflow-active[data-view="result"]'), 'Result mode must have a dedicated focused layout');
 assert(css.includes('.output-card.editing .output-body'), 'Editing must happen in the same preview workspace');
-assert(css.includes('grid-template-columns: repeat(3, minmax(0, 1fr)) !important'), 'Phone source previews must remain visible in a compact grid');
+assert(css.includes('grid-auto-columns: 82px !important'), 'Phone source previews must use a compact swipe rail instead of a tall grid');
+assert(css.includes('overflow-x: auto !important'), 'Phone source previews remain reachable by horizontal swipe');
+assert(css.includes('height: calc(100dvh - 145px) !important'), 'Mobile editing must stay inside a viewport-sized text scroller');
+assert(css.includes('.output-tabs {\n                display: none !important;'), 'Mobile hides secondary Preview/Plain text tabs from the primary toolbar');
+assert(results.includes('class="document-menu-action mobile-view-action"'), 'Preview and Plain text remain available inside More on mobile');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
 console.log('Unified workspace keeps source previews visible, edits inside Preview, and moves secondary controls out of the primary flow.');
