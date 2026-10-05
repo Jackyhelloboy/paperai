@@ -26,8 +26,18 @@ for(const name of ['fetchAiTextSuggestions','showSmartSuggestions','manualSugges
  assert.equal(editor.value,'flower','AI suggestions never apply themselves');assert(chips.includes('फूल'));
  await manual.requestManualAiSuggestions();assert.equal(calls,1,'Same selected text and language reuse suggestions');
  manual.chooseSmartSuggestion('फूल');assert.equal(editor.value,'फूल','Only choosing a suggestion changes the selected text');
- const batch=vm.createContext({DOMException,localPaperAnalysis:p=>({count:p.length}),fetchOcrEndpoint:()=>{throw Error('Batch sorting must not call AI');}});
- vm.runInContext(fn('analyzePaperBatch'),batch);assert.equal((await batch.analyzePaperBatch([{},{}])).count,2);
+ let batchCalls=0, batchCleanups=0;
+ const batch=vm.createContext({DOMException,Response,
+  localPaperAnalysis:p=>({count:p.length,source:'local'}),
+  safeQuestionPatternHints:()=>[{class:'V',sections:[{label:'IV',marks:'4x1=4M',expected_items:4}]}],
+  linkedAttemptSignal:()=>({signal:undefined,cleanup:()=>batchCleanups++}),
+  fetchOcrEndpoint:async()=>{batchCalls++;return Response.json({analysis:{source:'workers-ai',documents:[{}],pages:[{index:1},{index:0}]}});}
+ });
+ vm.runInContext(fn('analyzePaperBatch'),batch);
+ const analyzed=await batch.analyzePaperBatch([{index:0,text:'page 1'},{index:1,text:'page 2'}]);
+ assert.equal(batchCalls,1,'Multi-page extraction uses one structural continuity analysis');
+ assert.equal(analyzed.source,'workers-ai');
+ assert.equal(batchCleanups,1,'Batch-analysis timeout resources are released');
  const pageCounts=[0,0];let allowSecond=false;
  const pdfRead=vm.createContext({DOMException,Map,completedPdfReads:new WeakMap(),setProg(){},
   pdfToPages:async()=>[{type:'image',blob:{page:0}},{type:'image',blob:{page:1}}],prefetchPreparedImage(){},
@@ -37,5 +47,5 @@ for(const name of ['fetchAiTextSuggestions','showSmartSuggestions','manualSugges
  const file={name:'sample.pdf'};await assert.rejects(pdfRead.extractOneInputFile(file),/offline/);
  allowSecond=true;const resumed=await pdfRead.extractOneInputFile(file);assert.equal(resumed.pageCount,2);
  assert.deepEqual(pageCounts,[1,2],'A manual PDF retry reuses completed page reads and only retries the failed page');
- console.log('Tab exports are exclusive; AI Suggestions are manual, cached, single-request and apply only by choice; page ordering uses no AI.');
+ console.log('Tab exports are exclusive; AI Suggestions are manual and cached; multi-page ordering uses one structural-only continuity analysis.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
