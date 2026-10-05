@@ -17,7 +17,7 @@ const ctx = vm.createContext({$,AbortController,DOMException,WeakMap,files:[{nam
   getSmartExtractionResult:async(f,i,n,signal)=>{seenSignal=signal;if(mode==='pending')return new Promise(r=>resolvePending=r);if(mode==='error')throw new Error('Network offline');return {pages:[{text:'1. Hindi worksheet',plain:'1. Hindi worksheet'}],pageCount:1};},
   analyzePaperBatch:async()=>({documents:[{}]}),saveQuestionPatternsFromAnalysis(){},
   assemblePaperPages:p=>({text:p[0].text,plain:p[0].plain,raw:p[0].text,ordered:p}),repairLegacyBranchDiagram:s=>s,
-  esc:s=>s,getLayoutOptions:()=>({}),updateResultActionsForTab(){},applyLayoutOverridesToStructuredText:s=>s,
+  publicPlainTextFromStructured:s=>s,esc:s=>s,getLayoutOptions:()=>({}),updateResultActionsForTab(){},applyLayoutOverridesToStructuredText:s=>s,
   formatOutput:s=>s,updateLayoutAudit(){},applyOutputProfile(){},setTimeout:fn=>{fn();return 1;},
   window:{matchMedia:()=>({matches:false}),PaperAIDocumentModel:{parse:()=>({profile:{}})}}});
 vm.runInContext(html.slice(html.indexOf("let extractionView = 'select'"),html.indexOf('\nfunction dlBlob(')),ctx);

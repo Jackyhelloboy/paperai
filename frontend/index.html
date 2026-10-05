@@ -12,10 +12,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
     <script src="vendor/indic-transliterate.js"></script>
-    <script src="vendor/paperai-document-model.js?v=35"></script>
+    <script src="vendor/paperai-document-model.js?v=36"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
-    <script src="vendor/paperai-word-engine.js?v=35"></script>
+    <script src="vendor/paperai-word-engine.js?v=36"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -1734,9 +1734,9 @@
         }
 
         .output-body {
-            --paper-body-size: 11px;
-            --paper-heading-size: 12px;
-            --paper-title-size: 16px;
+            --paper-body-size: 16px;
+            --paper-heading-size: 18px;
+            --paper-title-size: 24px;
             padding: 1.25rem;
             max-height: 400px;
             overflow-y: auto;
@@ -3149,6 +3149,7 @@
             .draft-actions {flex-wrap:wrap;gap:0.5rem;}
             .draft-actions .draft-btn {flex:1 1 140px;}
         }
+        .output-body { max-height:none !important; overflow-y:visible; }
         [hidden] { display: none !important; }
         .extraction-nav { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
         .extraction-nav button { min-height:44px; }
@@ -7130,9 +7131,9 @@ function applyOutputProfile(profile) {
     const headingPt = Math.max(10, Math.min(16, Number(p.headingSize) || 12));
     const titlePt = Math.max(12, Math.min(20, Number(p.titleSize) || 16));
 
-    textOut.style.setProperty('--paper-body-size', Math.round(bodyPt * 1.08) + 'px');
-    textOut.style.setProperty('--paper-heading-size', Math.round(headingPt * 1.08) + 'px');
-    textOut.style.setProperty('--paper-title-size', Math.round(titlePt * 1.08) + 'px');
+    textOut.style.setProperty('--paper-body-size', Math.max(16, Math.round(bodyPt * 4 / 3)) + 'px');
+    textOut.style.setProperty('--paper-heading-size', Math.max(18, Math.round(headingPt * 4 / 3)) + 'px');
+    textOut.style.setProperty('--paper-title-size', Math.max(24, Math.round(titlePt * 4 / 3)) + 'px');
 
     textOut.dataset.paperKind = p.kind || 'general';
     textOut.dataset.paperDensity = ['compact','normal','spacious'].includes(p.density) ? p.density : 'normal';
@@ -7786,7 +7787,7 @@ async function startExtraction() {
         allText = repairLegacyBranchDiagram(allText);
         allPlain = repairLegacyBranchDiagram(allPlain);
 
-        const charCount = allPlain.length;
+        const charCount = publicPlainTextFromStructured(allText).length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         const model = window.PaperAIDocumentModel?.parse?.(allText);
         const profile = model?.profile || null;
