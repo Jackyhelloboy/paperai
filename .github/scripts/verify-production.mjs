@@ -12,10 +12,16 @@ async function call(path, method='GET', body, customHeaders={}) {
   try {data=JSON.parse(raw);} catch {data={};}
   return {status:response.status,data,headers:response.headers};
 }
-const health = await fetch(worker+'/health',{signal:AbortSignal.timeout(30000)});
+let health;
+for (let attempt=0;attempt<15;attempt++) {
+  health = await call('/api/health?paperai_release=teacher-papers-v38');
+  if (health.status === 200 && health.data.architecture === 'teacher-papers-v38') break;
+  if (attempt<14) await new Promise(resolve=>setTimeout(resolve,2000));
+}
 assert.equal(health.status,200);
-assert.equal((await health.json()).model,'@cf/google/gemma-4-26b-a4b-it');
-console.log('Worker health: correct Cloudflare model');
+assert.equal(health.data.architecture,'teacher-papers-v38','Current Worker must be serving before write checks');
+assert.equal(health.data.model,'@cf/google/gemma-4-26b-a4b-it');
+console.log('Worker health: current teacher release and Cloudflare model');
 // Worker versions propagate across Cloudflare locations after deploy.
 // Retry read-only reports briefly; never retry inference for this check.
 let usage;
@@ -62,7 +68,7 @@ try {
   const isolated = await call('/api/drafts/'+id,'GET',undefined,{'X-PaperAI-Owner':randomBytes(24).toString('base64url')});
   assert.equal(isolated.status,404);
   const save = await call('/api/drafts/'+id+'/document','PUT',{text:'1. Saved తెలుగు and हिन्दी question.',revision:0});
-  assert.equal(save.status,200);
+  assert.equal(save.status,200,JSON.stringify(save.data));
   assert.equal(save.data.draft.expires_at,0);
   const readBack = await call('/api/drafts/'+id);
   assert.equal(readBack.data.draft.document_text,'1. Saved తెలుగు and हिन्दी question.');

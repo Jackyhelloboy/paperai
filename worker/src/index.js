@@ -32,15 +32,15 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v37',
+        architecture: 'teacher-papers-v38',
       }, { headers: corsHeaders });
     }
 
-    if (url.pathname === '/health') {
+    if (url.pathname === '/health' || url.pathname === '/api/health') {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v37',
+        architecture: 'teacher-papers-v38',
         model: '@cf/google/gemma-4-26b-a4b-it',
         ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
@@ -1213,7 +1213,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_single_pass_manual_corrections_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v37',
+        architecture: 'teacher-papers-v38',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,

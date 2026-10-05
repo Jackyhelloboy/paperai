@@ -3425,7 +3425,7 @@
                 <div class="draft-status" id="draftStatus" aria-live="polite"></div>
 
                 <div class="draft-add">
-                    <button class="btn-extract" id="draftAddBtn" type="button">
+                    <button class="btn-extract show" id="draftAddBtn" type="button">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16m8-8H4"/></svg>
                         <span>Add pages</span>
                     </button>
@@ -4114,57 +4114,10 @@ function setFiles(inputFiles, append = false) {
     }
     if (!valid.length) return;
 
-    const incomingKinds = valid.map(f => getFileCategory(f.name.split('.').pop().toLowerCase()));
-    const hasPdfIncoming = incomingKinds.includes('pdf');
-    const hasImageIncoming = incomingKinds.includes('img');
-    const hasOtherIncoming = incomingKinds.some(kind => kind !== 'img' && kind !== 'pdf');
-
-    // Keep batches simple: either images, one PDF, or one other document.
-    if ((hasPdfIncoming && (hasImageIncoming || hasOtherIncoming)) || (hasImageIncoming && hasOtherIncoming)) {
-        showErr('Upload either images, one PDF, or one document type at a time.');
-        return;
-    }
-
-    const currentKinds = files.map(f => getFileCategory(f.name.split('.').pop().toLowerCase()));
-    const currentHasPdf = currentKinds.includes('pdf');
-    const currentHasImage = currentKinds.includes('img');
-    const currentHasOther = currentKinds.some(kind => kind !== 'img' && kind !== 'pdf');
-
-    if (append && files.length) {
-        if (
-            (hasPdfIncoming && !currentHasPdf) ||
-            (hasImageIncoming && !currentHasImage) ||
-            (hasOtherIncoming && !currentHasOther)
-        ) {
-            showErr('Finish or clear the current batch before adding a different file type.');
-            return;
-        }
-    }
-
-    let next = append ? [...files, ...valid] : valid;
-    let selectionNotice = '';
-
-    if (hasPdfIncoming || currentHasPdf) {
-        if (next.length > SMART_MAX_PDFS) {
-            showErr('Only 1 PDF can be processed at a time.');
-            return;
-        }
-    } else if (hasImageIncoming || currentHasImage) {
-        if (next.length > SMART_MAX_IMAGES) {
-            const available = Math.max(0, SMART_MAX_IMAGES - (append ? files.length : 0));
-            if (append && available > 0) {
-                next = [...files, ...valid.slice(0, available)];
-                selectionNotice = 'Maximum 5 images at a time. Added the first ' + available + '.';
-            } else if (!append) {
-                next = valid.slice(0, SMART_MAX_IMAGES);
-                selectionNotice = 'Maximum 5 images at a time. Using the first 5.';
-            } else {
-                showErr('Maximum 5 images at a time.');
-                return;
-            }
-        }
-    } else if (next.length > 1) {
-        showErr('Process one document file at a time.');
+    const next = append ? [...files, ...valid] : valid;
+    const selectionNotice = '';
+    if (next.length > 20) {
+        showErr('Choose up to 20 files in one batch. Add another batch to the same draft afterwards.');
         return;
     }
 
@@ -5733,7 +5686,7 @@ function updateTeachLanguageStatus() {
         sourceLabel + ' → ' + targetLabel +
         (sourceLanguage === targetLanguage
             ? ' · spelling/script suggestions'
-            : ' · phonetic transliteration only · meaning is not translated');
+            : ' · word and sentence corrections · preserve meaning');
 }
 
 function getLocalSmartSuggestions(input) {
@@ -5745,7 +5698,7 @@ function getLocalSmartSuggestions(input) {
 
     const suggestions = [];
     const native = window.PaperAITeacherTools?.nativeRoman(roman, currentTeachLanguage());
-    if (native) suggestions.push(native);
+    if (native) return [native];
     const isSingleWord = !roman.includes(' ');
     const phraseOverride = !isSingleWord ? getCanonicalPhraseOverride(roman, script) : '';
     const override = isSingleWord ? getCanonicalPhoneticOverride(roman, script) : '';

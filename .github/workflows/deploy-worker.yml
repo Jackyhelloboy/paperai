@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'worker/**'
+      - 'frontend/vendor/paperai-teacher-tools.js'
       - 'tests/**'
       - 'package.json'
       - 'package-lock.json'
