@@ -1587,7 +1587,7 @@ If a section heading or numbered question is visible, do not omit it merely beca
         sections: Array.isArray(pattern?.sections)
           ? pattern.sections.slice(0, 16).map(section => ({
               label: section?.label == null ? null : String(section.label).slice(0, 16),
-              marks: section?.marks == null ? null : String(section.marks).slice(0, 32),
+              has_marks: Boolean(section?.has_marks || section?.marks),
               expected_items: Number.isFinite(Number(section?.expected_items))
                 ? Math.max(0, Math.min(99, Number(section.expected_items)))
                 : null
@@ -1599,7 +1599,7 @@ If a section heading or numbered question is visible, do not omit it merely beca
     ? `
 QUESTION-PAPER PATTERN MEMORY (STRUCTURE ONLY):
 ${JSON.stringify(patternHints)}
-Use these prior local patterns only as weak hints for section order, numbering shape, marks placement and continuation. The CURRENT PAGE PIXELS are the only source for words.
+Use these prior local patterns only as weak hints for section order, numbering shape, whether a marks field is usually present, and continuation. Historical marks VALUES are intentionally omitted. The CURRENT PAGE PIXELS are the only source for words and numbers.
 Never copy a prior question, section instruction, subject word or missing phrase into the transcription. If current pixels do not show a word, use [unclear] rather than inferring it from a pattern.
 `
     : '';
