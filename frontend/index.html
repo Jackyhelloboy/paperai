@@ -6382,7 +6382,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
             body?.code === 'FREE_AI_LIMIT_REACHED'
         ) {
             throw new Error(
-                'Cloudflare AI free capacity is currently unavailable. PaperAI\'s own usage meter is not blocking you. Try again later.'
+                'Cloudflare rejected this request with a daily free-quota error. Your files are kept; you can retry this page. PaperAI cannot reset Cloudflare\'s quota.'
             );
         }
 

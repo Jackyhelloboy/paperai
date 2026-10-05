@@ -39,7 +39,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v28',
+        architecture: 'production-literal-ocr-v29',
       }, { headers: corsHeaders });
     }
 
@@ -47,7 +47,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v28',
+        architecture: 'production-literal-ocr-v29',
         model: '@cf/google/gemma-4-26b-a4b-it',
         ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
@@ -1275,9 +1275,10 @@ async function handleOCR(request, env, corsHeaders) {
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
       return Response.json({
-        error: 'Cloudflare AI free allocation is temporarily unavailable. PaperAI is not blocking this request with its own quota meter.',
+        error: 'Cloudflare rejected this OCR request with a daily free-quota error. PaperAI’s local usage meter does not block OCR.',
         code: 'PROVIDER_AI_QUOTA_REACHED',
         provider_error_code: getAiProviderErrorCode(e),
+        provider_message: getAiQuotaMessage(e),
         observed_at: new Date().toISOString(),
         retryable: true,
         provider: 'cloudflare-workers-ai'
@@ -1364,7 +1365,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v28',
+        architecture: 'production-literal-ocr-v29',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -2231,6 +2232,7 @@ function extractAiText(response) {
 function aiErrorText(error) {
   try {
     return [
+      error?.name || '',
       error?.message || '',
       error?.cause?.message || '',
       typeof error === 'string' ? error : '',
@@ -2246,6 +2248,14 @@ function isDailyFreeLimitError(error) {
   if (code) return code === 3036;
   const s = aiErrorText(error);
   return s.includes('daily free allocation') || s.includes('used up your daily free');
+}
+
+function getAiQuotaMessage(error) {
+  // Return only the provider's quota sentence, never arbitrary error contents,
+  // request images, prompts, credentials, account identifiers or stack traces.
+  const message = String(error?.message || error?.cause?.message || error || '');
+  const match = message.match(/You have used up your daily free allocation of [\d,]+ neurons\.?/i);
+  return match ? match[0] : null;
 }
 
 function getAiProviderErrorCode(error) {

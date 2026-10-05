@@ -14,6 +14,12 @@ assert.equal(context.isDailyFreeLimitError({ code: 3040, message: '429: neuron c
 assert.equal(context.isDailyFreeLimitError(new Error('Image size 30360 bytes failed')), false);
 assert.equal(context.isDailyFreeLimitError({ code: 5035 }), false);
 assert.equal(context.getAiProviderErrorCode(new Error('AiError: 3036: account limited')), 3036);
+const namedQuotaError = new Error('You have used up your daily free allocation of 10,000 neurons.');
+namedQuotaError.name = 'AiError: 3036';
+assert.equal(context.getAiProviderErrorCode(namedQuotaError), 3036);
+assert.equal(context.getAiQuotaMessage(namedQuotaError), namedQuotaError.message);
+assert.equal(context.getAiQuotaMessage(new Error('Secret request details')), null);
+assert.equal(context.getAiQuotaMessage(new Error('Secret prefix. You have used up your daily free allocation of 10,000 neurons. Secret suffix.')), namedQuotaError.message);
 
 (async () => {
   vm.runInContext('runAI = async () => { throw new Error("AiError: 3036: daily free allocation exhausted"); }', context);

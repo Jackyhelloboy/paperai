@@ -136,6 +136,11 @@ def main():
     if not TOKEN or not ACCOUNT:
         emit('Account diagnostics unavailable', 'Existing deployment credentials are missing')
         return
+    if '--pages-settings' not in sys.argv:
+        emit('Deployment account verification', {'matches_project_account': ACCOUNT == '9195bc9144b0e1c8811dfae71e58c7e4'})
+        sub_status, sub_data = request('/accounts/' + ACCOUNT + '/workers/subdomain')
+        emit('Worker subdomain verification', {'http_status': sub_status,
+            'matches_production_worker': (sub_data.get('result') or {}).get('subdomain') == 'mdjawaadkhan57'})
     if '--pages-settings' in sys.argv:
         status, data = request('/accounts/' + ACCOUNT + '/pages/projects/paperai')
         result = data.get('result') or {}
