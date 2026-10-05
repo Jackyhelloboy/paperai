@@ -17,7 +17,7 @@ vm.runInContext(source.replace(/^import .*;\s*$/gm,'').replace(/export default /
   {structuredLayout:true,multiColumnRows:4,longHorizontalRules:5,longVerticalRules:2},
   [],
   {aiLayoutCheck:true},
-  {pattern_hints:[{class:'V',sections:[{label:'IV',marks:'4x1=4M',expected_items:4}]}]},
+  {pattern_hints:[{class:'V',sections:[{label:'IV',marks:'7x9=63M',expected_items:4}]}]},
   [{mimeType:'image/webp',base64:'DETAIL1'},{mimeType:'image/webp',base64:'DETAIL2'}]
  );
  const detailContent=detailCalls[0].messages[1].content;
@@ -26,6 +26,10 @@ vm.runInContext(source.replace(/^import .*;\s*$/gm,'').replace(/export default /
  assert(detailPrompt.includes('VISUAL LAYOUT HINT'),'Detected page geometry must reach the OCR prompt');
  assert(detailPrompt.includes('QUESTION-PAPER PATTERN MEMORY (STRUCTURE ONLY)'),'Structural paper memory must be explicit and non-semantic');
  assert(detailPrompt.includes('CURRENT PAGE PIXELS are the only source for words'),'Pattern memory must never supply missing wording');
+ assert(detailPrompt.includes('MARKS FORMULAS ARE LITERAL PRINTED TEXT, NOT ARITHMETIC TO SOLVE'),'Marks formulas must be copied literally rather than calculated');
+ assert(detailPrompt.includes('[[TABLE_ROW: cell 1 || cell 2 || cell 3]]'),'Table syntax must be explicit so marker words do not leak');
+ assert(detailPrompt.includes('[[BRANCH_ROOT: exact visible root text]]'),'Branch syntax must be explicit so ROOT never becomes visible text');
+ assert(!detailPrompt.includes('7x9=63M'),'Historical marks values must never be fed back into current-page OCR');
 
  let failures=0;
  await assert.rejects(context.runAI('IMG','image/jpeg',{AI:{run:async()=>{failures++;throw new Error('3040: out of capacity');}}}),/capacity/);
