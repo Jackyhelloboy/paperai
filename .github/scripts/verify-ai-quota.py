@@ -1,11 +1,12 @@
 """Read-only account diagnostics; credentials never leave Cloudflare or appear in output.
 
-One inference probe uses the existing free OCR model with a one-token maximum.
+One inference probe sends a small owned test image through the deployed OCR Worker.
 No configuration, quota, model, plan, or billing setting is changed.
 """
 import datetime as dt
 import json
 import os
+from pathlib import Path
 import re
 import sys
 import urllib.error
@@ -165,16 +166,27 @@ def main():
         analytics(now)
     except Exception as error:
         emit('Account analytics unavailable with existing token', safe(error))
+    # Public Worker probe uses its AI binding. Do not send deployment credentials
+    # to this endpoint: the deployment token does not grant REST inference access.
     try:
-        status, result = request('/accounts/' + ACCOUNT + '/ai/run/@cf/google/gemma-4-26b-a4b-it', {
-            'messages': [{'role': 'user', 'content': 'Reply OK.'}],
-            'max_completion_tokens': 1, 'temperature': 0,
-            'chat_template_kwargs': {'enable_thinking': False},
-        })
-        emit('Direct Cloudflare inference result', {'http_status': status, 'success': result.get('success'),
-            'errors': result.get('errors'), 'usage': (result.get('result') or {}).get('usage')})
+        image = (Path(__file__).resolve().parent.parent / 'fixtures' / 'ocr-probe.base64').read_text().strip()
+        probe = urllib.request.Request('https://paperai-ocr.mdjawaadkhan57.workers.dev/api/ocr',
+            data=json.dumps({'image': image, 'mimeType': 'image/png', 'filename': 'quota-probe.png',
+                'language': 'en', 'difficulty': 'easy', 'image_meta': {'width': 640, 'height': 160}}).encode(),
+            headers={'Content-Type': 'application/json'}, method='POST')
+        try:
+            with urllib.request.urlopen(probe, timeout=150) as response:
+                status, result = response.status, json.load(response)
+        except urllib.error.HTTPError as error:
+            status, result = error.code, json.loads(error.read())
+        emit('Production OCR inference result', {'http_status': status,
+            'success': result.get('success'), 'code': result.get('code'),
+            'provider_error_code': result.get('provider_error_code'),
+            'provider_message': result.get('provider_message'), 'error': result.get('error'),
+            'observed_at': result.get('observed_at'),
+            'result_present': bool(result.get('text') or result.get('result'))})
     except Exception as error:
-        emit('Direct inference verification unavailable', safe(error))
+        emit('Production OCR verification unavailable', safe(error))
 
 
 if __name__ == '__main__':
