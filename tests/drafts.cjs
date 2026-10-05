@@ -135,7 +135,16 @@ function makeEnv({ drafts = [], pages = [], orphans = [], expiredDrafts = [] } =
                 if (Array.isArray(keys)) calls.deleteMany.push(list);
                 else calls.delete.push(keys);
             },
-            async list({ prefix }) { return { objects: calls.put.filter(p => p.key.startsWith(prefix)).map(p => ({ key: p.key })), truncated: false }; }
+            async list({ prefix }) {
+                const keys = new Set([
+                    ...calls.put.map(p => p.key),
+                    ...state.pages.map(p => p.image_key).filter(Boolean)
+                ]);
+                return {
+                    objects: [...keys].filter(key => key.startsWith(prefix)).map(key => ({ key })),
+                    truncated: false
+                };
+            }
         }
     };
     return env;
