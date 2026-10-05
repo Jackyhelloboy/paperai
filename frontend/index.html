@@ -5142,25 +5142,40 @@ async function fetchOcrEndpoint(path, options) {
    : [API_LOCAL + path, API_DIRECT + path];
    let lastError = null;
 
-   // The worker shares one daily AI allowance between everyone, so it needs to
-   // know which browser is asking in order to apply that browser's share.
+   // Identify the browser for draft ownership and advisory usage telemetry.
    const opts = { ...(options || {}) };
    opts.headers = { ...(opts.headers || {}), 'X-PaperAI-Owner': draftOwnerKey() };
 
    for (let i = 0; i < targets.length; i++) {
    try {
    const res = await fetch(targets[i], opts);
-            if (i === 0 && ([404,405,502,503,504].includes(res.status) || res.headers.get('X-PaperAI-Proxy-Error') === '1')) {
+            if (i === 0 && await shouldTryAlternateOcrRoute(res, heavyAiRequest)) {
                 continue;
             }
             return res;
         } catch (e) {
             lastError = e;
-            if (options.signal?.aborted) throw e;
+            if (opts.signal?.aborted) throw e;
         }
     }
 
     throw lastError || new Error('OCR service is unreachable.');
+}
+
+async function shouldTryAlternateOcrRoute(res, heavyAiRequest) {
+    if (res.headers.get('X-PaperAI-Proxy-Error') === '1') return true;
+    if (![404,405,502,503,504].includes(res.status)) return false;
+    if (heavyAiRequest) {
+        try {
+            const body = await res.clone().json();
+            // Both URLs reach the same Worker and account. A completed AI
+            // failure is handled by sendToOCR's single lighter retry, rather
+            // than immediately repeating inference through the Pages proxy.
+            if (['AI_OCR_FAILED', 'AI_TIMEOUT', 'FREE_MODEL_UNAVAILABLE',
+                'PROVIDER_AI_QUOTA_REACHED', 'AI_OUTPUT_TRUNCATED'].includes(body?.code)) return false;
+        } catch (_) {}
+    }
+    return true;
 }
 
 const LEARNING_KEY = 'paperai_visual_confusions_v1';
@@ -6390,11 +6405,16 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
             throw new Error('AI service is temporarily busy. Please try this page again.');
         }
 
+        if (body?.code === 'FREE_MODEL_UNAVAILABLE') {
+            throw new Error(body.error || 'This OCR model is unavailable on the Cloudflare Free plan.');
+        }
+
         if (
             attempt === 0 &&
             (
                 res.status === 408 ||
                 body?.code === 'AI_TIMEOUT' ||
+                body?.code === 'AI_OUTPUT_TRUNCATED' ||
                 [502,503,504].includes(res.status)
             )
         ) {

@@ -17,7 +17,7 @@ export default {
   async fetch(request, env) {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-PaperAI-Owner',
     };
 
@@ -39,7 +39,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v29',
+        architecture: 'production-literal-ocr-v30',
       }, { headers: corsHeaders });
     }
 
@@ -47,7 +47,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v29',
+        architecture: 'production-literal-ocr-v30',
         model: '@cf/google/gemma-4-26b-a4b-it',
         ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
@@ -1273,6 +1273,13 @@ async function handleOCR(request, env, corsHeaders) {
   try {
     aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions, paperContext, detailImages);
   } catch (e) {
+    if (e?.code === 'AI_OUTPUT_TRUNCATED') {
+      return Response.json({
+        error: 'The AI read reached its output limit. Retry this page with a lighter scan to obtain a complete transcription.',
+        code: 'AI_OUTPUT_TRUNCATED',
+        retryable: true,
+      }, { status: 422, headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' } });
+    }
     if (isDailyFreeLimitError(e)) {
       return Response.json({
         error: 'Cloudflare rejected this OCR request with a daily free-quota error. PaperAI’s local usage meter does not block OCR.',
@@ -1365,7 +1372,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v29',
+        architecture: 'production-literal-ocr-v30',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1828,6 +1835,11 @@ ${paperContextInstruction}`;
 
   if (!response) throw lastError || new Error('AI OCR unavailable');
 
+  if (isAiOutputTruncated(response)) {
+    try { await recordAiUsage(env, response.usage || null); } catch (_) {}
+    throw Object.assign(new Error('The AI read reached its output token limit.'), { code: 'AI_OUTPUT_TRUNCATED' });
+  }
+
   let text = extractAiText(response);
   let usage = mergeAiUsage(response.usage || null, null);
   let rescued = false;
@@ -1891,7 +1903,7 @@ VERIFICATION RULES:
       const rescueText = extractAiText(rescueResponse);
       usage = mergeAiUsage(usage, rescueResponse.usage || null);
 
-      if (shouldAcceptVerifiedText(text, rescueText, imageMeta)) {
+      if (!isAiOutputTruncated(rescueResponse) && shouldAcceptVerifiedText(text, rescueText, imageMeta)) {
         text = rescueText;
         rescued = true;
       }
@@ -2201,6 +2213,11 @@ function mergeAiUsage(a, b) {
   return Object.keys(merged).length ? merged : (a || b || null);
 }
 
+function isAiOutputTruncated(response) {
+  return response?.finish_reason === 'length' ||
+    (response?.choices || []).some(choice => choice?.finish_reason === 'length');
+}
+
 function extractAiText(response) {
   if (!response) return '';
 
@@ -2245,9 +2262,12 @@ function aiErrorText(error) {
 
 function isDailyFreeLimitError(error) {
   const code = getAiProviderErrorCode(error);
-  if (code) return code === 3036;
   const s = aiErrorText(error);
-  return s.includes('daily free allocation') || s.includes('used up your daily free');
+  const quotaMessage = s.includes('daily free allocation') || s.includes('used up your daily free');
+  // Some binding responses expose 4006 instead of the documented 3036.
+  // Keep that original code, and require the quota wording for the alternate code.
+  if (code) return code === 3036 || (code === 4006 && quotaMessage);
+  return quotaMessage;
 }
 
 function getAiQuotaMessage(error) {
@@ -2259,14 +2279,14 @@ function getAiQuotaMessage(error) {
 }
 
 function getAiProviderErrorCode(error) {
-  // Report only documented provider codes, never arbitrary exception contents.
-  const known = [3036, 3040, 5035, 3023, 3041, 5018, 5016, 3007, 3008, 5007, 3042];
+  // Report provider codes and the observed alternate quota code, never arbitrary exception contents.
+  const known = [3036, 4006, 3040, 5035, 3023, 3041, 5018, 5016, 3007, 3008, 5007, 3042];
   const candidates = [error?.code, error?.cause?.code, error?.errors?.[0]?.code];
   for (const value of candidates) {
     const code = Number(value);
     if (known.includes(code)) return code;
   }
-  const match = aiErrorText(error).match(/\b(3036|3040|5035|3023|3041|5018|5016|3007|3008|5007|3042)\b/);
+  const match = aiErrorText(error).match(/\b(3036|4006|3040|5035|3023|3041|5018|5016|3007|3008|5007|3042)\b/);
   return match ? Number(match[1]) : null;
 }
 

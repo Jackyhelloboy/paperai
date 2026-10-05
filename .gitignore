@@ -14,6 +14,7 @@ backend/*.log
 
 # Frontend
 frontend/node_modules/
+node_modules/
 
 # Misc
 *.log

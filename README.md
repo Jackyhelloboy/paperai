@@ -1,108 +1,97 @@
 # PaperAI
 
-Extract text from question papers — Python OCR on Cloudflare Workers.
+PaperAI extracts photographed exam papers with Cloudflare Workers AI and produces editable Word documents.
 
-## Architecture
+## Production configuration
 
-```
-paperai/
-├── frontend/              # Static HTML → Cloudflare Pages
-│   ├── index.html
-│   └── vercel.json
-├── worker/                # Python Worker → Cloudflare Workers
-│   ├── src/entrypoint.py  # FastAPI + OpenCV OCR
-│   ├── pyproject.toml
-│   └── wrangler.toml
-├── backend/               # Standalone Python server (alternative)
-│   ├── main.py
-│   ├── ocr_engine.py
-│   ├── preprocessor.py
-│   ├── trainer.py
-│   └── requirements.txt
-└── .github/workflows/
-    ├── deploy.yml            # Frontend → Cloudflare Pages
-    ├── deploy-worker.yml     # Worker → Cloudflare Workers
-    ├── deploy-frontend.yml   # Frontend → Vercel (alt)
-    └── deploy-backend.yml    # Backend → Render (alt)
-```
+| Component | Implementation |
+| --- | --- |
+| Website | Static HTML and browser-side file readers on Cloudflare Pages |
+| API proxy | `functions/api/[[path]].js` forwards to the OCR Worker |
+| OCR service | JavaScript Worker in `worker/src/index.js` |
+| AI model | `@cf/google/gemma-4-26b-a4b-it`, through the `AI` binding |
+| Draft text and order | D1 |
+| Draft page photos | R2 |
+| Usage estimate and live presence | Durable Object |
+| Administrative training samples | KV |
 
-## Cloudflare Stack (Primary)
+Production website: https://paperai-5up.pages.dev  
+OCR Worker: https://paperai-ocr.mdjawaadkhan57.workers.dev
 
-| Component | Platform | Tech |
-|-----------|----------|------|
-| Frontend | Cloudflare Pages | Static HTML |
-| Backend | Cloudflare Workers | Python + FastAPI + OpenCV |
+Images and scanned PDFs use Cloudflare AI. The browser reads embedded PDF text, modern Office files, spreadsheets and text files locally where supported. Draft photos can be saved before OCR succeeds.
 
-### Worker Features
-- **OpenCV** preprocessing (deskew, shadow removal, contrast)
-- **Adaptive binarization** for text detection
-- **Region detection** with contour analysis
-- **Multi-variant processing** for accuracy
-- Runs on Cloudflare's edge (330+ locations)
+The Unlimited-OCR/vLLM/Kaggle experiment was removed on 4 October 2026 in commit `10b0342296a681cfd52dbfa432256185bc843af9`. Production does not call that server or read its provider-selection variables. The `backend/` Python PaddleOCR/EasyOCR service is legacy code, separate from that experiment, and is not called by the production website. Its Render deployment and keep-alive workflows are manual only. It has not been validated as a replacement production service.
+
+## OCR behavior
+
+- Preserve source wording, numbering, punctuation, scripts and answer blanks.
+- Use the same Cloudflare model for the initial scan and lighter retry.
+- Keep the full page; add overlapping detail images for dense or structured pages.
+- Enable reasoning only for hard or structured pages; the lighter retry disables it.
+- Verify suspicious output against the same source image.
+- Reject token-limited output rather than accepting an incomplete page.
+- Keep provider errors distinct from transport failures; the Pages proxy reaches the same account and cannot supply another AI quota.
+- No automatic paid model or paid-plan fallback.
+
+## Usage and quota
+
+The displayed PaperAI usage estimate resets at five-minute boundaries (:00, :05, :10, and so on). It is informational and does not block OCR.
+
+Cloudflare controls its separate daily free allocation. Its documented reset is 00:00 UTC (05:30 IST). Resetting the local display does not reset Cloudflare's quota. The Worker reports provider rejections when they occur and never treats its local estimate as proof of the account's remaining allowance.
 
 ## Deploy
 
-### Frontend (Cloudflare Pages)
-Push website changes to `main` in `Jackyhelloboy/paperai`. The
-`Deploy to Cloudflare Pages` GitHub Actions workflow validates and deploys
-the static files automatically. The root `wrangler.toml` specifies
-`pages_build_output_dir = "./frontend"`; no frontend build is required.
+Push changes to `main` in `Jackyhelloboy/paperai`.
 
-For a manual deployment, run this from the repository root:
+- `Deploy to Cloudflare Pages` validates the project and deploys `./frontend` using the root `wrangler.toml`.
+- `Deploy Cloudflare Worker` validates the project, resolves the D1 database ID, applies migrations, provisions R2 and deploys the Worker.
+- Both workflows run the full OCR, routing, draft and Word-export regression suite.
+
+GitHub Actions needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Keep credentials in GitHub/Cloudflare secrets.
+
+For a manual Pages deployment from the repository root:
+
 ```bash
 npx --yes wrangler@4.147.0 pages deploy --project-name=paperai --branch=main
 ```
 
-The frontend Pages configuration is separate from `worker/wrangler.toml`.
-Use the `Deploy Cloudflare Worker` workflow for the OCR service, including
-its database migrations and page-photo bucket setup.
+Deploy the production Worker through its GitHub workflow; the checked-in D1 ID is a placeholder replaced by that workflow. Do not deploy it unchanged.
 
-### Worker (Cloudflare Workers)
-In GitHub, open **Actions → Deploy Cloudflare Worker → Run workflow**.
-This provisions the D1 database and R2 bucket, applies migrations, and
-deploys using `worker/wrangler.toml` with the generated database ID.
+## Local checks
 
-## Local Development
+Use Node.js 22 or later:
 
-### Worker
+```bash
+npm ci --ignore-scripts
+npm test
+```
+
+For local Worker development:
+
 ```bash
 cd worker
-pip install pywrangler
-pywrangler dev
-# Worker runs at http://localhost:8787
+npx wrangler@4 dev --local
 ```
 
-### Backend (Alternative)
-```bash
-cd backend
-pip install -r requirements.txt
-python main.py
-# Server runs at http://localhost:8000
-```
+Local testing does not validate the real account's AI quota or production bindings.
 
-## API
+## Main API routes
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/ocr` | POST | Upload file for OCR |
-| `/api/eval` | POST | Evaluate accuracy |
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/health` | GET | Worker release, model and provider |
+| `/api/ocr` | POST | File extraction or image OCR |
+| `/api/usage` | GET | Informational five-minute usage estimate |
+| `/api/analyze-paper` | POST | Page grouping and continuity |
+| `/api/suggest-word` | POST | Capped same-model suggestions |
+| `/api/drafts` and subroutes | GET/POST/PUT/PATCH/DELETE | Draft creation, photos, text, titles and ordering |
+| `/api/live` | WebSocket | Current connected session count |
 
-## Environment Variables
+Drafts have a 30-minute idle expiry, best-effort discard on tab close/refresh, hourly cleanup and a one-day R2 photo expiry backstop.
 
-| Variable | Description |
-|----------|-------------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
-# Automatic usage updates
+## Live account diagnostics
 
-The PaperAI usage estimate resets at five-minute boundaries (:00, :05, :10,
-and so on). Durable Object alarms clear the local usage, owner counts and
-chart history; a request also recovers a missed reset. The browser refreshes
-every five minutes, when the countdown reaches zero, and when a tab becomes
-visible or reconnects. OCR stays enabled when the local estimate reaches zero.
+Run **Actions → Verify Cloudflare AI quota → Run workflow** to read Worker binding metadata, account usage analytics and one small owned-image production OCR probe. It uses existing deployment credentials only against Cloudflare's API and never sends those credentials to the public OCR endpoint.
 
-This local meter does not refill Cloudflare Workers AI's real free allocation.
-Cloudflare controls its daily reset at 00:00 UTC (05:30 India time). The API
-reports that separately as `provider_reset_at`. No paid model or plan is enabled.
+Analytics can be delayed or sampled; they do not expose the internal quota enforcement counter. See [PROJECT_AUDIT.md](PROJECT_AUDIT.md) for the restoration findings.
 
-Verify with `node tests/usage-reset.cjs`.

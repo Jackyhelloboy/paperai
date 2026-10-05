@@ -6,6 +6,8 @@ on:
     paths:
       - 'worker/**'
       - 'tests/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 
@@ -21,12 +23,8 @@ jobs:
 
       - name: Verify OCR integration and output
         run: |
-          node tests/usage-reset.cjs
-          node tests/provider-quota.cjs
-          node tests/advanced-ocr.cjs
-          node tests/output-sanitization.cjs
-          node tests/continuous-flow.cjs
-          node tests/drafts.cjs
+          npm ci --ignore-scripts
+          npm test
 
       # Creates the drafts database and the page-photo bucket if they are missing,
       # then writes the real database_id into a generated config for the deploy.

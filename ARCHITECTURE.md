@@ -1,4 +1,4 @@
-# PaperAI Production Architecture v9
+# PaperAI Production Architecture v30
 
 ## Goals
 
@@ -10,7 +10,7 @@ The production path is designed for Cloudflare Workers Free + Workers AI Free al
 
 1. Browser validates file type and size.
 2. Digital PDF, spreadsheet, modern Office and plain-text content is extracted locally when reliable text is already embedded.
-3. Photographed pages are first checked for a dominant light paper region. When reliable, PaperAI crops away background fabric/table/desk pixels before OCR.
+3. Photographed pages keep the full source frame, including margin numbers and faint headers. Automatic paper cropping is disabled in the current OCR path.
 4. Images/scanned pages are analyzed locally for:
    - contrast and sharpness
    - page density
@@ -18,11 +18,12 @@ The production path is designed for Cloudflare Workers Free + Workers AI Free al
    - multiple separated text groups on the same row
    - option/matching/two-column structure
    - simple line layout versus structured layout
-5. Simple handwriting/text pages use a compact line-mosaic that preserves left-to-right content and top-to-bottom order while removing large blank vertical gaps.
-6. Structured forms, tables, grids, diagrams, matching questions and option-heavy rows stay full-page so spatial relationships are not destroyed.
+5. Simple handwriting/text pages use one full-page frame, capped at a 2560-pixel long edge.
+6. Dense, hard or structured pages keep a 3200-pixel full-page frame and two overlapping detail views. A lighter retry uses one 2048-pixel frame and disables reasoning.
 7. Gemma 4 vision performs literal OCR with temperature 0.
-8. A second literal verification pass is used for hard/structured pages or when the first result is suspicious. It re-checks Indic graphemes, bracketed options, columns, symbols and edit marks against the pixels.
-8. Deterministic post-processing only normalizes Unicode and wrapper artifacts. It never spell-corrects or fact-corrects source text.
+8. A second literal verification pass is used when the first result has evidence of missing, unclear or degenerate text. It re-checks visible text against the pixels; a usable lighter retry skips it.
+9. Token-limited responses are rejected. The browser can retry once with a lighter scan of the same page and model.
+10. Deterministic post-processing only normalizes wrapper artifacts. It never spell-corrects or fact-corrects source text.
 9. API returns:
    - `full_text`: copy/download-safe literal text without PaperAI metadata labels
    - `annotated_text`: same visible content plus internal edit metadata for UI rendering of strike-throughs, replacements, circles, underlines, etc.
@@ -37,7 +38,7 @@ If a portion is genuinely unreadable, PaperAI keeps `[unclear]` rather than inve
 
 ## Speed and reliability
 
-- Clear/simple pages avoid reasoning mode and use compact line-mosaic preprocessing.
+- Clear/simple pages avoid reasoning mode and preserve the full frame.
 - Complex pages keep enough resolution for handwriting and symbols.
 - Workers AI `rejectIfBusy` avoids waiting in long capacity queues.
 - AI timeouts return a specific code so the browser can automatically retry a lighter image.
@@ -46,13 +47,13 @@ If a portion is genuinely unreadable, PaperAI keeps `[unclear]` rather than inve
 
 ## Live monitoring
 
-- `/api/usage` exposes PaperAI's estimated daily Workers AI usage.
+- `/api/usage` exposes PaperAI's five-minute usage estimate. It is advisory; Cloudflare's separate daily allocation remains the provider's responsibility.
 - `/api/live` is a hibernatable Durable Object WebSocket used only to show the number of currently connected browser sessions.
 - The live count does not use IP addresses, fingerprinting or persistent user identifiers.
 
 ## Production security
 
-Training/debug routes are admin-only. Without `ADMIN_TOKEN`, they return 404. Public production endpoints are limited to OCR, quota status, health and live presence.
+Training/debug routes are admin-only. Without `ADMIN_TOKEN`, they return 404. Draft routes require a browser owner key; OCR, usage, health, continuity analysis, suggestions and live presence are also available publicly.
 
 ## Model
 

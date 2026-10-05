@@ -21,6 +21,11 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Verify frontend, OCR integration and Word export
+        run: |
+          npm ci --ignore-scripts
+          npm test
+
       - name: Verify frontend files and current Pages settings
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
