@@ -23,7 +23,7 @@ const draft = html.slice(draftStart, draftEnd);
 assert(draft.includes('<section class="draft-sources"'), 'Source pages must stay directly visible');
 assert(!draft.includes('<details class="draft-sources"'), 'Source pages must not be hidden behind disclosure');
 assert(draft.includes('class="draft-document-menu"'), 'Close and delete belong in the document overflow menu');
-assert(draft.includes('id="draftAddBtn"') && draft.includes('+ Add pages'), 'Add pages stays directly available');
+assert(draft.includes('id="draftAddBtn"') && draft.includes('>+ Add</button>'), 'Add pages stays directly available with the compact mobile label');
 
 const renderStart = html.indexOf('function renderDraftPages() {');
 const renderEnd = html.indexOf('\nasync function loadDraftList()', renderStart);
