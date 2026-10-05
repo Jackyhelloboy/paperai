@@ -3669,9 +3669,17 @@
             padding-top: 0.7rem !important;
         }
 
-        .main.workflow-active[data-view="result"] .quota-card,
-        .main.workflow-active[data-view="result"] .upload-card {
+        .main.workflow-active[data-view="result"] .quota-card {
             display: none !important;
+        }
+
+        .main.workflow-active[data-view="result"] .upload-card {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            min-height: 0 !important;
         }
 
         .main.workflow-active[data-view="result"] .extraction-nav {
@@ -7509,10 +7517,12 @@ function openTeachPanel() {
     updateTeachButtons();
     renderTeachPreview();
 
-    requestAnimationFrame(() => {
-        $('outputCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const focusInlineEditor = () => {
+        $('outputCard')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
         teachEditor.focus();
-    });
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusInlineEditor);
+    else focusInlineEditor();
 }
 
 function closeTeachPanel() {
@@ -9156,8 +9166,10 @@ let lastCompletedSelection = [];
 function setExtractionView(view) {
     extractionView = view;
     const main = document.querySelector('.main');
-    main.classList.toggle('workflow-active', view !== 'select');
-    main.dataset.view = view;
+    if (main) {
+        main.classList.toggle('workflow-active', view !== 'select');
+        if (main.dataset) main.dataset.view = view;
+    }
     $('uploadControls').hidden = view !== 'select';
     $('extractionNav').hidden = view === 'select';
     $('draftsCard').hidden = view === 'processing' || view === 'error';
