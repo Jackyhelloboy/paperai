@@ -59,3 +59,7 @@ The five-minute display meter and local owner allowance have been retired. Accou
 - Verified character parity between a real DOCX file and UTF-8 TXT for a Hindi worksheet with numbered questions, blanks and six unsolved matching rows.
 - Added confident page-focused detail views while retaining the original full frame. Hindi option/matching exercises use an independent verification read, subject to the existing completeness checks and provider quota.
 - Larger Android typography/touch targets and visible usage report/reset timestamps replace the overly compressed phone presentation.
+
+### Live accuracy limits
+
+The uploaded notebook photo was tested in the production app. The detailed perception read recovered several previously misread Hindi and English entries, but some handwriting, option words and marks remained incorrect. The free model still needs human review; no hard-coded spelling substitutions were added. The Teach correction is shared by Extracted, TXT and Word. Browser download-event capture and a physical Android-device run were unavailable in this verification session; UTF-8 TXT/actual-DOCX character parity passed locally and in deployment tests.

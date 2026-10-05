@@ -1,4 +1,4 @@
-# PaperAI Production Architecture v32
+# PaperAI Production Architecture v33
 
 ## Goals
 
@@ -10,7 +10,7 @@ The production path is designed for Cloudflare Workers Free + Workers AI Free al
 
 1. Browser validates file type and size.
 2. Digital PDF, spreadsheet, modern Office and plain-text content is extracted locally when reliable text is already embedded.
-3. Photographed pages keep the full source frame, including margin numbers and faint headers. Automatic paper cropping is disabled in the current OCR path.
+3. Photographed pages keep the full source frame, including margin numbers and faint headers. The full frame is never automatically cropped; confidently detected paper bounds focus only the additional close-ups.
 4. Images/scanned pages are analyzed locally for:
    - contrast and sharpness
    - page density
@@ -20,15 +20,15 @@ The production path is designed for Cloudflare Workers Free + Workers AI Free al
    - simple line layout versus structured layout
 5. Simple handwriting/text pages use one full-page frame, capped at a 2560-pixel long edge.
 6. Dense, hard or structured pages keep a 3200-pixel full-page frame and two overlapping detail views. A lighter retry uses one 2048-pixel frame and disables reasoning.
-7. Gemma 4 vision performs literal OCR with temperature 0.
-8. A second literal verification pass is used when the first result has evidence of missing, unclear or degenerate text. It re-checks visible text against the pixels; a usable lighter retry skips it.
+7. Gemma 4 vision performs literal OCR with temperature 0. Literal handwriting and matching exercises skip reasoning tokens; branching diagrams retain reasoning.
+8. A second literal verification pass is used for Hindi option/matching exercises or evidence of missing, unclear or degenerate text. Hindi exercise verification reads the image independently without anchoring to the first transcription. It re-checks visible text against the pixels; a usable lighter retry skips it.
 9. Token-limited responses are rejected. The browser can retry once with a lighter scan of the same page and model.
 10. Deterministic post-processing only normalizes wrapper artifacts. It never spell-corrects or fact-corrects source text.
-9. API returns:
+11. API returns:
    - `full_text`: copy/download-safe literal text without PaperAI metadata labels
    - `annotated_text`: same visible content plus internal edit metadata for UI rendering of strike-throughs, replacements, circles, underlines, etc.
    - `raw_text`: raw model transcription for debugging/review
-10. The browser renders visual edit metadata but copies/downloads `full_text`, so synthetic labels are not inserted into exported text.
+12. Extracted preview, Copy, UTF-8 TXT and Word use the same corrected structured source. The shared parser removes synthetic metadata from visible text while preserving rows, numbers and answer blanks.
 
 ## Anti-hallucination rules
 
@@ -38,7 +38,7 @@ If a portion is genuinely unreadable, PaperAI keeps `[unclear]` rather than inve
 
 ## Speed and reliability
 
-- Clear/simple pages avoid reasoning mode and preserve the full frame.
+- Literal text and handwriting pages avoid reasoning mode and preserve the full frame; actual branching diagrams can use reasoning.
 - Complex pages keep enough resolution for handwriting and symbols.
 - Workers AI `rejectIfBusy` avoids waiting in long capacity queues.
 - AI timeouts return a specific code so the browser can automatically retry a lighter image.
