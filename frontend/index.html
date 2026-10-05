@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#ffffff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -16,6 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
     <script src="vendor/paperai-word-engine.js?v=37"></script>
+    <script src="vendor/paperai-word-fonts.js?v=1"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -3184,17 +3185,20 @@
         @media (prefers-reduced-motion:reduce) { .scan-spinner, .progress-fill.indeterminate { animation:none; } }
 
         /* Compact usage and document-focused navigation on every screen. */
-        .quota-card { padding:0.75rem 0.9rem !important; margin-bottom:1rem !important; border-radius:12px !important; }
+        .quota-card { padding:0.75rem 0.9rem !important; margin-bottom:1rem !important; border-radius:14px !important; background:linear-gradient(135deg,#f8fbff,white 65%); border-color:#dce6f2; box-shadow:0 2px 8px rgba(15,23,42,0.035); }
         .quota-head { align-items:center !important; margin-bottom:0.55rem !important; gap:0.5rem; }
-        .quota-title { font-size:0.8rem !important; }
+        .quota-title { font-size:0.8rem !important; display:flex; align-items:center; gap:0.45rem; }
+        .quota-title svg { width:19px; height:19px; color:var(--accent); flex-shrink:0; }
         .quota-live { max-width:none; white-space:nowrap; font-size:0.72rem !important; padding:0.3rem 0.55rem !important; }
         #quotaBadge[data-state="checking"] { background:var(--surface2); color:var(--text2); }
         #quotaBadge[data-state="offline"] { background:#fef2f2; color:#b91c1c; }
         #quotaBadge[data-state="active"] { background:var(--green-soft); color:var(--green); }
-        .quota-stats { display:flex; justify-content:space-between; gap:1rem !important; margin-bottom:0.55rem !important; }
-        .quota-stat { display:flex; align-items:baseline; gap:0.4rem; padding:0 !important; border:0; background:none; border-radius:0 !important; min-width:0; flex-wrap:wrap; }
+        .quota-stats { display:grid; grid-template-columns:1fr 1fr; gap:1rem !important; margin-bottom:0.65rem !important; }
+        .quota-stat { display:flex; flex-direction:column; align-items:flex-start; gap:0.15rem; padding:0 !important; border:0; background:none; border-radius:0 !important; min-width:0; }
+        .quota-stat + .quota-stat { border-left:1px solid #dce6f2; padding-left:1rem !important; }
         .quota-stat-label { font-size:0.73rem !important; text-transform:none; letter-spacing:0; margin:0; }
-        .quota-stat-value { font-size:0.94rem !important; }
+        .quota-stat-value { font-size:1.12rem !important; font-weight:700; }
+        #quotaRemaining { color:var(--accent); }
         .quota-track { height:4px !important; border:0; }
         .quota-details { margin-top:0.2rem; font-size:0.74rem; color:var(--text2); }
         .quota-details > summary { cursor:pointer; min-height:32px; display:flex; align-items:center; justify-content:space-between; gap:0.6rem; list-style:none; }
@@ -3254,7 +3258,7 @@
         <section class="quota-card" id="quotaCard" aria-live="polite">
             <div class="quota-head">
                 <div>
-                    <div class="quota-title">Cloudflare AI · daily usage</div>
+                    <div class="quota-title"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 18a5 5 0 1 1 .1-10A6 6 0 0 1 19 9a4.5 4.5 0 0 1-1 9H7Z"/></svg><span>Cloudflare AI · daily usage</span></div>
                 </div>
                 <div class="quota-live" id="quotaBadge" data-state="checking" title="Checking the PaperAI backend connection">
                     <span class="quota-live-dot"></span>
@@ -9329,14 +9333,21 @@ async function makeExtractedDocxLegacy(structuredText) {
 }
 
 async function makeExtractedDocx(structuredText) {
+    let blob;
     if (window.PaperAIWordEngine?.available?.()) {
         try {
-            return await window.PaperAIWordEngine.makeDocx(structuredText);
+            blob = await window.PaperAIWordEngine.makeDocx(structuredText);
         } catch (error) {
             console.warn('PaperAI modern Word engine failed; using legacy exporter.', error);
         }
     }
-    return await makeExtractedDocxLegacy(structuredText);
+    if (!blob) blob = await makeExtractedDocxLegacy(structuredText);
+    if (/[\u0900-\u097f]/u.test(structuredText)) {
+        if (!window.PaperAIWordFonts) throw new Error('Hindi Word font support did not load. Refresh and export again.');
+        // Apply to both exporters. Font failures must not silently download an unreadable file.
+        blob = await window.PaperAIWordFonts.finalize(blob, structuredText);
+    }
+    return blob;
 }
 
 function currentStructuredWordText() {
