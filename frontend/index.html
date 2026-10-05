@@ -14,10 +14,10 @@
     <script src="vendor/indic-transliterate.js"></script>
     <script src="vendor/paperai-teacher-tools.js?v=1"></script>
     <script src="vendor/paperai-math.js?v=1"></script>
-    <script src="vendor/paperai-document-model.js?v=38"></script>
+    <script src="vendor/paperai-document-model.js?v=39"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
-    <script src="vendor/paperai-word-engine.js?v=38"></script>
+    <script src="vendor/paperai-word-engine.js?v=39"></script>
     <script src="vendor/paperai-word-fonts.js?v=2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4034,7 +4034,7 @@ async function renderPdfPreviewCard(f, container) {
         loadingTask = pdfjsLib.getDocument({ data });
         const pdf = await loadingTask.promise;
         const limit = Math.min(pdf.numPages, 3);
-        const fragment = document.createDocumentFragment();
+        let firstPreviewRendered = false;
 
         for (let pageNumber = 1; pageNumber <= limit; pageNumber++) {
             if (!container.isConnected) return;
@@ -4051,15 +4051,22 @@ async function renderPdfPreviewCard(f, container) {
             const img = document.createElement('img');
             img.alt = 'PDF page ' + pageNumber;
             img.src = canvas.toDataURL('image/jpeg', 0.72);
-            fragment.appendChild(img);
+
+            if (!container.isConnected) {
+                page.cleanup();
+                return;
+            }
+            if (!firstPreviewRendered) {
+                container.innerHTML = '';
+                firstPreviewRendered = true;
+            }
+            container.appendChild(img);
+
             canvas.width = canvas.height = 0;
             page.cleanup();
         }
 
         if (!container.isConnected) return;
-        container.innerHTML = '';
-        container.appendChild(fragment);
-
         const index = Number(String(container.id || '').replace('pdfPreview_', ''));
         const meta = Number.isInteger(index) ? $('batchMeta_' + index) : null;
         if (meta) {
@@ -4154,16 +4161,20 @@ function setFiles(inputFiles, append = false) {
     const incoming = Array.from(inputFiles || []);
     if (!incoming.length) return;
 
+    let selectionNotice = '';
     const valid = [];
     for (const f of incoming) {
         const error = validateUploadFile(f);
         if (error) {
-            showErr(error);
+            if (!selectionNotice) selectionNotice = error;
             continue;
         }
         valid.push(f);
     }
-    if (!valid.length) return;
+    if (!valid.length) {
+        if (selectionNotice) showErr(selectionNotice);
+        return;
+    }
 
     const next = append ? [...files, ...valid] : valid;
     const imageCount = next.filter(f => IMAGE_EXTS.includes(f.name.split('.').pop().toLowerCase())).length;
@@ -4241,7 +4252,7 @@ clearBtn.onclick = clearFile;
 
 batchPreview.onclick = e => {
     const previewMedia = e.target.closest('.batch-preview-media');
-    const previewImage = previewMedia?.querySelector('img');
+    const previewImage = e.target.closest('img') || previewMedia?.querySelector('img');
     if (previewImage?.src) {
         const card = previewMedia.closest('.batch-preview-card');
         const name = card?.dataset.fileName || 'Document preview';
