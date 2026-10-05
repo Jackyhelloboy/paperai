@@ -1218,7 +1218,7 @@ async function handleOCR(request, env, corsHeaders) {
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
         verification_pass_used: false,
-        ai_reads: 1,
+        ai_reads: Math.max(1, Number(aiResult.attempts) || 1),
         image_profile: imageMeta || {},
         learning_hints_used: learningHints.length,
         layout: detectExamLayout(plainText),
@@ -1508,8 +1508,18 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
   const imageContent = [
     { type: 'text', text: 'Full source page. Use this frame for reading order, numbering and layout.' },
     { type: 'image_url', image_url: { url: dataUrl } },
-
   ];
+  for (const [index, detail] of detailImages.slice(0, 2).entries()) {
+    if (!detail?.base64) continue;
+    imageContent.push({
+      type: 'text',
+      text: 'Detail view ' + (index + 1) + ' of the SAME source page. Use it only to resolve small/faint characters; never treat it as another page.'
+    });
+    imageContent.push({
+      type: 'image_url',
+      image_url: { url: 'data:' + (detail.mimeType || 'image/webp') + ';base64,' + detail.base64 }
+    });
+  }
   const layoutSection = imageMeta?.structuredLayout
     ? '\nVISUAL LAYOUT HINT:\nThis page contains structured geometry. Preserve rows, columns, long answer lines and connected relationships. Detected multi-column rows: ' +
       (Number(imageMeta?.multiColumnRows) || 0) +
@@ -1565,6 +1575,31 @@ If a section heading or numbered question is visible, do not omit it merely beca
 `
     : '';
 
+  const patternHints = Array.isArray(paperContext?.pattern_hints)
+    ? paperContext.pattern_hints.slice(0, 8).map(pattern => ({
+        class: pattern?.class == null ? null : String(pattern.class).slice(0, 40),
+        subject: pattern?.subject == null ? null : String(pattern.subject).slice(0, 60),
+        exam: pattern?.exam == null ? null : String(pattern.exam).slice(0, 60),
+        sections: Array.isArray(pattern?.sections)
+          ? pattern.sections.slice(0, 16).map(section => ({
+              label: section?.label == null ? null : String(section.label).slice(0, 16),
+              marks: section?.marks == null ? null : String(section.marks).slice(0, 32),
+              expected_items: Number.isFinite(Number(section?.expected_items))
+                ? Math.max(0, Math.min(99, Number(section.expected_items)))
+                : null
+            }))
+          : []
+      }))
+    : [];
+  const patternHintInstruction = patternHints.length
+    ? `
+QUESTION-PAPER PATTERN MEMORY (STRUCTURE ONLY):
+${JSON.stringify(patternHints)}
+Use these prior local patterns only as weak hints for section order, numbering shape, marks placement and continuation. The CURRENT PAGE PIXELS are the only source for words.
+Never copy a prior question, section instruction, subject word or missing phrase into the transcription. If current pixels do not show a word, use [unclear] rather than inferring it from a pattern.
+`
+    : '';
+
   const languageHint = {
     auto: 'Auto-detect all visible languages and scripts. Mixed-language pages are common.',
     en: 'Main language: English. Preserve any Indian-language text exactly where it appears.',
@@ -1600,6 +1635,9 @@ For matching exercises and columns, keep each left entry and its adjacent right 
 Use one COLUMN_ROW per actual source row, including its visible item number. Never pair or solve the entries. For a bordered table, use TABLE_START/TABLE_ROW/TABLE_END with the same row fields and preserve every visible row and column. For a labelled branch diagram, use BRANCH_ROOT, BRANCH_ITEM (left label || right label), and BRANCH_END. Preserve visible mathematics, arrows and editing marks without inventing shapes or labels. For an actual visible equation or mathematical expression, write its literal notation as LaTeX inside $...$, including fractions, roots, powers, subscripts, integrals, sums and matrices. Never solve it or change numbers. Ordinary prose, mark formulas and currency amounts stay ordinary text. Unreadable mathematical terms stay [unclear], not guesses.
 
 Before the final answer, check that every visible question/item number has its text and that no header, section, short word or option was dropped. Return only the complete transcription, with no discussion, thinking text, duplicate headings, filenames or invented sections.
+${layoutSection}
+${layoutProfileInstruction}
+${patternHintInstruction}
 ${learningSection}
 ${paperContextInstruction}`;
 
@@ -1628,7 +1666,22 @@ ${paperContextInstruction}`;
     }
   };
 
-  const response = await runCloudflareAI(env, model, requestBody, { rejectIfBusy: true });
+  let response;
+  let attempts = 0;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    attempts++;
+    try {
+      response = await runCloudflareAI(env, model, requestBody, { rejectIfBusy: true });
+      break;
+    } catch (error) {
+      const retryable = isAiTimeoutError(error) || isTransientAiError(error);
+      if (attempt === 0 && retryable) {
+        await new Promise(resolve => setTimeout(resolve, 350));
+        continue;
+      }
+      throw error;
+    }
+  }
   if (isAiOutputTruncated(response)) {
     throw Object.assign(new Error('The AI read reached its output token limit. Retry is available manually.'), { code: 'AI_OUTPUT_TRUNCATED' });
   }
@@ -1640,7 +1693,7 @@ ${paperContextInstruction}`;
     throw new Error('The image read produced repetitive empty rows. Please retry with a clearer page image.');
   }
   text = sanitizePromptTemplateLeakage(text);
-  return { text, raw: text, model, usage, scanMode, rescued };
+  return { text, raw: text, model, usage, scanMode, rescued, attempts };
 }
 
     function normalizeQuestionMetadata(value) {
