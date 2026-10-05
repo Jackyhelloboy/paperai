@@ -4,12 +4,12 @@ const vm = require('node:vm');
 const html = fs.readFileSync('frontend/index.html', 'utf8');
 function element() {
   const classes = new Set();
-  return {hidden:false,disabled:false,style:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x)},scrollIntoView(){}};
+  return {hidden:false,disabled:false,style:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x),toggle:(x,on)=>on?classes.add(x):classes.delete(x)},scrollIntoView(){}};
 }
 const elements = new Map();
 const $ = id => {if(!elements.has(id))elements.set(id,element());return elements.get(id);};
 let resolvePending, seenSignal, calls = 0, errors = [], mode = 'pending', clears = 0;
-const ctx = vm.createContext({$,AbortController,DOMException,WeakMap,files:[{name:'page.txt',size:40}],
+const ctx = vm.createContext({$,document:{querySelector:()=>$("main")},AbortController,DOMException,WeakMap,files:[{name:'page.txt',size:40}],
   goBtn:$('goBtn'),resBox:$('resBox'),prog:$('prog'),teachPanel:$('teachPanel'),textOut:$('textOut'),
   preparedImageCache:new WeakMap(),lastResult:null,showingRaw:false,
   resetSmartExtraction:()=>clears++,startSmartExtractionForFiles:()=>calls++,updateSmartExtractionUI(){},
@@ -24,10 +24,12 @@ vm.runInContext(html.slice(html.indexOf("let extractionView = 'select'"),html.in
 (async()=>{
   const first = ctx.startExtraction();
   assert($('uploadControls').hidden && !$('extractionNav').hidden,'Processing hides uploads and shows Back');
+  assert($('main').classList.contains('workflow-active'),'Processing enables compact document-focused layout');
   assert.equal(calls,1);
   ctx.goBackToUpload();
   assert(seenSignal.aborted,'Back aborts the active request');
   assert(!$('uploadControls').hidden && $('extractionNav').hidden);
+  assert(!$('main').classList.contains('workflow-active'),'Back restores the upload layout');
   assert.equal(ctx.files.length,1,'Back preserves selected files for replacement or retry');
   resolvePending({pages:[{text:'STALE RESULT'}]});await first;
   assert.equal(ctx.lastResult,null,'A cancelled run cannot overwrite the result');

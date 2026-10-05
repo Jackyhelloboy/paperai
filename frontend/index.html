@@ -3182,6 +3182,50 @@
         @keyframes scan-spin { to { transform:rotate(360deg); } }
         @keyframes scan-progress { 0% { transform:translateX(-110%); } 100% { transform:translateX(370%); } }
         @media (prefers-reduced-motion:reduce) { .scan-spinner, .progress-fill.indeterminate { animation:none; } }
+
+        /* Compact usage and document-focused navigation on every screen. */
+        .quota-card { padding:0.75rem 0.9rem !important; margin-bottom:1rem !important; border-radius:12px !important; }
+        .quota-head { align-items:center !important; margin-bottom:0.55rem !important; gap:0.5rem; }
+        .quota-title { font-size:0.8rem !important; }
+        .quota-live { max-width:none; white-space:nowrap; font-size:0.72rem !important; padding:0.3rem 0.55rem !important; }
+        #quotaBadge[data-state="checking"] { background:var(--surface2); color:var(--text2); }
+        #quotaBadge[data-state="offline"] { background:#fef2f2; color:#b91c1c; }
+        #quotaBadge[data-state="active"] { background:var(--green-soft); color:var(--green); }
+        .quota-stats { display:flex; justify-content:space-between; gap:1rem !important; margin-bottom:0.55rem !important; }
+        .quota-stat { display:flex; align-items:baseline; gap:0.4rem; padding:0 !important; border:0; background:none; border-radius:0 !important; min-width:0; flex-wrap:wrap; }
+        .quota-stat-label { font-size:0.73rem !important; text-transform:none; letter-spacing:0; margin:0; }
+        .quota-stat-value { font-size:0.94rem !important; }
+        .quota-track { height:4px !important; border:0; }
+        .quota-details { margin-top:0.2rem; font-size:0.74rem; color:var(--text2); }
+        .quota-details > summary { cursor:pointer; min-height:32px; display:flex; align-items:center; justify-content:space-between; gap:0.6rem; list-style:none; }
+        .quota-details > summary::-webkit-details-marker { display:none; }
+        .quota-details-toggle { color:var(--accent); font-weight:600; }
+        .quota-details-toggle::after { content:' +'; }
+        .quota-details[open] .quota-details-toggle::after { content:' −'; }
+        .quota-details-body { border-top:1px solid var(--border); padding-top:0.65rem; line-height:1.6; }
+        .quota-times { display:grid !important; grid-template-columns:1fr 1fr; gap:0.6rem !important; margin:0.6rem 0 0; padding:0; border:0; }
+        .quota-time-label { font-size:0.65rem !important; }
+        .quota-time-value { font-size:0.73rem !important; overflow-wrap:anywhere; }
+        .quota-details-body p { margin:0; }
+        .extraction-nav { gap:0.65rem; margin:0 0 0.8rem; padding:0 0 0.65rem; border-bottom:1px solid var(--border); }
+        #extractionBack { background:transparent; border:0; padding:0.5rem 0.2rem; border-radius:6px; color:var(--accent); }
+        #extractionBack:hover { background:#eff6ff; }
+        .extraction-heading { min-width:0; }
+        #extractionStatus { min-width:0; font-size:0.85rem; }
+        #extractionFileName { font-size:0.73rem; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+        .main.workflow-active { padding-top:1rem !important; }
+        .workflow-active .hero { display:none; }
+        .workflow-active .upload-card { background:none; border:0; box-shadow:none; padding:0 !important; margin:0; animation:none; }
+        .workflow-active .results { margin-top:0.6rem; }
+        .workflow-active .progress-wrap { margin:0 0 1rem; }
+        .workflow-active .error-toast.show { margin:0 0 1rem; }
+        @media (max-width:640px) {
+            .quota-card { padding:0.6rem 0.7rem !important; }
+            .quota-details > summary { min-height:44px; }
+            .quota-times { grid-template-columns:1fr; }
+            .extraction-nav { flex-wrap:nowrap; }
+            #extractionRetry { font-size:0.75rem; padding:0.45rem; }
+        }
     </style>
 </head>
 <body>
@@ -3197,6 +3241,11 @@
     </header>
 
     <main class="main">
+        <div id="extractionNav" class="extraction-nav" hidden>
+            <button class="draft-btn ghost" id="extractionBack" type="button">← Go back</button>
+            <div class="extraction-heading"><span id="extractionStatus" role="status" aria-live="polite"></span><span id="extractionFileName"></span></div>
+            <button class="draft-btn" id="extractionRetry" type="button" hidden>Retry</button>
+        </div>
         <div class="hero">
             <h1>Extract text from anything</h1>
             <p>Images, handwriting, PDFs, Word, PowerPoint, Excel and text — with free-only AI OCR</p>
@@ -3206,17 +3255,16 @@
             <div class="quota-head">
                 <div>
                     <div class="quota-title">Cloudflare AI · daily usage</div>
-                    <div class="quota-subtitle">Cloudflare's daily allowance resets at 05:30 IST (00:00 UTC).</div>
                 </div>
-                <div class="quota-live" id="quotaBadge">
+                <div class="quota-live" id="quotaBadge" data-state="checking" title="Checking the PaperAI backend connection">
                     <span class="quota-live-dot"></span>
-                    <span id="quotaBadgeText">Loading</span>
+                    <span id="quotaBadgeText">Checking</span>
                 </div>
             </div>
 
             <div class="quota-stats">
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Reported remaining</span>
+                    <span class="quota-stat-label">Remaining</span>
                     <span class="quota-stat-value" id="quotaRemaining">—</span>
                 </div>
                 <div class="quota-stat">
@@ -3228,16 +3276,12 @@
             <div class="quota-track" title="Cloudflare-reported daily neuron usage">
                 <div class="quota-fill" id="quotaFill"></div>
             </div>
-            <div class="quota-scale">
-                <span id="quotaPercent">Loading usage</span>
-                <span>10,000 Neurons per day</span>
-            </div>
-            <div class="quota-scale">
-                <span id="quotaMine">Loading Cloudflare usage</span>
-                <span>Controlled by Cloudflare</span>
-            </div>
-
-            <div class="quota-times">
+            <details class="quota-details">
+                <summary><span id="quotaPercent">Loading usage</span><span class="quota-details-toggle">Details</span></summary>
+                <div class="quota-details-body">
+                    <p>10,000 Neurons/day · resets at 05:30 IST (00:00 UTC).</p>
+                    <p id="quotaMine">Loading Cloudflare usage</p>
+                    <div class="quota-times">
                 <div>
                     <span class="quota-time-label">Usage last updated</span>
                     <span class="quota-time-value" id="quotaNow">—</span>
@@ -3246,16 +3290,13 @@
                     <span class="quota-time-label">Cloudflare daily reset</span>
                     <span class="quota-time-value" id="quotaReset">—</span>
                 </div>
-            </div>
+                    </div>
+                </div>
+            </details>
 
         </section>
 
         <div class="upload-card">
-            <div id="extractionNav" class="extraction-nav" hidden>
-                <button class="draft-btn ghost" id="extractionBack" type="button">← Go back</button>
-                <div class="extraction-heading"><span id="extractionStatus" role="status" aria-live="polite"></span><span id="extractionFileName"></span></div>
-                <button class="draft-btn" id="extractionRetry" type="button" hidden>Retry extraction</button>
-            </div>
             <div id="uploadControls">
             <div class="upload-zone" id="dropZone">
                 <div class="upload-icon">
@@ -3754,24 +3795,54 @@ async function loadUsage() {
             : 'Cloudflare-reported usage may be delayed.';
         quotaCard.classList.toggle('warning', known && pct >= 75 && pct < 100);
         quotaCard.classList.toggle('exhausted', observation.state === 'quota-reached');
-        quotaBadgeText.textContent = observation.state === 'quota-reached' ? 'Cloudflare quota reached'
-            : data.report_status === 'stale' ? 'Last report' : known ? 'Cloudflare reported' : 'Unavailable';
+        if (mine && observation.state !== 'quota-reached' && data.report_status === 'stale') {
+            mine.textContent = 'Last available report · Cloudflare usage may be delayed.';
+        }
         updateQuotaClock();
     } catch (_) {
         // Do not fabricate a full allowance when the report cannot be read.
-        quotaBadgeText.textContent = 'Update unavailable';
+        quotaPercent.textContent = 'Usage update unavailable';
         updateQuotaClock();
     } finally { quotaLoading = false; }
+}
+
+let serviceHealthLoading = false;
+let serviceHealthEpoch = 0;
+function setServiceStatus(state) {
+    const badge = $('quotaBadge');
+    badge.dataset.state = state;
+    quotaBadgeText.textContent = state === 'active' ? 'Active' : state === 'offline' ? 'Offline' : 'Checking';
+    badge.title = state === 'active' ? 'PaperAI frontend is loaded and its backend is responding. AI availability is controlled by Cloudflare.'
+        : state === 'offline' ? 'The PaperAI backend could not be reached. Check your connection or try again later.'
+        : 'Checking the PaperAI backend connection';
+}
+async function checkServiceHealth() {
+    if (navigator.onLine === false) { serviceHealthEpoch++; setServiceStatus('offline'); return; }
+    if (serviceHealthLoading) return;
+    serviceHealthLoading = true;
+    const epoch = ++serviceHealthEpoch;
+    try {
+        // This health request does not run inference or consume AI neurons.
+        const response = await fetch(API_DIRECT + '/health?t=' + Date.now(), {cache:'no-store',signal:AbortSignal.timeout(8000)});
+        if (!response.ok) throw new Error('Backend unavailable');
+        const health = await response.json();
+        if (epoch === serviceHealthEpoch) setServiceStatus(health.status === 'healthy' ? 'active' : 'offline');
+    } catch (_) {
+        if (epoch === serviceHealthEpoch) setServiceStatus('offline');
+    } finally { serviceHealthLoading = false; }
 }
 
 updateQuotaClock();
 setInterval(updateQuotaClock, 1000);
 void loadUsage();
+void checkServiceHealth();
 setInterval(loadUsage, QUOTA_REFRESH_MS);
+setInterval(() => { if (document.visibilityState === 'visible') void checkServiceHealth(); }, QUOTA_REFRESH_MS);
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void loadUsage();
+    if (document.visibilityState === 'visible') { void loadUsage(); void checkServiceHealth(); }
 });
-window.addEventListener('online', () => { void loadUsage(); });
+window.addEventListener('online', () => { void loadUsage(); void checkServiceHealth(); });
+window.addEventListener('offline', () => { serviceHealthEpoch++; setServiceStatus('offline'); });
 
 let presenceSocket = null;
 let presenceRetry = null;
@@ -3800,7 +3871,7 @@ function connectPresence() {
         };
 
         presenceSocket.onclose = () => {
-            onlineCount.textContent = 'Online';
+            onlineCount.textContent = navigator.onLine === false ? 'Offline' : 'Reconnecting';
             presenceRetry = setTimeout(connectPresence, 5000);
         };
 
@@ -3808,7 +3879,7 @@ function connectPresence() {
             try { presenceSocket.close(); } catch (_) {}
         };
     } catch (_) {
-        onlineCount.textContent = 'Online';
+        onlineCount.textContent = navigator.onLine === false ? 'Offline' : 'Reconnecting';
         presenceRetry = setTimeout(connectPresence, 8000);
     }
 }
@@ -7572,6 +7643,7 @@ let extractionController = null;
 let lastCompletedSelection = [];
 function setExtractionView(view) {
     extractionView = view;
+    document.querySelector('.main').classList.toggle('workflow-active', view !== 'select');
     $('uploadControls').hidden = view !== 'select';
     $('extractionNav').hidden = view === 'select';
     $('draftsCard').hidden = view !== 'select';

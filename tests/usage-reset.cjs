@@ -33,15 +33,15 @@ async function flush(){await new Promise(resolve=>setImmediate(resolve));}
  snapshot.reported_used=12500;assert.equal((await worker.getUsageStatus(env)).reported_used,12500);
  assert.equal((await worker.getUsageStatus(env)).reported_remaining,0,'Do not truncate account-wide usage to the free allowance');
  snapshot.reported_used=12.5;
- const elements={};for(const name of ['quotaNow','quotaReset','quotaRemaining','quotaUsed','quotaFill','quotaPercent','quotaBadgeText','quotaMine','quotaCard'])
-  elements[name]={textContent:'',style:{},classList:{toggle(){},remove(){}}};
- const intervals=[],listeners={};let offline=false;
- const front=vm.createContext({...elements,Date:ClockDate,Intl,Number,AbortSignal,console,API_LOCAL:'/local',API_DIRECT:'https://worker.example',
+ const elements={};for(const name of ['quotaNow','quotaReset','quotaRemaining','quotaUsed','quotaFill','quotaPercent','quotaBadgeText','quotaMine','quotaCard','quotaBadge'])
+  elements[name]={textContent:'',dataset:{},style:{},classList:{toggle(){},remove(){}}};
+ const intervals=[],listeners={};let offline=false, healthOk=true, delayedHealth=null;const requests=[];const browserNetwork={onLine:true};
+ const front=vm.createContext({...elements,$:id=>elements[id],navigator:browserNetwork,Date:ClockDate,Intl,Number,AbortSignal,console,API_LOCAL:'/local',API_DIRECT:'https://worker.example',
   document:{visibilityState:'visible',getElementById:id=>elements[id],addEventListener:(name,fn)=>listeners[name]=fn},
   window:{addEventListener:(name,fn)=>listeners[name]=fn},setInterval:(fn,ms)=>intervals.push({fn,ms}),
-  fetch:async()=>{if(offline)throw new Error('offline');return {ok:true,json:()=>worker.getUsageStatus(env)};}});
+  fetch:async url=>{requests.push(url);if(url.includes('/health')){if(delayedHealth)return delayedHealth;if(!healthOk)throw new Error('backend offline');return {ok:true,json:async()=>({status:'healthy'})};}if(offline)throw new Error('offline');return {ok:true,json:()=>worker.getUsageStatus(env)};}});
  const html=fs.readFileSync('frontend/index.html','utf8');vm.runInContext(html.slice(html.indexOf('let quotaResetAt = null;'),html.indexOf('let presenceSocket = null;')),front);
- await flush();assert.equal(elements.quotaUsed.textContent,'12.5');assert.equal(elements.quotaBadgeText.textContent,'Cloudflare reported');
+ await flush();assert.equal(elements.quotaUsed.textContent,'12.5');assert.equal(elements.quotaBadgeText.textContent,'Active');
  assert(!html.includes('5 minute window') && !html.includes('Local meter resets'));
  assert(elements.quotaReset.textContent.includes('00:00 UTC'));assert(!intervals.some(x=>x.ms===300000));
  clock+=300000;vm.runInContext('updateQuotaClock()',front);assert.equal(elements.quotaUsed.textContent,'12.5');
@@ -49,6 +49,18 @@ async function flush(){await new Promise(resolve=>setImmediate(resolve));}
  assert.equal(elements.quotaUsed.textContent,'—');assert.equal(elements.quotaRemaining.textContent,'—');
  snapshot={report_date_utc:'2026-10-07',reported_used:48,fetched_at:'2026-10-07T00:00:00Z'};listeners.online();await flush();
  assert.equal(elements.quotaUsed.textContent,'48');offline=true;await vm.runInContext('loadUsage()',front);
- assert.equal(elements.quotaUsed.textContent,'48','Failed refresh must not fabricate a full allowance');assert.equal(elements.quotaBadgeText.textContent,'Update unavailable');
+ assert.equal(elements.quotaUsed.textContent,'48','Failed refresh must not fabricate a full allowance');assert.equal(elements.quotaPercent.textContent,'Usage update unavailable');
+ assert.equal(elements.quotaBadgeText.textContent,'Active','Usage reporting errors must not mislabel a reachable backend as Offline');
+ healthOk=false;await vm.runInContext('checkServiceHealth()',front);assert.equal(elements.quotaBadgeText.textContent,'Offline');
+ healthOk=true;await vm.runInContext('checkServiceHealth()',front);assert.equal(elements.quotaBadgeText.textContent,'Active');
+ browserNetwork.onLine=false;listeners.offline();assert.equal(elements.quotaBadgeText.textContent,'Offline');
+ const offlineRequests=requests.length;await vm.runInContext('checkServiceHealth()',front);assert.equal(requests.length,offlineRequests,'Offline browsers do not issue health requests');
+ browserNetwork.onLine=true;offline=false;listeners.online();await flush();assert.equal(elements.quotaBadgeText.textContent,'Active');
+ let releaseHealth;delayedHealth=new Promise(resolve=>releaseHealth=resolve);const pending=vm.runInContext('checkServiceHealth()',front);listeners.offline();
+ releaseHealth({ok:true,json:async()=>({status:'healthy'})});await pending;assert.equal(elements.quotaBadgeText.textContent,'Offline','A stale health response cannot overwrite the offline event');
+ delayedHealth=null;await vm.runInContext('checkServiceHealth()',front);assert.equal(elements.quotaBadgeText.textContent,'Active');
+ assert(requests.every(url=>url.includes('/health')||url.includes('/api/usage')),'Connection checks never invoke AI');
+ assert(html.indexOf('id="extractionNav"')<html.indexOf('id="quotaCard"'),'Back toolbar comes before usage outside the upload card');
+ assert(html.includes('<details class="quota-details">'),'Detailed usage is collapsed by default');
  console.log('Cloudflare daily reporting, stale/missing data, midnight rollover, provider-only availability and UI refresh passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
