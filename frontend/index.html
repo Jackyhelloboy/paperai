@@ -3404,6 +3404,254 @@
             #paperSaveState { display:block; margin:0.3rem 0 0; }
             .teach-editor { font-size:16px; }
         }
+
+        /* v40 multi-page upload gallery: every imported page stays visible. */
+        .batch-preview-shell {
+            display: none;
+            margin-top: 0.85rem;
+            padding: 0.8rem;
+            border: 1px solid #dbe3ee;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #fbfdff, #f8fafc);
+        }
+
+        .batch-preview-shell.show { display: block; }
+
+        .batch-preview-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .batch-preview-heading {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            gap: 0.16rem;
+        }
+
+        .batch-preview-heading strong {
+            font-size: 0.82rem;
+            line-height: 1.2;
+            color: var(--text);
+        }
+
+        .batch-preview-heading span {
+            font-size: 0.66rem;
+            line-height: 1.4;
+            color: var(--text3);
+        }
+
+        .batch-preview-head-actions {
+            display: flex;
+            flex: none;
+            align-items: center;
+            gap: 0.42rem;
+        }
+
+        .batch-preview-count {
+            white-space: nowrap;
+            padding: 0.3rem 0.5rem;
+            border-radius: 999px;
+            background: #eaf2ff;
+            color: #1d4ed8;
+            font-size: 0.64rem;
+            font-weight: 800;
+        }
+
+        .batch-add-more {
+            min-height: 34px;
+            padding: 0.38rem 0.62rem;
+            border: 1px solid #bfdbfe;
+            border-radius: 9px;
+            background: #fff;
+            color: var(--accent);
+            font: 700 0.66rem/1 Tahoma, Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .batch-add-more:hover { background: #eff6ff; }
+
+        .batch-preview {
+            display: none !important;
+            width: 100% !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            grid-auto-flow: row !important;
+            grid-auto-columns: auto !important;
+            gap: 0.65rem !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            box-sizing: border-box;
+        }
+
+        .batch-preview.show { display: grid !important; }
+
+        .batch-preview-card {
+            width: auto !important;
+            min-width: 0 !important;
+            padding: 0.42rem !important;
+            border: 1px solid #d9e2ec !important;
+            border-radius: 12px !important;
+            background: #fff !important;
+            box-shadow: 0 2px 8px rgba(15,23,42,.04) !important;
+            scroll-snap-align: unset !important;
+        }
+
+        .batch-preview-media {
+            width: 100% !important;
+            height: 128px !important;
+            border-radius: 9px !important;
+            border: 1px solid #e2e8f0 !important;
+            background: #f1f5f9 !important;
+        }
+
+        .batch-preview-media img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
+            background: #fff !important;
+        }
+
+        .batch-page-badge {
+            position: absolute;
+            top: 0.72rem;
+            left: 0.72rem;
+            z-index: 2;
+            padding: 0.22rem 0.4rem;
+            border-radius: 999px;
+            background: rgba(15,23,42,.82);
+            color: #fff;
+            font: 750 0.58rem/1 Tahoma, Arial, sans-serif;
+            pointer-events: none;
+        }
+
+        .batch-preview-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.26rem;
+            margin-top: 0.34rem;
+            font-size: 0.59rem;
+            font-weight: 750;
+            color: var(--text3);
+        }
+
+        .batch-preview-status::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            flex: 0 0 6px;
+            border-radius: 50%;
+            background: #94a3b8;
+        }
+
+        .batch-preview-status[data-state="running"] { color: #2563eb; }
+        .batch-preview-status[data-state="running"]::before { background: #3b82f6; }
+        .batch-preview-status[data-state="done"] { color: #15803d; }
+        .batch-preview-status[data-state="done"]::before { background: #22c55e; }
+        .batch-preview-status[data-state="error"] { color: #b91c1c; }
+        .batch-preview-status[data-state="error"]::before { background: #ef4444; }
+
+        .batch-preview-name {
+            margin-top: 0.36rem !important;
+            font-size: 0.66rem !important;
+            line-height: 1.2 !important;
+        }
+
+        .batch-preview-meta {
+            display: block !important;
+            margin-top: 0.12rem !important;
+            font-size: 0.56rem !important;
+            color: var(--text3) !important;
+        }
+
+        .batch-preview-order {
+            display: flex !important;
+            gap: 0.3rem !important;
+            margin-top: 0.38rem !important;
+        }
+
+        .batch-preview-order button {
+            min-height: 32px !important;
+            height: 32px !important;
+            font-size: 0.58rem !important;
+            border-radius: 8px !important;
+        }
+
+        .batch-preview-order button::before { content: none !important; }
+
+        .batch-preview-remove {
+            top: 0.62rem !important;
+            right: 0.62rem !important;
+            width: 28px !important;
+            height: 28px !important;
+        }
+
+        @media (max-width: 640px) {
+            .batch-preview-shell {
+                margin-top: 0.65rem;
+                padding: 0.65rem;
+                border-radius: 13px;
+            }
+
+            .batch-preview-head {
+                align-items: center;
+                margin-bottom: 0.6rem;
+            }
+
+            .batch-preview-heading span { display: none; }
+
+            .batch-preview-head-actions {
+                gap: 0.3rem;
+            }
+
+            .batch-preview-count {
+                padding: 0.28rem 0.44rem;
+                font-size: 0.6rem;
+            }
+
+            .batch-add-more {
+                min-height: 36px;
+                padding: 0.38rem 0.52rem;
+            }
+
+            .batch-preview {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 0.52rem !important;
+            }
+
+            .batch-preview-card {
+                width: auto !important;
+                min-width: 0 !important;
+                padding: 0.36rem !important;
+            }
+
+            .batch-preview-media {
+                height: 118px !important;
+            }
+
+            .batch-preview-meta {
+                display: none !important;
+            }
+
+            .batch-preview-order {
+                display: flex !important;
+            }
+
+            .batch-preview-order button {
+                min-height: 34px !important;
+                height: 34px !important;
+                font-size: 0.56rem !important;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .batch-preview-media { height: 104px !important; }
+            .batch-preview-shell { padding: 0.55rem; }
+            .batch-add-more { font-size: 0.6rem; }
+        }
 </style>
 </head>
 <body>
@@ -3489,7 +3737,19 @@
                 <option value="auto" selected>Auto detect</option>
             </select>
 
-            <div class="batch-preview" id="batchPreview"></div>
+            <section class="batch-preview-shell" id="batchPreviewShell" aria-label="Selected pages">
+                <div class="batch-preview-head">
+                    <div class="batch-preview-heading">
+                        <strong>Selected pages</strong>
+                        <span id="batchPreviewHelp">All imported pages are shown below. Tap any page to enlarge it.</span>
+                    </div>
+                    <div class="batch-preview-head-actions">
+                        <span class="batch-preview-count" id="batchPreviewCount">0 selected</span>
+                        <button class="batch-add-more" id="batchAddMore" type="button">+ Add more</button>
+                    </div>
+                </div>
+                <div class="batch-preview" id="batchPreview"></div>
+            </section>
 
             <div class="file-preview" id="filePreview">
                 <img class="file-thumb" id="fileThumb" src="" alt="" style="display:none">
@@ -3705,7 +3965,7 @@ const API_LOCAL = location.origin;
 const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageSelect=$('languageSelect');
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
-const batchPreview=$('batchPreview');
+const batchPreview=$('batchPreview'),batchPreviewShell=$('batchPreviewShell'),batchPreviewCount=$('batchPreviewCount'),batchAddMore=$('batchAddMore');
 const previewLightbox=$('previewLightbox'),previewLightboxImage=$('previewLightboxImage');
 const previewLightboxTitle=$('previewLightboxTitle'),previewLightboxSub=$('previewLightboxSub');
 const pagePresetSelect=$('pagePresetSelect'),densitySelect=$('densitySelect'),aiLayoutToggle=$('aiLayoutToggle');
