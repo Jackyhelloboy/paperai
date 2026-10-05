@@ -1716,9 +1716,40 @@ ${paperContextInstruction}`;
   return { text, raw: text, model, usage, scanMode, rescued, attempts };
 }
 
+    function normalizeInternalLayoutMarkers(value) {
+        return String(value || '').split('\n').map(line => {
+            const source = String(line || '').trim();
+            let m;
+
+            m = source.match(/^(?:\[\[\s*)?(TABLE|COLUMNS?|WORDSEARCH)[ _-]*(START|END)(?:\s*\]\])?$/i);
+            if (m) {
+                const family = m[1].toUpperCase().startsWith('COLUMN') ? 'COLUMNS' : m[1].toUpperCase();
+                return '[[' + family + '_' + m[2].toUpperCase() + ']]';
+            }
+
+            m = source.match(/^(?:\[\[\s*)?(TABLE|COLUMN|WORDSEARCH)[ _-]*ROW\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+            if (m) {
+                const family = m[1].toUpperCase() === 'COLUMN' ? 'COLUMN' : m[1].toUpperCase();
+                return '[[' + family + '_ROW: ' + String(m[2] || '').trim() + ']]';
+            }
+
+            m = source.match(/^(?:\[\[\s*)?WORDSEARCH[ _-]*ANSWER\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+            if (m) return '[[WORDSEARCH_ANSWER: ' + String(m[1] || '').trim() + ']]';
+
+            m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ROOT\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+            if (m) return '[[BRANCH_ROOT: ' + String(m[1] || '').trim() + ']]';
+
+            m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ITEM\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+            if (m) return '[[BRANCH_ITEM: ' + String(m[1] || '').trim() + ']]';
+
+            if (/^(?:\[\[\s*)?BRANCH[ _-]*END(?:\s*\]\])?$/i.test(source)) return '[[BRANCH_END]]';
+            return line;
+        }).join('\n');
+    }
+
     function normalizeQuestionMetadata(value) {
         const label = token => String(token || '').trim().replace(/[.)।:;]+$/u, '');
-        let out = String(value || '').replace(/\[\[QUESTION_(SECTION|ITEM):\s*([^\n]*?)\]\]/gi, (raw, kind, body) => {
+        let out = normalizeInternalLayoutMarkers(String(value || '')).replace(/\[\[QUESTION_(SECTION|ITEM):\s*([^\n]*?)\]\]/gi, (raw, kind, body) => {
             let fields;
             if (body.includes('|')) fields = body.split(body.includes('||') ? /\s*\|\|\s*/ : /\s*\|\s*/);
             else {
