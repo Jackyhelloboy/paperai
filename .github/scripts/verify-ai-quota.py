@@ -7,6 +7,7 @@ import datetime as dt
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.request
 
@@ -133,6 +134,23 @@ def main():
     emit('Verification time UTC', now.isoformat())
     if not TOKEN or not ACCOUNT:
         emit('Account diagnostics unavailable', 'Existing deployment credentials are missing')
+        return
+    if '--pages-settings' in sys.argv:
+        status, data = request('/accounts/' + ACCOUNT + '/pages/projects/paperai')
+        result = data.get('result') or {}
+        emit('Pages project', {'http_status': status, 'name': result.get('name'),
+            'subdomain': result.get('subdomain'), 'production_branch': result.get('production_branch'),
+            'build_config': result.get('build_config')})
+        for name, settings in (result.get('deployment_configs') or {}).items():
+            emit('Pages ' + name + ' runtime settings', {
+                'compatibility_date': settings.get('compatibility_date'),
+                'compatibility_flags': settings.get('compatibility_flags'),
+                'binding_keys': {key: list((settings.get(key) or {}).keys()) for key in
+                    ['env_vars', 'kv_namespaces', 'd1_databases', 'r2_buckets', 'services', 'durable_object_namespaces']},
+            })
+        if status != 200:
+            emit('Pages settings errors', data.get('errors'))
+            raise SystemExit(1)
         return
     try:
         status, settings = request('/accounts/' + ACCOUNT + '/workers/scripts/paperai-ocr/settings')
