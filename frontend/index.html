@@ -5056,8 +5056,13 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const layout = detectTextLineLayout(workSource, originalWidth, originalHeight);
     const hard = analysis.difficulty === 'hard';
 
-    const maxLongEdge = 3200;
-    const quality = 0.97;
+    // Upload size is a large share of total latency on mobile networks, and the
+    // vision model resamples every image to its own input size anyway. Easy pages
+    // go as one 2560px frame; hard/dense/structured pages keep the full 3200px
+    // frame plus close-ups. A lighter retry is genuinely light: one 2048px frame.
+    const needsDetail = !forceSafe && (hard || layout.structured || (Number(layout.lineCount) || 0) >= 22);
+    const maxLongEdge = forceSafe ? 2048 : (needsDetail ? 3200 : 2560);
+    const quality = forceSafe ? 0.88 : 0.92;
     const longEdge = Math.max(originalWidth, originalHeight);
     const scale = Math.min(1, maxLongEdge / Math.max(1, longEdge));
     const targetWidth = Math.max(1, Math.round(originalWidth * scale));
@@ -5084,13 +5089,13 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const detailImages = [];
     // Two overlapping source crops give the vision model a closer view of small
     // handwriting. The full page remains the authority for order and layout.
-    for (const bounds of [[0, 0.58], [0.42, 1]]) {
+    for (const bounds of (needsDetail ? [[0, 0.58], [0.42, 1]] : [])) {
         const detail = document.createElement('canvas');
         detail.width = targetWidth;
         const top = Math.floor(targetHeight * bounds[0]);
         detail.height = Math.ceil(targetHeight * bounds[1]) - top;
         detail.getContext('2d').drawImage(canvas, 0, top, targetWidth, detail.height, 0, 0, targetWidth, detail.height);
-        const detailBlob = await new Promise(resolve => detail.toBlob(resolve, 'image/jpeg', 0.97));
+        const detailBlob = await new Promise(resolve => detail.toBlob(resolve, 'image/jpeg', 0.92));
         if (detailBlob && detailBlob.size <= 4 * 1024 * 1024) detailImages.push(detailBlob);
     }
 
@@ -5115,7 +5120,7 @@ async function prepareImageForOCR(source, forceSafe = false) {
             bytes: blob.size,
             ...analysis,
             safeRetry: forceSafe,
-            scanStrategy: 'full-page-with-details',
+            scanStrategy: needsDetail ? 'full-page-with-details' : 'full-page',
             lineCount: layout.lineCount,
             lineCoverage: layout.coverage,
             structuredLayout: layout.structured,
@@ -6309,7 +6314,12 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
         formData.append('paper_context', JSON.stringify(paperContext || {}));
         appendLearningHints(formData);
 
-        const attemptControl = linkedAttemptSignal(signal, 180000);
+        // Deep-thinking (hard/structured) pages may legitimately run longer; every
+        // other page and every lighter retry gets a shorter, fail-fast window so a
+        // stuck request costs ~100s instead of 3 minutes before the retry starts.
+        const deepPage = attempt === 0 && !prepared.meta?.safeRetry &&
+            (prepared.difficulty === 'hard' || prepared.meta?.structuredLayout || prepared.meta?.branchingLayout);
+        const attemptControl = linkedAttemptSignal(signal, deepPage ? 150000 : (attempt === 0 ? 100000 : 90000));
         let res;
 
         try {

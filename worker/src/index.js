@@ -39,7 +39,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v27',
+        architecture: 'production-literal-ocr-v28',
       }, { headers: corsHeaders });
     }
 
@@ -47,7 +47,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v27',
+        architecture: 'production-literal-ocr-v28',
         model: '@cf/google/gemma-4-26b-a4b-it',
         ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
@@ -1364,7 +1364,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v27',
+        architecture: 'production-literal-ocr-v28',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1647,6 +1647,32 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+const AI_MAX_ATTEMPTS = 3;
+
+// Exponential backoff with jitter: 0.4s, 1.2s (+ up to 0.25s). Jitter stops
+// several pages that were rejected as "busy" together from retrying together.
+function aiRetryDelayMs(attempt) {
+  return [400, 1200][Math.min(attempt, 1)] + Math.floor(Math.random() * 250);
+}
+
+function ocrNeedsThinking(imageMeta = {}, difficulty = 'auto') {
+  if (imageMeta?.safeRetry) return false;
+  return Boolean(
+    difficulty === 'hard' ||
+    imageMeta?.difficulty === 'hard' ||
+    imageMeta?.structuredLayout ||
+    imageMeta?.branchingLayout ||
+    Number(imageMeta?.multiColumnRows || 0) >= 2 ||
+    Number(imageMeta?.denseOptionRows || 0) >= 2
+  );
+}
+
+// A lighter retry exists to finish quickly. It keeps a non-empty, non-runaway
+// first read instead of paying for a second full multimodal pass.
+function skipVerificationOnSafeRetry(text, imageMeta = {}) {
+  return Boolean(imageMeta?.safeRetry) && String(text || '').trim().length > 0 && !hasDegenerateOcr(text);
+}
+
 async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], layoutOptions = {}, paperContext = {}, detailImages = []) {
   if (!env.AI) {
     throw new Error('Workers AI not available - check if AI binding is configured');
@@ -1755,6 +1781,13 @@ Before the final answer, check that every visible question/item number has its t
 ${learningSection}
 ${paperContextInstruction}`;
 
+  // Reasoning ("thinking") tokens are generated before any transcription and
+  // are the largest single latency cost. Plain text and handwriting pages are
+  // perception tasks, so they read faster and as accurately without it. Hard,
+  // structured or branching pages keep it. A lighter retry after a timeout never
+  // uses it, so the retry is genuinely cheaper than the attempt that timed out.
+  const thinking = ocrNeedsThinking(imageMeta, difficulty);
+
   const requestBody = {
     messages: [
       {
@@ -1772,23 +1805,23 @@ ${paperContextInstruction}`;
     max_completion_tokens: 8192,
     temperature: 0,
     chat_template_kwargs: {
-      enable_thinking: true
+      enable_thinking: thinking
     }
   };
 
   let response;
   let lastError;
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < AI_MAX_ATTEMPTS; attempt++) {
     try {
       response = await env.AI.run(model, requestBody, { rejectIfBusy: true });
       break;
     } catch (e) {
       lastError = e;
-      if (isDailyFreeLimitError(e) || isPaidModelRequiredError(e) || !isTransientAiError(e) || attempt === 1) {
+      if (isDailyFreeLimitError(e) || isPaidModelRequiredError(e) || !isTransientAiError(e) || attempt === AI_MAX_ATTEMPTS - 1) {
         throw e;
       }
-      await sleep(attempt === 0 ? 350 : 800);
+      await sleep(aiRetryDelayMs(attempt));
     }
   }
 
@@ -1798,7 +1831,7 @@ ${paperContextInstruction}`;
   let usage = mergeAiUsage(response.usage || null, null);
   let rescued = false;
 
-  if (shouldVerifyOcr(text, imageMeta)) {
+  if (shouldVerifyOcr(text, imageMeta) && !skipVerificationOnSafeRetry(text, imageMeta)) {
     const rescuePrompt = hasDegenerateOcr(text)
       ? 'Read the attached page again from the image alone. Return only its visible text, line by line, in reading order. Transcribe printed headers and every handwritten Hindi word independently from the pixels. Preserve visible question numbers, Roman section labels, marks, answer blanks and both columns of matching exercises. Never invent alphabet labels, missing words or repeated empty rows. Keep each source line on a separate output line. Use [unclear] only for the unreadable part. Do not copy or reconstruct another page. Do not explain the result.'
       : prompt + `
@@ -1850,7 +1883,7 @@ VERIFICATION RULES:
         max_completion_tokens: 8192,
         temperature: 0,
         chat_template_kwargs: {
-          enable_thinking: true
+          enable_thinking: thinking
         }
       }, { rejectIfBusy: true });
 
@@ -2033,6 +2066,12 @@ function shouldVerifyOcr(text, imageMeta = {}) {
     actualLines < Math.max(2, Math.floor(expectedLines * 0.50));
 
   const hasUnclear = /\[unclear(?::[^\]]*)?\]/i.test(visible);
+  // One or two [unclear] words are normal on handwriting and a full second
+  // pass rarely resolves them, so only a high share of unreadable words
+  // justifies doubling latency. Structured pages stay strict via hasUnclear.
+  const unclearCount = (visible.match(/\[unclear(?::[^\]]*)?\]/gi) || []).length;
+  const wordCount = plain.split(/\s+/).filter(Boolean).length;
+  const manyUnclear = unclearCount > Math.max(2, Math.floor(wordCount * 0.03));
   const hasEditMetadata = /\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/i.test(visible);
   const structuredPage =
     Boolean(imageMeta?.structuredLayout) ||
@@ -2055,7 +2094,7 @@ function shouldVerifyOcr(text, imageMeta = {}) {
 
   return emptyLike ||
     lineMiss ||
-    hasUnclear ||
+    manyUnclear ||
     hasEditMetadata ||
     structuredRisk ||
     severeImageRisk ||

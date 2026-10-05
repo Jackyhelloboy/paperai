@@ -393,3 +393,18 @@ The reconstruction audit now checks:
 - class/subject/exam continuity warnings
 
 A mismatch such as 4x1=4M with five detected numbered items is reported for review rather than silently deleting or inventing an item.
+
+
+## v28 speed and reliability profile
+
+Measured causes of multi-minute reads, and the changes made:
+
+- **Adaptive reasoning.** `enable_thinking` was on for every request, including the "lighter" retry after a timeout. It is now on only for hard, structured, multi-column or branching pages (`ocrNeedsThinking`). Plain text and handwriting pages are perception tasks and skip reasoning tokens. A lighter retry never uses reasoning.
+- **Verification is evidence-based.** A second full multimodal pass is no longer started by one or two `[unclear]` words, which are normal on handwriting. It starts when more than max(2, 3% of words) are unclear, or for the other existing risk signals. Structured pages keep the strict rule. A lighter retry keeps a usable first read instead of verifying.
+- **Smaller uploads.** Easy pages are sent as one 2560px frame. Hard, dense (22+ lines) or structured pages keep the 3200px frame plus two close-ups. JPEG quality 0.97 -> 0.92. A lighter retry is one 2048px frame at 0.88 with no close-ups.
+- **Fail-fast timeouts.** Per-attempt browser timeout 180s -> 100s (150s for deep-reasoning pages, 90s for the retry), so a stuck request no longer costs two full 3-minute waits.
+- **Capacity retries.** Transient capacity errors retry up to 3 times with exponential backoff plus jitter instead of 2 fixed delays.
+
+Not changed: model, prompts, the literal-transcription rules, anti-hallucination rules, post-processing, or the free-only policy.
+
+Known remaining latency sources (not addressed here): scanned PDF pages are read sequentially (each page receives the previous page's tail as a hint), and a 502/503/504 from the direct endpoint triggers a second request through the Pages proxy while the first may still be running.
