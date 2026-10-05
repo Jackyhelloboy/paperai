@@ -25,8 +25,8 @@ vm.runInContext(html.slice(html.indexOf('async function fetchOcrEndpoint('), htm
   requests.length = 0;
   reply = url => url.startsWith('https://worker.example')
     ? new Response('<html>Gateway error</html>', { status: 502 }) : Response.json({ status: 'completed' });
-  assert.equal((await context.fetchOcrEndpoint('/api/ocr', { method: 'POST' })).status, 200);
-  assert.equal(requests.length, 2, 'Transport failures still fall back to the proxy');
+  assert.equal((await context.fetchOcrEndpoint('/api/ocr', { method: 'POST' })).status, 502);
+  assert.equal(requests.length, 1, 'An uncertain transport failure must not start duplicate inference');
 
   requests.length = 0;
   reply = () => { throw new Error('aborted'); };
@@ -56,13 +56,12 @@ vm.runInContext(html.slice(html.indexOf('async function fetchOcrEndpoint('), htm
       : Response.json({ status: 'completed', result: { full_text: 'Complete page' } }),
   });
   vm.runInContext(html.slice(html.indexOf('async function sendToOCR('), html.indexOf('function publicPlainTextFromStructured(')), retry);
-  assert.equal((await retry.sendToOCR({})).result.full_text, 'Complete page');
-  assert.equal(attempts, 2);
-  assert.deepEqual(preparations, [true], 'Truncation uses one genuinely lighter preparation');
+  await assert.rejects(retry.sendToOCR({}), /Press Retry/);
+  assert.equal(attempts,1);assert.deepEqual(preparations,[], 'Truncation does not rescan automatically');
 
   attempts = 0;
   retry.fetchOcrEndpoint = async () => { attempts++; return Response.json({ code: 'FREE_MODEL_UNAVAILABLE', error: 'Free model unavailable' }, { status: 503 }); };
   await assert.rejects(retry.sendToOCR({}), /Free model unavailable/);
   assert.equal(attempts, 1, 'Paid-plan errors must not be retried');
-  console.log('AI failures avoid duplicate proxy inference; transport failover, cancellation, draft preflight and bounded lighter retries passed.');
+  console.log('AI and transport failures never repeat inference automatically; cancellation and draft preflight passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

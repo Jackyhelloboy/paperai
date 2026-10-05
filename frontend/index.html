@@ -12,10 +12,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
     <script src="vendor/indic-transliterate.js"></script>
-    <script src="vendor/paperai-document-model.js?v=36"></script>
+    <script src="vendor/paperai-document-model.js?v=37"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
-    <script src="vendor/paperai-word-engine.js?v=36"></script>
+    <script src="vendor/paperai-word-engine.js?v=37"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -3155,6 +3155,33 @@
         .extraction-nav button { min-height:44px; }
         #extractionStatus { flex:1; min-width:120px; font-size:14px; }
         #uploadControls { min-width:0; }
+
+        .results-actions { display:grid !important; grid-template-columns:repeat(3,minmax(0,1fr)) !important; gap:0.55rem !important; }
+        .results-actions .action-btn { min-width:0; min-height:48px; font-size:0.9rem !important; padding:0.6rem !important; }
+        #downloadWordBtn, #downloadTxtBtn { background:var(--accent); color:white; border-color:var(--accent); }
+        #downloadWordBtn:hover, #downloadTxtBtn:hover { background:var(--accent-hover); }
+        .extraction-heading { flex:1; min-width:140px; display:flex; flex-direction:column; gap:0.25rem; }
+        #extractionStatus { font-size:1.08rem; font-weight:700; line-height:1.4; }
+        #extractionFileName { font-size:0.8rem; color:var(--text2); overflow-wrap:anywhere; }
+        .extraction-nav { gap:1rem; align-items:center; }
+        #extractionBack { border:1px solid var(--border); border-radius:10px; background:white; padding:0.6rem 0.85rem; }
+        #extractionRetry, .ai-suggest-button { background:var(--accent); color:white; border-color:var(--accent); }
+        .progress-wrap { margin-top:1.4rem; padding:1rem; background:linear-gradient(140deg,#eff6ff,#f8fafc); border:1px solid #dbeafe; border-radius:14px; }
+        .progress-info { gap:0.65rem; align-items:center; }
+        .progress-label { flex:1; font-size:0.9rem; line-height:1.5; }
+        .progress-pct { font-size:0.72rem; color:var(--accent); }
+        .scan-spinner { width:20px; height:20px; flex:none; border:2px solid #bfdbfe; border-top-color:var(--accent); border-radius:50%; animation:scan-spin 1s linear infinite; }
+        .progress-bar { margin-top:0.9rem; height:5px; overflow:hidden; }
+        .progress-fill.indeterminate { animation:scan-progress 1.7s ease-in-out infinite; transition:none; }
+        .scan-steps { display:flex; gap:0.35rem; margin-top:0.9rem; }
+        .scan-steps span { flex:1; text-align:center; font-size:0.7rem; color:var(--text2); padding:0.5rem 0.2rem; background:white; border:1px solid var(--border); border-radius:8px; }
+        #prog[data-stage="prepare"] [data-step="prepare"], #prog[data-stage="read"] [data-step="read"], #prog[data-stage="ready"] [data-step="ready"] { color:var(--accent); background:#dbeafe; border-color:#bfdbfe; font-weight:700; }
+        .scan-note { margin:0.85rem 0 0; font-size:0.78rem; line-height:1.6; color:var(--text2); }
+        .teach-toolbar { flex-wrap:wrap; }
+        .teach-ai-hint { font-size:0.8rem; line-height:1.6; color:var(--text2); margin:0.7rem 0; }
+        @keyframes scan-spin { to { transform:rotate(360deg); } }
+        @keyframes scan-progress { 0% { transform:translateX(-110%); } 100% { transform:translateX(370%); } }
+        @media (prefers-reduced-motion:reduce) { .scan-spinner, .progress-fill.indeterminate { animation:none; } }
     </style>
 </head>
 <body>
@@ -3226,7 +3253,7 @@
         <div class="upload-card">
             <div id="extractionNav" class="extraction-nav" hidden>
                 <button class="draft-btn ghost" id="extractionBack" type="button">← Go back</button>
-                <span id="extractionStatus" role="status" aria-live="polite"></span>
+                <div class="extraction-heading"><span id="extractionStatus" role="status" aria-live="polite"></span><span id="extractionFileName"></span></div>
                 <button class="draft-btn" id="extractionRetry" type="button" hidden>Retry extraction</button>
             </div>
             <div id="uploadControls">
@@ -3280,14 +3307,17 @@
                 </div>
             </div>
 
-            <div class="progress-wrap" id="prog">
+            <div class="progress-wrap" id="prog" data-stage="prepare" aria-live="polite">
                 <div class="progress-info">
-                    <span class="progress-label" id="pMsg">Processing...</span>
-                    <span class="progress-pct" id="pPct">0%</span>
+                    <span class="scan-spinner" aria-hidden="true"></span>
+                    <span class="progress-label" id="pMsg">Preparing your document</span>
+                    <span class="progress-pct" id="pPct">Working</span>
                 </div>
                 <div class="progress-bar">
-                    <div class="progress-fill" id="pFill"></div>
+                    <div class="progress-fill indeterminate" id="pFill"></div>
                 </div>
+                <div class="scan-steps" aria-hidden="true"><span data-step="prepare">1 · Prepare</span><span data-step="read">2 · Extract</span><span data-step="ready">3 · Ready</span></div>
+                <p class="scan-note">One AI read per scanned page. Review and correct the result with Teach.</p>
             </div>
 
             <div class="error-toast" id="errBox">
@@ -3347,25 +3377,25 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
                     Copy
                 </button>
-                <button class="action-btn" id="downloadTxtBtn" onclick="downloadText(this)" type="button">TXT</button>
-                <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
+                <button class="action-btn" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>TXT</button>
+                <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)" type="button">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     Word
                 </button>
-                <button class="action-btn" onclick="openTeachPanel()">
+                <button class="action-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
                     Teach
                 </button>
             </div>
 <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
-                <div class="teach-sub">Pronunciation-based script typing: keep the same spoken English words and write how they sound in the target script. Example: <strong>jawad</strong> → <strong>जवाद</strong> and <strong>i love you</strong> → <strong>आई लव यू</strong>. Difficult spellings can receive AI phonetic suggestions.</div>
+                <div class="teach-sub">Pronunciation-based script typing: keep the same spoken English words and write how they sound in the target script. Example: <strong>jawad</strong> → <strong>जवाद</strong> and <strong>i love you</strong> → <strong>आई लव यू</strong>. Select a word or short phrase and press AI Suggestions. Typing uses no AI quota; a suggestion applies only when you choose it.</div>
                 <div class="teach-language-bar">
                     <label class="teach-lang-field">
                         <span class="teach-lang-label">From</span>
                         <select class="teach-lang-select" id="teachFromSelect">
-                            <option value="auto">Auto detect</option>
-                            <option value="en" selected>English / Roman</option>
+                            <option value="auto" selected>Auto detect</option>
+                            <option value="en">English / Roman</option>
                             <option value="hi">Hindi</option>
                             <option value="mr">Marathi</option>
                             <option value="te">Telugu</option>
@@ -3406,7 +3436,9 @@
                     <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                     <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
                     <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
+                    <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI Suggestions</button>
                 </div>
+                <div class="teach-ai-hint" id="aiSuggestionNote" role="status">AI runs only when you press AI Suggestions.</div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
                 <div class="teach-actions">
@@ -3464,6 +3496,8 @@ let previewObjectUrls=[];
 const SMART_MAX_IMAGES = 5;
 const SMART_MAX_PDFS = 1;
 const smartExtractionJobs = new Map();
+const completedExtractionCache = new WeakMap();
+const completedPdfReads = new WeakMap();
 let smartExtractionQueue = [];
 let smartExtractionWorkers = 0;
 
@@ -3491,7 +3525,7 @@ function updateSmartExtractionUI() {
 
     for (const f of files) {
         const job = smartExtractionJobs.get(smartFileKey(f));
-        if (job?.status === 'done') ready++;
+        if (job?.status === 'done' || completedExtractionCache.has(f)) ready++;
         else if (job?.status === 'running' || job?.status === 'queued') running++;
         else if (job?.status === 'error') failed++;
     }
@@ -3500,7 +3534,7 @@ function updateSmartExtractionUI() {
     if (!label) return;
 
     if (ready === files.length) {
-        label.textContent = files.length > 1 ? 'Build result' : 'View result';
+        label.textContent = 'Review saved result';
     } else if (failed > 0 && running === 0) {
         label.textContent = 'Retry & build';
     } else if (running > 0 || ready > 0) {
@@ -3538,6 +3572,12 @@ function queueSmartExtraction(file) {
     const existing = smartExtractionJobs.get(key);
     if (existing && ['queued','running','done'].includes(existing.status)) return existing;
 
+    const cached = completedExtractionCache.get(file);
+    if (cached) {
+        const job = { key, file, status: 'done', result: cached, promise: Promise.resolve({ ok: true, result: cached }) };
+        smartExtractionJobs.set(key, job);
+        return job;
+    }
     const controller = new AbortController();
     let resolveJob;
     const promise = new Promise(resolve => { resolveJob = resolve; });
@@ -3593,6 +3633,7 @@ function pumpSmartExtractionQueue() {
                     return;
                 }
 
+                completedExtractionCache.set(job.file, result);
                 job.result = result;
                 job.status = 'done';
                 job.resolve({ ok: true, result });
@@ -3634,32 +3675,25 @@ async function getSmartExtractionResult(file, index, total, signal) {
     }
 
     if (job.cancelled || signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-    // Only retry the failed file, not the whole batch.
-    smartExtractionJobs.delete(key);
-    const result = await extractOneInputFile(file, index, total, '', { background: false, signal });
-    if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-    smartExtractionJobs.set(key, {
-        key,
-        file,
-        status: 'done',
-        result,
-        error: null,
-        cancelled: false,
-        promise: Promise.resolve({ ok: true, result })
-    });
-    updateSmartExtractionUI();
-    return result;
+    throw job.error || new Error('Extraction could not finish. Press Retry to try this file again.');
 }
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
 const aiSuggestionCache = new Map();
-const MAX_AI_SUGGESTIONS_PER_TEACH = 8;
+let aiSuggestionPending = false;
 
 const fmtSize = b => b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
 const showErr = m => { errText.textContent=m; errBox.classList.add('show'); };
 const hideErr = () => errBox.classList.remove('show');
-const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'%'; if(msg)pMsg.textContent=msg; };
+const setProg = (pct,msg) => {
+    const ready = pct >= 100;
+    prog.dataset.stage = ready || pct >= 90 ? 'ready' : pct >= 20 ? 'read' : 'prepare';
+    pFill.classList.toggle('indeterminate', !ready);
+    pFill.style.width = ready ? '100%' : '38%';
+    pPct.textContent = ready ? 'Complete' : 'Working';
+    if (msg) pMsg.textContent = msg;
+};
 
 let quotaResetAt = null;
 let quotaClockOffset = 0, quotaLoading = false, quotaBoundaryCheckAt = 0;
@@ -4933,14 +4967,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
 
     const analysis = analyzeCanvasDifficulty(workSource, originalWidth, originalHeight);
     const layout = detectTextLineLayout(workSource, originalWidth, originalHeight);
-    const hard = analysis.difficulty === 'hard';
 
-    // Upload size is a large share of total latency on mobile networks, and the
-    // vision model resamples every image to its own input size anyway. Easy pages
-    // go as one 2560px frame; hard/dense/structured pages keep the full 3200px
-    // frame plus close-ups. A lighter retry is genuinely light: one 2048px frame.
-    const needsDetail = !forceSafe && (hard || detailBounds || layout.structured || (Number(layout.lineCount) || 0) >= 22);
-    const maxLongEdge = forceSafe ? 2048 : (needsDetail ? 3200 : 2560);
+    // One optimized full frame preserves source order without extra crop tokens.
+    const maxLongEdge = forceSafe ? 2048 : 2560;
     const quality = forceSafe ? 0.88 : 0.92;
     const longEdge = Math.max(originalWidth, originalHeight);
     const scale = Math.min(1, maxLongEdge / Math.max(1, longEdge));
@@ -4960,28 +4989,12 @@ async function prepareImageForOCR(source, forceSafe = false) {
     if (croppedSource?.close) croppedSource.close();
     if (decoded !== croppedSource && decoded.close) decoded.close();
 
-    const preferredType = hard && !forceSafe ? 'image/webp' : 'image/jpeg';
+    const preferredType = 'image/jpeg';
     const blob = await new Promise((resolve, reject) => {
         canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not optimize image')), preferredType, quality);
     });
 
     const detailImages = [];
-    // Two overlapping source crops give the vision model a closer view of small
-    // handwriting. The full page remains the authority for order and layout.
-    for (const bounds of (needsDetail ? [[0, 0.58], [0.42, 1]] : [])) {
-        const detail = document.createElement('canvas');
-        const region = detailBounds ? {
-            x: Math.floor(detailBounds.x * scale), y: Math.floor(detailBounds.y * scale),
-            width: Math.ceil(detailBounds.width * scale), height: Math.ceil(detailBounds.height * scale)
-        } : {x:0,y:0,width:targetWidth,height:targetHeight};
-        detail.width = Math.min(region.width, targetWidth-region.x);
-        const top = region.y + Math.floor(region.height * bounds[0]);
-        detail.height = Math.min(targetHeight-top, Math.ceil(region.height * bounds[1]) - Math.floor(region.height * bounds[0]));
-        detail.getContext('2d').drawImage(canvas, region.x, top, detail.width, detail.height, 0, 0, detail.width, detail.height);
-        const detailBlob = await new Promise(resolve => detail.toBlob(resolve, 'image/jpeg', 0.92));
-        if (detailBlob && detailBlob.size <= 4 * 1024 * 1024) detailImages.push(detailBlob);
-    }
-
     if (blob.size > 7 * 1024 * 1024 && !forceSafe) {
         return prepareImageForOCR(source, true);
     }
@@ -4997,14 +5010,14 @@ async function prepareImageForOCR(source, forceSafe = false) {
             cameraOriginalHeight,
             pageAutoCropped: Boolean(paperBounds && croppedSource),
             paperCropConfidence: detailBounds?.confidence || 0,
-            detailPageFocused: Boolean(detailBounds),
+            detailPageFocused: false,
             width: targetWidth,
             height: targetHeight,
             originalBytes: source.size || 0,
             bytes: blob.size,
             ...analysis,
             safeRetry: forceSafe,
-            scanStrategy: needsDetail ? 'full-page-with-details' : 'full-page',
+            scanStrategy: 'full-page',
             lineCount: layout.lineCount,
             lineCoverage: layout.coverage,
             structuredLayout: layout.structured,
@@ -5020,9 +5033,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
 }
 
 async function fetchOcrEndpoint(path, options) {
-   const heavyAiRequest = path === '/api/ocr' || path === '/api/analyze-paper';
+   const heavyAiRequest = ['/api/ocr','/api/analyze-paper','/api/suggest-word'].includes(path);
    const targets = heavyAiRequest
-   ? [API_DIRECT + path, API_LOCAL + path]
+   ? [API_DIRECT + path]
    : [API_LOCAL + path, API_DIRECT + path];
    let lastError = null;
 
@@ -5033,7 +5046,7 @@ async function fetchOcrEndpoint(path, options) {
    for (let i = 0; i < targets.length; i++) {
    try {
    const res = await fetch(targets[i], opts);
-            if (i === 0 && await shouldTryAlternateOcrRoute(res, heavyAiRequest)) {
+            if (!heavyAiRequest && i === 0 && await shouldTryAlternateOcrRoute(res, heavyAiRequest)) {
                 continue;
             }
             return res;
@@ -5592,7 +5605,7 @@ function detectLanguageFromSegment(text) {
 }
 
 function currentTeachSourceLanguage(segmentText = '') {
-    const chosen = teachFromSelect?.value || 'en';
+    const chosen = teachFromSelect?.value || 'auto';
     if (chosen !== 'auto' && TEACH_LANGUAGE_META[chosen]) return chosen;
     return detectLanguageFromSegment(segmentText || smartComposition?.source || '');
 }
@@ -5719,7 +5732,6 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
     const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000smart\u0000' + normalized.toLowerCase();
 
     if (aiSuggestionCache.has(cacheKey)) return aiSuggestionCache.get(cacheKey);
-    if (aiSuggestionCalls >= MAX_AI_SUGGESTIONS_PER_TEACH) return [];
 
     aiSuggestionCalls++;
 
@@ -5727,6 +5739,7 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
         const res = await fetchOcrEndpoint('/api/suggest-word', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(30000),
             body: JSON.stringify({
                 text: normalized,
                 source_language: sourceLanguage,
@@ -5738,15 +5751,15 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
             })
         });
 
-        if (!res.ok) return [];
+        if (!res.ok) throw new Error('AI suggestions are unavailable. You can keep editing manually.');
         const body = await res.json();
         if (sequence !== aiSuggestionSequence) return [];
 
         const suggestions = uniqueStrings(Array.isArray(body?.suggestions) ? body.suggestions : []).slice(0, 5);
         aiSuggestionCache.set(cacheKey, suggestions);
         return suggestions;
-    } catch (_) {
-        return [];
+    } catch (error) {
+        throw error;
     }
 }
 
@@ -5765,24 +5778,6 @@ function renderSuggestionChips(choices, aiChoices = [], loading = false) {
         button.addEventListener('mousedown', event => event.preventDefault());
         button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));
     });
-}
-
-function autoApplySmartSuggestion(expectedSource, choice, sequence) {
-    if (!choice || sequence !== aiSuggestionSequence || !smartComposition) return;
-
-    const current = findInputSegmentAtCaret();
-    if (!current) return;
-    if (current.start !== smartComposition.start || current.end !== smartComposition.end) return;
-    if (current.source.normalize('NFC') !== String(expectedSource).normalize('NFC')) return;
-
-    const newEnd = replaceTeachRange(current.start, current.end, choice);
-    pushTeachHistory(teachEditor.value);
-    renderTeachPreview();
-
-    smartComposition = null;
-    translitSuggestions.classList.remove('show');
-    translitSuggestions.innerHTML = '';
-    teachEditor.setSelectionRange(newEnd, newEnd);
 }
 
 function showSmartSuggestions() {
@@ -5825,52 +5820,59 @@ function showSmartSuggestions() {
     localChoices = uniqueStrings(localChoices);
     learnedChoices = getLearnedCorrectionSuggestions(sourceText, localChoices);
     localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
-    renderSuggestionChips(localChoices, [], localChoices.length === 0);
+    renderSuggestionChips(localChoices, [], false);
 
-    const sequence = ++aiSuggestionSequence;
-    const highConfidenceChoice =
-        learnedChoices[0] ||
-        (isPhrase
-            ? getCanonicalPhraseOverride(sourceText, targetScript)
-            : getCanonicalPhoneticOverride(sourceText, targetScript));
+    aiSuggestionSequence++;
+}
 
-    // Auto-apply only user-learned or canonical forms. Generic local guesses
-    // stay visible as selectable candidates and can still be improved by AI.
-    if (isRomanSource && targetScript !== 'latin' && highConfidenceChoice) {
-        aiSuggestionTimer = setTimeout(() => {
-            autoApplySmartSuggestion(sourceText, highConfidenceChoice, sequence);
-        }, 450);
-        return;
+function manualSuggestionSegment() {
+    const a = teachEditor.selectionStart, b = teachEditor.selectionEnd;
+    if (b > a) {
+        const raw = teachEditor.value.slice(a, b);
+        const source = raw.trim();
+        if (!source || source.length > 120) return null;
+        const start = a + raw.indexOf(source);
+        return { start, end: start + source.length, source };
     }
+    return findInputSegmentAtCaret();
+}
 
-    // For unknown English phrases, AI is preferred because English spelling
-    // does not map reliably to pronunciation (love -> लव, you -> यू, I -> आई).
-    // The AI returns phonetic script, never a semantic translation.
-    aiSuggestionTimer = setTimeout(async () => {
-        const aiChoices = await fetchAiTextSuggestions(
-            sourceText,
-            sourceLanguage,
-            targetLanguage,
-            localChoices,
-            learnedChoices,
-            sequence
-        );
-
-        if (sequence !== aiSuggestionSequence || !smartComposition) return;
-        renderSuggestionChips(localChoices, aiChoices, false);
-
-        if (isRomanSource && targetScript !== 'latin' && isPhrase && aiChoices[0]) {
-            autoApplySmartSuggestion(sourceText, aiChoices[0], sequence);
+async function requestManualAiSuggestions() {
+    if (aiSuggestionPending) return;
+    const segment = manualSuggestionSegment();
+    if (!segment) { showErr('Select a word or short phrase (up to 120 characters) for AI Suggestions.'); return; }
+    smartComposition = segment;
+    const sequence = ++aiSuggestionSequence;
+    const btn = $('aiSuggestBtn');
+    aiSuggestionPending = true;
+    btn.disabled = true;
+    btn.textContent = 'Suggesting…';
+    hideErr();
+    $('aiSuggestionNote').textContent = 'Getting suggestions for your selected text…';
+    renderSuggestionChips([], [], true);
+    try {
+        const choices = await fetchAiTextSuggestions(segment.source,
+            currentTeachSourceLanguage(segment.source), currentTeachLanguage(), [], [], sequence);
+        if (sequence !== aiSuggestionSequence || !teachPanel.classList.contains('show')) return;
+        renderSuggestionChips([], choices, false);
+        $('aiSuggestionNote').textContent = choices.length ? 'Choose a suggestion to apply it. Your text is unchanged until then.' : 'No suggestions returned. You can keep editing manually.';
+    } catch (error) {
+        if (sequence === aiSuggestionSequence) {
+            renderSuggestionChips([], [], false);
+            $('aiSuggestionNote').textContent = error.message || 'AI suggestions are unavailable. Keep editing manually.';
         }
-    }, isPhrase ? 650 : 900);
+    } finally {
+        aiSuggestionPending = false;
+        btn.disabled = false;
+        btn.textContent = '✦ AI Suggestions';
+    }
 }
 
 function chooseSmartSuggestion(choice) {
     if (!smartComposition || !choice) return;
 
-    const current = findInputSegmentAtCaret();
-    const start = current?.start ?? smartComposition.start;
-    const end = current?.end ?? smartComposition.end;
+    const { start, end, source } = smartComposition;
+    if (teachEditor.value.slice(start, end).normalize('NFC') !== source.normalize('NFC')) return;
     const newEnd = replaceTeachRange(start, end, choice);
 
     pushTeachHistory(teachEditor.value);
@@ -5900,6 +5902,9 @@ function renderTeachPreview() {
     if (!showingRaw) {
         textOut.innerHTML = formatOutput(layoutPreview);
         textOut.className = 'output-body';
+    } else {
+        textOut.textContent = publicPlainTextFromStructured(layoutPreview);
+        textOut.className = 'output-body output-raw';
     }
 }
 
@@ -5960,14 +5965,15 @@ function replaceTeachRange(start, end, replacement) {
 }
 
 function refreshSmartComposition() {
-    smartComposition = findInputSegmentAtCaret();
+    smartComposition = manualSuggestionSegment();
     updateTeachLanguageStatus();
     showSmartSuggestions();
 }
 
 function openTeachPanel() {
     if (!lastResult) return;
-    teachOriginalText = lastResult.plain_text || lastResult.text || '';
+    if (teachPanel.classList.contains('show')) { teachEditor.focus(); return; }
+    teachOriginalText = currentPlainText();
     teachOriginalLayoutText = lastResult.text || teachOriginalText;
     teachEditor.value = teachOriginalText;
     teachHistory = [teachOriginalText];
@@ -6108,16 +6114,9 @@ function saveLearning() {
     teachOriginalText = corrected;
     teachOriginalLayoutText = correctedLayout;
 
-    // Save & apply must always return to Extracted and show the committed text
-    // immediately, even if the user had Raw OCR selected before saving.
-    showingRaw = false;
-    $('tabVerified').classList.add('active');
-    $('tabRaw').classList.remove('active');
-    updateResultActionsForTab();
-
+    // Keep the chosen export tab after applying corrections.
     closeTeachPanel();
-    textOut.innerHTML = formatOutput(lastResult.text || '');
-    textOut.className = 'output-body';
+    showTab(showingRaw ? 'raw' : 'verified');
 
     const learned = pairs.length;
     if (learned) $('statsBar').innerHTML += '<span class="badge badge-gray">' + learned + ' learned</span>';
@@ -6203,126 +6202,33 @@ async function takePreparedImage(blob) {
 }
 
 async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {}) {
-    let prepared = await takePreparedImage(sourceBlob);
-
+    const prepared = await takePreparedImage(sourceBlob);
     if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-    if (progressText) {
-        const lines = Number(prepared.meta?.lineCount) || 0;
-        const lineInfo = lines > 0 ? ' · ' + lines + ' lines' : '';
-        const strategy = prepared.meta?.scanStrategy === 'line-mosaic' ? ' · line-by-line scan' :
-            (prepared.difficulty === 'hard' ? ' · detailed layout scan' : ' · advanced full-page scan');
-        setProg(18, progressText + lineInfo + strategy);
-    }
-
-    for (let attempt = 0; attempt < 2; attempt++) {
-        if (signal?.aborted) {
-            const abortError = new Error('Extraction cancelled');
-            abortError.name = 'AbortError';
-            throw abortError;
-        }
-
-        const formData = new FormData();
-        formData.append('file', prepared.blob, 'page.jpg');
-        (prepared.detailImages || []).forEach((detail, index) => formData.append('detail_' + index, detail, 'detail-' + index + '.jpg'));
-        formData.append('language', languageSelect.value || 'auto');
-        formData.append('preprocessing', 'smart');
-        formData.append('engine', 'free-only');
-        formData.append('difficulty', prepared.difficulty);
-        formData.append('image_meta', JSON.stringify(prepared.meta || {}));
-        formData.append('layout_options', JSON.stringify(getLayoutOptions()));
-        formData.append('paper_context', JSON.stringify(paperContext || {}));
-        appendLearningHints(formData);
-
-        // Deep-thinking (hard/structured) pages may legitimately run longer; every
-        // other page and every lighter retry gets a shorter, fail-fast window so a
-        // stuck request costs ~100s instead of 3 minutes before the retry starts.
-        const deepPage = attempt === 0 && !prepared.meta?.safeRetry &&
-            (prepared.difficulty === 'hard' || prepared.meta?.structuredLayout || prepared.meta?.branchingLayout);
-        const attemptControl = linkedAttemptSignal(signal, deepPage ? 150000 : (attempt === 0 ? 100000 : 90000));
-        let res;
-
-        try {
-            res = await fetchOcrEndpoint('/api/ocr', {
-                method: 'POST',
-                body: formData,
-                signal: attemptControl.signal
-            });
-        } catch (e) {
-            const parentAborted = signal?.aborted;
-            const attemptTimedOut = attemptControl.timedOut();
-            attemptControl.cleanup();
-
-            if (parentAborted) {
-                const abortError = new Error('Extraction cancelled');
-                abortError.name = 'AbortError';
-                throw abortError;
-            }
-
-            if (attempt === 0) {
-                if (progressText) setProg(22, attemptTimedOut ? 'AI was slow · retrying the detailed read...' : 'Connection interrupted · retrying...');
-                await wait(350);
-                prepared = await prepareImageForOCR(sourceBlob, true);
-                continue;
-            }
-
-            throw new Error(attemptTimedOut
-                ? 'This image took too long twice. PaperAI kept the other completed files; retry this image.'
-                : 'Could not reach PaperAI OCR. Check your internet and retry this image.');
-        }
-
-        attemptControl.cleanup();
-
-        let body = null;
-        try { body = await res.json(); } catch (_) {}
-
+    if (progressText) setProg(22, 'Reading your page · one AI read');
+    const formData = new FormData();
+    formData.append('file', prepared.blob, 'page.jpg');
+    formData.append('language', languageSelect.value || 'auto');
+    formData.append('preprocessing', 'smart');
+    formData.append('engine', 'free-only');
+    formData.append('difficulty', prepared.difficulty);
+    formData.append('image_meta', JSON.stringify(prepared.meta || {}));
+    formData.append('layout_options', JSON.stringify(getLayoutOptions()));
+    formData.append('paper_context', JSON.stringify(paperContext || {}));
+    appendLearningHints(formData);
+    const control = linkedAttemptSignal(signal, 150000);
+    try {
+        const res = await fetchOcrEndpoint('/api/ocr', { method: 'POST', body: formData, signal: control.signal });
+        const body = await res.json().catch(() => ({}));
         if (res.ok) return body;
-
-        if (
-            body?.code === 'PROVIDER_AI_QUOTA_REACHED' ||
-            body?.code === 'FREE_AI_LIMIT_REACHED'
-        ) {
-            throw new Error(
-                'Cloudflare rejected this request with a daily free-quota error. Your files are kept; you can retry this page. PaperAI cannot reset Cloudflare\'s quota.'
-            );
+        if (['PROVIDER_AI_QUOTA_REACHED','FREE_AI_LIMIT_REACHED'].includes(body?.code)) {
+            throw new Error("Cloudflare's daily AI quota is reached. Your files are kept. PaperAI cannot reset Cloudflare's quota.");
         }
-
-        if (res.status === 429) {
-            throw new Error('AI service is temporarily busy. Please try this page again.');
-        }
-
-        if (body?.code === 'FREE_MODEL_UNAVAILABLE') {
-            throw new Error(body.error || 'This OCR model is unavailable on the Cloudflare Free plan.');
-        }
-
-        if (
-            attempt === 0 &&
-            (
-                res.status === 408 ||
-                body?.code === 'AI_TIMEOUT' ||
-                body?.code === 'AI_OUTPUT_TRUNCATED' ||
-                [502,503,504].includes(res.status)
-            )
-        ) {
-            if (progressText) setProg(22, 'AI was slow · retrying a lighter scan...');
-            await wait(350);
-            prepared = await prepareImageForOCR(sourceBlob, true);
-            continue;
-        }
-
-        if (res.status === 413 && attempt === 0) {
-            await wait(250);
-            prepared = await prepareImageForOCR(sourceBlob, true);
-            continue;
-        }
-
-        if (res.status === 405) {
-            throw new Error('PaperAI API route was not accepting image uploads. Please refresh and try again.');
-        }
-
-        throw new Error(body?.error || ('OCR service error ' + res.status));
-    }
-
-    throw new Error('OCR failed after an automatic retry.');
+        throw new Error(body.error || 'This read could not finish. Press Retry when you want another attempt.');
+    } catch (error) {
+        if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+        if (control.timedOut()) throw new Error('This read took too long. No automatic rescan was started. Press Retry to try again.');
+        throw error;
+    } finally { control.cleanup(); }
 }
 
 function publicPlainTextFromStructured(value) {
@@ -6443,13 +6349,9 @@ function currentPlainText() {
 }
 
 function updateResultActionsForTab() {
-    for (const id of ['downloadWordBtn','downloadTxtBtn']) {
-        const btn = $(id);
-        if (btn) {
-            btn.style.display = showingRaw ? 'none' : '';
-            btn.disabled = showingRaw;
-        }
-    }
+    const word = $('downloadWordBtn'), txt = $('downloadTxtBtn');
+    if (word) { word.hidden = showingRaw; word.disabled = showingRaw; }
+    if (txt) { txt.hidden = !showingRaw; txt.disabled = !showingRaw; }
 }
 
 function showTab(tab) {
@@ -7403,37 +7305,8 @@ function localPaperAnalysis(pageRecords) {
 }
 
 async function analyzePaperBatch(pageRecords, signal) {
-    const pages = Array.isArray(pageRecords) ? pageRecords : [];
     if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-    if (pages.length <= 1) return localPaperAnalysis(pages);
-    const control = linkedAttemptSignal(signal, 30000);
-    try {
-        const res = await fetchOcrEndpoint('/api/analyze-paper', {
-            method: 'POST',
-            signal: control.signal,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                pages: pages.map(page => ({
-                    index: page.index,
-                    filename: page.filename || '',
-                    text: page.text || page.plain || '',
-                    profile: page.profile || {}
-                })),
-                known_patterns: safeQuestionPatternHints()
-            })
-        });
-
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok || !body?.analysis?.documents?.length) {
-            return localPaperAnalysis(pages);
-        }
-        return body.analysis;
-    } catch (_) {
-        if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-        return localPaperAnalysis(pages);
-    } finally {
-        control.cleanup();
-    }
+    return localPaperAnalysis(Array.isArray(pageRecords) ? pageRecords : []);
 }
 
 function orderedPaperPages(pageRecords, analysis) {
@@ -7548,6 +7421,8 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
     if (ext === 'pdf') {
         progress(8, batchLabel + 'Loading PDF...');
         const pages = await pdfToPages(inputFile, requestSignal);
+        let pageReads = completedPdfReads.get(inputFile);
+        if (!pageReads) { pageReads = new Map(); completedPdfReads.set(inputFile, pageReads); }
 
         for (let i = 0; i < pages.length; i++) {
             if (requestSignal?.aborted) throw new DOMException('Cancelled', 'AbortError');
@@ -7579,7 +7454,7 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
             const nextImagePage = pages.slice(i + 1).find(p => p.type === 'image');
             if (nextImagePage) prefetchPreparedImage(nextImagePage.blob);
 
-            const result = await sendToOCR(
+            const result = pageReads.get(i) || await sendToOCR(
                 pages[i].blob,
                 requestSignal,
                 batchLabel + 'Preparing page ' + (i+1) + '/' + pages.length,
@@ -7593,6 +7468,7 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
             );
 
             if (result.status === 'completed' && result.result) {
+                pageReads.set(i, result);
                 const annotated = result.result.annotated_text || result.result.full_text || '';
                 const pagePlain = result.result.full_text || annotated;
                 addRecord({
@@ -7693,6 +7569,7 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
 let extractionView = 'select';
 let extractionEpoch = 0;
 let extractionController = null;
+let lastCompletedSelection = [];
 function setExtractionView(view) {
     extractionView = view;
     $('uploadControls').hidden = view !== 'select';
@@ -7700,7 +7577,8 @@ function setExtractionView(view) {
     $('draftsCard').hidden = view !== 'select';
     $('extractionRetry').hidden = view !== 'error';
     $('extractionRetry').disabled = view === 'processing';
-    $('extractionStatus').textContent = view === 'processing' ? 'Extracting your document…' : view === 'error' ? 'Extraction could not finish' : 'Your extracted text';
+    $('extractionStatus').textContent = view === 'processing' ? 'Extracting your document' : view === 'error' ? 'Ready when you are' : 'Ready to review';
+    $('extractionFileName').textContent = files.length === 1 ? files[0].name : files.length + ' selected files';
 }
 function goBackToUpload() {
     extractionEpoch++;
@@ -7719,6 +7597,15 @@ function goBackToUpload() {
 
 async function startExtraction() {
     if (!files.length || extractionView === 'processing') return;
+    if (lastResult && lastCompletedSelection.length === files.length && files.every((f, i) => f === lastCompletedSelection[i])) {
+        hideErr();
+        prog.classList.remove('show');
+        teachPanel.classList.remove('show');
+        setExtractionView('result');
+        resBox.classList.add('show');
+        showTab(showingRaw ? 'raw' : 'verified');
+        return;
+    }
     const selectedFiles = files.slice();
     const run = ++extractionEpoch;
     const controller = new AbortController();
@@ -7768,8 +7655,8 @@ async function startExtraction() {
         }
 
         setProg(92, pageRecords.length > 1
-            ? 'Checking class, exam and question continuity...'
-            : 'Checking question structure...');
+            ? 'Arranging your pages...'
+            : 'Preparing your result...');
 
         const paperAnalysis = await analyzePaperBatch(pageRecords, controller.signal);
         checkActive();
@@ -7836,11 +7723,12 @@ async function startExtraction() {
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
         setExtractionView('result');
+        lastCompletedSelection = selectedFiles.slice();
         resetSmartExtraction();
         preparedImageCache = new WeakMap();
         setProg(100, paperCount > 1
-            ? 'Reconstructed ' + paperCount + ' question papers'
-            : 'Question paper reconstruction complete');
+            ? 'Ready · ' + paperCount + ' papers to review'
+            : 'Ready for your review');
         setTimeout(() => { if (active()) prog.classList.remove('show'); }, 900);
         loadUsage();
 
@@ -7853,7 +7741,7 @@ async function startExtraction() {
         prog.classList.remove('show');
         showErr(
             e.name==='AbortError'
-                ? 'The network request took too long. PaperAI retries AI timeouts automatically; check your connection and try again.'
+                ? 'This read was interrupted. No automatic rescan was started. Press Retry to try again.'
                 : e.message
         );
     } finally {
@@ -9430,7 +9318,7 @@ async function downloadWord(btn) {
 }
 
 function downloadText(btn) {
-    if (!lastResult || showingRaw) return;
+    if (!lastResult || !showingRaw) return;
     const text = currentPlainText();
     if (!text.trim()) { showErr('Nothing was available to export.'); return; }
     // UTF-8 preserves Devanagari, punctuation and answer blanks on Android.

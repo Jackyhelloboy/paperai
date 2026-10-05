@@ -18,7 +18,7 @@ const ctx = vm.createContext({$,AbortController,DOMException,WeakMap,files:[{nam
   analyzePaperBatch:async()=>({documents:[{}]}),saveQuestionPatternsFromAnalysis(){},
   assemblePaperPages:p=>({text:p[0].text,plain:p[0].plain,raw:p[0].text,ordered:p}),repairLegacyBranchDiagram:s=>s,
   publicPlainTextFromStructured:s=>s,esc:s=>s,getLayoutOptions:()=>({}),updateResultActionsForTab(){},applyLayoutOverridesToStructuredText:s=>s,
-  formatOutput:s=>s,updateLayoutAudit(){},applyOutputProfile(){},setTimeout:fn=>{fn();return 1;},
+  showTab(){},formatOutput:s=>s,updateLayoutAudit(){},applyOutputProfile(){},setTimeout:fn=>{fn();return 1;},
   window:{matchMedia:()=>({matches:false}),PaperAIDocumentModel:{parse:()=>({profile:{}})}}});
 vm.runInContext(html.slice(html.indexOf("let extractionView = 'select'"),html.indexOf('\nfunction dlBlob(')),ctx);
 (async()=>{
@@ -36,7 +36,10 @@ vm.runInContext(html.slice(html.indexOf("let extractionView = 'select'"),html.in
   mode='done';await ctx.startExtraction();
   assert.equal(ctx.lastResult.text,'1. Hindi worksheet');
   assert($('uploadControls').hidden && ctx.resBox.classList.contains('show'),'Results retain focused mode');
-  ctx.goBackToUpload();mode='error';await ctx.startExtraction();
+  ctx.goBackToUpload();
+  const beforeReuse=calls;ctx.lastResult.text='Manual correction';await ctx.startExtraction();
+  assert.equal(calls,beforeReuse,'Back reuses the result without new scans');assert.equal(ctx.lastResult.text,'Manual correction');
+  ctx.goBackToUpload();ctx.files=[{name:'new-file.txt'}];mode='error';await ctx.startExtraction();
   assert(!$('extractionRetry').hidden && !ctx.prog.classList.contains('show'),'Failures stop progress and offer Retry');
   assert.equal(errors[0],'Network offline');
   mode='done';await ctx.startExtraction();assert.equal(ctx.lastResult.text,'1. Hindi worksheet');

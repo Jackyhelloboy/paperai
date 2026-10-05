@@ -31,7 +31,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v33',
+        architecture: 'production-literal-ocr-v37',
       }, { headers: corsHeaders });
     }
 
@@ -39,7 +39,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v33',
+        architecture: 'production-literal-ocr-v37',
         model: '@cf/google/gemma-4-26b-a4b-it',
         ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
@@ -1203,13 +1203,14 @@ async function handleOCR(request, env, corsHeaders) {
         paper_context_used: Boolean(paperContext && (paperContext.previous_page_tail || paperContext.page_index != null)),
         detected_language: detectedLanguage,
         mode: 'free_only_literal_transcription',
-        billing_safety: 'free_only_conditional_verification_no_paid_fallback',
+        billing_safety: 'free_only_single_pass_manual_corrections_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v33',
+        architecture: 'production-literal-ocr-v37',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
-        verification_pass_used: Boolean(aiResult.rescued),
+        verification_pass_used: false,
+        ai_reads: 1,
         image_profile: imageMeta || {},
         learning_hints_used: learningHints.length,
         layout: detectExamLayout(plainText),
@@ -1484,31 +1485,8 @@ function isTransientAiError(error) {
     s.includes('504');
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-const AI_MAX_ATTEMPTS = 3;
-
-// Exponential backoff with jitter: 0.4s, 1.2s (+ up to 0.25s). Jitter stops
-// several pages that were rejected as "busy" together from retrying together.
-function aiRetryDelayMs(attempt) {
-  return [400, 1200][Math.min(attempt, 1)] + Math.floor(Math.random() * 250);
-}
-
-function ocrNeedsThinking(imageMeta = {}, difficulty = 'auto') {
-  if (imageMeta?.safeRetry) return false;
-  // Low resolution, blur, notebook rules and matching rows are perception
-  // problems. Reasoning consumes the output budget and can trigger a lighter
-  // retry that discards close-ups. Reserve it for actual branching diagrams.
-  return Boolean(imageMeta?.branchingLayout);
-}
-
-// A lighter retry exists to finish quickly. It keeps a non-empty, non-runaway
-// first read instead of paying for a second full multimodal pass.
-function skipVerificationOnSafeRetry(text, imageMeta = {}) {
-  return Boolean(imageMeta?.safeRetry) && String(text || '').trim().length > 0 && !hasDegenerateOcr(text);
-}
+// Extraction makes exactly one provider call; retry is an explicit user action.
+function ocrNeedsThinking() { return false; }
 
 async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], layoutOptions = {}, paperContext = {}, detailImages = []) {
   if (!env.AI) {
@@ -1517,15 +1495,12 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
 
   const model = '@cf/google/gemma-4-26b-a4b-it';
   const scanStrategy = imageMeta?.scanStrategy || 'full-page';
-  const scanMode = 'advanced-detail-preserving';
+  const scanMode = 'single-pass';
   const dataUrl = `data:${mimeType};base64,${base64Image}`;
   const imageContent = [
     { type: 'text', text: 'Full source page. Use this frame for reading order, numbering and layout.' },
     { type: 'image_url', image_url: { url: dataUrl } },
-    ...detailImages.flatMap((detail, index) => [
-      { type: 'text', text: index === 0 ? 'Closer view of the upper part of the SAME page.' : 'Closer view of the lower part of the SAME page. It overlaps the upper view; transcribe each source line only once.' },
-      { type: 'image_url', image_url: { url: `data:${detail.mimeType};base64,${detail.base64}` } }
-    ])
+
   ];
   const layoutSection = imageMeta?.structuredLayout
     ? '\nVISUAL LAYOUT HINT:\nThis page contains structured geometry. Preserve rows, columns, long answer lines and connected relationships. Detected multi-column rows: ' +
@@ -1645,104 +1620,13 @@ ${paperContextInstruction}`;
     }
   };
 
-  let response;
-  let lastError;
-
-  for (let attempt = 0; attempt < AI_MAX_ATTEMPTS; attempt++) {
-    try {
-      response = await runCloudflareAI(env,model, requestBody, { rejectIfBusy: true });
-      break;
-    } catch (e) {
-      lastError = e;
-      if (isDailyFreeLimitError(e) || isPaidModelRequiredError(e) || !isTransientAiError(e) || attempt === AI_MAX_ATTEMPTS - 1) {
-        throw e;
-      }
-      await sleep(aiRetryDelayMs(attempt));
-    }
-  }
-
-  if (!response) throw lastError || new Error('AI OCR unavailable');
-
+  const response = await runCloudflareAI(env, model, requestBody, { rejectIfBusy: true });
   if (isAiOutputTruncated(response)) {
-    throw Object.assign(new Error('The AI read reached its output token limit.'), { code: 'AI_OUTPUT_TRUNCATED' });
+    throw Object.assign(new Error('The AI read reached its output token limit. Retry is available manually.'), { code: 'AI_OUTPUT_TRUNCATED' });
   }
-
   let text = extractAiText(response);
-  let usage = mergeAiUsage(response.usage || null, null);
-  let rescued = false;
-
-  if (shouldVerifyOcr(text, imageMeta) && !skipVerificationOnSafeRetry(text, imageMeta)) {
-    const independentRead = hasDegenerateOcr(text) || needsIndependentHindiRead(text);
-    const rescuePrompt = independentRead
-      ? prompt + '\nINDEPENDENT IMAGE VERIFICATION: Read from the pixels alone. Re-check every handwritten consonant, vowel sign, proper name, option and marks formula from the close-ups. Preserve matching rows using the COLUMNS_START/COLUMN_ROW/COLUMNS_END format defined above, including original adjacent entries and visible case. Never invent alphabet labels, missing words or repeated empty rows. Use [unclear] for the unreadable part. Return only the transcription.'
-      : prompt + `
-
-LITERAL VERIFICATION PASS:
-Below is the first OCR transcription. Re-check it against the image line-by-line and return the best literal transcription.
-
-FIRST OCR:
----BEGIN FIRST OCR---
-${text}
----END FIRST OCR---
-
-VERIFICATION RULES:
-- Keep text unchanged when the pixels support it.
-- Resolve [unclear] only when the image gives enough visual evidence.
-- Remove [[INSERT]], [[REPLACE]], [[STRIKE]], [[CIRCLED]], [[UNDERLINE]], or other edit markers if the corresponding visual mark is not clearly present.
-- Do not turn faint erased writing, reverse-side show-through, indentation, shadows, or paper texture into readable text.
-- Do not fill answer blanks from context or options.
-- Correct a character only when the image itself supports that correction.
-- Preserve mathematics, marks, punctuation, spacing relationships, and mixed scripts exactly.
-- Re-check large printed school/exam/header words letter-by-letter; these should not be rewritten from memory or familiarity.
-- Re-check every Devanagari grapheme that changed between the first OCR and your proposed result. Only change it when the visible stroke pattern supports the new grapheme.
-- On Hindi-dominant pages, inspect every Latin-letter token again. Keep it Latin only when the source itself is visibly English; never romanize a Devanagari word during verification.
-- For branch diagrams, remove fake "| |" connector rows and return the exact [[BRANCH_ROOT]], [[BRANCH_ITEM]], [[BRANCH_END]] structure defined above.
-- Re-check each branch label independently. Never merge the root/prefix into a branch label; preserve only the characters visibly written on that branch.
-- Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
-- On question/answer sheets, count every visible numbered question before accepting the verification result. Do not let long ruled answer lines replace or suppress the shorter question text above them.
-- Preserve QUESTION_SECTION, QUESTION_ITEM and ANSWER_RULE metadata when the corresponding structure is visibly present. Never add a missing question from expected marks or sequence.
-- Prompt/template descriptions are NEVER document text. Remove or replace with [unclear] any accidental phrases such as "visible Roman/section label", "exact visible instruction", "exact visible marks formula", "exact visible question number", or "exact visible question text".
-- For a section heading, re-read the actual Roman label from the pixels (I, II, III, IV, V, VI, VII, VIII, etc.). Do not substitute a generic label description.
-- When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
-- If genuinely unreadable, keep [unclear] instead of guessing.`;
-
-    try {
-      const rescueResponse = await runCloudflareAI(env,model, {
-        messages: [
-          {
-            role: 'system',
-            content: independentRead
-              ? 'Read the image independently, without reconstructing familiar stories. Inspect handwritten Devanagari vowel signs and consonants from the close-ups. Keep English matching entries in English with their original case. Return only visually supported text and preserve all source rows.'
-              : 'You are a forensic literal OCR verifier. Your job is to compare the first transcription to the image and remove hallucinations while recovering only visually supported characters.'
-          },
-          {
-            role: 'user',
-            content: [
-              ...imageContent,
-              { type: 'text', text: rescuePrompt }
-            ]
-          }
-        ],
-        max_completion_tokens: 8192,
-        temperature: 0,
-        chat_template_kwargs: {
-          enable_thinking: thinking
-        }
-      }, { rejectIfBusy: true });
-
-      const rescueText = extractAiText(rescueResponse);
-      usage = mergeAiUsage(usage, rescueResponse.usage || null);
-
-      if (!isAiOutputTruncated(rescueResponse) && shouldAcceptVerifiedText(text, rescueText, imageMeta)) {
-        text = rescueText;
-        rescued = true;
-      }
-    } catch (e) {
-      if (!isDailyFreeLimitError(e) && !isPaidModelRequiredError(e)) {
-        console.log('[Literal verification] skipped:', e?.message || e);
-      }
-    }
-  }
+  const usage = response.usage || null;
+  const rescued = false;
 
   if (hasDegenerateOcr(text)) {
     throw new Error('The image read produced repetitive empty rows. Please retry with a clearer page image.');

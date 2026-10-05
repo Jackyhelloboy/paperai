@@ -16,13 +16,13 @@ const env = { AI: { run: async (model, body) => {
         { mimeType: 'image/jpeg', base64: 'UPPER' }, { mimeType: 'image/jpeg', base64: 'LOWER' }
     ]);
     assert.equal(result.text, text);
-    assert.equal(result.scanMode, 'advanced-detail-preserving');
+    assert.equal(result.scanMode, 'single-pass');
     for (const request of requests) {
         assert.equal(request.model, '@cf/google/gemma-4-26b-a4b-it');
         assert.equal(request.body.chat_template_kwargs.enable_thinking, false, 'plain pages skip reasoning tokens for speed');
         assert.equal(request.body.max_completion_tokens, 8192);
         const images = request.body.messages[1].content.filter(part => part.type === 'image_url');
-        assert.equal(images.length, 3);
+        assert.equal(images.length, 1);
         assert(images[0].image_url.url.endsWith('FULL'));
     }
     const first = 'नागण नाम का एक ______ था। (ब्राह्मण / किसान)\n[[COLUMNS_START]]\n' +
@@ -35,12 +35,8 @@ const env = { AI: { run: async (model, body) => {
       return {choices:[{message:{content:reads.length===1?first:corrected},finish_reason:'stop'}]};
     }}};
     const checked=await context.runAI('FULL','image/jpeg',photoEnv,'hi','easy');
-    assert.equal(reads.length,2,'Hindi matching exercises get one independent verification read');
-    assert.equal(checked.text,corrected);
-    assert.equal(checked.rescued,true);
-    const verificationPrompt=reads[1].messages[1].content.find(part=>part.type==='text' && part.text.includes('INDEPENDENT IMAGE VERIFICATION')).text;
-    assert(!verificationPrompt.includes('नागण') && !verificationPrompt.includes('FIRST OCR'), 'Do not anchor verification to the misread words');
-    assert(verificationPrompt.includes('[[COLUMNS_START]]') && verificationPrompt.includes('[[COLUMN_ROW:'),'The independent read retains the original column format');
-    assert.equal(context.needsIndependentHindiRead('Simple English paragraph.'),false);
-    console.log('Advanced OCR preserves the full frame, two details, the same model, and skips thinking on plain pages.');
+    assert.equal(reads.length,1,'Hindi matching exercises must not trigger another read');
+    assert.equal(checked.text,first,'Keep the first result for manual corrections');
+    assert.equal(checked.rescued,false);
+    console.log('Single-pass OCR preserves the full frame and source text without verification calls or reasoning tokens.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

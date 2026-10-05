@@ -76,7 +76,7 @@ function request() {
   const verified = await worker.fetch(request(), env);
   assert.equal(verified.status, 200);
   assert.equal((await verified.json()).result.full_text, uncertainText, 'A token-limited verification must not replace a complete first read');
-  assert.equal(verificationCalls, 2);
+  assert.equal(verificationCalls, 1, 'Unclear words never trigger another inference');
 
   mode = 'quota';
   const quota = await worker.fetch(request(), env);

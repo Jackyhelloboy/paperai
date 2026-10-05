@@ -110,3 +110,10 @@ Handwriting scans retain the complete source image and focus close-ups on confid
 Selecting a file prepares its first image locally. AI inference starts only after Scan & Rebuild. Upload controls and drafts stay hidden during extraction and results; Go back cancels pending work and returns to the same file selection. Failed extraction offers Retry, and a cancelled run cannot overwrite a later result. Multi-page analysis has a bounded timeout with local ordering fallback. PDF workers, rendered canvases and temporary extraction caches are released after use.
 
 Word exports use native editable paragraphs for ordinary questions and tab-aligned matching pairs, with explicit black text and Mangal for Hindi. Real source tables and diagrams retain their structure. Copy, TXT and Word preserve the same corrected source characters. This improves font compatibility but does not repair unreviewed recognition mistakes.
+
+
+## Single-read extraction and tab exports
+
+OCR makes one Workers AI inference request per scanned page. Verification passes, reasoning, retry loops, alternate AI routes and automatic AI batch grouping are disabled. Errors offer a manual Retry. Selecting files, ordering pages, switching tabs and typing corrections do not call AI. One optimized full-page frame is sent without additional close-up image tokens. Completed selected files and PDF page reads are reused in this tab; Back also preserves saved corrections.
+
+The top result actions are exactly three: Copy, Word and Teach in Extracted; Copy, TXT and Teach in Plain text. AI Suggestions lives inside Teach and runs only on an explicit click for a selected word/short phrase, with cached suggestions and no automatic application. Save & apply retains the selected export tab. The progress card shows preparation/read/ready stages rather than a made-up percentage of model work.

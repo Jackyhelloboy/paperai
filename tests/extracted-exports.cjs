@@ -35,7 +35,7 @@ const worksheet='1. बाहर X\n2. कड़वे X\n3. विश्वा�
   assert(!plain.includes('[['));assert(!plain.includes('STALE'));
   assert(plain.includes('नारायण') && plain.includes('______'));
   assert(plain.includes('2. गंदा    (b) Cuckoo'),'Matching columns stay adjacent and unsolved');
-  ctx.downloadText();
+  ctx.showingRaw=true;ctx.downloadText();ctx.showingRaw=false;
   assert.equal(saved[0].name,'Hindi-worksheet-extracted.txt');
   assert.equal(saved[0].blob.type,'text/plain;charset=utf-8');
   assert.equal(await saved[0].blob.text(),plain);
@@ -51,7 +51,7 @@ const worksheet='1. बाहर X\n2. कड़वे X\n3. विश्वा�
   teaching=true;ctx.lastResult.preview_layout_text=worksheet.replace('नारायण','नारायणजी');
   assert(ctx.currentPlainText().includes('नारायणजी'));
   assert(ctx.currentStructuredWordText().includes('नारायणजी'));
-  ctx.showingRaw=true;ctx.downloadText();assert.equal(saved.length,1);
+  ctx.showingRaw=false;ctx.downloadText();assert.equal(saved.length,1);
   assert(!html.includes('AI Auto Detection') && !html.includes('layoutReview'));
   console.log('TXT is UTF-8, matches corrected Extracted text, and preserves the same characters as actual Word export.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

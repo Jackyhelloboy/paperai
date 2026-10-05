@@ -14,14 +14,12 @@ vm.runInContext(html.slice(html.indexOf('async function prepareImageForOCR('),ht
 (async()=>{
   const prepared=await ctx.prepareImageForOCR({size:20000});
   assert.equal(prepared.meta.pageAutoCropped,false,'The complete source remains authoritative');
-  assert.equal(prepared.meta.detailPageFocused,true);assert.equal(prepared.detailImages.length,2);
+  assert.equal(prepared.meta.detailPageFocused,false);assert.equal(prepared.detailImages.length,0);
+  assert.equal(canvases.length,1,'Only one full-frame canvas is sent to AI');
   assert.deepEqual(canvases[0].draws[0].slice(1),[0,0,1000,1800]);
-  assert.equal(canvases[1].draws[0][1],100);assert.equal(canvases[1].draws[0][2],150);
-  const lowerTop=canvases[2].draws[0][2];
-  assert(lowerTop<150+canvases[1].height,'Close-ups overlap rather than omit source rows');
   canvases.length=0;bounds={...bounds,confidence:0.2};
   const uncertain=await ctx.prepareImageForOCR({size:20000});assert.equal(uncertain.detailImages.length,0);
   canvases.length=0;bounds={...bounds,confidence:0.8};
   const safe=await ctx.prepareImageForOCR({size:20000},true);assert.equal(safe.detailImages.length,0);
-  console.log('Handwriting detail aids focus confident page bounds, retain every full-frame pixel, and keep lighter retries bounded.');
+  console.log('Image preparation preserves every full-frame pixel and sends no additional detail images.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
