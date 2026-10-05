@@ -100,7 +100,11 @@ export default {
         if (isPaidModelRequiredError(e)) {
           return Response.json({ suggestions: [], code: 'FREE_MODEL_UNAVAILABLE' }, { status: 503, headers: corsHeaders });
         }
-        return Response.json({ suggestions: [], error: 'Suggestion service unavailable' }, { status: 503, headers: corsHeaders });
+        return Response.json({
+          suggestions: [],
+          error: 'Suggestion service unavailable',
+          code: 'SUGGESTION_SERVICE_UNAVAILABLE'
+        }, { status: 503, headers: corsHeaders });
       }
     }
 

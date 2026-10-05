@@ -29,6 +29,26 @@ vm.runInContext(html.slice(html.indexOf('async function fetchOcrEndpoint('), htm
   assert.equal(requests.length, 1, 'An uncertain transport failure must not start duplicate inference');
 
   requests.length = 0;
+  reply = url => Response.json({ suggestions: ['सुझाव'], route: url });
+  const suggestionOk = await context.fetchOcrEndpoint('/api/suggest-word', { method: 'POST' });
+  assert.equal(requests.length, 1, 'Suggestions use one request when the Pages proxy is healthy');
+  assert(requests[0].startsWith('https://pages.example/api/suggest-word'), 'Suggestions prefer the same-origin Pages proxy');
+
+  requests.length = 0;
+  reply = url => url.startsWith('https://pages.example')
+    ? Response.json({ error: 'proxy unreachable' }, { status: 502, headers: { 'X-PaperAI-Proxy-Error': '1' } })
+    : Response.json({ suggestions: ['सुझाव'] });
+  const suggestionFallback = await context.fetchOcrEndpoint('/api/suggest-word', { method: 'POST' });
+  assert.equal(suggestionFallback.status, 200);
+  assert.equal(requests.length, 2, 'Suggestions fall back to the direct Worker only when the Pages proxy itself fails');
+
+  requests.length = 0;
+  reply = () => Response.json({ code: 'FREE_MODEL_UNAVAILABLE', suggestions: [] }, { status: 503 });
+  const suggestionProviderError = await context.fetchOcrEndpoint('/api/suggest-word', { method: 'POST' });
+  assert.equal(suggestionProviderError.status, 503);
+  assert.equal(requests.length, 1, 'A provider AI rejection must not duplicate the suggestion inference through the direct route');
+
+  requests.length = 0;
   reply = () => { throw new Error('aborted'); };
   await assert.rejects(context.fetchOcrEndpoint('/api/ocr', { signal: { aborted: true } }), /aborted/);
   assert.equal(requests.length, 1, 'Cancellation must not restart work');

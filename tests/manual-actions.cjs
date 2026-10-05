@@ -1,14 +1,14 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const html=fs.readFileSync('frontend/index.html','utf8');
 function fn(name){const start=html.indexOf('function '+name+'(');const tail=html.slice(start);const next=tail.slice(1).search(/\n(?:async )?function /);return (html.slice(Math.max(0,start-6),start)==='async '?'async ':'')+(next<0?tail:tail.slice(0,next+1));}
-const nodes=new Map();const $=id=>{if(!nodes.has(id))nodes.set(id,{disabled:false,hidden:false,textContent:''});return nodes.get(id);};
+const nodes=new Map();const $=id=>{if(!nodes.has(id))nodes.set(id,{disabled:false,hidden:false,textContent:'',dataset:{},scrollIntoView(){}});return nodes.get(id);};
 const ctx=vm.createContext({$,showingRaw:false});vm.runInContext(fn('updateResultActionsForTab'),ctx);
 ctx.updateResultActionsForTab();assert(!$('downloadWordBtn').hidden && $('downloadTxtBtn').hidden);
 ctx.showingRaw=true;ctx.updateResultActionsForTab();assert($('downloadWordBtn').hidden && !$('downloadTxtBtn').hidden);
 const top=html.slice(html.indexOf('<div class="results-actions">'),html.indexOf('<div class="teach-panel"'));
 assert.equal((top.match(/<button\b/g)||[]).length-1,3,'Only three top actions are visible, with one of the two exports hidden');
 let calls=0, chips=[];
-const editor={value:'flower',selectionStart:0,selectionEnd:6,setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
+const editor={value:'flower',selectionStart:0,selectionEnd:6,focus(){},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
 const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,smartComposition:{source:'flower',start:0,end:6},
  aiSuggestionTimer:null,aiSuggestionSequence:0,aiSuggestionCalls:0,aiSuggestionPending:false,aiSuggestionCache:new Map(),
  teachPanel:{classList:{contains:()=>true}},currentTeachLanguage:()=> 'hi',currentTeachScript:()=> 'devanagari',currentTeachSourceLanguage:()=> 'en',
@@ -24,8 +24,11 @@ for(const name of ['fetchAiTextSuggestions','showSmartSuggestions','manualSugges
  const once=manual.requestManualAiSuggestions(), duplicate=manual.requestManualAiSuggestions();await Promise.all([once,duplicate]);
  assert.equal(calls,1,'Repeated clicks during a pending request make only one AI call');
  assert.equal(editor.value,'flower','AI suggestions never apply themselves');assert(chips.includes('फूल'));
+ assert.equal($('aiSuggestionPanel').dataset.state,'ready','Suggestions render in a visible ready panel above the editor');
+ assert($('aiSuggestionSource').textContent.includes('flower'),'Suggestion panel identifies the text being reviewed');
  await manual.requestManualAiSuggestions();assert.equal(calls,1,'Same selected text and language reuse suggestions');
  manual.chooseSmartSuggestion('फूल');assert.equal(editor.value,'फूल','Only choosing a suggestion changes the selected text');
+ assert.equal($('aiSuggestionSource').textContent,'Suggestion applied');
  let batchCalls=0, batchCleanups=0;
  const batch=vm.createContext({DOMException,Response,
   localPaperAnalysis:p=>({count:p.length,source:'local'}),
