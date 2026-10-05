@@ -12,10 +12,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
     <script src="vendor/indic-transliterate.js"></script>
-    <script src="vendor/paperai-document-model.js?v=33"></script>
+    <script src="vendor/paperai-document-model.js?v=34"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
-    <script src="vendor/paperai-word-engine.js"></script>
+    <script src="vendor/paperai-word-engine.js?v=34"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -3149,6 +3149,11 @@
             .draft-actions {flex-wrap:wrap;gap:0.5rem;}
             .draft-actions .draft-btn {flex:1 1 140px;}
         }
+        [hidden] { display: none !important; }
+        .extraction-nav { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+        .extraction-nav button { min-height:44px; }
+        #extractionStatus { flex:1; min-width:120px; font-size:14px; }
+        #uploadControls { min-width:0; }
     </style>
 </head>
 <body>
@@ -3218,6 +3223,12 @@
         </section>
 
         <div class="upload-card">
+            <div id="extractionNav" class="extraction-nav" hidden>
+                <button class="draft-btn ghost" id="extractionBack" type="button">← Go back</button>
+                <span id="extractionStatus" role="status" aria-live="polite"></span>
+                <button class="draft-btn" id="extractionRetry" type="button" hidden>Retry extraction</button>
+            </div>
+            <div id="uploadControls">
             <div class="upload-zone" id="dropZone">
                 <div class="upload-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
@@ -3249,6 +3260,8 @@
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 <span id="goBtnLabel">Scan & Rebuild</span>
             </button>
+
+            </div>
 
             <div class="preview-lightbox" id="previewLightbox" aria-hidden="true">
                 <div class="preview-lightbox-backdrop" data-preview-close></div>
@@ -3465,7 +3478,7 @@ function smartFileKey(f) {
 function smartWorkerLimit() {
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     const slow = connection?.saveData || /(?:^|-)2g$|3g/i.test(String(connection?.effectiveType || ''));
-    return slow ? 1 : 3;
+    return slow ? 1 : 2;
 }
 
 function updateSmartExtractionUI() {
@@ -3501,6 +3514,7 @@ function cancelSmartJob(file) {
     const job = smartExtractionJobs.get(key);
     if (!job) return;
     job.cancelled = true;
+    job.resolve?.({ ok: false, cancelled: true });
     try { job.controller?.abort(); } catch (_) {}
     smartExtractionJobs.delete(key);
     smartExtractionQueue = smartExtractionQueue.filter(item => item.key !== key);
@@ -3509,6 +3523,7 @@ function cancelSmartJob(file) {
 function resetSmartExtraction() {
     for (const job of smartExtractionJobs.values()) {
         job.cancelled = true;
+        job.resolve?.({ ok: false, cancelled: true });
         try { job.controller?.abort(); } catch (_) {}
     }
     smartExtractionJobs.clear();
@@ -3598,7 +3613,8 @@ function pumpSmartExtractionQueue() {
     }
 }
 
-async function getSmartExtractionResult(file, index, total) {
+async function getSmartExtractionResult(file, index, total, signal) {
+    if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
     const key = smartFileKey(file);
     let job = smartExtractionJobs.get(key);
 
@@ -3612,12 +3628,15 @@ async function getSmartExtractionResult(file, index, total) {
 
     if (job.status === 'queued' || job.status === 'running') {
         const settled = await job.promise;
+        if (settled?.cancelled || job.cancelled || signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
         if (settled?.ok && settled.result) return settled.result;
     }
 
+    if (job.cancelled || signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
     // Only retry the failed file, not the whole batch.
     smartExtractionJobs.delete(key);
-    const result = await extractOneInputFile(file, index, total, '', { background: false });
+    const result = await extractOneInputFile(file, index, total, '', { background: false, signal });
+    if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
     smartExtractionJobs.set(key, {
         key,
         file,
@@ -3932,6 +3951,7 @@ function renderBatchPreview() {
 }
 
 function setFiles(inputFiles, append = false) {
+    if (extractionView !== 'select') return;
     const incoming = Array.from(inputFiles || []);
     if (!incoming.length) return;
 
@@ -4012,15 +4032,17 @@ function setFiles(inputFiles, append = false) {
     resBox.classList.remove('show');
     renderBatchPreview();
 
-    // Start OCR immediately in the background while the user reviews previews.
-    startSmartExtractionForFiles();
+    // Browser preparation is safe before consent; AI starts only on Extract.
+    files.filter(f => getFileCategory(f.name.split('.').pop().toLowerCase()) === 'img').slice(0, 1).forEach(prefetchPreparedImage);
+    updateSmartExtractionUI();
 }
 function setFile(f) {
     setFiles([f], false);
 }
 
 function clearFile() {
-    resetSmartExtraction();
+    goBackToUpload();
+    lastResult = null;
     files=[];
     file=null;
     previewObjectUrls.forEach(url => { try { URL.revokeObjectURL(url); } catch (_) {} });
@@ -4199,22 +4221,32 @@ function reconstructPdfText(textContent, pageWidth) {
     return output.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-async function pdfToPages(pdfFile) {
+async function pdfToPages(pdfFile, signal) {
+    const checkCancelled = () => { if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError'); };
+    checkCancelled();
     const arrayBuffer = await pdfFile.arrayBuffer();
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    checkCancelled();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const onAbort = () => { Promise.resolve(loadingTask.destroy()).catch(() => {}); };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    try {
+    const pdf = await loadingTask.promise;
     const pages = [];
 
     for (let i = 1; i <= pdf.numPages; i++) {
+        checkCancelled();
         setProg(10 + Math.round((i / pdf.numPages) * 35), 'Reading PDF page ' + i + '/' + pdf.numPages + '...');
         const page = await pdf.getPage(i);
 
         const textContent = await page.getTextContent();
+        checkCancelled();
         const baseViewport = page.getViewport({ scale: 1 });
         const embedded = reconstructPdfText(textContent, baseViewport.width);
 
         if (embedded.length >= 20 && (textContent.items || []).length >= 3) {
             pages.push({ type: 'text', text: embedded });
+            page.cleanup();
             continue;
         }
 
@@ -4230,9 +4262,16 @@ async function pdfToPages(pdfFile) {
         const blob = await new Promise((resolve, reject) => {
             canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not render PDF page')), 'image/jpeg', 0.94);
         });
+        canvas.width = canvas.height = 0;
+        page.cleanup();
+        checkCancelled();
         pages.push({ type: 'image', blob });
     }
     return pages;
+    } finally {
+        signal?.removeEventListener('abort', onAbort);
+        await loadingTask.destroy().catch(() => {});
+    }
 }
 
 async function extractSpreadsheetFile(spreadsheetFile) {
@@ -6126,7 +6165,7 @@ function linkedAttemptSignal(parentSignal, timeoutMs) {
 // Preparing a page (decode, paper crop, line analysis, resize, encode) runs in the
 // browser, not on the AI service. For multi-page scans the next page is prepared
 // while the current page is being read, so that work is hidden behind the AI wait.
-const preparedImageCache = new WeakMap();
+let preparedImageCache = new WeakMap();
 function prefetchPreparedImage(blob) {
     if (!blob || typeof blob !== 'object' || preparedImageCache.has(blob)) return;
     const pending = prepareImageForOCR(blob, false);
@@ -6145,6 +6184,7 @@ async function takePreparedImage(blob) {
 async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {}) {
     let prepared = await takePreparedImage(sourceBlob);
 
+    if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
     if (progressText) {
         const lines = Number(prepared.meta?.lineCount) || 0;
         const lineInfo = lines > 0 ? ' · ' + lines + ' lines' : '';
@@ -7341,13 +7381,15 @@ function localPaperAnalysis(pageRecords) {
     };
 }
 
-async function analyzePaperBatch(pageRecords) {
+async function analyzePaperBatch(pageRecords, signal) {
     const pages = Array.isArray(pageRecords) ? pageRecords : [];
+    if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
     if (pages.length <= 1) return localPaperAnalysis(pages);
-
+    const control = linkedAttemptSignal(signal, 30000);
     try {
         const res = await fetchOcrEndpoint('/api/analyze-paper', {
             method: 'POST',
+            signal: control.signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 pages: pages.map(page => ({
@@ -7366,7 +7408,10 @@ async function analyzePaperBatch(pageRecords) {
         }
         return body.analysis;
     } catch (_) {
+        if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
         return localPaperAnalysis(pages);
+    } finally {
+        control.cleanup();
     }
 }
 
@@ -7460,6 +7505,7 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
         abortError.name = 'AbortError';
         throw abortError;
     }
+    const progress = (pct, text) => { if (!requestSignal?.aborted) setProg(pct, text); };
     const batchLabel = batchTotal > 1 ? 'File ' + (batchIndex + 1) + '/' + batchTotal + ' · ' : '';
     const records = [];
     let localTail = previousPageTail || '';
@@ -7479,12 +7525,13 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
     };
 
     if (ext === 'pdf') {
-        setProg(8, batchLabel + 'Loading PDF...');
-        const pages = await pdfToPages(inputFile);
+        progress(8, batchLabel + 'Loading PDF...');
+        const pages = await pdfToPages(inputFile, requestSignal);
 
         for (let i = 0; i < pages.length; i++) {
+            if (requestSignal?.aborted) throw new DOMException('Cancelled', 'AbortError');
             if (pages[i].type === 'text') {
-                setProg(
+                progress(
                     20 + Math.round(((batchIndex + (i / Math.max(1,pages.length))) / Math.max(1,batchTotal)) * 68),
                     batchLabel + 'Reading PDF page ' + (i+1) + '/' + pages.length
                 );
@@ -7496,7 +7543,7 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
                 continue;
             }
 
-            setProg(
+            progress(
                 20 + Math.round(((batchIndex + (i / Math.max(1,pages.length))) / Math.max(1,batchTotal)) * 68),
                 batchLabel + 'AI reconstructing page ' + (i+1) + '/' + pages.length
             );
@@ -7546,14 +7593,14 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
     }
 
     if (XLS_EXTS.includes(ext)) {
-        setProg(25, batchLabel + 'Reading spreadsheet...');
+        progress(25, batchLabel + 'Reading spreadsheet...');
         const text = await extractSpreadsheetFile(inputFile);
         addRecord({ text, plain: text, raw: text });
         return { ...combineLocalPageRecords(records), pages: records, pageCount: 1, contextTail: localTail };
     }
 
     if (IMAGE_EXTS.includes(ext)) {
-        setProg(12, batchLabel + 'AI analyzing image...');
+        progress(12, batchLabel + 'AI analyzing image...');
         const result = await sendToOCR(
             inputFile,
             requestSignal,
@@ -7584,14 +7631,14 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
     }
 
     if (TXT_EXTS.includes(ext) || ext === 'rtf') {
-        setProg(25, batchLabel + 'Reading text...');
+        progress(25, batchLabel + 'Reading text...');
         const text = await extractPlainTextFile(inputFile);
         addRecord({ text, plain: text, raw: text });
         return { ...combineLocalPageRecords(records), pages: records, pageCount: 1, contextTail: localTail };
     }
 
     if (['docx','odt','pptx','odp'].includes(ext)) {
-        setProg(25, batchLabel + 'Reading Office document...');
+        progress(25, batchLabel + 'Reading Office document...');
         const text = await extractOfficeZipFile(inputFile);
         addRecord({ text, plain: text, raw: text });
         return { ...combineLocalPageRecords(records), pages: records, pageCount: 1, contextTail: localTail };
@@ -7622,26 +7669,62 @@ async function extractOneInputFile(inputFile, batchIndex = 0, batchTotal = 1, pr
     return { ...combineLocalPageRecords(records), pages: records, pageCount: 1, contextTail: localTail };
 }
 
-goBtn.onclick = async () => {
-    if(!files.length) return;
+let extractionView = 'select';
+let extractionEpoch = 0;
+let extractionController = null;
+function setExtractionView(view) {
+    extractionView = view;
+    $('uploadControls').hidden = view !== 'select';
+    $('extractionNav').hidden = view === 'select';
+    $('draftsCard').hidden = view !== 'select';
+    $('extractionRetry').hidden = view !== 'error';
+    $('extractionRetry').disabled = view === 'processing';
+    $('extractionStatus').textContent = view === 'processing' ? 'Extracting your document…' : view === 'error' ? 'Extraction could not finish' : 'Your extracted text';
+}
+function goBackToUpload() {
+    extractionEpoch++;
+    extractionController?.abort();
+    extractionController = null;
+    resetSmartExtraction();
+    preparedImageCache = new WeakMap();
+    hideErr();
+    prog.classList.remove('show');
+    resBox.classList.remove('show');
+    teachPanel.classList.remove('show');
+    setExtractionView('select');
+    goBtn.disabled = !files.length;
+    updateSmartExtractionUI();
+}
+
+async function startExtraction() {
+    if (!files.length || extractionView === 'processing') return;
+    const selectedFiles = files.slice();
+    const run = ++extractionEpoch;
+    const controller = new AbortController();
+    extractionController = controller;
+    const active = () => run === extractionEpoch && !controller.signal.aborted;
+    const checkActive = () => { if (!active()) throw new DOMException('Cancelled', 'AbortError'); };
+    setExtractionView('processing');
+    startSmartExtractionForFiles();
 
     goBtn.disabled=true;
     hideErr();
     resBox.classList.remove('show');
     prog.classList.add('show');
-    setProg(5, files.length > 1 ? 'Preparing ' + files.length + ' files...' : 'Reading file...');
+    setProg(5, selectedFiles.length > 1 ? 'Preparing ' + selectedFiles.length + ' files...' : 'Reading file...');
 
     try {
         let totalPages = 0;
         const pageRecords = [];
 
-        for (let index = 0; index < files.length; index++) {
-            const current = files[index];
+        for (let index = 0; index < selectedFiles.length; index++) {
+            const current = selectedFiles[index];
             setProg(
-                Math.min(82, 10 + Math.round((index / Math.max(1, files.length)) * 65)),
-                'Finishing ' + (index + 1) + '/' + files.length + '...'
+                Math.min(82, 10 + Math.round((index / Math.max(1, selectedFiles.length)) * 65)),
+                'Finishing ' + (index + 1) + '/' + selectedFiles.length + '...'
             );
-            const result = await getSmartExtractionResult(current, index, files.length);
+            const result = await getSmartExtractionResult(current, index, selectedFiles.length, controller.signal);
+            checkActive();
             const resultPages = Array.isArray(result?.pages) ? result.pages : [];
 
             for (const page of resultPages) {
@@ -7654,8 +7737,8 @@ goBtn.onclick = async () => {
             totalPages += Number(result?.pageCount) || resultPages.length || 1;
 
             setProg(
-                Math.min(90, 18 + Math.round(((index + 1) / files.length) * 68)),
-                'Read ' + (index + 1) + '/' + files.length + ' file' + (files.length > 1 ? 's' : '')
+                Math.min(90, 18 + Math.round(((index + 1) / selectedFiles.length) * 68)),
+                'Read ' + (index + 1) + '/' + selectedFiles.length + ' file' + (selectedFiles.length > 1 ? 's' : '')
             );
         }
 
@@ -7667,7 +7750,8 @@ goBtn.onclick = async () => {
             ? 'Checking class, exam and question continuity...'
             : 'Checking question structure...');
 
-        const paperAnalysis = await analyzePaperBatch(pageRecords);
+        const paperAnalysis = await analyzePaperBatch(pageRecords, controller.signal);
+        checkActive();
         saveQuestionPatternsFromAnalysis(paperAnalysis);
 
         const assembled = assemblePaperPages(pageRecords, paperAnalysis);
@@ -7689,7 +7773,7 @@ goBtn.onclick = async () => {
         const paperCount = Math.max(1, Number(paperAnalysis?.documents?.length) || 1);
 
         let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
-        if (files.length > 1) badges += '<span class="badge badge-gray">' + files.length + ' files</span>';
+        if (selectedFiles.length > 1) badges += '<span class="badge badge-gray">' + selectedFiles.length + ' files</span>';
         if (totalPages > 1) badges += '<span class="badge badge-gray">' + totalPages + ' pages</span>';
         if (paperCount > 1) badges += '<span class="badge badge-gray">' + paperCount + ' papers</span>';
         if (profile?.kind && profile.kind !== 'general') {
@@ -7710,7 +7794,7 @@ goBtn.onclick = async () => {
                 page_in_file: page.page_in_file,
                 profile: page.profile
             })),
-            source_files: files.map(f => ({ name: f.name, size: f.size, type: f.type || '' })),
+            source_files: selectedFiles.map(f => ({ name: f.name, size: f.size, type: f.type || '' })),
             layout_options: getLayoutOptions()
         };
 
@@ -7730,25 +7814,38 @@ goBtn.onclick = async () => {
 
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
+        setExtractionView('result');
+        resetSmartExtraction();
+        preparedImageCache = new WeakMap();
         setProg(100, paperCount > 1
             ? 'Reconstructed ' + paperCount + ' question papers'
             : 'Question paper reconstruction complete');
-        setTimeout(() => prog.classList.remove('show'), 900);
+        setTimeout(() => { if (active()) prog.classList.remove('show'); }, 900);
         loadUsage();
 
         if (window.matchMedia('(max-width: 479px)').matches) {
-            setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+            setTimeout(() => { if (active()) resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 120);
         }
     } catch(e) {
+        if (!active()) return;
+        setExtractionView('error');
+        prog.classList.remove('show');
         showErr(
             e.name==='AbortError'
                 ? 'The network request took too long. PaperAI retries AI timeouts automatically; check your connection and try again.'
                 : e.message
         );
     } finally {
-        goBtn.disabled=false;
+        if (active()) {
+            goBtn.disabled = false;
+            $('extractionRetry').disabled = false;
+        }
     }
-};
+}
+goBtn.onclick = startExtraction;
+$('extractionRetry').onclick = startExtraction;
+$('extractionBack').onclick = goBackToUpload;
+
 
 function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
 
@@ -7793,8 +7890,8 @@ function docxVisibleText(value) {
 
 function docxRun(text, options = {}) {
     const size = Number(options.size || 22);
-    const font = options.symbol ? 'Segoe UI Symbol' : (options.font || 'Tahoma');
-    const eastAsia = options.symbol ? 'Segoe UI Symbol' : (options.eastAsia || 'Noto Sans Devanagari');
+    const font = options.symbol ? 'Segoe UI Symbol' : (options.font || (/[\u0900-\u097f]/u.test(String(text || '')) ? 'Mangal' : 'Calibri'));
+    const eastAsia = options.symbol ? 'Segoe UI Symbol' : (options.eastAsia || 'Mangal');
     const preserve = /^\s|\s$|\s{2,}/.test(String(text || '')) ? ' xml:space="preserve"' : '';
 
     const props = [
@@ -7807,7 +7904,7 @@ function docxRun(text, options = {}) {
         options.underline ? '<w:u w:val="' + (options.underline === 'double' ? 'double' : 'single') + '"/>' : '',
         options.highlight ? '<w:highlight w:val="' + xmlEscape(options.highlight) + '"/>' : '',
         options.textBorder ? '<w:bdr w:val="single" w:sz="6" w:space="2" w:color="374151"/>' : '',
-        options.color ? '<w:color w:val="' + xmlEscape(options.color) + '"/>' : '',
+        '<w:color w:val="' + xmlEscape(options.color || '000000') + '"/>',
         '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>',
         '<w:lang w:val="en-US" w:eastAsia="hi-IN"/>'
     ].join('');
@@ -9013,21 +9110,7 @@ function parseSimpleListLine(raw) {
 }
 
 function docxEditableListItem(item) {
-    const markerWidth = item.checkbox ? 520 : 600;
-    const widths = [markerWidth, 9900 - markerWidth];
-    return docxTable(widths,
-        '<w:tr>' +
-        docxCell(docxParagraph(item.marker, {
-            size: 20, after: 0, rightAlign: true,
-            font: item.checkbox ? 'Segoe UI Symbol' : undefined,
-            eastAsia: item.checkbox ? 'Segoe UI Symbol' : undefined
-        }), widths[0], { padLeft: 0, padRight: 80 }) +
-        docxCell(docxRichParagraph(item.text, { size: 20, after: 0 }), widths[1], {
-            padLeft: 0, padRight: 0
-        }) +
-        '</w:tr>',
-        { center: false, borders: false }
-    );
+    return docxRichParagraph(item.marker + ' ' + item.text, { size: 24, after: 60 });
 }
 
 function normalizeQuestionMetadataForLegacy(value) {
@@ -9073,7 +9156,7 @@ function buildDocxBody(structuredText) {
 
         const structuredColumns = parseStructuredColumnsBlock(lines, i);
         if (structuredColumns) {
-            body.push(docxStructuredTable(structuredColumns.rows, { borders: false, header: false }));
+            structuredColumns.rows.forEach(row => body.push(docxRichParagraph(row.join('    '), { size: 24, after: 60 })));
             body.push(docxParagraph('', { after: 18 }));
             i = structuredColumns.nextIndex;
             continue;

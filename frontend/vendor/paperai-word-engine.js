@@ -5,6 +5,12 @@
     const DX = () => global.docx;
     const SH = () => global.docxShapes;
 
+    const TEXT_FONT = { ascii: 'Calibri', hAnsi: 'Calibri', eastAsia: 'Mangal', cs: 'Mangal' };
+    function textFont(value) {
+        return /[\u0900-\u097f]/u.test(String(value || ''))
+            ? { ...TEXT_FONT, ascii: 'Mangal', hAnsi: 'Mangal' } : TEXT_FONT;
+    }
+
     function available() {
         return !!(MODEL() && DX() && SH() && DX().Document && DX().Packer && SH().ShapeCanvasRun);
     }
@@ -68,7 +74,7 @@
                                     text: String(value ?? ''),
                                     bold: true,
                                     size: Math.max(15, (options.size || 20) - 3),
-                                    font: 'Tahoma'
+                                    font: TEXT_FONT
                                 })
                             ]
                         })
@@ -93,8 +99,8 @@
                 bold: !!options.bold,
                 italics: !!options.italics,
                 size: options.size ?? 21,
-                font: options.font || 'Tahoma',
-                color: options.color
+                font: textFont(text),
+                color: options.color || '000000'
             }));
         };
 
@@ -114,8 +120,8 @@
                 bold: !!options.bold,
                 italics: !!options.italics,
                 size: options.size ?? 21,
-                font: options.font || 'Tahoma',
-                color: options.color
+                font: textFont(source),
+                color: options.color || '000000'
             })
         ];
     }
@@ -162,58 +168,6 @@
                 right: options.right ?? 20
             },
             shading: options.shading ? { fill: options.shading } : undefined,
-        });
-    }
-
-    function answerBlank(node) {
-        const d = DX();
-        const widths = [500, 9350];
-        return new d.Table({
-            width: { size: widths[0] + widths[1], type: d.WidthType.DXA },
-            columnWidths: widths,
-            borders: noBorder(),
-            rows: [
-                new d.TableRow({
-                    cantSplit: true,
-                    height: { value: 330, rule: d.HeightRule.ATLEAST },
-                    children: [
-                        tableCell([para(numberLabel(node.rawNumber, node.number), { size: 20, center: true, after: 0, line: 240 })], widths[0], { right: 20 }),
-                        tableCell([para('', { after: 0, line: 240 })], widths[1], { bottom: true, bottomMargin: 65, left: 0, right: 0 })
-                    ]
-                })
-            ]
-        });
-    }
-
-    function exerciseRow(node, single = false) {
-        const d = DX();
-        const itemCells = (item) => {
-            const numberW = 420, textW = 1050, blankW = 3450;
-            return [
-                tableCell([para(numberLabel(item.rawNumber, item.number), { size: 19, center: true, after: 0, line: 230 })], numberW, { right: 10 }),
-                tableCell([para(item.text, { size: 19, after: 0, line: 230 })], textW, { left: 0, right: 20 }),
-                tableCell([para('', { after: 0, line: 230 })], blankW, { bottom: item.hasBlank, bottomMargin: 60, left: 0, right: 35 })
-            ];
-        };
-
-        let widths;
-        let cells;
-        if (single) {
-            widths = [420, 1050, 3450, 4930];
-            cells = [
-                ...itemCells(node),
-                tableCell([para('', { after: 0 })], widths[3])
-            ];
-        } else {
-            widths = [420, 1050, 3450, 420, 1050, 3450];
-            cells = [...itemCells(node.left), ...itemCells(node.right)];
-        }
-
-        return new d.Table({
-            width: { size: widths.reduce((a,b)=>a+b,0), type: d.WidthType.DXA },
-            columnWidths: widths,
-            borders: noBorder(),
-            rows: [new d.TableRow({ cantSplit: true, height: { value: 310, rule: d.HeightRule.ATLEAST }, children: cells })]
         });
     }
 
@@ -281,7 +235,7 @@
                             center: true,
                             after: 0,
                             line: 220,
-                            font: 'Tahoma'
+                            font: TEXT_FONT
                         })
                     ]
                 }))
@@ -391,7 +345,7 @@
             children: [
                 new d.Paragraph({
                     spacing: { before: 0, after: 0 },
-                    children: [new d.TextRun({ text: String(text || ''), size, bold, font: 'Tahoma' })]
+                    children: [new d.TextRun({ text: String(text || ''), size, bold, font: TEXT_FONT })]
                 })
             ]
         });
@@ -407,7 +361,7 @@
                     new d.Paragraph({
                         alignment: d.AlignmentType.CENTER,
                         spacing: { before: 0, after: 0 },
-                        children: [new d.TextRun({ text: String(node.root || ''), bold: true, size: 22, font: 'Tahoma' })]
+                        children: [new d.TextRun({ text: String(node.root || ''), bold: true, size: 22, font: TEXT_FONT })]
                     })
                 ]
             }
@@ -439,62 +393,31 @@
         });
     }
 
-    function questionLineTable(node, bodySize, density) {
+    function questionParagraph(node, bodySize) {
         const d = DX();
-        const widths = [520, 9330];
-        const rawNumber = node.rawNumber || (node.number != null ? String(node.number) : '');
-        const line = density === 'compact' ? 230 : density === 'spacious' ? 290 : 255;
-
-        return new d.Table({
-            width: { size: widths[0] + widths[1], type: d.WidthType.DXA },
-            columnWidths: widths,
-            borders: noBorder(),
-            rows: [
-                new d.TableRow({
-                    cantSplit: true,
-                    children: [
-                        tableCell(
-                            [para(numberLabel(rawNumber, node.number), { size: bodySize, right: true, after: 0, line })],
-                            widths[0],
-                            { left: 0, right: 70, top: 0, bottomMargin: 0 }
-                        ),
-                        tableCell(
-                            [para(node.text || '', { size: bodySize, after: 0, line })],
-                            widths[1],
-                            { left: 0, right: 0, top: 0, bottomMargin: 0 }
-                        )
-                    ]
-                })
+        return new d.Paragraph({
+            indent: { left: 400, hanging: 400 },
+            spacing: { after: 60, line: 300 },
+            children: [
+                ...inlineRuns(numberLabel(node.rawNumber, node.number), { size: bodySize }),
+                ...inlineRuns(' ' + (node.text || ''), { size: bodySize })
             ]
         });
     }
 
-    function answerRuleTable(density) {
+    function columnParagraphs(node, bodySize) {
         const d = DX();
-        const widths = [520, 9330];
-        const height = density === 'compact' ? 250 : density === 'spacious' ? 390 : 320;
-        return new d.Table({
-            width: { size: widths[0] + widths[1], type: d.WidthType.DXA },
-            columnWidths: widths,
-            borders: noBorder(),
-            rows: [
-                new d.TableRow({
-                    cantSplit: true,
-                    height: { value: height, rule: d.HeightRule.ATLEAST },
-                    children: [
-                        tableCell([para('', { after: 0 })], widths[0], { left: 0, right: 70, top: 0, bottomMargin: 0 }),
-                        tableCell([para('', { after: 0 })], widths[1], {
-                            bottom: true,
-                            bottomMargin: 70,
-                            left: 0,
-                            right: 0,
-                            top: 0,
-                            color: '64748B'
-                        })
-                    ]
-                })
-            ]
-        });
+        const count = Math.max(1, ...node.rows.map(row => row.length));
+        return node.rows.map(row => new d.Paragraph({
+            spacing: { after: 80, line: 300 },
+            tabStops: Array.from({ length: count - 1 }, (_, i) => ({
+                type: d.TabStopType.LEFT, position: Math.floor(9850 * (i + 1) / count)
+            })),
+            children: row.flatMap((cell, i) => [
+                ...(i ? [new d.TextRun({ children: [new d.Tab()] })] : []),
+                ...inlineRuns(cell, { size: bodySize })
+            ])
+        }));
     }
 
     function buildChildren(structuredText) {
@@ -509,7 +432,7 @@
         const density = profile.density || 'normal';
         const bodyAfter = density === 'compact' ? 18 : density === 'spacious' ? 42 : 28;
         const blankAfter = density === 'compact' ? 10 : density === 'spacious' ? 34 : 20;
-        const bodySize = Math.round((Number(profile.bodySize) || 10) * 2);
+        const bodySize = Math.max(24, Math.round((Number(profile.bodySize) || 12) * 2));
         const headingSize = Math.round((Number(profile.headingSize) || 12) * 2);
         const titleSize = Math.round((Number(profile.titleSize) || 16) * 2);
 
@@ -541,28 +464,28 @@
                     line: density === 'compact' ? 235 : density === 'spacious' ? 290 : 260,
                     center: style.align === 'center',
                     right: style.align === 'right',
-                    font: 'Tahoma'
+                    font: TEXT_FONT
                 }));
                 return;
             }
             if (node.type === 'questionLine') {
-                children.push(questionLineTable(node, bodySize, density));
+                children.push(questionParagraph(node, bodySize));
                 return;
             }
             if (node.type === 'answerRule') {
-                children.push(answerRuleTable(density));
+                children.push(para('___________________________________________________________________________', { size: bodySize }));
                 return;
             }
             if (node.type === 'answerBlank') {
-                children.push(answerBlank(node));
+                children.push(questionParagraph({ ...node, text: (node.raw.match(/_{3,}/) || ['________________'])[0] }, bodySize));
                 return;
             }
             if (node.type === 'twoColumnExercise') {
-                children.push(exerciseRow(node, false));
+                children.push(para(node.raw || '', { size: bodySize, after: 60 }));
                 return;
             }
             if (node.type === 'singleExercise') {
-                children.push(exerciseRow(node, true));
+                children.push(questionParagraph({ ...node, text: node.text + ' ' + (node.raw.match(/_{3,}/) || ['________________'])[0] }, bodySize));
                 return;
             }
             if (node.type === 'table') {
@@ -570,7 +493,7 @@
                 return;
             }
             if (node.type === 'columns') {
-                children.push(structuredTable(node, false));
+                children.push(...columnParagraphs(node, bodySize));
                 return;
             }
             if (node.type === 'styledText') {
@@ -590,7 +513,7 @@
                     line: density === 'compact' ? 235 : density === 'spacious' ? 290 : 260,
                     center: style.align === 'center',
                     right: style.align === 'right',
-                    font: 'Tahoma'
+                    font: TEXT_FONT
                 }));
                 return;
             }
@@ -608,7 +531,7 @@
                     line: density === 'compact' ? 235 : density === 'spacious' ? 290 : 260,
                     center: isTitle && titleAlign === 'center',
                     right: isTitle && titleAlign === 'right',
-                    font: 'Tahoma'
+                    font: TEXT_FONT
                 }));
             }
         });
@@ -666,7 +589,7 @@
             styles: {
                 default: {
                     document: {
-                        run: { font: 'Tahoma', size: 20 },
+                        run: { font: TEXT_FONT, size: 24, color: '000000' },
                         paragraph: { spacing: { after: 28, line: 260 } }
                     }
                 }

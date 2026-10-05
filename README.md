@@ -103,3 +103,10 @@ The Worker deployment also verifies production text extraction, draft creation/r
 The Extracted preview, Copy, UTF-8 TXT download and Word download all use the same corrected structured source. Matching rows retain the adjacent columns from the photo without solving them. Android controls have readable text, 44–48px touch targets and a continuous document scroll. The auto-detection explanation panel has been removed.
 
 Handwriting scans retain the complete source image and focus close-ups on confidently detected page bounds. Hindi option and matching exercises receive one independent image verification pass to reduce anchoring to misread words. This can add inference time and neuron usage; it does not guarantee perfect handwriting recognition.
+
+
+## Focused extraction and desktop Word
+
+Selecting a file prepares its first image locally. AI inference starts only after Scan & Rebuild. Upload controls and drafts stay hidden during extraction and results; Go back cancels pending work and returns to the same file selection. Failed extraction offers Retry, and a cancelled run cannot overwrite a later result. Multi-page analysis has a bounded timeout with local ordering fallback. PDF workers, rendered canvases and temporary extraction caches are released after use.
+
+Word exports use native editable paragraphs for ordinary questions and tab-aligned matching pairs, with explicit black text and Mangal for Hindi. Real source tables and diagrams retain their structure. Copy, TXT and Word preserve the same corrected source characters. This improves font compatibility but does not repair unreviewed recognition mistakes.

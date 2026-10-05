@@ -63,3 +63,10 @@ The five-minute display meter and local owner allowance have been retired. Accou
 ### Live accuracy limits
 
 The uploaded notebook photo was tested in the production app. The detailed perception read recovered several previously misread Hindi and English entries, but some handwriting, option words and marks remained incorrect. The free model still needs human review; no hard-coded spelling substitutions were added. The Teach correction is shared by Extracted, TXT and Word. Browser download-event capture and a physical Android-device run were unavailable in this verification session; UTF-8 TXT/actual-DOCX character parity passed locally and in deployment tests.
+
+
+## Word compatibility and extraction cancellation
+
+The supplied DOCX contained text, eight two-cell layout tables for ordinary questions and one matching-column layout table. Its runs specified Tahoma. The Linux document renderer displayed the text, so invisible text in desktop Word was not independently reproduced. The new exporter removes those layout tables, uses ordinary paragraphs and tab stops, requests the Windows Hindi font Mangal and sets black text explicitly. A regenerated export of the supplied text rendered cleanly; source character parity was verified without changing misrecognized words.
+
+Extraction now starts on the user's button press, hides uploads while processing/results are visible and provides Go back plus failure Retry. Back aborts current inference and queued work immediately, preventing cancelled jobs from falling through to another inference request. Run guards ignore stale results. PDF cancellation releases workers and canvases; batch analysis has a 30-second local-ordering fallback. Temporary preparation and extraction caches are cleared on Back/success while selected files, drafts and learned corrections are preserved. All 14 regression files pass, including focused-view cancellation/retry, actual Word package checks and PDF cleanup. Desktop Microsoft Word and a physical Android device remain unavailable for direct testing.
