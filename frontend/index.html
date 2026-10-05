@@ -3861,16 +3861,12 @@ async function loadUsage() {
 
         const mine = document.getElementById('quotaMine');
         if (mine) {
-            const mineLimit = Number(data.per_user_limit) || 1000;
-            const mineLeft = Math.max(0, Number(data.owner_remaining) || 0);
-            mine.textContent = data.owner_allowed === false
-                ? 'Your ' + fmtNeuron(mineLimit) + ' for today is used up'
-                : 'You have ' + fmtNeuron(mineLeft) + ' of ' + fmtNeuron(mineLimit) + ' left today';
+            mine.textContent = 'Usage estimate only · PaperAI does not block OCR from this meter';
         }
 
         quotaCard.classList.toggle('warning', pct >= 75 && pct < 100);
-        quotaCard.classList.toggle('exhausted', pct >= 100 || data.exhausted);
-        quotaBadgeText.textContent = (pct >= 100 || data.exhausted) ? 'Limit reached' : 'Live estimate';
+        quotaCard.classList.remove('exhausted');
+        quotaBadgeText.textContent = 'Usage estimate';
 
         drawQuotaHistory(data.history || [], limit, data.reset_at);
         updateQuotaClock();
@@ -6336,8 +6332,17 @@ async function sendToOCR(sourceBlob, signal, progressText = '', paperContext = {
 
         if (res.ok) return body;
 
-        if (res.status === 429 || body?.code === 'FREE_AI_LIMIT_REACHED') {
-            throw new Error('Daily free AI OCR limit reached. Try again after the daily reset.');
+        if (
+            body?.code === 'PROVIDER_AI_QUOTA_REACHED' ||
+            body?.code === 'FREE_AI_LIMIT_REACHED'
+        ) {
+            throw new Error(
+                'Cloudflare AI free capacity is currently unavailable. PaperAI\'s own usage meter is not blocking you. Try again later.'
+            );
+        }
+
+        if (res.status === 429) {
+            throw new Error('AI service is temporarily busy. Please try this page again.');
         }
 
         if (
