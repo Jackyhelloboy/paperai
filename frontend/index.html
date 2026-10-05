@@ -3606,7 +3606,7 @@
                 </button>
                 <button class="action-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
-                    Teach
+                    Edit text
                 </button>
             </div>
 <div class="teach-panel" id="teachPanel">
@@ -6366,6 +6366,26 @@ function replaceTeachRange(start, end, replacement) {
 
 function refreshSmartComposition() {
     smartComposition = manualSuggestionSegment();
+
+    if (!aiSuggestionPending) {
+        const panel = $('aiSuggestionPanel');
+        const sourceLabel = $('aiSuggestionSource');
+        const note = $('aiSuggestionNote');
+        const sourceText = String(smartComposition?.source || '').replace(/\s+/g, ' ').trim();
+
+        if (panel) panel.dataset.state = 'idle';
+        if (sourceLabel) {
+            sourceLabel.textContent = sourceText
+                ? 'Ready for: “' + (sourceText.length > 110 ? sourceText.slice(0, 107) + '…' : sourceText) + '”'
+                : 'Select text or place the cursor in a sentence.';
+        }
+        if (note) {
+            note.textContent = sourceText
+                ? 'Tap “Get AI suggestions” to check only this text.'
+                : 'Tap inside a sentence or select the exact text you want help with.';
+        }
+    }
+
     updateTeachLanguageStatus();
     showSmartSuggestions();
 }
