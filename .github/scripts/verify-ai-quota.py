@@ -170,15 +170,22 @@ def main():
     # to this endpoint: the deployment token does not grant REST inference access.
     try:
         image = (Path(__file__).resolve().parent.parent / 'fixtures' / 'ocr-probe.base64').read_text().strip()
-        probe = urllib.request.Request('https://paperai-ocr.mdjawaadkhan57.workers.dev/api/ocr',
+        probe = urllib.request.Request('https://paperai-5up.pages.dev/api/ocr',
             data=json.dumps({'image': image, 'mimeType': 'image/png', 'filename': 'quota-probe.png',
                 'language': 'en', 'difficulty': 'easy', 'image_meta': {'width': 640, 'height': 160}}).encode(),
-            headers={'Content-Type': 'application/json'}, method='POST')
+            headers={'Content-Type': 'application/json', 'User-Agent': 'PaperAI-Quota-Diagnostics/1.0'}, method='POST')
         try:
             with urllib.request.urlopen(probe, timeout=150) as response:
                 status, result = response.status, json.load(response)
         except urllib.error.HTTPError as error:
-            status, result = error.code, json.loads(error.read())
+            status = error.code
+            raw = error.read().decode('utf-8', errors='replace')
+            try:
+                result = json.loads(raw)
+            except ValueError:
+                result = {'error': 'Non-JSON HTTP response', 'code': 'HTTP_' + str(status)}
+                emit('Probe response metadata', {'http_status': status, 'content_type': error.headers.get('Content-Type'),
+                    'cf_ray': error.headers.get('CF-Ray'), 'body_summary': re.sub('<[^>]+>', ' ', raw)[:240]})
         emit('Production OCR inference result', {'http_status': status,
             'success': result.get('success'), 'code': result.get('code'),
             'provider_error_code': result.get('provider_error_code'),
