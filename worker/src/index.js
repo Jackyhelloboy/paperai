@@ -1674,7 +1674,7 @@ ${paperContextInstruction}`;
   if (shouldVerifyOcr(text, imageMeta) && !skipVerificationOnSafeRetry(text, imageMeta)) {
     const independentRead = hasDegenerateOcr(text) || needsIndependentHindiRead(text);
     const rescuePrompt = independentRead
-      ? 'Read the attached page again from the image alone. Return only its visible text, line by line, in reading order. Transcribe printed headers and every handwritten Hindi word independently from the pixels. Preserve visible question numbers, Roman section labels, marks, answer blanks and both columns of matching exercises. Never invent alphabet labels, missing words or repeated empty rows. Keep each source line on a separate output line. Use [unclear] only for the unreadable part. Do not copy or reconstruct another page. Do not explain the result.'
+      ? prompt + '\nINDEPENDENT IMAGE VERIFICATION: Read from the pixels alone. Re-check every handwritten consonant, vowel sign, proper name, option and marks formula from the close-ups. Preserve matching rows using the COLUMNS_START/COLUMN_ROW/COLUMNS_END format defined above, including original adjacent entries and visible case. Never invent alphabet labels, missing words or repeated empty rows. Use [unclear] for the unreadable part. Return only the transcription.'
       : prompt + `
 
 LITERAL VERIFICATION PASS:

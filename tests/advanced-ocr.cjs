@@ -38,8 +38,9 @@ const env = { AI: { run: async (model, body) => {
     assert.equal(reads.length,2,'Hindi matching exercises get one independent verification read');
     assert.equal(checked.text,corrected);
     assert.equal(checked.rescued,true);
-    const verificationPrompt=reads[1].messages[1].content.find(part=>part.type==='text' && part.text.includes('Read the attached page again')).text;
+    const verificationPrompt=reads[1].messages[1].content.find(part=>part.type==='text' && part.text.includes('INDEPENDENT IMAGE VERIFICATION')).text;
     assert(!verificationPrompt.includes('नागण') && !verificationPrompt.includes('FIRST OCR'), 'Do not anchor verification to the misread words');
+    assert(verificationPrompt.includes('[[COLUMNS_START]]') && verificationPrompt.includes('[[COLUMN_ROW:'),'The independent read retains the original column format');
     assert.equal(context.needsIndependentHindiRead('Simple English paragraph.'),false);
     console.log('Advanced OCR preserves the full frame, two details, the same model, and skips thinking on plain pages.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
