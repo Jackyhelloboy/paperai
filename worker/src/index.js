@@ -710,8 +710,7 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
         sections: Array.isArray(pattern?.sections)
           ? pattern.sections.slice(0,16).map(section => ({
               label: section?.label == null ? null : String(section.label).slice(0,24),
-              title: section?.title == null ? null : String(section.title).slice(0,140),
-              marks: section?.marks == null ? null : String(section.marks).slice(0,40),
+              has_marks: Boolean(section?.has_marks || section?.marks),
               expected_items: Number.isFinite(Number(section?.expected_items))
                 ? Number(section.expected_items)
                 : null,
@@ -736,7 +735,7 @@ async function handlePaperAnalysis(request, env, corsHeaders) {
     ? [
         '',
         'SAFE HISTORICAL FORMAT HINTS:',
-        'These are user-local section skeletons from prior papers. Use them only as weak evidence for section ordering/count expectations when the current OCR visibly supports the same class/subject/exam. Never copy question wording or invent a missing section/item from these hints.',
+        'These are user-local section skeletons from prior papers. Exact prior section wording and marks values are intentionally omitted. Use them only as weak evidence for section ordering/count expectations when the current OCR visibly supports the same class/subject/exam. Never copy question wording, marks values, or invent a missing section/item from these hints.',
         JSON.stringify(knownPatterns)
       ].join('\n')
     : '';
@@ -1587,7 +1586,7 @@ If a section heading or numbered question is visible, do not omit it merely beca
         sections: Array.isArray(pattern?.sections)
           ? pattern.sections.slice(0, 16).map(section => ({
               label: section?.label == null ? null : String(section.label).slice(0, 16),
-              marks: section?.marks == null ? null : String(section.marks).slice(0, 32),
+              has_marks: Boolean(section?.has_marks || section?.marks),
               expected_items: Number.isFinite(Number(section?.expected_items))
                 ? Math.max(0, Math.min(99, Number(section.expected_items)))
                 : null
@@ -1599,7 +1598,7 @@ If a section heading or numbered question is visible, do not omit it merely beca
     ? `
 QUESTION-PAPER PATTERN MEMORY (STRUCTURE ONLY):
 ${JSON.stringify(patternHints)}
-Use these prior local patterns only as weak hints for section order, numbering shape, marks placement and continuation. The CURRENT PAGE PIXELS are the only source for words.
+Use these prior local patterns only as weak hints for section order, numbering shape, whether a marks field is usually present, and continuation. Historical marks VALUES are intentionally omitted. The CURRENT PAGE PIXELS are the only source for words and numbers.
 Never copy a prior question, section instruction, subject word or missing phrase into the transcription. If current pixels do not show a word, use [unclear] rather than inferring it from a pattern.
 `
     : '';
@@ -1632,11 +1631,27 @@ For a question paper, preserve EVERY visible Roman section label, item number, i
 
 Copy intentionally written answer blanks as underscores. Notebook ruling, reverse-side show-through, shadows and erased ghosts are background, not text or answer blanks. Preserve deliberate answer space without turning every notebook rule into a separate answer line.
 
-For matching exercises and columns, keep each left entry and its adjacent right entry on the same row using:
+For matching exercises and columns, keep each left entry and its adjacent right entry on the same row using EXACTLY these internal tags:
 [[COLUMNS_START]]
 [[COLUMN_ROW: actual left text || actual right text]]
 [[COLUMNS_END]]
-Use one COLUMN_ROW per actual source row, including its visible item number. Never pair or solve the entries. For a bordered table, use TABLE_START/TABLE_ROW/TABLE_END with the same row fields and preserve every visible row and column. For a labelled branch diagram, use BRANCH_ROOT, BRANCH_ITEM (left label || right label), and BRANCH_END. Preserve visible mathematics, arrows and editing marks without inventing shapes or labels. For an actual visible equation or mathematical expression, write its literal notation as LaTeX inside $...$, including fractions, roots, powers, subscripts, integrals, sums and matrices. Never solve it or change numbers. Ordinary prose, mark formulas and currency amounts stay ordinary text. Unreadable mathematical terms stay [unclear], not guesses.
+Use one COLUMN_ROW per actual source row, including its visible item number. Never pair or solve the entries.
+
+For a bordered table, use EXACTLY:
+[[TABLE_START]]
+[[TABLE_ROW: cell 1 || cell 2 || cell 3]]
+[[TABLE_END]]
+Preserve every visible row and column.
+
+For a labelled branch diagram, use EXACTLY:
+[[BRANCH_ROOT: exact visible root text]]
+[[BRANCH_ITEM: exact visible left label || exact visible right label]]
+[[BRANCH_END]]
+These are INTERNAL layout tags. Never print the words TABLE, TABLE ROW, COLUMN ROW, BRANCH ROOT, BRANCH ITEM, ROOT, START or END as visible document text unless those words are genuinely printed on the source page.
+
+MARKS FORMULAS ARE LITERAL PRINTED TEXT, NOT ARITHMETIC TO SOLVE. Copy every visible character exactly, including × versus x, =, M/m, spaces and punctuation. Example: if the source says "4×1=4M", output exactly "4×1=4M". If the printed arithmetic appears unusual or inconsistent, still copy it exactly; NEVER recompute or correct the total.
+
+Preserve visible mathematics, arrows and editing marks without inventing shapes or labels. For an actual visible equation or mathematical expression (not a marks formula), write its literal notation as LaTeX inside $...$, including fractions, roots, powers, subscripts, integrals, sums and matrices. Never solve it or change numbers. Ordinary prose, marks formulas and currency amounts stay ordinary text. Unreadable mathematical terms stay [unclear], not guesses.
 
 Before the final answer, check that every visible question/item number has its text and that no header, section, short word or option was dropped. Return only the complete transcription, with no discussion, thinking text, duplicate headings, filenames or invented sections.
 ${layoutSection}
@@ -1700,9 +1715,40 @@ ${paperContextInstruction}`;
   return { text, raw: text, model, usage, scanMode, rescued, attempts };
 }
 
+    function normalizeInternalLayoutMarkers(value) {
+        return String(value || '').split('\n').map(line => {
+            const source = String(line || '').trim();
+            let m;
+
+            m = source.match(/^(?:\[\[\s*)?(TABLE|COLUMNS?|WORDSEARCH)[ _-]*(START|END)(?:\s*\]\])?$/i);
+            if (m) {
+                const family = m[1].toUpperCase().startsWith('COLUMN') ? 'COLUMNS' : m[1].toUpperCase();
+                return '[[' + family + '_' + m[2].toUpperCase() + ']]';
+            }
+
+            m = source.match(/^(?:\[\[\s*)?(TABLE|COLUMN|WORDSEARCH)[ _-]*ROW\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+            if (m) {
+                const family = m[1].toUpperCase() === 'COLUMN' ? 'COLUMN' : m[1].toUpperCase();
+                return '[[' + family + '_ROW: ' + String(m[2] || '').trim() + ']]';
+            }
+
+            m = source.match(/^(?:\[\[\s*)?WORDSEARCH[ _-]*ANSWER\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+            if (m) return '[[WORDSEARCH_ANSWER: ' + String(m[1] || '').trim() + ']]';
+
+            m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ROOT\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+            if (m) return '[[BRANCH_ROOT: ' + String(m[1] || '').trim() + ']]';
+
+            m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ITEM\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+            if (m) return '[[BRANCH_ITEM: ' + String(m[1] || '').trim() + ']]';
+
+            if (/^(?:\[\[\s*)?BRANCH[ _-]*END(?:\s*\]\])?$/i.test(source)) return '[[BRANCH_END]]';
+            return line;
+        }).join('\n');
+    }
+
     function normalizeQuestionMetadata(value) {
         const label = token => String(token || '').trim().replace(/[.)।:;]+$/u, '');
-        let out = String(value || '').replace(/\[\[QUESTION_(SECTION|ITEM):\s*([^\n]*?)\]\]/gi, (raw, kind, body) => {
+        let out = normalizeInternalLayoutMarkers(String(value || '')).replace(/\[\[QUESTION_(SECTION|ITEM):\s*([^\n]*?)\]\]/gi, (raw, kind, body) => {
             let fields;
             if (body.includes('|')) fields = body.split(body.includes('||') ? /\s*\|\|\s*/ : /\s*\|\s*/);
             else {
@@ -2257,10 +2303,36 @@ function stripStructuredMetadata(text) {
   return out.join('\n');
 }
 
+function stripLeakedInternalLayoutLabels(value) {
+  return String(value || '').split('\n').map(line => {
+    const source = String(line || '').trim();
+    let m;
+
+    if (/^(?:\[\[\s*)?(?:TABLE|COLUMNS?|WORDSEARCH)[ _-]*(?:START|END)(?:\s*\]\])?$/i.test(source)) return '';
+    if (/^(?:\[\[\s*)?BRANCH[ _-]*END(?:\s*\]\])?$/i.test(source)) return '';
+
+    m = source.match(/^(?:\[\[\s*)?(?:TABLE|COLUMN|WORDSEARCH)[ _-]*ROW\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+    if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' | ').trim();
+
+    m = source.match(/^(?:\[\[\s*)?WORDSEARCH[ _-]*ANSWER\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+    if (m) return String(m[1] || '').trim() + '. ____________________';
+
+    m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ROOT\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+    if (m) return String(m[1] || '').trim();
+
+    m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ITEM\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+    if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' → ').trim();
+
+    return line;
+  }).filter(line => line !== '').join('\n');
+}
+
 function stripOcrMetadata(text) {
   if (!text) return '';
 
-  return stripBranchMetadata(stripStructuredMetadata(stripPageProfileMetadata(stripLineStyleMetadata(stripQuestionPaperMetadata(String(text))))))
+  return stripLeakedInternalLayoutLabels(
+    stripBranchMetadata(stripStructuredMetadata(stripPageProfileMetadata(stripLineStyleMetadata(stripQuestionPaperMetadata(String(text))))))
+  )
     .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
       return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
     })

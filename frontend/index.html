@@ -14,7 +14,7 @@
     <script src="vendor/indic-transliterate.js"></script>
     <script src="vendor/paperai-teacher-tools.js?v=1"></script>
     <script src="vendor/paperai-math.js?v=1"></script>
-    <script src="vendor/paperai-document-model.js?v=39"></script>
+    <script src="vendor/paperai-document-model.js?v=40"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@9.8.1/dist/shapes.iife.js"></script>
     <script src="vendor/paperai-word-engine.js?v=39"></script>
@@ -3652,6 +3652,761 @@
             .batch-preview-shell { padding: 0.55rem; }
             .batch-add-more { font-size: 0.6rem; }
         }
+
+        /* v41 unified document workspace */
+        :root {
+            --workspace-border: #e2e8f0;
+            --workspace-muted: #64748b;
+            --workspace-bg: #f8fafc;
+        }
+
+        .main {
+            max-width: 720px;
+        }
+
+        .main.workflow-active[data-view="result"] {
+            max-width: 860px !important;
+            padding-top: 0.7rem !important;
+        }
+
+        .main.workflow-active[data-view="result"] .quota-card {
+            display: none !important;
+        }
+
+        .main.workflow-active[data-view="result"] .upload-card {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            min-height: 0 !important;
+        }
+
+        .main.workflow-active[data-view="result"] .extraction-nav {
+            margin-bottom: 0.65rem;
+            border: 0;
+            padding-bottom: 0;
+        }
+
+        .main.workflow-active[data-view="result"] #extractionBack {
+            min-height: 38px;
+            padding: 0.4rem 0.6rem;
+            border: 1px solid var(--workspace-border);
+            border-radius: 10px;
+            background: #fff;
+            color: var(--text2);
+            font-weight: 700;
+        }
+
+        .main.workflow-active[data-view="result"] #extractionStatus {
+            font-size: 0.84rem;
+            font-weight: 750;
+        }
+
+        .main.workflow-active[data-view="result"] #extractionFileName {
+            font-size: 0.7rem;
+            color: var(--workspace-muted);
+        }
+
+        .drafts-card.has-active-draft {
+            margin: 0 0 0.7rem !important;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+
+        .drafts-card.has-active-draft .drafts-head,
+        .drafts-card.has-active-draft .draft-list {
+            display: none !important;
+        }
+
+        .drafts-card.has-active-draft .draft-editor {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+        }
+
+        .draft-editor-head {
+            min-height: 50px;
+            padding: 0.5rem 0.2rem 0.55rem;
+            border-bottom: 1px solid var(--workspace-border);
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+        }
+
+        .draft-identity {
+            min-width: 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.18rem;
+        }
+
+        .draft-title-input {
+            width: 100%;
+            min-width: 0;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            color: var(--text);
+            font-size: 1rem !important;
+            font-weight: 800 !important;
+            line-height: 1.25;
+        }
+
+        .draft-title-input:focus {
+            outline: none;
+        }
+
+        .draft-meta {
+            width: auto !important;
+            order: initial !important;
+            color: var(--workspace-muted);
+            font-size: 0.68rem;
+            line-height: 1.35;
+        }
+
+        .draft-document-menu,
+        .document-more,
+        .draft-page-menu {
+            position: relative;
+            flex: none;
+        }
+
+        .draft-document-menu > summary,
+        .document-more > summary,
+        .draft-page-menu > summary {
+            list-style: none;
+            cursor: pointer;
+            user-select: none;
+            display: grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            border: 1px solid var(--workspace-border);
+            border-radius: 10px;
+            background: #fff;
+            color: var(--text2);
+            font: 800 1rem/1 system-ui, sans-serif;
+        }
+
+        .draft-document-menu > summary::-webkit-details-marker,
+        .document-more > summary::-webkit-details-marker,
+        .draft-page-menu > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .draft-document-menu-popover,
+        .document-more-popover,
+        .draft-page-menu-popover {
+            position: absolute;
+            z-index: 80;
+            top: calc(100% + 6px);
+            right: 0;
+            min-width: 180px;
+            padding: 0.35rem;
+            border: 1px solid var(--workspace-border);
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 14px 35px rgba(15, 23, 42, .16);
+        }
+
+        .draft-document-menu-popover .draft-btn,
+        .document-menu-action,
+        .draft-page-menu-popover button {
+            width: 100%;
+            min-height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 0.5rem 0.65rem;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text);
+            font-size: 0.74rem;\n            font-weight: 650;\n            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .draft-document-menu-popover .draft-btn:hover,
+        .document-menu-action:hover,
+        .draft-page-menu-popover button:hover {
+            background: var(--workspace-bg);
+        }
+
+        .draft-document-menu-popover .danger,
+        .draft-page-menu-popover .rm {
+            color: #b91c1c;
+        }
+
+        .draft-sources {
+            margin: 0 !important;
+            padding: 0.72rem 0 0.25rem !important;
+            border: 0 !important;
+        }
+
+        .draft-sources-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.58rem;
+        }
+
+        .draft-sources-head > div {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.12rem;
+        }
+
+        .draft-sources-head strong {
+            font-size: 0.78rem;
+            color: var(--text);
+        }
+
+        .draft-sources-head span {
+            font-size: 0.64rem;
+            color: var(--workspace-muted);
+            line-height: 1.35;
+        }
+
+        .draft-add-compact {
+            flex: none;
+            min-height: 36px;
+            padding: 0.4rem 0.62rem;
+            border: 1px solid #bfdbfe;
+            border-radius: 10px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 0.68rem;\n            font-weight: 750;\n            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .draft-add-compact:hover {
+            background: #dbeafe;
+        }
+
+        .draft-pages {
+            display: grid !important;
+            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+            gap: 0.5rem !important;
+            margin: 0 !important;
+        }
+
+        .draft-page {
+            min-width: 0;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 10px !important;
+            background: transparent !important;
+            position: relative;
+        }
+
+        .draft-page-preview {
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            padding: 0;
+            border: 1px solid var(--workspace-border);
+            border-radius: 10px;
+            background: #f1f5f9;
+            overflow: hidden;
+            cursor: zoom-in;
+            display: block;
+        }
+
+        .draft-page-preview:hover {
+            border-color: #93c5fd;
+        }
+
+        .draft-page-img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
+            border-radius: 0 !important;
+            background: #fff !important;
+        }
+
+        .draft-page-row {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.25rem;
+            padding-top: 0.3rem;
+        }
+
+        .draft-page-index {
+            color: var(--text) !important;
+            font-size: 0.64rem !important;
+            font-weight: 800 !important;
+        }
+
+        .draft-page-state {
+            margin-top: 0.04rem;
+            color: var(--workspace-muted);
+            font-size: 0.55rem;
+            white-space: nowrap;
+        }
+
+        .draft-page-text,
+        .draft-page-tools,
+        .draft-more {
+            display: none !important;
+        }
+
+        .draft-page-menu > summary {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .draft-page-menu-popover {
+            min-width: 165px;
+        }
+
+        .draft-status:empty {
+            display: none;
+        }
+
+        .draft-status {
+            margin-top: 0.45rem;
+            font-size: 0.68rem;
+        }
+
+        .results {
+            margin-top: 0 !important;
+        }
+
+        .output-card {
+            overflow: visible !important;
+            border: 1px solid var(--workspace-border) !important;
+            border-radius: 16px !important;
+            background: #fff !important;
+            box-shadow: 0 6px 22px rgba(15, 23, 42, .06) !important;
+        }
+
+        .document-bar {
+            min-height: 54px;
+            padding: 0.75rem 0.9rem 0.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+
+        .document-bar-title {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.12rem;
+        }
+
+        .document-bar-title strong {
+            font-size: 0.88rem;
+            color: var(--text);
+        }
+
+        .document-bar-title span {
+            font-size: 0.64rem;
+            color: var(--workspace-muted);
+        }
+
+        .results-badges {
+            margin: 0 !important;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 0.3rem;
+        }
+
+        .results-badges .badge {
+            font-size: 0.58rem;
+            padding: 0.25rem 0.42rem;
+            border-radius: 999px;
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .document-toolbar {
+            min-height: 49px;
+            padding: 0.38rem 0.55rem;
+            border-top: 1px solid var(--workspace-border);
+            border-bottom: 1px solid var(--workspace-border);
+            background: #fbfdff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.55rem;
+            position: sticky;
+            top: 0;
+            z-index: 25;
+        }
+
+        .output-tabs {
+            border: 0 !important;
+            background: transparent !important;
+            display: flex;
+            gap: 0.18rem;
+        }
+
+        .output-tab {
+            min-height: 36px !important;
+            padding: 0.42rem 0.62rem !important;
+            border: 0 !important;
+            border-radius: 9px !important;
+            background: transparent !important;
+            color: var(--workspace-muted) !important;
+            font-size: 0.7rem !important;
+            font-weight: 750 !important;
+        }
+
+        .output-tab.active {
+            background: #eaf2ff !important;
+            color: #1d4ed8 !important;
+        }
+
+        .results-actions {
+            display: flex !important;
+            grid-template-columns: none !important;
+            align-items: center;
+            gap: 0.35rem !important;
+            padding: 0 !important;
+            background: transparent !important;
+            position: static !important;
+            overflow: visible !important;
+        }
+
+        .results-actions .action-btn {
+            min-width: auto !important;
+            width: auto !important;
+            min-height: 38px !important;
+            height: 38px !important;
+            padding: 0.45rem 0.65rem !important;
+            border-radius: 9px !important;
+            font-size: 0.7rem !important;
+            font-weight: 750 !important;
+            box-shadow: none !important;
+        }
+
+        .document-edit-btn {
+            background: #fff !important;
+            color: var(--text) !important;
+            border-color: var(--workspace-border) !important;
+        }
+
+        .document-export-btn {
+            background: var(--accent) !important;
+            color: #fff !important;
+            border-color: var(--accent) !important;
+        }
+
+        .document-more > summary {
+            width: 38px;
+            height: 38px;
+        }
+
+        .output-body {
+            min-height: 480px;
+            padding: 1.2rem 1.25rem 1.5rem !important;
+            background: #fff;
+            border: 0 !important;
+            font-size: var(--paper-body-size, 16px);
+            line-height: 1.72;
+        }
+
+        .output-card.editing .output-body {
+            display: none !important;
+        }
+
+        .output-card.editing .document-edit-btn {
+            display: none !important;
+        }
+
+        .output-card.editing .document-export-btn,
+        .output-card.editing .document-more {
+            opacity: .45;
+            pointer-events: none;
+        }
+
+        .teach-panel {
+            display: none;
+            margin: 0 !important;
+            padding: 0.8rem 0.9rem 1rem !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: #fff !important;
+            box-shadow: none !important;
+        }
+
+        .teach-panel.show {
+            display: block !important;
+        }
+
+        .inline-edit-head {
+            min-height: 42px;
+            margin-bottom: 0.55rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+
+        .inline-edit-head > div {
+            min-width: 0;
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .inline-edit-head strong {
+            color: var(--text);
+            font-size: 0.8rem;
+        }
+
+        #paperSaveState {
+            margin: 0 !important;
+            color: #15803d;
+            font-size: 0.62rem;
+            font-weight: 650;
+        }
+
+        .inline-edit-close {
+            min-height: 36px;
+            padding: 0.42rem 0.72rem;
+            border: 0;
+            border-radius: 9px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.7rem;\n            font-weight: 800;\n            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .teach-toolbar {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 0.35rem !important;
+            margin: 0 0 0.55rem !important;
+        }
+
+        .teach-tool {
+            min-height: 36px !important;
+            padding: 0.42rem 0.58rem !important;
+            border-radius: 9px !important;
+            font-size: 0.68rem !important;
+        }
+
+        .teach-toolbar .ai-suggest-button {
+            margin-left: auto;
+            min-width: 130px;
+            box-shadow: none !important;
+        }
+
+        .teach-settings {
+            margin-bottom: 0.55rem;
+        }
+
+        .teach-settings > summary {
+            width: max-content;
+            min-height: 32px;
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            color: var(--workspace-muted);
+            font-size: 0.65rem;
+            font-weight: 700;
+            list-style: none;
+        }
+
+        .teach-settings > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .teach-settings > summary::before {
+            content: '⚙';
+            margin-right: 0.32rem;
+        }
+
+        .teach-language-bar {
+            margin: 0.35rem 0 0 !important;
+            padding: 0.55rem !important;
+            border-radius: 10px !important;
+        }
+
+        .teach-suggestion-card {
+            display: none;
+            margin: 0 0 0.55rem !important;
+            padding: 0.55rem 0.65rem !important;
+            border-radius: 10px !important;
+            box-shadow: none !important;
+        }
+
+        .teach-suggestion-card[data-state="loading"],
+        .teach-suggestion-card[data-state="ready"],
+        .teach-suggestion-card[data-state="error"] {
+            display: block;
+        }
+
+        .teach-suggestion-card[data-state="idle"]:has(.translit-suggestions.show) {
+            display: block;
+        }
+
+        .teach-suggestion-title {
+            font-size: 0.7rem !important;
+        }
+
+        .teach-suggestion-source {
+            font-size: 0.66rem !important;
+        }
+
+        .teach-ai-hint {
+            font-size: 0.68rem !important;
+        }
+
+        .translit-chip {
+            min-height: 36px !important;
+            border-radius: 9px !important;
+            font-size: 0.76rem !important;
+        }
+
+        .teach-editor {
+            min-height: 520px !important;
+            max-height: none !important;
+            resize: vertical;
+            padding: 1rem !important;
+            border: 1px solid #dbe3ee !important;
+            border-radius: 12px !important;
+            background: #fff !important;
+            font-size: 0.9rem !important;
+            line-height: 1.78 !important;
+        }
+
+        .flagged-card {
+            display: none !important;
+        }
+
+        @media (max-width: 700px) {
+            .main.workflow-active[data-view="result"] {
+                padding: 0.55rem 0.55rem 1.25rem !important;
+            }
+
+            .main.workflow-active[data-view="result"] .extraction-nav {
+                padding: 0 0.05rem;
+            }
+
+            .draft-editor-head {
+                padding-left: 0.1rem;
+                padding-right: 0.1rem;
+            }
+
+            .draft-sources-head span {
+                display: none;
+            }
+
+            .draft-pages {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+                gap: 0.42rem !important;
+            }
+
+            .document-bar {
+                padding: 0.65rem 0.7rem 0.55rem;
+            }
+
+            .results-badges {
+                display: none;
+            }
+
+            .document-toolbar {
+                padding: 0.35rem 0.42rem;
+                gap: 0.35rem;
+            }
+
+            .output-tab {
+                padding: 0.4rem 0.5rem !important;
+            }
+
+            .results-actions {
+                gap: 0.25rem !important;
+            }
+
+            .results-actions .action-btn {
+                min-height: 36px !important;
+                height: 36px !important;
+                padding: 0.42rem 0.52rem !important;
+            }
+
+            .results-actions .action-btn svg {
+                display: none;
+            }
+
+            .document-more > summary {
+                width: 36px;
+                height: 36px;
+            }
+
+            .output-body {
+                min-height: 420px;
+                padding: 1rem 0.9rem 1.4rem !important;
+                font-size: 16px !important;
+                line-height: 1.8 !important;
+            }
+
+            .teach-panel {
+                padding: 0.65rem 0.7rem 0.8rem !important;
+            }
+
+            .teach-toolbar {
+                display: grid !important;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .teach-toolbar .ai-suggest-button {
+                grid-column: 1 / -1;
+                margin-left: 0;
+                min-height: 42px !important;
+            }
+
+            .teach-editor {
+                min-height: 62vh !important;
+                padding: 0.85rem !important;
+                font-size: 16px !important;
+            }
+
+            .translit-suggestions.show {
+                flex-direction: column;
+            }
+
+            .translit-chip {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .draft-pages {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+
+            .document-bar-title span {
+                display: none;
+            }
+
+            .document-toolbar {
+                align-items: stretch;
+            }
+
+            .results-actions .action-btn {
+                padding-left: 0.45rem !important;
+                padding-right: 0.45rem !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -3796,7 +4551,7 @@
                     <div class="progress-fill indeterminate" id="pFill"></div>
                 </div>
                 <div class="scan-steps" aria-hidden="true"><span data-step="prepare">1 · Prepare</span><span data-step="read">2 · Extract</span><span data-step="ready">3 · Ready</span></div>
-                <p class="scan-note">One AI read per scanned page. Review and correct the result with Teach.</p>
+                <p class="scan-note">One AI read per scanned page. Review and edit directly in the document preview.</p>
             </div>
 
             <div class="error-toast" id="errBox">
@@ -3820,130 +4575,154 @@
 
             <div class="draft-editor" id="draftEditor" hidden>
                 <div class="draft-editor-head">
-                    <input class="draft-title-input" id="draftTitleInput" maxlength="120" placeholder="Draft name" aria-label="Draft name">
-                    <span class="draft-meta" id="draftMeta"></span>
-                    <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close</button>
-                    <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete</button>
+                    <div class="draft-identity">
+                        <input class="draft-title-input" id="draftTitleInput" maxlength="120" placeholder="Untitled paper" aria-label="Paper name">
+                        <span class="draft-meta" id="draftMeta"></span>
+                    </div>
+                    <details class="draft-document-menu">
+                        <summary aria-label="Document options">•••</summary>
+                        <div class="draft-document-menu-popover">
+                            <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close document</button>
+                            <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete document</button>
+                        </div>
+                    </details>
                 </div>
 
-                <details class="draft-sources"><summary>Source pages · kept separately from your corrected paper</summary><div class="draft-pages" id="draftPages"></div></details>
+                <section class="draft-sources" aria-label="Source pages">
+                    <div class="draft-sources-head">
+                        <div>
+                            <strong>Source pages</strong>
+                            <span>Original uploads stay here while you edit the paper below.</span>
+                        </div>
+                        <button class="draft-add-compact" id="draftAddBtn" type="button">+ Add pages</button>
+                    </div>
+                    <div class="draft-pages" id="draftPages"></div>
+                    <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
+                    <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
+                </section>
 
                 <div class="draft-status" id="draftStatus" aria-live="polite"></div>
 
-                <div class="draft-add">
-                    <button class="btn-extract show" id="draftAddBtn" type="button">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16m8-8H4"/></svg>
-                        <span>Add pages</span>
-                    </button>
-                    <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
-                    <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
-                    <span class="draft-hint">Add images, PDFs or text · one read per scanned page · one continuous paper</span>
-                </div>
-
-                <div class="draft-actions">
-                    <button class="draft-btn" id="draftTeachBtn" type="button" title="Edit and save the whole paper. New uploads append after your corrections.">Review &amp; edit</button>
+                <div class="draft-actions" hidden>
+                    <button class="draft-btn" id="draftTeachBtn" type="button">Edit</button>
                     <button class="draft-btn primary" id="draftWordBtn" type="button">Export Word</button>
                 </div>
             </div>
         </div>
 
         <div class="results" id="resBox">
-            <div class="results-header">
-                <span class="results-title">Extracted Text</span>
-                <div class="results-badges" id="statsBar"></div>
-            </div>
-
             <details class="paper-marks" id="paperMarks" hidden><summary id="paperMarksSummary"></summary><div id="paperMarksDetail"></div></details>
-            <div class="results-actions">
-                <button class="action-btn" onclick="copyText(this)">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-                    Copy
-                </button>
-                <button class="action-btn" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>TXT</button>
-                <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)" type="button">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Word
-                </button>
-                <button class="action-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
-                    Edit text
-                </button>
-            </div>
-<div class="teach-panel" id="teachPanel">
-                <div class="teach-title">Review & correct <span id="paperSaveState" role="status" aria-live="polite"></span></div>
-                <div class="teach-sub">Edit the extracted text directly. For help, select a word or sentence—or place the cursor inside it—then tap <strong>Get AI suggestions</strong>. Nothing changes until you choose a suggestion.</div>
-                <div class="teach-language-bar">
-                    <label class="teach-lang-field">
-                        <span class="teach-lang-label">Input language</span>
-                        <select class="teach-lang-select" id="teachFromSelect">
-                            <option value="auto" selected>Auto detect</option>
-                            <option value="en">English / Roman</option>
-                            <option value="hi">Hindi</option>
-                            <option value="mr">Marathi</option>
-                            <option value="te">Telugu</option>
-                            <option value="ta">Tamil</option>
-                            <option value="kn">Kannada</option>
-                            <option value="ml">Malayalam</option>
-                            <option value="bn">Bengali</option>
-                            <option value="gu">Gujarati</option>
-                            <option value="pa">Punjabi</option>
-                            <option value="or">Odia</option>
-                            <option value="ur">Urdu</option>
-                            <option value="ks">Kashmiri</option>
-                        </select>
-                    </label>
-                    <span class="teach-lang-arrow">→</span>
-                    <label class="teach-lang-field">
-                        <span class="teach-lang-label">Suggestion language</span>
-                        <select class="teach-lang-select" id="teachToSelect">
-                            <option value="auto">Auto from document</option>
-                            <option value="en">English</option>
-                            <option value="hi">Hindi</option>
-                            <option value="mr">Marathi</option>
-                            <option value="te">Telugu</option>
-                            <option value="ta">Tamil</option>
-                            <option value="kn">Kannada</option>
-                            <option value="ml">Malayalam</option>
-                            <option value="bn">Bengali</option>
-                            <option value="gu">Gujarati</option>
-                            <option value="pa">Punjabi</option>
-                            <option value="or">Odia</option>
-                            <option value="ur">Urdu</option>
-                            <option value="ks">Kashmiri</option>
-                        </select>
-                    </label>
-                    <div class="teach-language-status" id="teachLanguageStatus"></div>
-                </div>
-                <div class="teach-toolbar">
-                    <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
-                    <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
-                    <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
-                    <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ Get AI suggestions</button>
-                </div>
-                <div class="teach-suggestion-card" id="aiSuggestionPanel" data-state="idle">
-                    <div class="teach-suggestion-head">
-                        <div>
-                            <div class="teach-suggestion-title">AI suggestions</div>
-                            <div class="teach-suggestion-source" id="aiSuggestionSource">Select text or place the cursor in a sentence.</div>
-                        </div>
-                    </div>
-                    <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Tap “Get AI suggestions” when you want help. Your document will not change automatically.</div>
-                    <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
-                </div>
-                <div class="teach-editor-label"><strong>Edit extracted text</strong><span>Changes preview live</span></div>
-                <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
-                <div class="teach-actions">
-                    <button class="action-btn teach-save-btn" onclick="saveLearning()">Save changes</button>
-                    <button class="action-btn" onclick="closeTeachPanel()">Done</button>
-                </div>
-            </div>
 
-            <div class="output-card">
-                <div class="output-tabs">
-                    <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
-                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
+            <div class="output-card" id="outputCard">
+                <div class="document-bar">
+                    <div class="document-bar-title">
+                        <strong>Document</strong>
+                        <span id="documentStatus">Ready to review</span>
+                    </div>
+                    <div class="results-badges" id="statsBar"></div>
                 </div>
-                <div class="output-body" id="textOut"></div>
+
+                <div class="document-toolbar">
+                    <div class="output-tabs" aria-label="Document view">
+                        <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Preview</button>
+                        <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
+                    </div>
+                    <div class="results-actions">
+                        <button class="action-btn document-edit-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
+                            Edit
+                        </button>
+                        <button class="action-btn document-export-btn" id="downloadWordBtn" onclick="downloadWord(this)" type="button">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Word
+                        </button>
+                        <details class="document-more">
+                            <summary aria-label="More document actions">•••</summary>
+                            <div class="document-more-popover">
+                                <button class="document-menu-action" onclick="copyText(this)" type="button">Copy text</button>
+                                <button class="document-menu-action" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>Download TXT</button>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <div class="teach-panel" id="teachPanel">
+                    <div class="inline-edit-head">
+                        <div>
+                            <strong>Edit preview</strong>
+                            <span id="paperSaveState" role="status" aria-live="polite"></span>
+                        </div>
+                        <button class="inline-edit-close" type="button" onclick="saveLearning()">Done</button>
+                    </div>
+
+                    <div class="teach-toolbar">
+                        <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
+                        <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
+                        <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
+                        <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI suggestions</button>
+                    </div>
+
+                    <details class="teach-settings">
+                        <summary>Language options</summary>
+                        <div class="teach-language-bar">
+                            <label class="teach-lang-field">
+                                <span class="teach-lang-label">Input</span>
+                                <select class="teach-lang-select" id="teachFromSelect">
+                                    <option value="auto" selected>Auto detect</option>
+                                    <option value="en">English / Roman</option>
+                                    <option value="hi">Hindi</option>
+                                    <option value="mr">Marathi</option>
+                                    <option value="te">Telugu</option>
+                                    <option value="ta">Tamil</option>
+                                    <option value="kn">Kannada</option>
+                                    <option value="ml">Malayalam</option>
+                                    <option value="bn">Bengali</option>
+                                    <option value="gu">Gujarati</option>
+                                    <option value="pa">Punjabi</option>
+                                    <option value="or">Odia</option>
+                                    <option value="ur">Urdu</option>
+                                    <option value="ks">Kashmiri</option>
+                                </select>
+                            </label>
+                            <span class="teach-lang-arrow">→</span>
+                            <label class="teach-lang-field">
+                                <span class="teach-lang-label">Suggestions</span>
+                                <select class="teach-lang-select" id="teachToSelect">
+                                    <option value="auto">Auto from document</option>
+                                    <option value="en">English</option>
+                                    <option value="hi">Hindi</option>
+                                    <option value="mr">Marathi</option>
+                                    <option value="te">Telugu</option>
+                                    <option value="ta">Tamil</option>
+                                    <option value="kn">Kannada</option>
+                                    <option value="ml">Malayalam</option>
+                                    <option value="bn">Bengali</option>
+                                    <option value="gu">Gujarati</option>
+                                    <option value="pa">Punjabi</option>
+                                    <option value="or">Odia</option>
+                                    <option value="ur">Urdu</option>
+                                    <option value="ks">Kashmiri</option>
+                                </select>
+                            </label>
+                            <div class="teach-language-status" id="teachLanguageStatus"></div>
+                        </div>
+                    </details>
+
+                    <div class="teach-suggestion-card" id="aiSuggestionPanel" data-state="idle">
+                        <div class="teach-suggestion-head">
+                            <div>
+                                <div class="teach-suggestion-title">AI suggestions</div>
+                                <div class="teach-suggestion-source" id="aiSuggestionSource">Tap inside a sentence or select text.</div>
+                            </div>
+                        </div>
+                        <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Choose AI suggestions only when you want help. Nothing changes automatically.</div>
+                        <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
+                    </div>
+
+                    <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
+                </div>
+
+                <div class="output-body" id="textOut" aria-label="Extracted document preview"></div>
             </div>
 
             <div class="flagged-card" id="flaggedBox">
@@ -5459,8 +6238,12 @@ async function makePageDetailCrops(source, originalWidth, originalHeight, forceS
     const overlap = Math.max(80, Math.round(originalHeight * 0.12));
     const halfHeight = Math.min(originalHeight, Math.ceil((originalHeight + overlap) / 2));
     const starts = [0, Math.max(0, originalHeight - halfHeight)];
-    const maxWidth = forceSafe ? 1700 : 2100;
-    const scale = Math.min(1, maxWidth / Math.max(1, originalWidth));
+    const maxWidth = forceSafe ? 1800 : 2400;
+    // Detail views are allowed a modest upscale because small section labels,
+    // marks formulas and one-character options are common OCR failure points.
+    const scale = originalWidth < maxWidth
+        ? Math.min(forceSafe ? 1.18 : 1.35, maxWidth / Math.max(1, originalWidth))
+        : maxWidth / Math.max(1, originalWidth);
     const out = [];
 
     for (const y0 of starts) {
@@ -6461,6 +7244,9 @@ function showSmartSuggestions() {
     localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
     renderSuggestionChips(localChoices, [], false);
 
+    const panel = $('aiSuggestionPanel');
+    if (panel && localChoices.length) panel.dataset.state = 'ready';
+
     aiSuggestionSequence++;
 }
 
@@ -6697,6 +7483,14 @@ function refreshSmartComposition() {
 function openTeachPanel() {
     if (!lastResult) return;
     if (teachPanel.classList.contains('show')) { teachEditor.focus(); return; }
+
+    if (showingRaw) {
+        showingRaw = false;
+        $('tabVerified').classList.add('active');
+        $('tabRaw').classList.remove('active');
+        updateResultActionsForTab();
+    }
+
     teachOriginalText = currentPlainText();
     teachOriginalLayoutText = lastResult.text || teachOriginalText;
     teachEditor.value = teachOriginalText;
@@ -6712,18 +7506,30 @@ function openTeachPanel() {
         : detectTeachLanguage(teachOriginalText);
 
     teachPanel.classList.add('show');
+    $('outputCard')?.classList.add('editing');
+    $('tabRaw').disabled = true;
+    $('tabVerified').disabled = true;
+    const documentStatus = $('documentStatus');
+    if (documentStatus) documentStatus.textContent = 'Editing';
+
     const suggestionPanel = $('aiSuggestionPanel');
     const suggestionSource = $('aiSuggestionSource');
     const suggestionNote = $('aiSuggestionNote');
     if (suggestionPanel) suggestionPanel.dataset.state = 'idle';
-    if (suggestionSource) suggestionSource.textContent = 'Select text or place the cursor in a sentence.';
-    if (suggestionNote) suggestionNote.textContent = 'Tap “Get AI suggestions” when you want help. Your document will not change automatically.';
+    if (suggestionSource) suggestionSource.textContent = 'Tap inside a sentence or select text.';
+    if (suggestionNote) suggestionNote.textContent = 'Choose AI suggestions only when you want help. Nothing changes automatically.';
 
     updateTeachLanguageStatus();
     showSmartSuggestions();
     updateTeachButtons();
     renderTeachPreview();
-    teachEditor.focus();
+
+    const focusInlineEditor = () => {
+        $('outputCard')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        teachEditor.focus();
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusInlineEditor);
+    else focusInlineEditor();
 }
 
 function closeTeachPanel() {
@@ -6733,7 +7539,11 @@ function closeTeachPanel() {
         queuePaperSave(lastResult.text);
         flushPaperSave();
     }
+
     teachPanel.classList.remove('show');
+    $('outputCard')?.classList.remove('editing');
+    $('tabRaw').disabled = false;
+    $('tabVerified').disabled = false;
     smartComposition = null;
     aiSuggestionSequence++;
     if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
@@ -6748,6 +7558,9 @@ function closeTeachPanel() {
         textOut.innerHTML = formatOutput(lastResult.text || '');
         textOut.className = 'output-body';
     }
+
+    const documentStatus = $('documentStatus');
+    if (documentStatus) documentStatus.textContent = lastResult?.draft_id ? 'Saved document' : 'Ready to review';
 }
 
 teachFromSelect.addEventListener('change', () => {
@@ -7099,9 +7912,18 @@ function currentPlainText() {
 }
 
 function updateResultActionsForTab() {
-    const word = $('downloadWordBtn'), txt = $('downloadTxtBtn');
+    const word = $('downloadWordBtn'), txt = $('downloadTxtBtn'), edit = $('teachActionBtn');
     if (word) { word.hidden = showingRaw; word.disabled = showingRaw; }
     if (txt) { txt.hidden = !showingRaw; txt.disabled = !showingRaw; }
+    if (edit) { edit.hidden = showingRaw; edit.disabled = showingRaw; }
+
+    const panel = $('teachPanel');
+    const status = $('documentStatus');
+    const editing = Boolean(panel?.classList?.contains?.('show'));
+    const draftLoaded = typeof lastResult !== 'undefined' && Boolean(lastResult?.draft_id);
+    if (status && !editing) {
+        status.textContent = showingRaw ? 'Plain text view' : (draftLoaded ? 'Saved document' : 'Ready to review');
+    }
 }
 
 function showTab(tab) {
@@ -7187,8 +8009,38 @@ function collapsePortableAnswerBlankContinuations(value) {
     return out.join('\n');
 }
 
+function stripLeakedLayoutLabels(value) {
+    return String(value || '').split('\n').map(line => {
+        const source = String(line || '').trim();
+        let m;
+
+        if (/^(?:\[\[\s*)?(?:TABLE|COLUMNS?|WORDSEARCH)[ _-]*(?:START|END)(?:\s*\]\])?$/i.test(source)) return '';
+        if (/^(?:\[\[\s*)?BRANCH[ _-]*END(?:\s*\]\])?$/i.test(source)) return '';
+
+        m = source.match(/^(?:\[\[\s*)?(?:TABLE|COLUMN|WORDSEARCH)[ _-]*ROW\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+        if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' | ').trim();
+
+        m = source.match(/^(?:\[\[\s*)?WORDSEARCH[ _-]*ANSWER\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+        if (m) return String(m[1] || '').trim() + '. ____________________';
+
+        m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ROOT\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+        if (m) return String(m[1] || '').trim();
+
+        m = source.match(/^(?:\[\[\s*)?BRANCH[ _-]*ITEM\s*[:\-]\s*(.*?)(?:\s*\]\])?$/i);
+        if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' → ').trim();
+
+        // Final safety net for a broken internal tag. Preserve its payload, never
+        // the implementation label itself.
+        m = source.match(/^\[?\[?\s*(?:TABLE|COLUMN|COLUMNS|BRANCH|WORDSEARCH)[ _-]*(?:ROW|ROOT|ITEM|ANSWER)\s*[:\-]\s*(.*?)\s*\]?\]?$/i);
+        if (m) return String(m[1] || '').replace(/\s*\|\|\s*/g, ' | ').trim();
+
+        return line;
+    }).filter(line => line !== '').join('\n');
+}
+
 function portableText(value) {
     let out = window.PaperAIDocumentModel?.cleanOutputText?.(value) ?? String(value || '');
+    out = stripLeakedLayoutLabels(out);
 
     out = out
         .replace(/^\s*\[\[PAGE_PROFILE:\s*[\s\S]*?\]\]\s*$/gmi, '')
@@ -8021,8 +8873,8 @@ function safeQuestionPatternHints() {
             sections: Array.isArray(row.sections)
                 ? row.sections.slice(0, 16).map(section => ({
                     label: section.label,
-                    marks: section.marks,
-                    expected_items: section.expected_items
+                    expected_items: section.expected_items,
+                    has_marks: Boolean(section.marks)
                 }))
                 : []
         }));
@@ -8350,7 +9202,11 @@ let extractionController = null;
 let lastCompletedSelection = [];
 function setExtractionView(view) {
     extractionView = view;
-    document.querySelector('.main').classList.toggle('workflow-active', view !== 'select');
+    const main = document.querySelector('.main');
+    if (main) {
+        main.classList.toggle('workflow-active', view !== 'select');
+        if (main.dataset) main.dataset.view = view;
+    }
     $('uploadControls').hidden = view !== 'select';
     $('extractionNav').hidden = view === 'select';
     $('draftsCard').hidden = view === 'processing' || view === 'error';
@@ -8373,6 +9229,7 @@ function goBackToUpload() {
         lastResult.plain_text = publicPlainTextFromStructured(lastResult.text);
     }
     teachPanel.classList.remove('show');
+    $('outputCard')?.classList.remove('editing');
     setExtractionView('select');
     goBtn.disabled = !files.length;
     updateSmartExtractionUI();
@@ -10173,6 +11030,10 @@ function setPaperSaveState(text, error = false) {
     $('paperConflictBtn').hidden = !paperSaveConflict;
     const node = $('paperSaveState');
     if (node) { node.textContent = text; node.dataset.error = String(error); }
+    const status = $('documentStatus');
+    if (status && !teachPanel.classList.contains('show')) {
+        status.textContent = error ? 'Saved in browser' : (/saving/i.test(text || '') ? 'Saving…' : 'Saved');
+    }
 }
 function queuePaperSave(text) {
     if (!lastResult?.draft_id || !activeDraft || lastResult.draft_id !== activeDraft.id) return;
@@ -10220,7 +11081,12 @@ async function flushPaperSave() {
 }
 function updateDraftPreview() {
     // Source pages remain historical evidence; the whole-paper text is canonical.
-    if (activeDraft) $('draftMeta').textContent = (activeDraft.pages || []).length + ' source pages · saved until deleted';
+    if (activeDraft) {
+        const count = (activeDraft.pages || []).length;
+        $('draftMeta').textContent = count + (count === 1 ? ' source page' : ' source pages') + ' · Saved';
+        const status = $('documentStatus');
+        if (status && !teachPanel.classList.contains('show')) status.textContent = 'Saved';
+    }
 }
 function updatePaperMarks(text) {
     const report = window.PaperAITeacherTools?.marksSummary(publicPlainTextFromStructured(text));
@@ -10312,35 +11178,39 @@ function renderDraftList() {
 function renderDraftPages() {
     const draft = activeDraft;
     const pages = draft?.pages || [];
+    $('draftsCard')?.classList.toggle('has-active-draft', Boolean(draft));
 
     if (draft && !pages.length) {
-        $('draftPages').innerHTML = '<div class="draft-empty">No pages yet. Add a photo of the first page below.</div>';
+        $('draftPages').innerHTML = '<div class="draft-empty">No source pages yet. Use Add pages to start.</div>';
     } else {
         $('draftPages').innerHTML = pages.map((page, index) => {
             const text = String(page.text || '');
+            const preview = page.has_image
+                ? '<button class="draft-page-preview" type="button" data-page-preview="' + esc(page.id) + '" aria-label="Preview page ' + (index + 1) + '">' +
+                    '<img class="draft-page-img" src="' + esc(draftImageUrl(draft.id, page.id)) + '" alt="Page ' + (index + 1) + '" loading="lazy">' +
+                  '</button>'
+                : '<div class="draft-page-preview draft-page-placeholder"><div class="draft-page-img"></div></div>';
+
             return '<div class="draft-page">' +
-        (page.has_image
-            ? '<img class="draft-page-img" src="' + esc(draftImageUrl(draft.id, page.id)) + '" alt="Page ' + (index + 1) + '" loading="lazy">'
-            : '<div class="draft-page-img"></div>') +
-        '<div class="draft-page-index">Page ' + (index + 1) + '</div>' +
-        '<div class="draft-page-text">' + (esc(text.slice(0, 120)) || (page.has_image ? '<em>No text yet — press Read</em>' : '<em>No photo</em>')) + '</div>' +
-        // Three controls only: reorder, and the one action that page needs next.
-        '<div class="draft-page-tools">' +
-        '<button class="draft-tool" type="button" data-page-up="' + esc(page.id) + '"' + (index === 0 ? ' disabled' : '') + '>Up</button>' +
-        '<button class="draft-tool" type="button" data-page-down="' + esc(page.id) + '"' + (index === pages.length - 1 ? ' disabled' : '') + '>Down</button>' +
-        (text
-            ? '<button class="draft-tool" type="button" data-page-fix="' + esc(page.id) + '">Edit</button>'
-            : '<button class="draft-tool" type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read</button>') +
-        '<details class="draft-more">' +
-        '<summary aria-label="More options for page ' + (index + 1) + '">More</summary>' +
-        '<div class="draft-more-menu">' +
-        (page.has_image ? '<button type="button" data-page-replace="' + esc(page.id) + '">Replace photo</button>' : '') +
-        '<button type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>' + (text ? 'Read again' : 'Read text') + '</button>' +
-        '<button type="button" class="rm" data-page-del="' + esc(page.id) + '">Remove page</button>' +
-        '</div>' +
-        '</details>' +
-        '</div>' +
-        '</div>';
+                preview +
+                '<div class="draft-page-row">' +
+                    '<div><div class="draft-page-index">Page ' + (index + 1) + '</div>' +
+                    '<div class="draft-page-state">' + (text ? 'Text ready' : (page.has_image ? 'Photo saved' : 'No photo')) + '</div></div>' +
+                    '<details class="draft-page-menu">' +
+                        '<summary aria-label="Page ' + (index + 1) + ' options">•••</summary>' +
+                        '<div class="draft-page-menu-popover">' +
+                            '<button type="button" data-page-up="' + esc(page.id) + '"' + (index === 0 ? ' disabled' : '') + '>Move earlier</button>' +
+                            '<button type="button" data-page-down="' + esc(page.id) + '"' + (index === pages.length - 1 ? ' disabled' : '') + '>Move later</button>' +
+                            (text
+                                ? '<button type="button" data-page-fix="' + esc(page.id) + '">Edit page text</button>'
+                                : '<button type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read text</button>') +
+                            (page.has_image ? '<button type="button" data-page-replace="' + esc(page.id) + '">Replace photo</button>' : '') +
+                            (text ? '<button type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read again</button>' : '') +
+                            '<button type="button" class="rm" data-page-del="' + esc(page.id) + '">Remove page</button>' +
+                        '</div>' +
+                    '</details>' +
+                '</div>' +
+            '</div>';
         }).join('');
     }
 
@@ -10351,9 +11221,16 @@ function renderDraftPages() {
     updateDraftPreview();
     $('draftWordBtn').disabled = draftBusy || !draftCombinedText(draft).trim();
     $('draftTeachBtn').disabled = draftBusy || !draftCombinedText(draft).trim();
+
     if (draft.document_text !== null && draft.document_text !== undefined) {
-        $('draftPages').querySelectorAll('[data-page-up], [data-page-down], [data-page-fix], [data-page-del], [data-page-replace]').forEach(node => { node.disabled = true; node.title = 'Edit the combined paper to preserve saved corrections.'; });
-        $('draftPages').querySelectorAll('[data-page-read]').forEach(node => { const page = pages.find(p => p.id === node.dataset.pageRead); if (page?.text) node.disabled = true; });
+        $('draftPages').querySelectorAll('[data-page-up], [data-page-down], [data-page-fix], [data-page-del], [data-page-replace]').forEach(node => {
+            node.disabled = true;
+            node.title = 'Edit the combined document below to preserve saved corrections.';
+        });
+        $('draftPages').querySelectorAll('[data-page-read]').forEach(node => {
+            const page = pages.find(p => p.id === node.dataset.pageRead);
+            if (page?.text) node.disabled = true;
+        });
     }
 }
 
@@ -10797,6 +11674,7 @@ function loadDraftIntoResults() {
     file = { name: (activeDraft.title || 'paperai-draft') + '.pdf' };
 
     teachPanel.classList.remove('show');
+    $('outputCard')?.classList.remove('editing');
     showingRaw = false;
     $('tabVerified').classList.add('active');
     $('tabRaw').classList.remove('active');
@@ -10877,7 +11755,13 @@ function wireDrafts() {
 
     $('draftPages').onclick = event => {
         const target = event.target;
-        if (target.closest('[data-page-up]')) moveDraftPage(target.closest('[data-page-up]').getAttribute('data-page-up'), -1);
+        const previewButton = target.closest('[data-page-preview]');
+        if (previewButton) {
+            const img = previewButton.querySelector('img');
+            const card = previewButton.closest('.draft-page');
+            if (img?.src) openPreviewLightbox(img.src, card?.querySelector('.draft-page-index')?.textContent || 'Source page', 'Pinch to zoom');
+        }
+        else if (target.closest('[data-page-up]')) moveDraftPage(target.closest('[data-page-up]').getAttribute('data-page-up'), -1);
         else if (target.closest('[data-page-down]')) moveDraftPage(target.closest('[data-page-down]').getAttribute('data-page-down'), 1);
         else if (target.closest('[data-page-del]')) removeDraftPage(target.closest('[data-page-del]').getAttribute('data-page-del'));
         else if (target.closest('[data-page-fix]')) fixDraftPage(target.closest('[data-page-fix]').getAttribute('data-page-fix'));

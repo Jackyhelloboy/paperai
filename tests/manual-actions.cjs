@@ -6,7 +6,8 @@ const ctx=vm.createContext({$,showingRaw:false});vm.runInContext(fn('updateResul
 ctx.updateResultActionsForTab();assert(!$('downloadWordBtn').hidden && $('downloadTxtBtn').hidden);
 ctx.showingRaw=true;ctx.updateResultActionsForTab();assert($('downloadWordBtn').hidden && !$('downloadTxtBtn').hidden);
 const top=html.slice(html.indexOf('<div class="results-actions">'),html.indexOf('<div class="teach-panel"'));
-assert.equal((top.match(/<button\b/g)||[]).length-1,3,'Only three top actions are visible, with one of the two exports hidden');
+assert(top.includes('id="teachActionBtn"') && top.includes('id="downloadWordBtn"'),'Edit and Word are the two primary document actions');
+assert(top.includes('class="document-more"'),'Copy and TXT move into one More menu instead of adding more top-level buttons');
 let calls=0, chips=[];
 const editor={value:'flower',selectionStart:0,selectionEnd:6,focus(){},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
 const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,smartComposition:{source:'flower',start:0,end:6},
