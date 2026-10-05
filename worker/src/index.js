@@ -1632,11 +1632,27 @@ For a question paper, preserve EVERY visible Roman section label, item number, i
 
 Copy intentionally written answer blanks as underscores. Notebook ruling, reverse-side show-through, shadows and erased ghosts are background, not text or answer blanks. Preserve deliberate answer space without turning every notebook rule into a separate answer line.
 
-For matching exercises and columns, keep each left entry and its adjacent right entry on the same row using:
+For matching exercises and columns, keep each left entry and its adjacent right entry on the same row using EXACTLY these internal tags:
 [[COLUMNS_START]]
 [[COLUMN_ROW: actual left text || actual right text]]
 [[COLUMNS_END]]
-Use one COLUMN_ROW per actual source row, including its visible item number. Never pair or solve the entries. For a bordered table, use TABLE_START/TABLE_ROW/TABLE_END with the same row fields and preserve every visible row and column. For a labelled branch diagram, use BRANCH_ROOT, BRANCH_ITEM (left label || right label), and BRANCH_END. Preserve visible mathematics, arrows and editing marks without inventing shapes or labels. For an actual visible equation or mathematical expression, write its literal notation as LaTeX inside $...$, including fractions, roots, powers, subscripts, integrals, sums and matrices. Never solve it or change numbers. Ordinary prose, mark formulas and currency amounts stay ordinary text. Unreadable mathematical terms stay [unclear], not guesses.
+Use one COLUMN_ROW per actual source row, including its visible item number. Never pair or solve the entries.
+
+For a bordered table, use EXACTLY:
+[[TABLE_START]]
+[[TABLE_ROW: cell 1 || cell 2 || cell 3]]
+[[TABLE_END]]
+Preserve every visible row and column.
+
+For a labelled branch diagram, use EXACTLY:
+[[BRANCH_ROOT: exact visible root text]]
+[[BRANCH_ITEM: exact visible left label || exact visible right label]]
+[[BRANCH_END]]
+These are INTERNAL layout tags. Never print the words TABLE, TABLE ROW, COLUMN ROW, BRANCH ROOT, BRANCH ITEM, ROOT, START or END as visible document text unless those words are genuinely printed on the source page.
+
+MARKS FORMULAS ARE LITERAL PRINTED TEXT, NOT ARITHMETIC TO SOLVE. Copy every visible character exactly, including × versus x, =, M/m, spaces and punctuation. Example: if the source says "4×1=4M", output exactly "4×1=4M". If the printed arithmetic appears unusual or inconsistent, still copy it exactly; NEVER recompute or correct the total.
+
+Preserve visible mathematics, arrows and editing marks without inventing shapes or labels. For an actual visible equation or mathematical expression (not a marks formula), write its literal notation as LaTeX inside $...$, including fractions, roots, powers, subscripts, integrals, sums and matrices. Never solve it or change numbers. Ordinary prose, marks formulas and currency amounts stay ordinary text. Unreadable mathematical terms stay [unclear], not guesses.
 
 Before the final answer, check that every visible question/item number has its text and that no header, section, short word or option was dropped. Return only the complete transcription, with no discussion, thinking text, duplicate headings, filenames or invented sections.
 ${layoutSection}
