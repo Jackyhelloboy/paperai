@@ -13,7 +13,7 @@ assert(results.indexOf('id="teachPanel"') > results.indexOf('id="outputCard"'), 
 assert(results.indexOf('id="teachPanel"') < results.indexOf('id="textOut"'), 'Inline editor replaces the preview surface instead of opening another card');
 assert(results.includes('class="document-more"'), 'Secondary actions must live in one compact More menu');
 assert(results.includes('>Preview</button>') && results.includes('>Plain text</button>'), 'Preview and plain text remain available');
-assert(results.includes('>Edit\n') || results.includes('>Edit<'), 'Primary edit action remains visible');
+assert(results.includes('id="teachActionBtn"') && /\bEdit\b/.test(results), 'Primary edit action remains visible');
 assert(!results.includes('<div class="teach-title">'), 'Legacy standalone edit-card title must be removed');
 assert(!results.includes('class="teach-actions"'), 'Legacy Save/Done button row must be removed');
 
