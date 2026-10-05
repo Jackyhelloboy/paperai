@@ -32,14 +32,16 @@ assert(render.includes('class="draft-page-menu"'), 'Each source page must use on
 assert(render.includes('data-page-preview'), 'Source thumbnails must open the full preview');
 assert(!render.includes('class="draft-page-text"'), 'Long OCR snippets must not clutter source thumbnails');
 
-const css = html.slice(html.indexOf('/* v41 unified document workspace */'));
-assert(css.includes('.main.workflow-active[data-view="result"]'), 'Result mode must have a dedicated focused layout');
-assert(css.includes('.output-card.editing .output-body'), 'Editing must happen in the same preview workspace');
-assert(css.includes('grid-auto-columns: 82px !important'), 'Phone source previews must use a compact swipe rail instead of a tall grid');
-assert(css.includes('overflow-x: auto !important'), 'Phone source previews remain reachable by horizontal swipe');
-assert(css.includes('height: calc(100dvh - 145px) !important'), 'Mobile editing must stay inside a viewport-sized text scroller');
-assert(css.includes('.output-tabs {\n                display: none !important;'), 'Mobile hides secondary Preview/Plain text tabs from the primary toolbar');
+const css = html.slice(html.indexOf('/* v43 mobile UI rebuild'));
+assert(css.includes('.main.workflow-active[data-view="result"]'), 'Result mode must have a focused mobile document layout');
+assert(css.includes('grid-auto-columns: 72px !important'), 'Saved source pages use a compact swipe rail on phones');
+assert(css.includes('grid-auto-columns: 96px !important'), 'New upload previews use compact swipe thumbnails');
+assert(css.includes('position: fixed !important') && css.includes('.document-toolbar'), 'Primary document actions stay in a fixed bottom bar');
+assert(css.includes('height: calc(100dvh - 166px - env(safe-area-inset-bottom)) !important'), 'Mobile editing stays inside the phone viewport');
+assert(css.includes('.main.editing-document .drafts-card'), 'Edit mode removes source/navigation chrome so the text gets the screen');
+assert(css.includes('.quota-card') && css.includes('display: none !important'), 'Technical quota card is removed from the mobile primary flow');
 assert(results.includes('class="document-menu-action mobile-view-action"'), 'Preview and Plain text remain available inside More on mobile');
-assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
+assert(html.includes('id="savedPapersToggle"') && html.includes('id="draftLibrary"'), 'Saved papers remain available behind one compact opt-in row');
+assert(css.includes('.flagged-card') && css.includes('.paper-marks'), 'Technical review metadata stays out of the mobile workspace');
 
-console.log('Unified workspace keeps source previews visible, edits inside Preview, and moves secondary controls out of the primary flow.');
+console.log('Mobile workspace is a clean scan/document flow with swipe previews, bottom actions, focused editing and opt-in saved papers.');
