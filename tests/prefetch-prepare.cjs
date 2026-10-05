@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
+const headers = fs.readFileSync(path.join(__dirname, '../frontend/_headers'), 'utf8');
 const start = html.indexOf('let preparedImageCache');
 const end = html.indexOf('async function sendToOCR(');
 assert(start > 0 && end > start, 'prefetch helpers must exist before sendToOCR');
@@ -31,9 +32,18 @@ vm.runInContext(html.slice(start, end), context);
     const setFilesStart = html.indexOf('function setFiles(');
     const setFilesEnd = html.indexOf('\nfunction setFile(', setFilesStart);
     const setFilesSource = html.slice(setFilesStart, setFilesEnd);
+    assert(setFilesSource.includes("let selectionNotice = '';"), 'Upload selection notice must be locally defined before preview rendering');
+    assert(setFilesSource.includes('renderBatchPreview();'), 'Valid uploads must render previews before background OCR begins');
     assert(setFilesSource.includes('imageCount > SMART_MAX_IMAGES'), 'Upload path must enforce the five-image limit');
     assert(setFilesSource.includes('pdfCount > SMART_MAX_PDFS'), 'Upload path must enforce the one-PDF limit');
     assert(setFilesSource.includes('scheduleSmartExtractionAfterPreview();'), 'Background extraction must be scheduled after preview rendering');
+
+    const previewClickStart = html.indexOf('batchPreview.onclick = e => {');
+    const previewClickEnd = html.indexOf('\nloadLayoutPreferences();', previewClickStart);
+    const previewClickSource = html.slice(previewClickStart, previewClickEnd);
+    assert(previewClickSource.includes("e.target.closest('img') || previewMedia?.querySelector('img')"), 'PDF preview must open the exact tapped page thumbnail');
+
+    assert(headers.includes('Cache-Control: no-store, no-cache, must-revalidate'), 'Final build must prevent stale HTML from hiding newly deployed preview fixes');
 
     const scheduleStart = html.indexOf('function scheduleSmartExtractionAfterPreview(');
     const scheduleEnd = html.indexOf('\nfunction pumpSmartExtractionQueue(', scheduleStart);
@@ -53,6 +63,6 @@ vm.runInContext(html.slice(start, end), context);
     const sendSource = html.slice(sendStart, sendEnd);
     assert(sendSource.includes("formData.append('detail_' + index"), 'Prepared detail views must be sent with the full page');
     assert(sendSource.includes('pattern_hints'), 'OCR request must carry structural-only question-paper hints');
-    console.log('Prefetch/upload: previews paint first, preparation stays concurrency-limited, health has proxy fallback, and OCR auto-start remains enabled.');
+    console.log('Prefetch/upload: selection cannot crash before preview, PDF taps open the correct page, fresh HTML is forced, and background OCR remains preview-first.');
 })().catch(e => { console.error(e); process.exitCode = 1; });
 
