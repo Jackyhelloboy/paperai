@@ -33,14 +33,26 @@ vm.runInContext(html.slice(start, end), context);
     const setFilesSource = html.slice(setFilesStart, setFilesEnd);
     assert(setFilesSource.includes('imageCount > SMART_MAX_IMAGES'), 'Upload path must enforce the five-image limit');
     assert(setFilesSource.includes('pdfCount > SMART_MAX_PDFS'), 'Upload path must enforce the one-PDF limit');
-    assert(setFilesSource.includes('startSmartExtractionForFiles();'), 'Background extraction must start when files are selected');
-    assert(setFilesSource.includes('forEach(prefetchPreparedImage)'), 'All selected images should begin local preparation immediately');
+    assert(setFilesSource.includes('scheduleSmartExtractionAfterPreview();'), 'Background extraction must be scheduled after preview rendering');
+
+    const scheduleStart = html.indexOf('function scheduleSmartExtractionAfterPreview(');
+    const scheduleEnd = html.indexOf('\nfunction pumpSmartExtractionQueue(', scheduleStart);
+    const scheduleSource = html.slice(scheduleStart, scheduleEnd);
+    assert(scheduleSource.includes('.slice(0, smartWorkerLimit())'), 'Local preprocessing must stay within OCR concurrency');
+    assert(scheduleSource.includes('.forEach(prefetchPreparedImage)'), 'The active OCR slots should reuse prepared images');
+    assert(scheduleSource.includes('requestAnimationFrame'), 'Preview paint gets priority before preprocessing');
+
+    const healthStart = html.indexOf('async function checkServiceHealth(');
+    const healthEnd = html.indexOf('\nupdateQuotaClock();', healthStart);
+    const healthSource = html.slice(healthStart, healthEnd);
+    assert(healthSource.includes("API_LOCAL + '/api/health"), 'Health check prefers the same-origin Pages proxy');
+    assert(healthSource.includes("API_DIRECT + '/health"), 'Health check retains the direct Worker fallback');
 
     const sendStart = html.indexOf('async function sendToOCR(');
     const sendEnd = html.indexOf('\nfunction publicPlainTextFromStructured', sendStart);
     const sendSource = html.slice(sendStart, sendEnd);
     assert(sendSource.includes("formData.append('detail_' + index"), 'Prepared detail views must be sent with the full page');
     assert(sendSource.includes('pattern_hints'), 'OCR request must carry structural-only question-paper hints');
-    console.log('Prefetch/upload: local preparation and OCR auto-start on selection with 5-image/1-PDF limits and same-page detail aids.');
+    console.log('Prefetch/upload: previews paint first, preparation stays concurrency-limited, health has proxy fallback, and OCR auto-start remains enabled.');
 })().catch(e => { console.error(e); process.exitCode = 1; });
 

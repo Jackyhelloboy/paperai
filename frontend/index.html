@@ -3632,6 +3632,7 @@ function cancelSmartJob(file) {
 }
 
 function resetSmartExtraction() {
+    smartExtractionSchedule++;
     for (const job of smartExtractionJobs.values()) {
         job.cancelled = true;
         job.resolve?.({ ok: false, cancelled: true });
@@ -3679,6 +3680,26 @@ function queueSmartExtraction(file) {
 function startSmartExtractionForFiles() {
     files.forEach(f => queueSmartExtraction(f));
     updateSmartExtractionUI();
+}
+
+let smartExtractionSchedule = 0;
+function scheduleSmartExtractionAfterPreview() {
+    const token = ++smartExtractionSchedule;
+    const launch = () => {
+        if (token !== smartExtractionSchedule || extractionView !== 'select' || !files.length) return;
+        files
+            .filter(f => getFileCategory(f.name.split('.').pop().toLowerCase()) === 'img')
+            .slice(0, smartWorkerLimit())
+            .forEach(prefetchPreparedImage);
+        startSmartExtractionForFiles();
+        updateSmartExtractionUI();
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => requestAnimationFrame(launch));
+    } else {
+        setTimeout(launch, 0);
+    }
 }
 
 function pumpSmartExtractionQueue() {
@@ -3856,15 +3877,34 @@ async function checkServiceHealth() {
     if (serviceHealthLoading) return;
     serviceHealthLoading = true;
     const epoch = ++serviceHealthEpoch;
-    try {
-        // This health request does not run inference or consume AI neurons.
-        const response = await fetch(API_DIRECT + '/health?t=' + Date.now(), {cache:'no-store',signal:AbortSignal.timeout(8000)});
-        if (!response.ok) throw new Error('Backend unavailable');
-        const health = await response.json();
-        if (epoch === serviceHealthEpoch) setServiceStatus(health.status === 'healthy' ? 'active' : 'offline');
-    } catch (_) {
-        if (epoch === serviceHealthEpoch) setServiceStatus('offline');
-    } finally { serviceHealthLoading = false; }
+    const stamp = Date.now();
+    const targets = [
+        API_LOCAL + '/api/health?t=' + stamp,
+        API_DIRECT + '/health?t=' + stamp
+    ];
+
+    let healthy = false;
+    for (const target of targets) {
+        const control = linkedAttemptSignal(null, 10000);
+        try {
+            // Prefer the same-origin Pages proxy. Some mobile/ISP networks block
+            // direct workers.dev requests even while the backend itself is healthy.
+            const response = await fetch(target, { cache:'no-store', signal:control.signal });
+            if (!response.ok) continue;
+            const health = await response.json().catch(() => ({}));
+            if (health.status === 'healthy') {
+                healthy = true;
+                break;
+            }
+        } catch (_) {
+            // Fall through to the next route before declaring the service offline.
+        } finally {
+            control.cleanup();
+        }
+    }
+
+    if (epoch === serviceHealthEpoch) setServiceStatus(healthy ? 'active' : 'offline');
+    serviceHealthLoading = false;
 }
 
 updateQuotaClock();
@@ -4143,11 +4183,10 @@ function setFiles(inputFiles, append = false) {
     resBox.classList.remove('show');
     renderBatchPreview();
 
-    // Start local preparation immediately, then let the low-concurrency background
-    // queue begin OCR without waiting for the user to press the action button.
-    files.filter(f => getFileCategory(f.name.split('.').pop().toLowerCase()) === 'img').forEach(prefetchPreparedImage);
-    startSmartExtractionForFiles();
+    // Paint thumbnails first. Then begin only as much local image preparation as
+    // the OCR worker pool can consume, avoiding a main-thread burst on phones.
     updateSmartExtractionUI();
+    scheduleSmartExtractionAfterPreview();
 }
 function setFile(f) {
     setFiles([f], false);
