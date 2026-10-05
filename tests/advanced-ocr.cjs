@@ -22,8 +22,10 @@ const env = { AI: { run: async (model, body) => {
         assert.equal(request.body.chat_template_kwargs.enable_thinking, false, 'plain pages skip reasoning tokens for speed');
         assert.equal(request.body.max_completion_tokens, 8192);
         const images = request.body.messages[1].content.filter(part => part.type === 'image_url');
-        assert.equal(images.length, 1);
+        assert.equal(images.length, 3, 'One inference carries the full page plus two same-page detail views');
         assert(images[0].image_url.url.endsWith('FULL'));
+        assert(images[1].image_url.url.endsWith('UPPER'));
+        assert(images[2].image_url.url.endsWith('LOWER'));
     }
     const first = 'नागण नाम का एक ______ था। (ब्राह्मण / किसान)\n[[COLUMNS_START]]\n' +
       '[[COLUMN_ROW: 1. फूल || (a) Dust]]\n[[COLUMN_ROW: 2. वर्षा || (b) प्याऊ]]\n' +
@@ -38,5 +40,5 @@ const env = { AI: { run: async (model, body) => {
     assert.equal(reads.length,1,'Hindi matching exercises must not trigger another read');
     assert.equal(checked.text,first,'Keep the first result for manual corrections');
     assert.equal(checked.rescued,false);
-    console.log('Single-pass OCR preserves the full frame and source text without verification calls or reasoning tokens.');
+    console.log('Single-pass OCR preserves the full frame and source text while using same-call detail views without verification calls or reasoning tokens.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

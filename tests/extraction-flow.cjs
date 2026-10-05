@@ -58,7 +58,9 @@ vm.runInContext(html.slice(html.indexOf("let extractionView = 'select'"),html.in
   await assert.rejects(queued,{name:'AbortError'});
   assert.equal(aiCalls,0,'Cancelled jobs must never fall through to an inference retry');
   const selectSource=html.slice(html.indexOf('function setFiles('),html.indexOf('\nfunction setFile('));
-  assert(!selectSource.includes('startSmartExtractionForFiles('),'Selection prepares images without consuming AI quota');
+  assert(selectSource.includes('startSmartExtractionForFiles();'),'Selection must begin background OCR immediately');
+  assert(selectSource.includes('imageCount > SMART_MAX_IMAGES'),'Selection enforces the five-image limit');
+  assert(selectSource.includes('pdfCount > SMART_MAX_PDFS'),'Selection enforces the one-PDF limit');
   let destroyed = 0, cleaned = 0;
   const pdfController = new AbortController();
   let cancelPDF = false;
