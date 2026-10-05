@@ -2,10 +2,9 @@ import { DurableObject } from 'cloudflare:workers';
 import { handleDrafts, purgeExpiredDrafts } from './drafts.js';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
 
+// Usage telemetry reference values only. These MUST NOT block OCR.
+// Cloudflare Workers AI is the authority on real provider availability.
 const DAILY_FREE_NEURONS = 10000;
-// The free allowance is shared by everyone using the site, so one browser must
-// not be able to use it all. Each browser gets its own daily share, and the
-// shared total stays as the outer ceiling.
 const PER_USER_DAILY_NEURONS = 1000;
 // Guard against an unbounded owner map in a single day.
 const MAX_TRACKED_OWNERS = 600;
@@ -38,7 +37,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v26',
+        architecture: 'production-literal-ocr-v27',
       }, { headers: corsHeaders });
     }
 
@@ -46,7 +45,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v26',
+        architecture: 'production-literal-ocr-v27',
         model: '@cf/google/gemma-4-26b-a4b-it',
         ocr_provider: 'cloudflare-ai',
       }, { headers: corsHeaders });
@@ -71,9 +70,11 @@ if (url.pathname === '/api/usage' && request.method === 'GET') {
         return Response.json({
           ...usage,
           per_user_limit: PER_USER_DAILY_NEURONS,
-          owner_remaining: check?.ok === false ? 0 : (check?.status?.owner_remaining ?? PER_USER_DAILY_NEURONS),
-          owner_allowed: check ? check.ok : true,
-          owner_blocked_reason: check && !check.ok ? (check.code || '') : '',
+          owner_remaining: check?.status?.owner_remaining ?? null,
+          owner_allowed: true,
+          owner_blocked_reason: '',
+          enforcement: 'provider-only',
+          tracking_only: true,
         }, {
           headers: {
             ...corsHeaders,
@@ -103,8 +104,11 @@ if (url.pathname === '/api/usage' && request.method === 'GET') {
         return await handlePaperAnalysis(request, env, corsHeaders);
       } catch (e) {
         if (isDailyFreeLimitError(e)) {
-          try { await markUsageExhausted(env); } catch (_) {}
-          return Response.json({ error: 'Daily free AI limit reached', code: 'FREE_AI_LIMIT_REACHED' }, { status: 429, headers: corsHeaders });
+          return Response.json({
+            status: 'completed',
+            analysis: fallbackPaperAnalysis([]),
+            warning: 'AI continuity analysis skipped because provider AI quota is temporarily unavailable.'
+          }, { headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' } });
         }
         return Response.json({
           status: 'completed',
@@ -119,8 +123,11 @@ if (url.pathname === '/api/usage' && request.method === 'GET') {
         return await handleWordSuggestion(request, env, corsHeaders);
       } catch (e) {
         if (isDailyFreeLimitError(e)) {
-          try { await markUsageExhausted(env); } catch (_) {}
-          return Response.json({ suggestions: [], code: 'FREE_AI_LIMIT_REACHED' }, { status: 429, headers: corsHeaders });
+          return Response.json({
+            suggestions: [],
+            code: 'PROVIDER_AI_QUOTA_REACHED',
+            source: 'local-fallback'
+          }, { headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' } });
         }
         if (isPaidModelRequiredError(e)) {
           return Response.json({ suggestions: [], code: 'FREE_MODEL_UNAVAILABLE' }, { status: 503, headers: corsHeaders });
@@ -477,17 +484,18 @@ export class UsageTracker extends DurableObject {
         owner_used: Math.round(used * 100) / 100,
         owner_remaining: Math.round(remaining * 100) / 100,
         shared_remaining: Math.round(sharedRemaining * 100) / 100,
-        // Either ceiling stops the request, so nobody can take the shared pool.
-        allowed: Boolean(owner) && remaining > 0 && sharedRemaining > 0,
-        reason: remaining <= 0 ? 'PER_USER_LIMIT' : (sharedRemaining <= 0 ? 'SHARED_LIMIT' : ''),
+        // Monitoring only. Never block OCR from this Durable Object estimate.
+        allowed: true,
+        reason: '',
+        enforcement: 'provider-only',
       }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     if (request.method === 'POST' && url.pathname === '/exhausted') {
-      state.used = DAILY_FREE_NEURONS;
-      state.exhausted = true;
-      state.history.push({ at: now.toISOString(), used: DAILY_FREE_NEURONS });
-      state.history = state.history.slice(-144);
+      // Compatibility endpoint only. Provider quota errors must not poison
+      // PaperAI's local usage state for the rest of the day.
+      state.provider_limit_seen_at = now.toISOString();
+      state.exhausted = false;
       await this.ctx.storage.put('daily', state);
     }
 
@@ -510,7 +518,9 @@ export class UsageTracker extends DurableObject {
       estimated_remaining: Math.round(remaining * 100) / 100,
       percent_used: Math.round((used / DAILY_FREE_NEURONS) * 10000) / 100,
       ocr_requests_tracked: Number(state.requests) || 0,
-      exhausted: Boolean(state.exhausted || used >= DAILY_FREE_NEURONS),
+      exhausted: false,
+      provider_limit_seen_at: state.provider_limit_seen_at || null,
+      enforcement: 'provider-only',
       history: state.history || [],
       scope: 'PaperAI OCR requests handled by this Worker',
       accuracy: 'estimate',
@@ -1228,27 +1238,22 @@ async function handleOCR(request, env, corsHeaders) {
     return Response.json({ error: 'Image too large (max ~10MB base64)' }, { status: 400, headers: corsHeaders });
   }
 
-  // Fair use: refuse before spending any shared allowance.
-  const allowance = await checkOwnerAllowance(env, request);
-  if (!allowance.ok) {
-    return Response.json({
-      error: allowance.error,
-      code: allowance.code,
-      per_user_limit: PER_USER_DAILY_NEURONS,
-      resets_at: '00:00 UTC daily',
-    }, { status: allowance.status_code || 429, headers: corsHeaders });
-  }
+  // Usage tracking is advisory only. Never refuse OCR because PaperAI's
+  // own estimate says a browser/shared pool is "used up". The actual Workers AI
+  // provider response is the only quota authority.
+  const owner = String(request.headers.get('X-PaperAI-Owner') || '').slice(0, 64);
 
   let aiResult;
   try {
     aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, layoutOptions, paperContext, detailImages);
   } catch (e) {
     if (isDailyFreeLimitError(e)) {
-      try { await markUsageExhausted(env); } catch (_) {}
       return Response.json({
-        error: 'Daily free AI OCR limit reached. PaperAI stopped before any paid fallback. Try again after the Cloudflare daily reset.',
-        code: 'FREE_AI_LIMIT_REACHED',
-      }, { status: 429, headers: corsHeaders });
+        error: 'Cloudflare AI free allocation is temporarily unavailable. PaperAI is not blocking this request with its own quota meter.',
+        code: 'PROVIDER_AI_QUOTA_REACHED',
+        retryable: true,
+        provider: 'cloudflare-workers-ai'
+      }, { status: 429, headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' } });
     }
     if (isPaidModelRequiredError(e)) {
       return Response.json({
@@ -1271,7 +1276,7 @@ async function handleOCR(request, env, corsHeaders) {
   // Record this successful inference for the public daily usage graph.
   // Failure to write analytics must never block the OCR result.
   try {
-    await recordAiUsage(env, aiResult.usage || null, allowance.owner);
+    await recordAiUsage(env, aiResult.usage || null, owner);
   } catch (e) {
     console.log('[Usage tracker] Could not record usage:', e.message);
   }
@@ -1331,7 +1336,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v26',
+        architecture: 'production-literal-ocr-v27',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
