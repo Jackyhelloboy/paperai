@@ -6174,31 +6174,84 @@ function manualSuggestionSegment() {
 async function requestManualAiSuggestions() {
     if (aiSuggestionPending) return;
     const segment = manualSuggestionSegment();
-    if (!segment) { showErr('Select a word or sentence (up to 600 characters) for AI Suggestions.'); return; }
+    const panel = $('aiSuggestionPanel');
+    const sourceLabel = $('aiSuggestionSource');
+    const note = $('aiSuggestionNote');
+    const btn = $('aiSuggestBtn');
+
+    if (!segment) {
+        if (panel) panel.dataset.state = 'error';
+        if (sourceLabel) sourceLabel.textContent = 'No text selected';
+        if (note) note.textContent = 'Select a word or sentence, or place the cursor inside one, then try again.';
+        renderSuggestionChips([], [], false);
+        teachEditor.focus();
+        return;
+    }
+
     smartComposition = segment;
     const sequence = ++aiSuggestionSequence;
-    const btn = $('aiSuggestBtn');
+    const sourceText = segment.source.replace(/\s+/g, ' ').trim();
+    const sourceLanguage = currentTeachSourceLanguage(sourceText);
+    const targetLanguage = currentTeachLanguage();
+    const targetScript = currentTeachScript();
+    const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
+    const isPhrase = sourceText.split(/\s+/).filter(Boolean).length >= 2;
+
+    let localChoices = [];
+    if (isRomanSource && targetScript !== 'latin' && isPhrase) {
+        const knownPhrase = getCanonicalPhraseOverride(sourceText, targetScript);
+        if (knownPhrase) localChoices.push(knownPhrase);
+    }
+    if (isRomanSource && targetScript !== 'latin' && !isPhrase) {
+        localChoices.push(...getLocalSmartSuggestions(sourceText)
+            .filter(choice => choice.toLowerCase() !== sourceText.toLowerCase()));
+    }
+    localChoices = uniqueStrings(localChoices);
+    const learnedChoices = getLearnedCorrectionSuggestions(sourceText, localChoices);
+    localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
+
     aiSuggestionPending = true;
     btn.disabled = true;
-    btn.textContent = 'Suggesting…';
+    btn.textContent = 'Getting suggestions…';
     hideErr();
-    $('aiSuggestionNote').textContent = 'Getting suggestions for your selected text…';
-    renderSuggestionChips([], [], true);
+    if (panel) panel.dataset.state = 'loading';
+    if (sourceLabel) {
+        sourceLabel.textContent = 'For: “' + (sourceText.length > 110 ? sourceText.slice(0, 107) + '…' : sourceText) + '”';
+    }
+    if (note) note.textContent = 'Checking this text. You can keep your current wording or choose a suggestion below.';
+    renderSuggestionChips(localChoices, [], true);
+
     try {
-        const choices = await fetchAiTextSuggestions(segment.source,
-            currentTeachSourceLanguage(segment.source), currentTeachLanguage(), [], [], sequence);
+        const choices = await fetchAiTextSuggestions(
+            sourceText, sourceLanguage, targetLanguage, localChoices, learnedChoices, sequence
+        );
         if (sequence !== aiSuggestionSequence || !teachPanel.classList.contains('show')) return;
-        renderSuggestionChips([], choices, false);
-        $('aiSuggestionNote').textContent = choices.length ? 'Choose a suggestion to apply it. Your text is unchanged until then.' : 'No suggestions returned. You can keep editing manually.';
+        const visibleChoices = uniqueStrings([...choices, ...localChoices]);
+        renderSuggestionChips(localChoices, choices, false);
+        if (panel) panel.dataset.state = 'ready';
+        if (note) {
+            note.textContent = visibleChoices.length
+                ? 'Choose a suggestion to replace only the selected text.'
+                : 'No useful change was found. Your current text has been left untouched.';
+        }
+        const isMobile = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 620px)').matches;
+        if (isMobile && panel?.scrollIntoView) {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     } catch (error) {
         if (sequence === aiSuggestionSequence) {
-            renderSuggestionChips([], [], false);
-            $('aiSuggestionNote').textContent = error.message || 'AI suggestions are unavailable. Keep editing manually.';
+            renderSuggestionChips(localChoices, [], false);
+            if (panel) panel.dataset.state = localChoices.length ? 'ready' : 'error';
+            if (note) {
+                note.textContent = localChoices.length
+                    ? 'AI is temporarily unavailable. You can still use the suggestions shown below.'
+                    : (error.message || 'AI suggestions are temporarily unavailable. Your text is unchanged.');
+            }
         }
     } finally {
         aiSuggestionPending = false;
         btn.disabled = false;
-        btn.textContent = '✦ AI Suggestions';
+        btn.textContent = '✦ Get AI suggestions';
         loadUsage();
     }
 }
@@ -6216,7 +6269,16 @@ function chooseSmartSuggestion(choice) {
     smartComposition = null;
     translitSuggestions.classList.remove('show');
     translitSuggestions.innerHTML = '';
+
+    const panel = $('aiSuggestionPanel');
+    const sourceLabel = $('aiSuggestionSource');
+    const note = $('aiSuggestionNote');
+    if (panel) panel.dataset.state = 'idle';
+    if (sourceLabel) sourceLabel.textContent = 'Suggestion applied';
+    if (note) note.textContent = 'Applied. Select another word or sentence whenever you want more help.';
+
     teachEditor.setSelectionRange(newEnd, newEnd);
+    teachEditor.focus();
 }
 
 function renderTeachPreview() {
@@ -6325,6 +6387,13 @@ function openTeachPanel() {
         : detectTeachLanguage(teachOriginalText);
 
     teachPanel.classList.add('show');
+    const suggestionPanel = $('aiSuggestionPanel');
+    const suggestionSource = $('aiSuggestionSource');
+    const suggestionNote = $('aiSuggestionNote');
+    if (suggestionPanel) suggestionPanel.dataset.state = 'idle';
+    if (suggestionSource) suggestionSource.textContent = 'Select text or place the cursor in a sentence.';
+    if (suggestionNote) suggestionNote.textContent = 'Tap “Get AI suggestions” when you want help. Your document will not change automatically.';
+
     updateTeachLanguageStatus();
     showSmartSuggestions();
     updateTeachButtons();
