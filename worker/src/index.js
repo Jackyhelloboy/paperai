@@ -1498,14 +1498,10 @@ function aiRetryDelayMs(attempt) {
 
 function ocrNeedsThinking(imageMeta = {}, difficulty = 'auto') {
   if (imageMeta?.safeRetry) return false;
-  return Boolean(
-    difficulty === 'hard' ||
-    imageMeta?.difficulty === 'hard' ||
-    imageMeta?.structuredLayout ||
-    imageMeta?.branchingLayout ||
-    Number(imageMeta?.multiColumnRows || 0) >= 2 ||
-    Number(imageMeta?.denseOptionRows || 0) >= 2
-  );
+  // Low resolution, blur, notebook rules and matching rows are perception
+  // problems. Reasoning consumes the output budget and can trigger a lighter
+  // retry that discards close-ups. Reserve it for actual branching diagrams.
+  return Boolean(imageMeta?.branchingLayout);
 }
 
 // A lighter retry exists to finish quickly. It keeps a non-empty, non-runaway
@@ -1624,11 +1620,8 @@ Before the final answer, check that every visible question/item number has its t
 ${learningSection}
 ${paperContextInstruction}`;
 
-  // Reasoning ("thinking") tokens are generated before any transcription and
-  // are the largest single latency cost. Plain text and handwriting pages are
-  // perception tasks, so they read faster and as accurately without it. Hard,
-  // structured or branching pages keep it. A lighter retry after a timeout never
-  // uses it, so the retry is genuinely cheaper than the attempt that timed out.
+  // Literal handwriting and matching rows use perception with detailed images;
+  // only branching diagrams spend tokens on reasoning before transcription.
   const thinking = ocrNeedsThinking(imageMeta, difficulty);
 
   const requestBody = {
