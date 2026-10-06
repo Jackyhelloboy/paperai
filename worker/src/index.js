@@ -1221,6 +1221,8 @@ async function handleOCR(request, env, corsHeaders) {
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
         verification_pass_used: false,
+        rescued: Boolean(aiResult.rescued),
+        output_continuation_used: Boolean(aiResult.rescued),
         ai_reads: Math.max(1, Number(aiResult.attempts) || 1),
         image_profile: imageMeta || {},
         learning_hints_used: learningHints.length,
