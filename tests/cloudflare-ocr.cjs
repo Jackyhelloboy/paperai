@@ -17,6 +17,7 @@ const calls = [];
 const telemetry = [];
 let mode = 'ok';
 let verificationCalls = 0;
+let truncationCalls = 0;
 const uncertainText = text + ' [unclear] [unclear] [unclear]';
 const env = {
   USAGE_TRACKER: {
@@ -31,7 +32,18 @@ const env = {
       return { choices: [{ message: { content: second ? uncertainText.replaceAll('[unclear]', 'visible') : uncertainText },
         finish_reason: second ? 'length' : 'stop' }] };
     }
-    return { choices: [{ message: { content: text }, finish_reason: mode === 'truncated' ? 'length' : 'stop' }],
+    if (mode === 'truncated') {
+      truncationCalls++;
+      const cut = Math.floor(text.length * 0.55);
+      return truncationCalls === 1
+        ? { choices: [{ message: { content: text.slice(0, cut) }, finish_reason: 'length' }], usage: { prompt_tokens: 100, completion_tokens: 50 } }
+        : { choices: [{ message: { content: text.slice(cut) }, finish_reason: 'stop' }], usage: { prompt_tokens: 80, completion_tokens: 40 } };
+    }
+    if (mode === 'always-truncated') {
+      return { choices: [{ message: { content: text.slice(0, Math.floor(text.length * 0.5)) }, finish_reason: 'length' }],
+        usage: { prompt_tokens: 100, completion_tokens: 50 } };
+    }
+    return { choices: [{ message: { content: text }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 100, completion_tokens: 50 } };
   } },
 };
@@ -64,11 +76,21 @@ function request() {
   assert(telemetry.every(url => url.endsWith('/provider-status')), 'Provider observation must never consult a local allowance');
 
   mode = 'truncated';
+  truncationCalls = 0;
   const before = calls.length;
+  const rescuedResponse = await worker.fetch(request(), env);
+  assert.equal(rescuedResponse.status, 200);
+  const rescuedBody = await rescuedResponse.json();
+  assert.equal(rescuedBody.result.full_text, text, 'A token-limited OCR read should continue automatically');
+  assert.equal(rescuedBody.result.metadata.rescued, true);
+  assert.equal(calls.length, before + 2, 'Truncated OCR should use one continuation read when it completes the page');
+
+  mode = 'always-truncated';
+  const persistentBefore = calls.length;
   const truncated = await worker.fetch(request(), env);
   assert.equal(truncated.status, 422);
   assert.equal((await truncated.json()).code, 'AI_OUTPUT_TRUNCATED');
-  assert.equal(calls.length, before + 1, 'Do not repeat an exhausted output budget in a verification pass');
+  assert.equal(calls.length, persistentBefore + 3, 'Persistent truncation should stop after two continuation attempts');
   assert.equal(truncated.headers.get('Cache-Control'), 'no-store, max-age=0');
 
   mode = 'verification-truncated';
@@ -89,5 +111,5 @@ function request() {
   const preflight = await worker.fetch(new Request('https://paperai.example/api/drafts/example', { method: 'OPTIONS' }), env);
   assert(preflight.headers.get('Access-Control-Allow-Methods').split(',').includes('PATCH'));
   assert(calls.every(call => call.model === '@cf/google/gemma-4-26b-a4b-it'));
-  console.log('Cloudflare OCR records provider observations, reports truncation/4006 and permits draft PATCH.');
+  console.log('Cloudflare OCR automatically continues token-limited reads, caps persistent truncation retries, records provider observations and permits draft PATCH.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
