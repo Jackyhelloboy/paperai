@@ -5967,143 +5967,129 @@
             }
         }
 
-        /* v49 old-style smart suggestion chips, modernized */
-        .classic-teach-panel .teach-suggestion-card {
-            position:sticky !important;
-            top:.35rem !important;
-            bottom:auto !important;
-            left:auto !important;
-            right:auto !important;
-            z-index:10 !important;
-            max-height:none !important;
-            overflow:visible !important;
-            margin:0 0 .35rem !important;
-            padding:.42rem .48rem !important;
-            border:1px solid #dbeafe !important;
-            border-radius:10px !important;
-            background:rgba(248,251,255,.98) !important;
+        /* v51 stable Android Teach UI */
+        .classic-teach-panel {
+            margin:0 0 .55rem !important;
+            padding:.55rem !important;
+            border:1px solid #dbe3ee !important;
+            border-radius:12px !important;
+            background:#fff !important;
             box-shadow:none !important;
-            backdrop-filter:blur(8px) !important;
         }
 
-        .classic-teach-panel .teach-suggestion-head {
-            align-items:center !important;
-        }
-
-        .classic-teach-panel .teach-suggestion-title {
-            font-size:.62rem !important;
-            color:var(--text3) !important;
-            text-transform:uppercase !important;
-            letter-spacing:.04em !important;
-        }
-
-        .classic-teach-panel .teach-suggestion-source {
-            margin-top:.05rem !important;
-            font-size:.66rem !important;
-            font-weight:700 !important;
-            color:var(--text2) !important;
-        }
-
-        .classic-teach-panel .teach-ai-hint {
-            margin:.16rem 0 0 !important;
-            font-size:.6rem !important;
+        .classic-teach-panel .teach-title {
+            margin:0 0 .35rem !important;
+            font-size:.8rem !important;
             line-height:1.2 !important;
         }
 
-        .classic-teach-panel .translit-suggestions {
-            margin-top:.3rem !important;
-            gap:.3rem !important;
+        .classic-teach-panel .teach-sub {
+            margin:0 0 .4rem !important;
+            font-size:.62rem !important;
+            line-height:1.35 !important;
         }
 
-        .classic-teach-panel .translit-chip {
-            min-height:30px !important;
-            padding:.28rem .55rem !important;
+        .classic-teach-panel .teach-language-bar {
+            display:grid !important;
+            grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr) !important;
+            gap:.25rem !important;
+            align-items:end !important;
+            margin:0 0 .4rem !important;
+            padding:.4rem !important;
+            border-radius:9px !important;
+        }
+
+        .classic-teach-panel .teach-lang-label {
+            font-size:.58rem !important;
+            margin-bottom:.15rem !important;
+        }
+
+        .classic-teach-panel .teach-lang-select {
+            min-height:36px !important;
+            height:36px !important;
+            padding:.25rem 1.3rem .25rem .42rem !important;
             border-radius:8px !important;
-            font-size:.7rem !important;
-            font-weight:700 !important;
+            font-size:.68rem !important;
+        }
+
+        .classic-teach-panel .teach-lang-arrow {
+            padding-bottom:.55rem !important;
+            font-size:.82rem !important;
+        }
+
+        .classic-teach-panel .teach-language-status {
+            grid-column:1/-1 !important;
+            min-height:0 !important;
+            margin-top:.12rem !important;
+            font-size:.56rem !important;
+            line-height:1.25 !important;
+        }
+
+        .classic-teach-panel .teach-toolbar {
+            position:static !important;
+            display:grid !important;
+            grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+            gap:.28rem !important;
+            margin:0 0 .4rem !important;
+            padding:0 !important;
+            background:transparent !important;
+            backdrop-filter:none !important;
+        }
+
+        .classic-teach-panel .teach-tool,
+        .classic-teach-panel #teachOriginalBtn {
+            display:block !important;
+            width:100% !important;
+            min-height:34px !important;
+            height:34px !important;
+            padding:.28rem .35rem !important;
+            border-radius:8px !important;
+            font-size:.64rem !important;
             box-shadow:none !important;
         }
 
-        .classic-teach-panel .translit-chip:first-child {
-            background:#2563eb !important;
-            border-color:#2563eb !important;
-            color:#fff !important;
+        .classic-teach-panel .teach-editor-label {
+            margin:0 0 .2rem !important;
+            font-size:.6rem !important;
         }
 
-        .classic-teach-panel .ai-custom-edit {
-            margin-top:.3rem !important;
-            border-top:1px solid #e5e7eb !important;
-            padding-top:.25rem !important;
+        .classic-teach-panel .teach-editor-label strong {
+            font-size:.7rem !important;
         }
 
-        .classic-teach-panel .ai-custom-edit > summary {
-            width:max-content !important;
-            padding:.15rem .2rem !important;
-            color:var(--accent) !important;
-            font-size:.62rem !important;
-            font-weight:750 !important;
-            cursor:pointer !important;
-            list-style:none !important;
+        .classic-teach-panel .teach-editor {
+            width:100% !important;
+            min-height:170px !important;
+            height:200px !important;
+            max-height:40vh !important;
+            padding:.52rem !important;
+            border-radius:9px !important;
+            font-size:15px !important;
+            line-height:1.42 !important;
+            resize:vertical !important;
+            overscroll-behavior:contain !important;
         }
 
-        .classic-teach-panel .ai-custom-edit > summary::-webkit-details-marker {
-            display:none !important;
-        }
-
-        .classic-teach-panel .ai-custom-edit:not([open]) .ai-suggestion-editor-wrap,
-        .classic-teach-panel .ai-custom-edit:not([open]) .ai-suggestion-actions {
-            display:none !important;
-        }
-
-        .classic-teach-panel .ai-custom-edit[open] .ai-suggestion-editor {
-            margin-top:.25rem !important;
-        }
-
-        @media(max-width:620px) {
-            .classic-teach-panel {
-                padding-bottom:.58rem !important;
-            }
-
-            .classic-teach-panel .teach-suggestion-card {
-                position:sticky !important;
-                top:.25rem !important;
-                bottom:auto !important;
-                left:auto !important;
-                right:auto !important;
-                z-index:20 !important;
-                max-height:34vh !important;
-                overflow-y:auto !important;
-            }
-
-            .classic-teach-panel .translit-suggestions {
-                flex-wrap:nowrap !important;
-                overflow-x:auto !important;
-                padding-bottom:.08rem !important;
-            }
-
-            .classic-teach-panel .translit-chip {
-                flex:0 0 auto !important;
-                max-width:72vw !important;
-            }
-
-            .classic-teach-panel .teach-editor {
-                height:210px !important;
-                max-height:40vh !important;
-            }
-        }
-
-        /* v50 exact old Teach suggestion UI */
         .classic-teach-panel .translit-suggestions {
             display:none !important;
-            flex-wrap:wrap !important;
-            overflow:visible !important;
-            gap:.35rem !important;
-            margin-top:.45rem !important;
-            padding:.45rem !important;
+            flex-flow:row nowrap !important;
+            align-items:center !important;
+            gap:.3rem !important;
+            width:100% !important;
+            margin:.35rem 0 0 !important;
+            padding:.35rem !important;
             border:1px solid var(--border) !important;
             border-radius:8px !important;
             background:var(--bg) !important;
-            box-shadow:none !important;
+            overflow-x:auto !important;
+            overflow-y:hidden !important;
+            -webkit-overflow-scrolling:touch !important;
+            scrollbar-width:none !important;
+            scroll-snap-type:x proximity !important;
+        }
+
+        .classic-teach-panel .translit-suggestions::-webkit-scrollbar {
+            display:none !important;
         }
 
         .classic-teach-panel .translit-suggestions.show {
@@ -6113,18 +6099,21 @@
         .classic-teach-panel .translit-chip {
             flex:0 0 auto !important;
             width:auto !important;
-            max-width:100% !important;
-            min-height:auto !important;
+            min-width:max-content !important;
+            max-width:72vw !important;
+            min-height:32px !important;
+            margin:0 !important;
+            padding:.3rem .58rem !important;
             border:1px solid var(--border2) !important;
-            background:var(--surface) !important;
-            color:var(--text) !important;
             border-radius:999px !important;
-            padding:.28rem .6rem !important;
-            font:600 .78rem/1.2 'Hind','Noto Sans Devanagari',sans-serif !important;
-            white-space:normal !important;
-            overflow:visible !important;
-            text-overflow:clip !important;
+            background:#fff !important;
+            color:var(--text) !important;
+            font:600 .72rem/1.2 'Hind','Noto Sans Devanagari','Noto Sans Telugu',sans-serif !important;
+            white-space:nowrap !important;
+            overflow:hidden !important;
+            text-overflow:ellipsis !important;
             box-shadow:none !important;
+            scroll-snap-align:start !important;
         }
 
         .classic-teach-panel .translit-chip:first-child {
@@ -6133,27 +6122,79 @@
             color:var(--accent) !important;
         }
 
+        .classic-teach-panel .teach-actions {
+            position:static !important;
+            display:grid !important;
+            grid-template-columns:1fr 1fr !important;
+            gap:.3rem !important;
+            margin:.4rem 0 0 !important;
+            padding:0 !important;
+            background:transparent !important;
+        }
+
+        .classic-teach-panel .teach-actions .action-btn {
+            min-height:36px !important;
+            height:36px !important;
+            padding:.32rem .45rem !important;
+            border-radius:8px !important;
+            font-size:.68rem !important;
+            box-shadow:none !important;
+        }
+
+        .classic-results-actions {
+            gap:.28rem !important;
+        }
+
+        .classic-results-actions .action-btn {
+            min-height:36px !important;
+            height:36px !important;
+            padding:.3rem .4rem !important;
+            border-radius:8px !important;
+            font-size:.68rem !important;
+        }
+
+        .classic-output-tabs .output-tab {
+            min-height:36px !important;
+            padding:.42rem .35rem !important;
+            font-size:.7rem !important;
+        }
+
         @media(max-width:620px) {
-            .classic-teach-panel {
-                padding-bottom:.58rem !important;
+            .classic-teach-panel .teach-sub {
+                display:none !important;
+            }
+
+            .classic-teach-panel .teach-language-status {
+                display:none !important;
             }
 
             .classic-teach-panel .teach-editor {
-                height:200px !important;
-                max-height:38vh !important;
+                min-height:160px !important;
+                height:190px !important;
+                max-height:36vh !important;
+                font-size:15px !important;
             }
 
             .classic-teach-panel .translit-suggestions {
-                position:static !important;
-                margin:.4rem 0 0 !important;
-                padding:.4rem !important;
-                max-height:none !important;
-                overflow:visible !important;
+                flex-flow:row nowrap !important;
+                overflow-x:auto !important;
+                overflow-y:hidden !important;
             }
 
             .classic-teach-panel .translit-chip {
-                font-size:.74rem !important;
-                padding:.27rem .55rem !important;
+                width:auto !important;
+                min-width:max-content !important;
+                max-width:68vw !important;
+            }
+        }
+
+        @media(max-width:380px) {
+            .classic-teach-panel .teach-lang-select {
+                font-size:.64rem !important;
+            }
+
+            .classic-teach-panel .translit-chip {
+                max-width:64vw !important;
             }
         }
 </style>
@@ -6386,7 +6427,7 @@
 
             <div class="teach-panel classic-teach-panel" id="teachPanel">
                 <div class="teach-title">Review &amp; correct <span id="paperSaveState" role="status" aria-live="polite"></span></div>
-                <div class="teach-sub">Edit the extracted text directly. Select a word or sentence and tap <strong>Get AI suggestions</strong> only when you want help. Nothing changes until you apply it.</div>
+                <div class="teach-sub">Edit the extracted text directly. Select or type a word and suggestions appear automatically below the editor.</div>
 
                 <div class="teach-language-bar">
                     <label class="teach-lang-field">
@@ -8689,11 +8730,20 @@ const TEACH_LANGUAGE_META = Object.freeze({
 
 function uniqueStrings(values) {
     const seen = new Set();
-    return values.map(value => String(value || '').normalize('NFC').trim()).filter(value => {
-        if (!value || seen.has(value)) return false;
-        seen.add(value);
-        return true;
-    });
+    const output = [];
+    for (const raw of values || []) {
+        const value = String(raw || '')
+            .normalize('NFC')
+            .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (!value) continue;
+        const key = value.toLocaleLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        output.push(value);
+    }
+    return output;
 }
 
 function countTeachScripts(text) {
@@ -8927,7 +8977,7 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
 }
 
 function renderSuggestionChips(choices, aiChoices = [], loading = false) {
-    const merged = uniqueStrings([...(choices || []), ...(aiChoices || [])]).slice(0, 8);
+    const merged = uniqueStrings([...(choices || []), ...(aiChoices || [])]).slice(0, 6);
     const loadingChip = loading ? '<span class="translit-chip" style="cursor:default;opacity:.65">AI suggesting…</span>' : '';
 
     translitSuggestions.innerHTML =
@@ -9089,7 +9139,7 @@ async function requestManualAiSuggestions() {
         );
         if (sequence !== aiSuggestionSequence || !teachPanel.classList.contains('show')) return;
         const visibleChoices = uniqueStrings([...choices, ...localChoices]);
-        renderSuggestionChips(localChoices, choices, false);
+        renderSuggestionChips(choices, localChoices, false);
         setAiSuggestionDraft(visibleChoices[0] || '');
         if (panel) panel.dataset.state = 'ready';
         if (note) {
