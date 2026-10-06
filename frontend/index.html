@@ -11128,8 +11128,8 @@ async function startExtraction() {
         // Session-only mobile workflow: keep the extracted document in memory.
         // Refresh intentionally starts a clean workspace instead of creating a persistent draft.
         activeDraft = null;
-        rememberActivePaper();
-        rememberPendingSources(null);
+        pendingSourceBatch = null;
+        pendingPaperSave = null;
         loadUsage();
 
         if (window.matchMedia('(max-width: 479px)').matches) {
