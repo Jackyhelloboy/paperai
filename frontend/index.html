@@ -6536,6 +6536,107 @@
                 font-size:.62rem !important;
             }
         }
+
+        /* v55 restore old native bottom-corner editor resize */
+        .classic-teach-panel .teach-editor-controls,
+        .classic-teach-panel .teach-size-btn,
+        #teachEditorSizeLabel {
+            display:none !important;
+        }
+
+        @media(max-width:620px) {
+            .classic-teach-panel.show {
+                display:block !important;
+                height:auto !important;
+                max-height:none !important;
+                min-height:0 !important;
+                overflow:visible !important;
+            }
+
+            .classic-teach-panel .teach-title,
+            .classic-teach-panel .teach-language-bar,
+            .classic-teach-panel .teach-toolbar,
+            .classic-teach-panel .translit-suggestions,
+            .classic-teach-panel .teach-editor-label,
+            .classic-teach-panel .teach-actions {
+                display:flex !important;
+            }
+
+            .classic-teach-panel .teach-language-bar {
+                display:grid !important;
+            }
+
+            .classic-teach-panel .teach-toolbar {
+                display:grid !important;
+            }
+
+            .classic-teach-panel .translit-suggestions {
+                display:none !important;
+                flex-flow:row nowrap !important;
+                overflow-x:auto !important;
+                overflow-y:hidden !important;
+            }
+
+            .classic-teach-panel .translit-suggestions.show {
+                display:flex !important;
+            }
+
+            .classic-teach-panel .teach-editor-label {
+                display:flex !important;
+                align-items:center !important;
+                justify-content:space-between !important;
+                margin:.18rem 0 .2rem !important;
+            }
+
+            .classic-teach-panel .teach-editor {
+                display:block !important;
+                width:100% !important;
+                min-height:220px !important;
+                height:320px !important;
+                max-height:72vh !important;
+                resize:vertical !important;
+                overflow-y:auto !important;
+                overscroll-behavior:contain !important;
+                -webkit-overflow-scrolling:touch !important;
+            }
+
+            .classic-teach-panel .teach-actions {
+                display:grid !important;
+                grid-template-columns:1fr 1fr !important;
+                margin-top:.35rem !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open {
+                display:block !important;
+                height:auto !important;
+                max-height:none !important;
+                overflow:visible !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-title,
+            .classic-teach-panel.teach-keyboard-open .teach-language-bar,
+            .classic-teach-panel.teach-keyboard-open .teach-toolbar,
+            .classic-teach-panel.teach-keyboard-open .translit-suggestions,
+            .classic-teach-panel.teach-keyboard-open .teach-editor-label,
+            .classic-teach-panel.teach-keyboard-open .teach-actions {
+                display:revert !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-editor {
+                min-height:180px !important;
+                height:260px !important;
+                max-height:62vh !important;
+                resize:vertical !important;
+            }
+        }
+
+        @media(max-width:380px) {
+            .classic-teach-panel .teach-editor {
+                min-height:200px !important;
+                height:290px !important;
+                max-height:68vh !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -6818,14 +6919,7 @@
                 </div>
 
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite" aria-label="Suggestions"></div>
-                <div class="teach-editor-label">
-                    <strong>Edit extracted text</strong>
-                    <div class="teach-editor-controls">
-                        <button class="teach-size-btn" type="button" onclick="adjustTeachEditorSize(-1)" aria-label="Make editor smaller">−</button>
-                        <span id="teachEditorSizeLabel">Large</span>
-                        <button class="teach-size-btn" type="button" onclick="adjustTeachEditorSize(1)" aria-label="Make editor larger">+</button>
-                    </div>
-                </div>
+                <div class="teach-editor-label"><strong>Edit extracted text</strong><span>Changes preview live</span></div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
 
                 <div class="teach-actions">
@@ -9741,39 +9835,12 @@ function refreshSmartComposition(options = {}) {
     const delay = options.immediate ? 80 : (options.fromInput ? 650 : 360);
     scheduleAutomaticAiSuggestions(segment, delay);
 }
-let teachEditorSizeIndex = 2;
-const TEACH_EDITOR_SIZES = [
-    { label: 'Compact', factor: 0.72 },
-    { label: 'Medium', factor: 0.86 },
-    { label: 'Large', factor: 1 }
-];
-
 function syncTeachVisibleViewport() {
     const viewport = window.visualViewport;
     const height = Math.max(340, Math.round(viewport?.height || window.innerHeight || 720));
     const top = Math.max(0, Math.round(viewport?.offsetTop || 0));
-    const layoutHeight = Math.max(height, Math.round(window.innerHeight || height));
-    const keyboardOpen = Boolean(viewport && height < layoutHeight * 0.76);
-    const size = TEACH_EDITOR_SIZES[teachEditorSizeIndex] || TEACH_EDITOR_SIZES[2];
-    const factor = keyboardOpen ? 1 : size.factor;
-    const panelHeight = Math.max(330, Math.round(height * factor) - 10);
-
     document.documentElement.style.setProperty('--teach-visible-height', height + 'px');
     document.documentElement.style.setProperty('--teach-visible-top', top + 'px');
-    document.documentElement.style.setProperty('--teach-panel-height', panelHeight + 'px');
-    teachPanel?.classList.toggle('teach-keyboard-open', keyboardOpen);
-
-    const label = $('teachEditorSizeLabel');
-    if (label) label.textContent = keyboardOpen ? 'Fit' : size.label;
-}
-
-function adjustTeachEditorSize(direction) {
-    teachEditorSizeIndex = Math.max(0, Math.min(TEACH_EDITOR_SIZES.length - 1, teachEditorSizeIndex + direction));
-    syncTeachVisibleViewport();
-    const size = TEACH_EDITOR_SIZES[teachEditorSizeIndex];
-    try { sessionStorage.setItem('paperai_teach_size_v1', String(teachEditorSizeIndex)); } catch (_) {}
-    const label = $('teachEditorSizeLabel');
-    if (label && !teachPanel.classList.contains('teach-keyboard-open')) label.textContent = size.label;
 }
 
 if (window.visualViewport) {
@@ -9807,12 +9874,6 @@ function openTeachPanel() {
         ? selectedDocumentLanguage
         : detectTeachLanguage(teachOriginalText);
 
-    try {
-        const savedTeachSize = Number(sessionStorage.getItem('paperai_teach_size_v1'));
-        if (Number.isInteger(savedTeachSize) && savedTeachSize >= 0 && savedTeachSize < TEACH_EDITOR_SIZES.length) {
-            teachEditorSizeIndex = savedTeachSize;
-        }
-    } catch (_) {}
     syncTeachVisibleViewport();
     teachPanel.classList.add('show');
     $('outputCard')?.classList.add('editing');
@@ -9863,7 +9924,6 @@ function closeTeachPanel() {
     $('outputCard')?.classList.remove('editing');
     document.documentElement.style.removeProperty('--teach-visible-height');
     document.documentElement.style.removeProperty('--teach-visible-top');
-    document.documentElement.style.removeProperty('--teach-panel-height');
     teachPanel.classList.remove('teach-keyboard-open');
     smartComposition = null;
     aiSuggestionSequence++;
