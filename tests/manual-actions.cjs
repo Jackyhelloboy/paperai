@@ -29,8 +29,7 @@ for(const name of ['wordAtTeachCaret','automaticSuggestionSegment','fetchAiTextS
  manual.showSmartSuggestions();assert.equal(calls,0,'Instant local suggestions do not require AI');
  const once=manual.requestManualAiSuggestions(), duplicate=manual.requestManualAiSuggestions();await Promise.all([once,duplicate]);
  assert.equal(calls,1,'Repeated clicks during a pending request make only one AI call');
- assert.equal(editor.value,'flower','AI suggestions never apply themselves');assert(chips.includes('फूल'));
- assert.equal(translitSuggestions.innerHTML!==undefined,true,'Old suggestion strip remains the suggestion surface');
+ assert.equal(editor.value,'flower','AI suggestions never apply themselves');assert(chips.includes('फूल'),'AI suggestion appears in the old chip strip');
  await manual.requestManualAiSuggestions();assert.equal(calls,1,'Same selected text and language reuse suggestions');
  manual.chooseSmartSuggestion('फूल');assert.equal(editor.value,'फूल','Only choosing a suggestion changes the selected text');
  assert.equal($('aiSuggestionSource').textContent,'Suggestion applied');
