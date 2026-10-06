@@ -37,7 +37,10 @@ assert(css.includes('v45 mobile fit preview + user-controlled density'), 'Mobile
 assert(css.includes('v46 restore compact old Teach interaction'), 'Compact old Teach layout must be present');
 assert(css.includes('position:fixed !important;'), 'Mobile AI suggestions must stay visible while editing');
 assert(css.includes('v47 automatic smart-suggestion Teach redesign'), 'Teach must use the automatic smart-suggestion redesign');
-assert(css.includes('v50 exact old Teach suggestion UI'), 'Exact old Teach suggestion styling must be restored');
+assert(css.includes('v51 stable Android Teach UI'), 'Stable Android Teach UI layer must be present');
+assert(css.includes('flex-flow:row nowrap !important'), 'Suggestion chips must stay in one horizontal row');
+assert(css.includes('overflow-x:auto !important'), 'Suggestion row must scroll horizontally instead of stacking');
+assert(css.includes('#teachOriginalBtn'), 'Original control must remain available in the compact toolbar');
 assert(css.includes('max-height:38vh !important;'), 'Mobile AI suggestion dock must stay compact and scroll internally');
 assert(css.includes('.classic-output-card[data-compact="true"] .ocr-structured-table'), 'Compact mode must shrink structured tables to phone width');
 assert(css.includes('v48 minimal Android session-only UI'), 'Minimal Android UI layer must be present');
@@ -46,4 +49,4 @@ assert(css.includes('font-size:11.5px !important'), 'Mobile extracted text must 
 assert(css.includes('min-height:36px !important'), 'Android action controls must use compact touch-friendly sizing');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
-console.log('PaperAI keeps the minimal Android workflow and restores the exact old suggestion chips directly under the Teach editor.');
+console.log('PaperAI keeps a stable compact Android Teach UI with one-row suggestions, small controls, and no conflicting late CSS layers.');
