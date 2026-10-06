@@ -9079,7 +9079,7 @@ async function requestManualAiSuggestions() {
         setAiSuggestionDraft(visibleChoices[0] || '');
         if (panel) panel.dataset.state = 'ready';
         const custom = $('aiCustomEdit');
-        if (custom && !custom.open) custom.removeAttribute('open');
+        if (custom && !custom.open) custom.removeAttribute?.('open');
         if (note) {
             note.textContent = visibleChoices.length
                 ? 'Choose a suggestion to replace only the selected text.'
