@@ -1665,6 +1665,55 @@
             color: var(--text2);
         }
 
+        .ai-suggestion-editor-wrap {
+            display: block;
+            margin-top: 0.65rem;
+        }
+
+        .ai-suggestion-editor-wrap > span {
+            display: block;
+            margin-bottom: 0.35rem;
+            font-size: 0.68rem;
+            font-weight: 800;
+            color: var(--text2);
+        }
+
+        .ai-suggestion-editor {
+            width: 100%;
+            min-height: 92px;
+            max-height: 220px;
+            resize: vertical;
+            box-sizing: border-box;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 0.7rem 0.75rem;
+            background: #fff;
+            color: var(--text);
+            font: 500 0.86rem/1.55 'Hind', 'Noto Sans Devanagari', 'Noto Sans Telugu', Tahoma, sans-serif;
+            unicode-bidi: plaintext;
+        }
+
+        .ai-suggestion-editor:focus {
+            outline: 2px solid rgba(37, 99, 235, 0.18);
+            border-color: #60a5fa;
+        }
+
+        .ai-suggestion-actions {
+            display: flex;
+            gap: 0.45rem;
+            margin-top: 0.5rem;
+        }
+
+        .ai-suggestion-actions .teach-tool {
+            flex: 1;
+        }
+
+        .ai-apply-button {
+            background: var(--accent) !important;
+            border-color: var(--accent) !important;
+            color: #fff !important;
+        }
+
         .teach-suggestion-card[data-state="loading"] { border-color: #93c5fd; }
         .teach-suggestion-card[data-state="error"] {
             border-color: #fecaca;
@@ -4248,7 +4297,7 @@
         }
 
         .teach-suggestion-card {
-            display: none;
+            display: block;
             margin: 0 0 0.55rem !important;
             padding: 0.55rem 0.65rem !important;
             border-radius: 10px !important;
@@ -4696,7 +4745,7 @@
             }
 
             .output-tabs {
-                display: none !important;
+                display: flex !important;
             }
 
             .results-actions {
@@ -5147,7 +5196,7 @@
 
                 <div class="document-toolbar">
                     <div class="output-tabs" aria-label="Document view">
-                        <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Preview</button>
+                        <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
                         <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
                     </div>
                     <div class="results-actions">
@@ -5162,7 +5211,7 @@
                         <details class="document-more">
                             <summary aria-label="More document actions">•••</summary>
                             <div class="document-more-popover">
-                                <button class="document-menu-action mobile-view-action" onclick="showTab('verified')" type="button">Preview</button>
+                                <button class="document-menu-action mobile-view-action" onclick="showTab('verified')" type="button">Extracted</button>
                                 <button class="document-menu-action mobile-view-action" onclick="showTab('raw')" type="button">Plain text</button>
                                 <button class="document-menu-action" onclick="copyText(this)" type="button">Copy text</button>
                                 <button class="document-menu-action" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>Download TXT</button>
@@ -5243,6 +5292,14 @@
                         </div>
                         <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Choose AI suggestions only when you want help. Nothing changes automatically.</div>
                         <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
+                        <label class="ai-suggestion-editor-wrap" for="aiSuggestionEditor">
+                            <span>Editable AI suggestion</span>
+                            <textarea class="ai-suggestion-editor" id="aiSuggestionEditor" spellcheck="false" placeholder="AI suggestions will appear here. You can edit the wording before applying it."></textarea>
+                        </label>
+                        <div class="ai-suggestion-actions">
+                            <button class="teach-tool ai-apply-button" id="aiSuggestionApplyBtn" type="button" onclick="applyEditedAiSuggestion()" disabled>Apply to selected text</button>
+                            <button class="teach-tool" id="aiSuggestionClearBtn" type="button" onclick="clearAiSuggestionDraft()">Clear</button>
+                        </div>
                     </div>
 
                     <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
@@ -5282,6 +5339,7 @@ const quotaPercent=$('quotaPercent'),quotaNow=$('quotaNow'),quotaReset=$('quotaR
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
+const aiSuggestionEditor=$('aiSuggestionEditor'),aiSuggestionApplyBtn=$('aiSuggestionApplyBtn');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let files=[], file=null, lastResult=null, showingRaw=false;
@@ -7724,8 +7782,33 @@ function renderSuggestionChips(choices, aiChoices = [], loading = false) {
 
     translitSuggestions.querySelectorAll('button.translit-chip').forEach((button, index) => {
         button.addEventListener('mousedown', event => event.preventDefault());
-        button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));
+        button.addEventListener('click', () => setAiSuggestionDraft(merged[index]));
     });
+}
+
+function setAiSuggestionDraft(value) {
+    if (!aiSuggestionEditor) return;
+    const next = String(value || '').normalize('NFC');
+    aiSuggestionEditor.value = next;
+    if (aiSuggestionApplyBtn) {
+        aiSuggestionApplyBtn.disabled = !Boolean(next.trim() && smartComposition?.source);
+    }
+}
+
+function clearAiSuggestionDraft() {
+    setAiSuggestionDraft('');
+}
+
+function applyEditedAiSuggestion() {
+    const choice = String(aiSuggestionEditor?.value || '').trim();
+    if (!choice) return;
+    if (!smartComposition?.source) {
+        const note = $('aiSuggestionNote');
+        if (note) note.textContent = 'Select the text you want to replace, then apply the edited AI suggestion.';
+        if (aiSuggestionApplyBtn) aiSuggestionApplyBtn.disabled = true;
+        return;
+    }
+    chooseSmartSuggestion(choice);
 }
 
 function showSmartSuggestions() {
@@ -7845,10 +7928,11 @@ async function requestManualAiSuggestions() {
         if (sequence !== aiSuggestionSequence || !teachPanel.classList.contains('show')) return;
         const visibleChoices = uniqueStrings([...choices, ...localChoices]);
         renderSuggestionChips(localChoices, choices, false);
+        setAiSuggestionDraft(visibleChoices[0] || '');
         if (panel) panel.dataset.state = 'ready';
         if (note) {
             note.textContent = visibleChoices.length
-                ? 'Choose a suggestion to replace only the selected text.'
+                ? 'Choose a suggestion, edit it if needed, then apply it to only the selected text.'
                 : 'No useful change was found. Your current text has been left untouched.';
         }
         const isMobile = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 620px)').matches;
@@ -7891,6 +7975,7 @@ function chooseSmartSuggestion(choice) {
     const sourceLabel = $('aiSuggestionSource');
     const note = $('aiSuggestionNote');
     if (panel) panel.dataset.state = 'idle';
+    clearAiSuggestionDraft();
     if (sourceLabel) sourceLabel.textContent = 'Suggestion applied';
     if (note) note.textContent = 'Applied. Select another word or sentence whenever you want more help.';
 
@@ -7982,6 +8067,7 @@ function replaceTeachRange(start, end, replacement) {
 
 function refreshSmartComposition() {
     smartComposition = manualSuggestionSegment();
+    clearAiSuggestionDraft();
 
     if (!aiSuggestionPending) {
         const panel = $('aiSuggestionPanel');
@@ -8033,8 +8119,6 @@ function openTeachPanel() {
 
     teachPanel.classList.add('show');
     $('outputCard')?.classList.add('editing');
-    $('tabRaw').disabled = true;
-    $('tabVerified').disabled = true;
     const documentStatus = $('documentStatus');
     if (documentStatus) documentStatus.textContent = 'Editing';
 
@@ -8042,6 +8126,7 @@ function openTeachPanel() {
     const suggestionSource = $('aiSuggestionSource');
     const suggestionNote = $('aiSuggestionNote');
     if (suggestionPanel) suggestionPanel.dataset.state = 'idle';
+    clearAiSuggestionDraft();
     if (suggestionSource) suggestionSource.textContent = 'Tap inside a sentence or select text.';
     if (suggestionNote) suggestionNote.textContent = 'Choose AI suggestions only when you want help. Nothing changes automatically.';
 
