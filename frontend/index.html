@@ -3654,7 +3654,11 @@ async function requestAdvancedAiSuggestions() {
 
     const sourceText = segment.source.replace(/\s+/g, ' ').trim();
     smartComposition = { ...segment, source: sourceText };
-    const sourceLanguage = currentTeachSourceLanguage(sourceText);
+    const detectedSourceLanguage = detectLanguageFromSegment(sourceText);
+    const selectedHasNativeScript = detectedSourceLanguage !== 'en';
+    const sourceLanguage = selectedHasNativeScript
+        ? detectedSourceLanguage
+        : currentTeachSourceLanguage(sourceText);
     const targetLanguage = currentTeachLanguage();
     const targetScript = currentTeachScript();
     const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
@@ -3679,7 +3683,8 @@ async function requestAdvancedAiSuggestions() {
 
     const sequence = ++aiSuggestionSequence;
     teachAiBtn.disabled = true;
-    teachAiStatus.textContent = 'AI is checking “' + (sourceText.length > 70 ? sourceText.slice(0, 67) + '…' : sourceText) + '”';
+    const sourceLabel = TEACH_LANGUAGE_META[sourceLanguage]?.label || sourceLanguage;
+    teachAiStatus.textContent = 'AI is checking ' + sourceLabel + ': “' + (sourceText.length > 70 ? sourceText.slice(0, 67) + '…' : sourceText) + '”';
     renderSuggestionChips(visibleLocalChoices, [], true);
 
     try {
