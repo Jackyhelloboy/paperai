@@ -9,6 +9,8 @@ const topStart=html.indexOf('class="results-actions classic-results-actions"');
 const top=html.slice(topStart,html.indexOf('<div class="teach-panel"',topStart));
 assert(top.includes('id="copyTextBtn"') && top.includes('id="downloadWordBtn"') && top.includes('id="teachActionBtn"'),'Copy, Word and Teach are the restored primary document actions');
 assert(!top.includes('class="document-more"'),'Classic results keep primary actions directly visible instead of hiding them in More');
+assert(html.includes('scheduleTeachPreview();'),'Teach typing must debounce preview rendering instead of rebuilding on every keystroke');
+assert(html.includes('Session-only mobile workflow'),'Normal extraction must remain in-memory for the current session');
 let calls=0, chips=[];
 const editor={value:'flower',selectionStart:0,selectionEnd:6,focus(){},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
 const aiDraft={value:''},aiApply={disabled:true};
@@ -53,5 +55,5 @@ for(const name of ['wordAtTeachCaret','automaticSuggestionSegment','fetchAiTextS
  const file={name:'sample.pdf'};await assert.rejects(pdfRead.extractOneInputFile(file),/offline/);
  allowSecond=true;const resumed=await pdfRead.extractOneInputFile(file);assert.equal(resumed.pageCount,2);
  assert.deepEqual(pageCounts,[1,2],'A manual PDF retry reuses completed page reads and only retries the failed page');
- console.log('Tab exports are exclusive; smart suggestions are automatic, editable and cached; multi-page ordering uses one structural-only continuity analysis.');
+ console.log('Tab exports are compact; smart suggestions are automatic and cached; large Teach previews are debounced for responsive Android editing.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
