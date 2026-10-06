@@ -3,6 +3,10 @@ main = "src/index.js"
 compatibility_date = "2026-09-08"
 account_id = "9195bc9144b0e1c8811dfae71e58c7e4"
 
+# Preserve unrelated dashboard settings across code deployments.
+# OCR uses the AI binding below and needs no external provider credentials.
+keep_vars = true
+
 [ai]
 binding = "AI"
 
@@ -13,3 +17,29 @@ class_name = "UsageTracker"
 [exports.UsageTracker]
 type = "durable-object"
 storage = "sqlite"
+
+# Drafts database (page text + page order). The database and the page-photo
+# bucket below are created by .github/workflows/deploy-worker.yml, which
+# substitutes the real database_id before deploying. The placeholder keeps this
+# file valid for local reads; never deploy it unchanged.
+[[d1_databases]]
+binding = "DB"
+database_name = "paperai-drafts"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# Page photos for drafts. A lifecycle rule deletes each object after a day, so
+# stored photos never accumulate.
+[[r2_buckets]]
+binding = "PAGES_BUCKET"
+bucket_name = "paperai-pages"
+
+# Daily cleanup of expired drafts and their rows.
+[triggers]
+# Hourly, so a draft created just after a 03:00 run is not left in the
+# database for almost two days after its photos have already been deleted.
+crons = ["17 * * * *"]
+
+[[kv_namespaces]]
+binding = "KV"
+id = "3e32cb6f40d74a3a9f2362b9eb952c09"

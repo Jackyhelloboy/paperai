@@ -1,0 +1,83 @@
+# PaperAI restoration audit — 5 October 2026
+
+Baseline: `9b892635d10333273254b83c5534b6b901547fe2` on `main`.
+
+## Scope
+
+Inspected the complete tracked-file inventory (40 files), production frontend and vendor modules, Worker and draft storage code, Pages proxy, configuration, legacy Python service, GitHub workflows and regression tests. Read the recent commit history and the external adapter introduction/removal patches. Compared the active model and binding with the configuration immediately before the experiment.
+
+## Production provider
+
+Production uses `@cf/google/gemma-4-26b-a4b-it` through the `AI` binding, the same model and binding as before the external-provider experiment. The external adapter and notebook files were removed on 4 October. The unused provider configuration and the test that simulated stale settings have been removed.
+
+At 06:01 UTC on 5 October, the cleanup successfully removed the three retired runtime bindings. Readback verified every unrelated binding's name, type and resource identity was preserved, including AI, draft storage and the usage tracker. The one-time cleanup script was then removed from the project.
+
+The original `backend/` service is a separate legacy implementation and is not called by the production website. Its workflows are manual only.
+
+## Issues corrected
+
+| Finding | Correction |
+| --- | --- |
+| Draft title updates use PATCH, but Worker/Pages CORS omitted PATCH | Permit PATCH in Worker and Pages preflight responses, and the optional Vercel configuration |
+| Known AI 502/503 responses could immediately resend the same inference through Pages | Preserve the provider response and let the bounded lighter retry handle it; retain fallback for transport errors |
+| A provider's token-limited completion could be accepted as a complete transcription | Return `AI_OUTPUT_TRUNCATED` for the initial read and avoid accepting truncated verification output; allow one lighter retry using the same model |
+| Paid-model errors were retried as generic 503 failures | Return the error without a lighter retry or model switch |
+| Binding quota errors using alternate code 4006 appeared as a null provider code | Preserve 4006 and require daily-quota wording when classifying it |
+| Several existing tests, including actual DOCX output, were missing from deployment checks | Install locked test dependencies matching the frontend versions and run every regression file before either deployment |
+| README described a nonexistent Python Worker and pywrangler entrypoint | Document the actual JavaScript Worker, Pages proxy, storage, local checks and production workflows |
+| A scheduled job still pinged the unused Render backend | Make legacy Render deployment and keep-alive workflows manual only |
+
+Unrelated draft, layout, transliteration, source numbering, continuous export, full-frame OCR, adaptive reasoning and prefetch improvements are retained.
+
+## Verification and limits
+
+- All 11 Node regression files pass locally, including a real DOCX package check using the frontend's docx 9.8.1 and JSZip 3.10.1 versions.
+- Python files compile and workflow YAML parses. The legacy Python OCR models were not installed or run.
+- Live diagnostics before this change verified the deployment account and Worker subdomain match the production account.
+- At 04:33 UTC on 5 October, Cloudflare analytics reported 480.18 neurons used today, while a live production OCR request returned HTTP 429 with the daily free-allocation message.
+- The public website's usage panel and presence connection load successfully in the browser.
+
+The source audit does not establish why Cloudflare's recorded usage and quota enforcement disagree. The removed Python experiment is absent from the active request path and is not an explanation for the reproduced account-level quota rejection. A code restoration cannot reset Cloudflare's internal allocation counter.
+
+Use the latest **Verify Cloudflare AI quota** workflow output for the post-deployment inference result; a successful diagnostic job means diagnostics completed, not necessarily that the provider accepted inference.
+
+
+## Extracted-view correction
+
+The OCR prompt used singular column boundary tokens while the shared preview/Word parser expected plural boundary tokens. Both forms now normalize to one canonical block, including adjacent compact rows. Unspaced consecutive lists and attached section headings receive line boundaries without changing their source words or labels. The same normalization runs on Worker output and saved frontend results. Recognition errors in source words require a successful image inference and a visual check; formatting fixes do not establish recognition accuracy.
+
+At 06:03 UTC, a post-cleanup production image probe returned HTTP 200 with an OCR result. The account accepted inference in this test; this does not establish the cause of the earlier quota discrepancy or guarantee every handwritten word. The production smoke test also found that JSON document uploads did not decode base64 into the reader buffer; this is now corrected and covered for plain base64, data URLs and invalid input.
+
+## Daily usage dashboard update
+
+The five-minute display meter and local owner allowance have been retired. Account-wide Cloudflare Analytics neuron totals are synchronized into D1 on deployment and on a 15-minute GitHub schedule. UI values identify their source and last update, and never claim to be the internal quota ledger. Missing current-day reports show unavailable values; a clock rollover cannot clear an observed provider quota rejection. The daily reset is 00:00 UTC (05:30 IST).
+
+## Handwriting and Android export update
+
+- Removed the AI Auto Detection panel and its event references.
+- Copy, TXT and Word share the exact source rendered in Extracted, including saved or previewed corrections; stale backend plain-text fields no longer override it.
+- Verified character parity between a real DOCX file and UTF-8 TXT for a Hindi worksheet with numbered questions, blanks and six unsolved matching rows.
+- Added confident page-focused detail views while retaining the original full frame. Hindi option/matching exercises use an independent verification read, subject to the existing completeness checks and provider quota.
+- Larger Android typography/touch targets and visible usage report/reset timestamps replace the overly compressed phone presentation.
+
+### Live accuracy limits
+
+The uploaded notebook photo was tested in the production app. The detailed perception read recovered several previously misread Hindi and English entries, but some handwriting, option words and marks remained incorrect. The free model still needs human review; no hard-coded spelling substitutions were added. The Teach correction is shared by Extracted, TXT and Word. Browser download-event capture and a physical Android-device run were unavailable in this verification session; UTF-8 TXT/actual-DOCX character parity passed locally and in deployment tests.
+
+
+## Word compatibility and extraction cancellation
+
+The supplied DOCX contained text, eight two-cell layout tables for ordinary questions and one matching-column layout table. Its runs specified Tahoma. The Linux document renderer displayed the text, so invisible text in desktop Word was not independently reproduced. The new exporter removes those layout tables, uses ordinary paragraphs and tab stops, requests the Windows Hindi font Mangal and sets black text explicitly. A regenerated export of the supplied text rendered cleanly; source character parity was verified without changing misrecognized words.
+
+Extraction now starts on the user's button press, hides uploads while processing/results are visible and provides Go back plus failure Retry. Back aborts current inference and queued work immediately, preventing cancelled jobs from falling through to another inference request. Run guards ignore stale results. PDF cancellation releases workers and canvases; batch analysis has a 30-second local-ordering fallback. Temporary preparation and extraction caches are cleared on Back/success while selected files, drafts and learned corrections are preserved. All 15 regression files pass, including focused-view cancellation/retry, actual Word package checks and PDF cleanup. Desktop Microsoft Word and a physical Android device remain unavailable for direct testing.
+
+The live focused-flow check confirmed uploads hidden during a 160-page digital PDF extraction, Back restoring the selected PDF, and a subsequent DOCX extraction completing. Re-uploading the new Word file exposed a separate input-reader problem: native Word tab separators were discarded. The Office reader now preserves tab-aligned rows as matching-column structure and preserves manual line breaks. PDF thumbnail loading tasks are destroyed after the three-page preview and abandon rendering when their card has been removed.
+
+Final visual review increased the on-screen document text to at least 16 px, used normal point-to-pixel conversion for the heading scale and removed the nested fixed-height document scroll on desktop as well as mobile. The character badge now counts exported plain text rather than internal column markers. These presentation changes do not alter source text or Word output.
+
+
+## Single-read policy and three-action result toolbar
+
+The user chose manual corrections to reduce neuron usage. The Worker now makes one inference request, uses one source frame without additional close-ups and disables reasoning and automatic verification. Frontend inference retries, uncertain transport fallback, queue fallback and automatic AI batch analysis were removed. Provider errors retain files and expose manual Retry. Completed file/page results and saved corrections are reused within the selected session. This deliberately trades automatic recovery/verification for user control of every further AI request.
+
+Extracted shows Copy, Word and Teach; Plain text shows Copy, TXT and Teach. The two export guards agree with the visible tab. AI Suggestions moved to an explicit Teach button, does not run while typing, is cached for the selected source/language and changes text only when a suggestion is chosen. The correction editor uses public text rather than internal structure markers, and Save & apply retains the chosen tab. Progress uses honest preparation/extraction/ready stages and accessible reduced-motion styling. Sixteen regression files cover call counts, cancellation/cache reuse, manual suggestions, tab export guards, native DOCX/TXT parity and production integration.
