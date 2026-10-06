@@ -5339,6 +5339,32 @@
                 padding: 0.85rem !important;
             }
         }
+
+        /* v45 mobile fit preview + user-controlled density */
+        .classic-result-tools{display:flex;align-items:center;justify-content:flex-end;gap:.45rem;min-width:0}
+        .preview-density-btn{min-height:34px;padding:.35rem .6rem;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--text2);font-size:.68rem;font-weight:750;white-space:nowrap}
+        .classic-output-card[data-compact="true"] .output-body{--paper-body-size:13px!important;--paper-heading-size:15px!important;--paper-title-size:19px!important;padding:.58rem!important;font-size:13px!important;line-height:1.42!important}
+        .classic-output-card[data-compact="true"] .output-line{min-height:1.25em!important;line-height:1.42!important}
+        .classic-output-card[data-compact="true"] .output-title{margin:.18rem 0!important;line-height:1.18!important}
+        .classic-output-card[data-compact="true"] .output-question-section{margin:.42rem 0 .28rem!important;font-size:.88rem!important;line-height:1.35!important}
+        .classic-output-card[data-compact="true"] .output-question-row{gap:.3rem!important;margin-bottom:.22rem!important;line-height:1.4!important}
+        .classic-output-card[data-compact="true"] .ocr-structured-wrap{width:100%!important;max-width:100%!important;overflow-x:hidden!important;margin:.28rem 0 .4rem!important}
+        .classic-output-card[data-compact="true"] .ocr-structured-table{width:100%!important;max-width:100%!important;table-layout:fixed!important;font-size:11.5px!important;line-height:1.22!important}
+        .classic-output-card[data-compact="true"] .ocr-structured-table td,.classic-output-card[data-compact="true"] .ocr-structured-table th{min-width:0!important;height:auto!important;padding:.18rem .22rem!important;line-height:1.22!important;word-break:normal!important;overflow-wrap:anywhere!important;vertical-align:top!important}
+        .classic-output-card[data-compact="true"] .ocr-structured-table th{font-size:11.5px!important}
+        .classic-output-card[data-compact="true"] .output-answer-line{min-height:1.25em!important;line-height:1.3!important}
+        .classic-output-card[data-compact="true"] .ocr-wordsearch-layout{gap:.35rem!important;margin:.3rem 0!important}
+        .classic-output-card[data-compact="true"] .ocr-wordsearch-cell{min-height:22px!important;padding:.05rem!important;font-size:.68rem!important}
+        .classic-output-card[data-compact="true"] .ocr-wordsearch-answer{min-height:24px!important;gap:.2rem!important}
+        @media(max-width:700px){
+            .classic-results-header{align-items:flex-start!important}
+            .classic-result-tools{flex:0 0 auto}
+            .classic-results-actions{position:sticky!important;top:0!important;z-index:8!important;padding:.35rem 0!important;background:rgba(255,255,255,.96)!important;backdrop-filter:blur(8px)}
+            .classic-output-card[data-compact="false"] .output-body{font-size:15px!important;line-height:1.58!important;padding:.75rem!important}
+            .classic-output-card[data-compact="false"] .ocr-structured-table{font-size:13px!important}
+            .ai-suggestion-editor{min-height:66px!important;max-height:130px!important;font-size:16px!important}
+            .ai-suggestion-actions .teach-tool{min-height:42px!important}
+        }
 </style>
 </head>
 <body>
@@ -5543,7 +5569,10 @@
                     <span class="results-title">Extracted Text</span>
                     <span class="classic-result-status" id="documentStatus">Ready to review</span>
                 </div>
-                <div class="results-badges" id="statsBar"></div>
+                <div class="classic-result-tools">
+                    <button class="preview-density-btn" id="previewDensityBtn" type="button" onclick="togglePreviewDensity()">Fit view</button>
+                    <div class="results-badges" id="statsBar"></div>
+                </div>
             </div>
 
             <details class="paper-marks" id="paperMarks" hidden><summary id="paperMarksSummary"></summary><div id="paperMarksDetail"></div></details>
@@ -5577,7 +5606,7 @@
                     <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                     <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
                     <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
-                    <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI Suggestions</button>
+                    <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ Get AI suggestions</button>
                 </div>
 
                 <details class="teach-settings">
@@ -5690,6 +5719,7 @@ const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
 const aiSuggestionEditor=$('aiSuggestionEditor'),aiSuggestionApplyBtn=$('aiSuggestionApplyBtn');
+const previewDensityBtn=$('previewDensityBtn');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let files=[], file=null, lastResult=null, showingRaw=false;
@@ -8111,6 +8141,13 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
         const body = await res.json();
         if (sequence !== aiSuggestionSequence) return [];
 
+        if (body?.code === 'PROVIDER_AI_QUOTA_REACHED') {
+            throw new Error('AI suggestion quota is temporarily unavailable. Local and learned suggestions still work.');
+        }
+        if (body?.code === 'FREE_MODEL_UNAVAILABLE' || body?.code === 'SUGGESTION_SERVICE_UNAVAILABLE') {
+            throw new Error('AI suggestions are temporarily unavailable. Local and learned suggestions still work.');
+        }
+
         const suggestions = uniqueStrings(Array.isArray(body?.suggestions) ? body.suggestions : []).slice(0, 5);
         aiSuggestionCache.set(cacheKey, suggestions);
         return suggestions;
@@ -8147,7 +8184,24 @@ function clearAiSuggestionDraft() { setAiSuggestionDraft(''); }
 
 function applyEditedAiSuggestion() {
     const choice = String(aiSuggestionEditor?.value || '').trim();
-    if (!choice || !smartComposition?.source) return;
+    const note = $('aiSuggestionNote');
+    if (!choice) {
+        if (note) note.textContent = 'Type or choose a suggestion before applying.';
+        aiSuggestionEditor?.focus?.();
+        return;
+    }
+    if (!smartComposition?.source) {
+        if (note) note.textContent = 'Select the text you want to replace, then apply the suggestion.';
+        teachEditor.focus();
+        return;
+    }
+    const current = teachEditor.value.slice(smartComposition.start, smartComposition.end).normalize('NFC');
+    if (current !== smartComposition.source.normalize('NFC')) {
+        if (note) note.textContent = 'The selected text changed. Select it again, then apply the suggestion.';
+        refreshSmartComposition();
+        teachEditor.focus();
+        return;
+    }
     chooseSmartSuggestion(choice);
 }
 
@@ -8258,7 +8312,8 @@ async function requestManualAiSuggestions() {
     if (sourceLabel) {
         sourceLabel.textContent = 'For: “' + (sourceText.length > 110 ? sourceText.slice(0, 107) + '…' : sourceText) + '”';
     }
-    if (note) note.textContent = 'Checking this text. You can keep your current wording or choose a suggestion below.';
+    if (note) note.textContent = 'Checking this text. You can keep editing while AI works.';
+    setAiSuggestionDraft(localChoices[0] || sourceText);
     renderSuggestionChips(localChoices, [], true);
 
     try {
@@ -8282,11 +8337,12 @@ async function requestManualAiSuggestions() {
     } catch (error) {
         if (sequence === aiSuggestionSequence) {
             renderSuggestionChips(localChoices, [], false);
+            setAiSuggestionDraft(localChoices[0] || sourceText);
             if (panel) panel.dataset.state = localChoices.length ? 'ready' : 'error';
             if (note) {
                 note.textContent = localChoices.length
-                    ? 'AI is temporarily unavailable. You can still use the suggestions shown below.'
-                    : (error.message || 'AI suggestions are temporarily unavailable. Your text is unchanged.');
+                    ? (error.message || 'AI is temporarily unavailable.') + ' You can still edit and apply the local suggestion.'
+                    : (error.message || 'AI suggestions are temporarily unavailable.') + ' Your selected text is kept in the editable box so you stay in control.';
             }
         }
     } finally {
@@ -8858,6 +8914,33 @@ function publicPlainTextFromStructured(value) {
 function currentPlainText() {
     // Preview, Copy, TXT and Word all read the same corrected structured source.
     return publicPlainTextFromStructured(currentStructuredWordText());
+}
+
+function previewCompactPreference() {
+    try {
+        const saved = localStorage.getItem('paperai_preview_compact_v1');
+        if (saved === '1') return true;
+        if (saved === '0') return false;
+    } catch (_) {}
+    return typeof window !== 'undefined' && window.matchMedia?.('(max-width: 700px)').matches;
+}
+
+function applyPreviewDensity(compact) {
+    const card = $('outputCard');
+    if (!card) return;
+    card.dataset.compact = compact ? 'true' : 'false';
+    if (previewDensityBtn) {
+        previewDensityBtn.textContent = compact ? 'Paper view' : 'Fit view';
+        previewDensityBtn.setAttribute('aria-pressed', compact ? 'true' : 'false');
+        previewDensityBtn.title = compact ? 'Show larger paper-like spacing' : 'Fit more extracted content on screen';
+    }
+}
+
+function togglePreviewDensity() {
+    const card = $('outputCard');
+    const compact = card?.dataset?.compact !== 'true';
+    applyPreviewDensity(compact);
+    try { localStorage.setItem('paperai_preview_compact_v1', compact ? '1' : '0'); } catch (_) {}
 }
 
 function updateResultActionsForTab() {
@@ -12732,6 +12815,8 @@ loadDraftList().then(() => {
     if (id && draftItems.some(draft => draft.id === id)) openDraft(id);
 });
 addEventListener('online', () => { if (pendingPaperSave && !paperSaveConflict) flushPaperSave(); });
+
+applyPreviewDensity(previewCompactPreference());
 </script>
 </body>
 </html>
