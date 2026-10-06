@@ -46,6 +46,8 @@ assert(css.includes('v44 exact classic Extracted / Plain Text results UI'), 'Cla
 assert(css.includes('.classic-output-card.editing .output-body'), 'Teach editing must keep the extracted preview visible');
 assert(css.includes('v45 mobile fit preview + user-controlled density'), 'Mobile extracted preview must include the compact fit-density layer');
 assert(css.includes('v46 restore compact old Teach interaction'), 'Compact old Teach layout must be present');
+assert(css.includes('position:fixed !important;'), 'Mobile AI suggestions must stay visible while editing');
+assert(css.includes('max-height:38vh !important;'), 'Mobile AI suggestion dock must stay compact and scroll internally');
 assert(css.includes('.classic-teach-panel .teach-suggestion-card[data-state="idle"]'), 'AI suggestion card must stay hidden until requested');
 assert(css.includes('height:200px !important'), 'Mobile Teach editor must remain compact rather than taking most of the screen');
 assert(css.includes('.classic-output-card[data-compact="true"] .ocr-structured-table'), 'Compact mode must shrink structured tables to phone width');
@@ -56,4 +58,4 @@ assert(css.includes('.document-toolbar { flex-direction:column !important;'), 'M
 assert(css.includes('.teach-primary-btn'), 'Teach receives clear primary-action styling');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
-console.log('Classic PaperAI UI keeps Extracted/Plain Text, restores compact Teach, and shows AI help only when requested.');
+console.log('Classic PaperAI UI keeps compact Teach and pins AI suggestions in view while editing on mobile.');
