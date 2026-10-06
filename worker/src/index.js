@@ -605,7 +605,11 @@ async function handleWordSuggestion(request, env, corsHeaders) {
   if (sourceLanguage === language) {
     targetInstruction = [
       'Source and target are both ' + meta.label + '.',
-      'Suggest corrected spelling or script form while preserving the same spoken words and meaning.',
+      'Act as a careful OCR proofreader for the selected text.',
+      'Check spelling, matras/diacritics, common OCR confusions, word boundaries, punctuation and simple grammar agreement.',
+      'Preserve the intended meaning and wording; make only plausible corrections.',
+      'For a phrase, return corrected phrase alternatives rather than unrelated rewrites.',
+      'If there is a likely error, put the best correction first.',
       'Do not translate into a different language.'
     ].join('\n');
   } else {
@@ -636,6 +640,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     '',
     'Rules:',
     '- Return 1 to 5 candidate strings only.',
+    '- For same-language proofreading, include only plausible corrected alternatives; do not invent unrelated paraphrases.',
     '- Put the best candidate first.',
     '- Preserve the original pronunciation as closely as the target script allows.',
     '- Preserve the same phrase meaning by keeping the same spoken words; do not semantically translate.',
@@ -650,7 +655,9 @@ async function handleWordSuggestion(request, env, corsHeaders) {
 
   const response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
     messages: [
-      { role: 'system', content: 'Return only compact JSON pronunciation-based transliteration suggestions. For English, convert the actual spoken pronunciation into the target script, not the raw spelling. Preserve the spoken words and never semantically translate them.' },
+      { role: 'system', content: sourceLanguage === language
+        ? 'Return only compact JSON OCR proofreading suggestions in the same language. Correct likely spelling, script, matra/diacritic, OCR-confusion, punctuation, word-boundary, and simple grammar-agreement errors while preserving meaning.'
+        : 'Return only compact JSON pronunciation-based transliteration suggestions. For English, convert the actual spoken pronunciation into the target script, not the raw spelling. Preserve the spoken words and never semantically translate them.' },
       { role: 'user', content: prompt },
     ],
     max_completion_tokens: 240,
