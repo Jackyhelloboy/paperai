@@ -1701,12 +1701,24 @@ ${paperContextInstruction}`;
       throw error;
     }
   }
-  if (isAiOutputTruncated(response)) {
-    throw Object.assign(new Error('The AI read reached its output token limit. Retry is available manually.'), { code: 'AI_OUTPUT_TRUNCATED' });
-  }
   let text = extractAiText(response);
-  const usage = response.usage || null;
-  const rescued = false;
+  let usage = response.usage || null;
+  let rescued = false;
+
+  if (isAiOutputTruncated(response)) {
+    const continuation = await continueTruncatedOcr(env, model, imageContent, text, thinking, 2);
+    text = continuation.text;
+    usage = mergeUsage(usage, continuation.usage);
+    attempts += continuation.extraAttempts;
+    rescued = continuation.complete;
+
+    if (!continuation.complete) {
+      throw Object.assign(
+        new Error('The page is exceptionally dense and still exceeded the OCR continuation budget.'),
+        { code: 'AI_OUTPUT_TRUNCATED' }
+      );
+    }
+  }
 
   if (hasDegenerateOcr(text)) {
     throw new Error('The image read produced repetitive empty rows. Please retry with a clearer page image.');
@@ -2064,6 +2076,93 @@ function mergeAiUsage(a, b) {
 function isAiOutputTruncated(response) {
   return response?.finish_reason === 'length' ||
     (response?.choices || []).some(choice => choice?.finish_reason === 'length');
+}
+
+
+function mergeOcrContinuation(existing, continuation) {
+  const left = String(existing || '').trimEnd();
+  const right = String(continuation || '').trimStart();
+  if (!left) return right;
+  if (!right) return left;
+
+  // Drop an exact repeated overlap from the continuation. Work by lines first,
+  // then by characters for models that resume mid-line.
+  const leftLines = left.split('\n');
+  const rightLines = right.split('\n');
+  const maxLines = Math.min(12, leftLines.length, rightLines.length);
+  for (let count = maxLines; count >= 1; count--) {
+    const a = leftLines.slice(-count).join('\n').trim();
+    const b = rightLines.slice(0, count).join('\n').trim();
+    if (a && a === b) {
+      return left + '\n' + rightLines.slice(count).join('\n').trimStart();
+    }
+  }
+
+  const maxChars = Math.min(900, left.length, right.length);
+  for (let count = maxChars; count >= 24; count--) {
+    if (left.slice(-count) === right.slice(0, count)) {
+      return left + right.slice(count);
+    }
+  }
+
+  return left + '\n' + right;
+}
+
+async function continueTruncatedOcr(env, model, imageContent, currentText, thinking, maxPasses = 2) {
+  let text = String(currentText || '').trim();
+  let usage = null;
+  let extraAttempts = 0;
+
+  for (let pass = 0; pass < maxPasses; pass++) {
+    const tail = text.slice(-1800);
+    const continuationPrompt = `The OCR transcription was cut off by the output limit.
+
+Continue transcribing the SAME source page starting immediately AFTER the final visible text already captured below.
+
+--- ALREADY CAPTURED TAIL ---
+${tail}
+--- END CAPTURED TAIL ---
+
+Rules:
+- Do NOT repeat the captured tail.
+- Do NOT restart from the top.
+- Continue in the source page's reading order from the next unseen text.
+- Preserve literal spelling, numbers, scripts, blanks, marks formulas, tables and matching rows.
+- Do not summarize, solve, translate or correct the source.
+- Do not output PAGE_PROFILE or commentary.
+- Return only the continuation text.`;
+
+    const continuationBody = {
+      messages: [
+        {
+          role: 'system',
+          content: 'You are continuing a literal OCR transcription that was cut off only because of an output limit.'
+        },
+        {
+          role: 'user',
+          content: [
+            ...imageContent,
+            { type: 'text', text: continuationPrompt }
+          ]
+        }
+      ],
+      max_completion_tokens: 8192,
+      temperature: 0,
+      chat_template_kwargs: { enable_thinking: thinking }
+    };
+
+    const response = await runCloudflareAI(env, model, continuationBody, { rejectIfBusy: true });
+    extraAttempts++;
+    const continuation = sanitizePromptTemplateLeakage(extractAiText(response));
+    text = mergeOcrContinuation(text, continuation);
+    usage = mergeUsage(usage, response?.usage || null);
+
+    if (!isAiOutputTruncated(response)) {
+      return { text, usage, extraAttempts, complete: true };
+    }
+  }
+
+  return { text, usage, extraAttempts, complete: false };
 }
 
 function extractAiText(response) {
