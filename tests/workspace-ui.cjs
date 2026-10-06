@@ -20,10 +20,14 @@ assert(results.includes('Save &amp; apply'), 'Old Save & apply action must be re
 assert(results.includes('>Cancel</button>'), 'Old Cancel action must be restored');
 assert(results.includes('>Extracted</button>') && results.includes('>Raw OCR</button>'), 'Old Extracted / Raw OCR tabs must be restored');
 
-assert(results.includes('class="teach-language-bar old-ui-compat"'), 'Current language controls may remain only as hidden compatibility UI');
-assert(results.includes('id="previewDensityBtn"') && results.includes('old-ui-compat'), 'New preview density control must be hidden from the old UI');
+assert(results.includes('class="teach-language-bar"'), 'Old reference language controls must remain visible');
+assert(results.includes('id="teachFromSelect"') && results.includes('id="teachToSelect"'), 'Old input and suggestion language selectors must be visible');
+assert(results.includes('id="previewDensityBtn"') && results.includes('old-ui-compat'), 'New preview density control must stay hidden');
 
 assert(css.includes('v56 exact oldest PaperAI UI restoration'), 'Final oldest-UI override must be present');
+assert(css.includes('v57 reference screenshot old UI'), 'Reference screenshot correction layer must be present');
+assert(css.includes('resize:both !important'), 'Desktop editor must resize from the bottom-right corner');
+assert(css.includes('resize:vertical !important'), 'Mobile editor must preserve width-safe vertical corner resizing');
 assert(css.includes('.old-ui-compat {\n            display:none !important;'), 'New compatibility controls must stay hidden');
 assert(css.includes('resize:vertical !important'), 'Teach editor must expose the native bottom-right resize handle');
 assert(css.includes('height:260px !important'), 'Teach editor must open at a practical old-style height');
