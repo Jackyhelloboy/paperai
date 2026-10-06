@@ -53,5 +53,5 @@ for(const name of ['fetchAiTextSuggestions','setAiSuggestionDraft','clearAiSugge
  const file={name:'sample.pdf'};await assert.rejects(pdfRead.extractOneInputFile(file),/offline/);
  allowSecond=true;const resumed=await pdfRead.extractOneInputFile(file);assert.equal(resumed.pageCount,2);
  assert.deepEqual(pageCounts,[1,2],'A manual PDF retry reuses completed page reads and only retries the failed page');
- console.log('Tab exports are exclusive; AI Suggestions are manual and cached; multi-page ordering uses one structural-only continuity analysis.');
+ console.log('Tab exports are exclusive; AI Suggestions are manual, editable and cached; multi-page ordering uses one structural-only continuity analysis.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
