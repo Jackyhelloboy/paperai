@@ -11,9 +11,11 @@ assert(results.includes('id="outputCard"'), 'Results must use one document works
 assert(results.includes('id="documentStatus"'), 'Workspace must expose one compact document status');
 assert(results.indexOf('id="teachPanel"') > results.indexOf('id="outputCard"'), 'Editor belongs inside the document workspace');
 assert(results.indexOf('id="teachPanel"') < results.indexOf('id="textOut"'), 'Inline editor replaces the preview surface instead of opening another card');
-assert(results.includes('class="document-more"'), 'Secondary actions must live in one compact More menu');
-assert(results.includes('>Preview</button>') && results.includes('>Plain text</button>'), 'Preview and plain text remain available');
-assert(results.includes('id="teachActionBtn"') && /\bEdit\b/.test(results), 'Primary edit action remains visible');
+assert(results.includes('id="copyTextBtn"'), 'Copy must remain directly visible in the result toolbar');
+assert(results.includes('>Extracted</button>') && results.includes('>Plain text</button>'), 'Extracted and plain text remain directly available');
+assert(results.includes('id="teachActionBtn"') && /\bTeach\b/.test(results), 'Teach must be restored as a primary action');
+assert(results.includes('id="aiSuggestionEditor"'), 'Teach must include a separate editable AI suggestion box');
+assert(results.includes('onclick="applyEditedAiSuggestion()"'), 'AI suggestion text must require an explicit apply action');
 assert(!results.includes('<div class="teach-title">'), 'Legacy standalone edit-card title must be removed');
 assert(!results.includes('class="teach-actions"'), 'Legacy Save/Done button row must be removed');
 
@@ -35,11 +37,10 @@ assert(!render.includes('class="draft-page-text"'), 'Long OCR snippets must not 
 const css = html.slice(html.indexOf('/* v41 unified document workspace */'));
 assert(css.includes('.main.workflow-active[data-view="result"]'), 'Result mode must have a dedicated focused layout');
 assert(css.includes('.output-card.editing .output-body'), 'Editing must happen in the same preview workspace');
-assert(css.includes('grid-auto-columns: 82px !important'), 'Phone source previews must use a compact swipe rail instead of a tall grid');
-assert(css.includes('overflow-x: auto !important'), 'Phone source previews remain reachable by horizontal swipe');
-assert(css.includes('height: calc(100dvh - 145px) !important'), 'Mobile editing must stay inside a viewport-sized text scroller');
-assert(css.includes('.output-tabs {\n                display: none !important;'), 'Mobile hides secondary Preview/Plain text tabs from the primary toolbar');
-assert(results.includes('class="document-menu-action mobile-view-action"'), 'Preview and Plain text remain available inside More on mobile');
+assert(css.includes('max-height:84px !important'), 'Phone source previews must stay small and compact');
+assert(css.includes('grid-template-columns:repeat(4,minmax(0,1fr)) !important'), 'Phone source previews use a compact multi-column grid');
+assert(css.includes('.document-toolbar { flex-direction:column !important;'), 'Mobile keeps tabs and primary actions readable without hiding them');
+assert(css.includes('.teach-primary-btn'), 'Teach receives clear primary-action styling');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
-console.log('Unified workspace keeps source previews visible, edits inside Preview, and moves secondary controls out of the primary flow.');
+console.log('Teach-first workspace keeps previews compact, exposes core actions, and makes AI suggestions editable before apply.');
