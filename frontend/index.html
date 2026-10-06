@@ -6613,13 +6613,33 @@
                 overflow:visible !important;
             }
 
-            .classic-teach-panel.teach-keyboard-open .teach-title,
-            .classic-teach-panel.teach-keyboard-open .teach-language-bar,
-            .classic-teach-panel.teach-keyboard-open .teach-toolbar,
-            .classic-teach-panel.teach-keyboard-open .translit-suggestions,
-            .classic-teach-panel.teach-keyboard-open .teach-editor-label,
+            .classic-teach-panel.teach-keyboard-open .teach-title {
+                display:flex !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-language-bar {
+                display:grid !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-toolbar {
+                display:grid !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .translit-suggestions {
+                display:none !important;
+                flex-flow:row nowrap !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .translit-suggestions.show {
+                display:flex !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-editor-label {
+                display:flex !important;
+            }
+
             .classic-teach-panel.teach-keyboard-open .teach-actions {
-                display:revert !important;
+                display:grid !important;
             }
 
             .classic-teach-panel.teach-keyboard-open .teach-editor {
