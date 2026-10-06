@@ -19,7 +19,8 @@ assert(results.includes('id="teachActionBtn"') && /\bTeach\b/.test(results), 'Te
 assert(!results.includes('id="aiSuggestionEditor"'), 'Old Teach suggestions must not use a separate editable AI box');
 assert(!results.includes('id="aiSuggestBtn"'), 'Teach must not require a manual AI suggestion button');
 assert(results.includes('id="previewDensityBtn"'), 'Result preview must expose a user-controlled Fit/Paper view toggle');
-assert(results.includes('id="translitSuggestions"'), 'Old suggestion chips must sit directly under the Teach editor');
+assert(results.includes('id="translitSuggestions"'), 'Suggestion strip must remain part of Teach');
+assert(results.indexOf('id="translitSuggestions"') < results.indexOf('id="teachEditor"'), 'Suggestions must be placed above the editable text area');
 assert(results.includes('class="teach-panel classic-teach-panel"'), 'Classic compact Teach panel must be restored');
 assert(results.includes('<div class="teach-title">Review &amp; correct'), 'Classic Review & correct heading must be restored');
 assert(results.includes('class="teach-actions"'), 'Classic Save changes / Done action row must be restored');
@@ -38,7 +39,11 @@ assert(css.includes('v46 restore compact old Teach interaction'), 'Compact old T
 assert(css.includes('position:fixed !important;'), 'Mobile AI suggestions must stay visible while editing');
 assert(css.includes('v47 automatic smart-suggestion Teach redesign'), 'Teach must use the automatic smart-suggestion redesign');
 assert(css.includes('v51 stable Android Teach UI'), 'Stable Android Teach UI layer must be present');
-assert(css.includes('v52 larger resizable Teach editor'), 'Teach editor must restore a larger resizable editing area');
+assert(css.includes('v52 larger resizable Teach editor'), 'Teach editor must restore a larger editing area');
+assert(css.includes('v53 viewport-aware Teach workspace'), 'Teach must use the visible Android viewport for stable sizing');
+assert(css.includes('height:calc(var(--teach-visible-height, 100dvh) - 16px) !important'), 'Teach panel must fit inside the visible viewport');
+assert(css.includes('flex:1 1 auto !important'), 'Teach editor must consume the remaining visible space');
+assert(css.includes('resize:none !important'), 'Mobile Teach sizing must be viewport controlled instead of unstable manual resizing');
 assert(css.includes('height:320px !important'), 'Android Teach editor must open at a larger practical height');
 assert(css.includes('flex-flow:row nowrap !important'), 'Suggestion chips must stay in one horizontal row');
 assert(css.includes('overflow-x:auto !important'), 'Suggestion row must scroll horizontally instead of stacking');
@@ -51,4 +56,4 @@ assert(css.includes('font-size:11.5px !important'), 'Mobile extracted text must 
 assert(css.includes('min-height:36px !important'), 'Android action controls must use compact touch-friendly sizing');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
-console.log('PaperAI keeps a stable compact Android Teach UI with one-row suggestions, small controls, and no conflicting late CSS layers.');
+console.log('PaperAI uses a viewport-aware Android Teach workspace with suggestions above the editor and preview below.');
