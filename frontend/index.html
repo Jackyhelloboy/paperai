@@ -6971,6 +6971,106 @@
                 overflow:visible !important;
             }
         }
+
+        /* v57 reference screenshot old UI */
+        .classic-teach-panel .teach-language-bar,
+        .classic-teach-panel.teach-keyboard-open .teach-language-bar {
+            display:grid !important;
+            grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr) !important;
+            align-items:end !important;
+            gap:.35rem !important;
+            margin:0 0 .5rem !important;
+            padding:.5rem !important;
+            border:1px solid var(--border) !important;
+            border-radius:8px !important;
+            background:var(--bg) !important;
+        }
+
+        .classic-teach-panel .teach-lang-field {
+            display:flex !important;
+            flex-direction:column !important;
+            gap:.22rem !important;
+            min-width:0 !important;
+        }
+
+        .classic-teach-panel .teach-lang-label {
+            display:block !important;
+            margin:0 !important;
+            color:var(--text2) !important;
+            font-size:.62rem !important;
+            font-weight:700 !important;
+        }
+
+        .classic-teach-panel .teach-lang-select {
+            display:block !important;
+            width:100% !important;
+            min-height:36px !important;
+            height:36px !important;
+            padding:.35rem 1.6rem .35rem .5rem !important;
+            border:1px solid var(--border) !important;
+            border-radius:8px !important;
+            background:var(--surface) !important;
+            color:var(--text) !important;
+            font:600 .68rem/1.2 Tahoma,Arial,sans-serif !important;
+        }
+
+        .classic-teach-panel .teach-lang-arrow {
+            display:block !important;
+            align-self:center !important;
+            padding-top:1rem !important;
+            color:var(--text3) !important;
+            text-align:center !important;
+            font-size:.78rem !important;
+        }
+
+        .classic-teach-panel .teach-language-status {
+            display:block !important;
+            grid-column:1/-1 !important;
+            min-height:0 !important;
+            margin:.05rem 0 0 !important;
+            color:var(--text3) !important;
+            font-size:.58rem !important;
+            line-height:1.35 !important;
+        }
+
+        @media(min-width:621px) {
+            .classic-teach-panel .teach-editor,
+            .classic-teach-panel.teach-keyboard-open .teach-editor {
+                resize:both !important;
+                min-width:320px !important;
+                max-width:100% !important;
+            }
+        }
+
+        @media(max-width:620px) {
+            .classic-teach-panel .teach-language-bar,
+            .classic-teach-panel.teach-keyboard-open .teach-language-bar {
+                grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr) !important;
+                gap:.25rem !important;
+                padding:.4rem !important;
+            }
+
+            .classic-teach-panel .teach-lang-select {
+                min-height:34px !important;
+                height:34px !important;
+                font-size:.64rem !important;
+            }
+
+            .classic-teach-panel .teach-lang-arrow {
+                padding-top:.9rem !important;
+            }
+
+            .classic-teach-panel .teach-language-status {
+                font-size:.55rem !important;
+            }
+
+            .classic-teach-panel .teach-editor,
+            .classic-teach-panel.teach-keyboard-open .teach-editor {
+                resize:vertical !important;
+                width:100% !important;
+                max-width:100% !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -7199,7 +7299,7 @@
                 <div class="teach-title">Correct OCR to teach this browser <span id="paperSaveState" role="status" aria-live="polite"></span></div>
                 <div class="teach-sub">Smart multilingual typing is automatic. Select or edit text to see suggestions. Edits preview below.</div>
 
-                <div class="teach-language-bar old-ui-compat" aria-hidden="true">
+                <div class="teach-language-bar">
                     <label class="teach-lang-field">
                         <span class="teach-lang-label">Input language</span>
                         <select class="teach-lang-select" id="teachFromSelect">
