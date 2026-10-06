@@ -3587,10 +3587,11 @@ function findInputSegmentAtCaret() {
 
 async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage, localSuggestions, learnedSuggestions, sequence) {
     const normalized = String(sourceText || '').replace(/\s+/g, ' ').trim();
-    const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000smart\u0000' + normalized.toLowerCase();
+    const context = getTeachContext(smartComposition?.start || teachEditor.selectionStart);
+    const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000smart\u0000' +
+        normalized.toLowerCase() + '\u0000' + context;
 
     if (aiSuggestionCache.has(cacheKey)) return aiSuggestionCache.get(cacheKey);
-    if (aiSuggestionCalls >= MAX_AI_SUGGESTIONS_PER_TEACH) return [];
 
     aiSuggestionCalls++;
 
@@ -3598,26 +3599,36 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
         const res = await fetchOcrEndpoint('/api/suggest-word', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(30000) : undefined,
             body: JSON.stringify({
                 text: normalized,
                 source_language: sourceLanguage,
                 language: targetLanguage,
-                context: getTeachContext(smartComposition?.start || teachEditor.selectionStart),
+                context,
                 local_suggestions: localSuggestions.slice(0, 5),
                 learned_suggestions: (learnedSuggestions || []).slice(0, 5),
                 mode: 'smart'
             })
         });
 
-        if (!res.ok) return [];
-        const body = await res.json();
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(body?.error || 'AI suggestions are unavailable. You can keep editing manually.');
+        }
         if (sequence !== aiSuggestionSequence) return [];
+
+        if (body?.code === 'PROVIDER_AI_QUOTA_REACHED' || body?.code === 'FREE_AI_LIMIT_REACHED') {
+            throw new Error('AI suggestion quota is temporarily unavailable. Local suggestions still work.');
+        }
+        if (body?.code === 'FREE_MODEL_UNAVAILABLE' || body?.code === 'SUGGESTION_SERVICE_UNAVAILABLE') {
+            throw new Error('AI suggestions are temporarily unavailable. Local suggestions still work.');
+        }
 
         const suggestions = uniqueStrings(Array.isArray(body?.suggestions) ? body.suggestions : []).slice(0, 5);
         aiSuggestionCache.set(cacheKey, suggestions);
         return suggestions;
-    } catch (_) {
-        return [];
+    } catch (error) {
+        throw error;
     }
 }
 
