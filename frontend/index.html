@@ -7174,10 +7174,9 @@ function setFiles(inputFiles, append = false) {
     resBox.classList.remove('show');
     renderBatchPreview();
 
-    // Paint thumbnails first. Then begin only as much local image preparation as
-    // the OCR worker pool can consume, avoiding a main-thread burst on phones.
+    // Keep upload selection lightweight. Do not start OCR in the background.
+    // The user explicitly starts extraction with Scan & Rebuild.
     updateSmartExtractionUI();
-    scheduleSmartExtractionAfterPreview();
 }
 function setFile(f) {
     setFiles([f], false);
