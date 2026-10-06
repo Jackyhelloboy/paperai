@@ -58,12 +58,12 @@ vm.runInContext(html.slice(html.indexOf("let extractionView = 'select'"),html.in
   await assert.rejects(queued,{name:'AbortError'});
   assert.equal(aiCalls,0,'Cancelled jobs must never fall through to an inference retry');
   const selectSource=html.slice(html.indexOf('function setFiles('),html.indexOf('\nfunction setFile('));
-  assert(selectSource.includes('scheduleSmartExtractionAfterPreview();'),'Selection must schedule background OCR after previews can paint');
+  assert(!selectSource.includes('scheduleSmartExtractionAfterPreview();'),'Selection must stay idle until the user starts Scan & Rebuild');
   assert(selectSource.includes('imageCount > SMART_MAX_IMAGES'),'Selection enforces the five-image limit');
   assert(selectSource.includes('pdfCount > SMART_MAX_PDFS'),'Selection enforces the one-PDF limit');
   const scheduleSource=html.slice(html.indexOf('function scheduleSmartExtractionAfterPreview('),html.indexOf('\nfunction pumpSmartExtractionQueue('));
-  assert(scheduleSource.includes('.slice(0, smartWorkerLimit())'),'Preprocessing is capped to the OCR worker concurrency');
-  assert(scheduleSource.includes('requestAnimationFrame'),'Browser gets a paint opportunity before preprocessing starts');
+  assert(scheduleSource.includes('.slice(0, smartWorkerLimit())'),'Optional prefetch helper remains capped to OCR worker concurrency');
+  assert(scheduleSource.includes('requestAnimationFrame'),'Optional prefetch helper still yields a paint opportunity before preprocessing starts');
   let destroyed = 0, cleaned = 0;
   const pdfController = new AbortController();
   let cancelPDF = false;
