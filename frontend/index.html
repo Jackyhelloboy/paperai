@@ -5162,6 +5162,183 @@
                 min-height: 32px !important;
             }
         }
+
+        /* v44 exact classic Extracted / Plain Text results UI */
+        .classic-results {
+            margin-top: 0.85rem !important;
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+
+        .classic-results-header {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 0.75rem !important;
+            margin: 0 0 0.65rem !important;
+            padding: 0 !important;
+            border: 0 !important;
+            background: transparent !important;
+        }
+
+        .classic-results-header > div:first-child {
+            display: flex;
+            flex-direction: column;
+            gap: 0.12rem;
+        }
+
+        .classic-results-header .results-title {
+            font-size: 0.9rem !important;
+            font-weight: 800 !important;
+            color: var(--text) !important;
+        }
+
+        .classic-result-status {
+            font-size: 0.64rem;
+            color: var(--text3);
+        }
+
+        .classic-results-actions {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+            gap: 0.5rem !important;
+            margin: 0 0 0.65rem !important;
+            padding: 0 !important;
+            position: static !important;
+            background: transparent !important;
+            overflow: visible !important;
+        }
+
+        .classic-results-actions .action-btn {
+            width: 100% !important;
+            min-width: 0 !important;
+            min-height: 46px !important;
+            height: 46px !important;
+            padding: 0.55rem !important;
+            border-radius: 11px !important;
+            font-size: 0.82rem !important;
+            font-weight: 750 !important;
+            justify-content: center !important;
+            box-shadow: none !important;
+        }
+
+        .classic-results-actions .teach-primary-btn,
+        .classic-results-actions .document-export-btn {
+            background: var(--accent) !important;
+            color: #fff !important;
+            border-color: var(--accent) !important;
+        }
+
+        .classic-results > .teach-panel {
+            display: none !important;
+            margin: 0 0 0.7rem !important;
+            padding: 0.75rem !important;
+            border: 1px solid #dbeafe !important;
+            border-radius: 12px !important;
+            background: #f8fbff !important;
+        }
+
+        .classic-results > .teach-panel.show {
+            display: block !important;
+        }
+
+        .classic-output-card {
+            overflow: hidden !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 13px !important;
+            background: var(--surface) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        .classic-output-tabs {
+            display: flex !important;
+            width: 100% !important;
+            gap: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            border-bottom: 1px solid var(--border) !important;
+            background: var(--bg) !important;
+        }
+
+        .classic-output-tabs .output-tab {
+            flex: 1 1 50% !important;
+            min-height: 44px !important;
+            padding: 0.72rem 0.5rem !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            color: var(--text3) !important;
+            font-size: 0.78rem !important;
+            font-weight: 700 !important;
+            position: relative !important;
+        }
+
+        .classic-output-tabs .output-tab.active {
+            background: var(--surface) !important;
+            color: var(--text) !important;
+        }
+
+        .classic-output-tabs .output-tab.active::after {
+            content: '' !important;
+            position: absolute !important;
+            left: 20% !important;
+            right: 20% !important;
+            bottom: 0 !important;
+            height: 2px !important;
+            background: var(--accent) !important;
+            border-radius: 2px 2px 0 0 !important;
+        }
+
+        .classic-output-card .output-body {
+            display: block !important;
+            min-height: 260px !important;
+            padding: 0.9rem !important;
+            border: 0 !important;
+            background: #fff !important;
+            font-size: 16px !important;
+            line-height: 1.75 !important;
+        }
+
+        .classic-output-card.editing .output-body {
+            display: block !important;
+        }
+
+        .classic-output-card.editing .output-tabs {
+            display: flex !important;
+        }
+
+        @media (max-width: 640px) {
+            .classic-results {
+                margin-top: 0.65rem !important;
+            }
+
+            .classic-results-actions {
+                grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+                gap: 0.42rem !important;
+            }
+
+            .classic-results-actions .action-btn {
+                min-height: 44px !important;
+                height: 44px !important;
+                padding: 0.45rem 0.3rem !important;
+                font-size: 0.78rem !important;
+            }
+
+            .classic-results-actions .action-btn svg {
+                display: none !important;
+            }
+
+            .classic-output-tabs .output-tab {
+                min-height: 46px !important;
+                font-size: 0.8rem !important;
+            }
+
+            .classic-output-card .output-body {
+                min-height: 300px !important;
+                padding: 0.85rem !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -5360,125 +5537,124 @@
             </div>
         </div>
 
-        <div class="results" id="resBox">
+        <div class="results classic-results" id="resBox">
+            <div class="results-header classic-results-header">
+                <div>
+                    <span class="results-title">Extracted Text</span>
+                    <span class="classic-result-status" id="documentStatus">Ready to review</span>
+                </div>
+                <div class="results-badges" id="statsBar"></div>
+            </div>
+
             <details class="paper-marks" id="paperMarks" hidden><summary id="paperMarksSummary"></summary><div id="paperMarksDetail"></div></details>
 
-            <div class="output-card" id="outputCard">
-                <div class="document-bar">
-                    <div class="document-bar-title">
-                        <strong>Extracted Text</strong>
-                        <span id="documentStatus">Ready to review</span>
+            <div class="results-actions classic-results-actions">
+                <button class="action-btn" id="copyTextBtn" onclick="copyText(this)" type="button">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Copy
+                </button>
+                <button class="action-btn document-export-btn" id="downloadWordBtn" onclick="downloadWord(this)" type="button">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Word
+                </button>
+                <button class="action-btn document-export-btn" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>TXT</button>
+                <button class="action-btn teach-primary-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
+                    Teach
+                </button>
+            </div>
+
+            <div class="teach-panel" id="teachPanel">
+                <div class="inline-edit-head">
+                    <div>
+                        <strong>Teach &amp; correct</strong>
+                        <span id="paperSaveState" role="status" aria-live="polite"></span>
                     </div>
-                    <div class="results-badges" id="statsBar"></div>
+                    <button class="inline-edit-close" type="button" onclick="saveLearning()">Done</button>
                 </div>
 
-                <div class="document-toolbar">
-                    <div class="output-tabs" aria-label="Document view">
-                        <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
-                        <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
-                    </div>
-                    <div class="results-actions">
-                        <button class="action-btn" id="copyTextBtn" onclick="copyText(this)" type="button">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                            Copy
-                        </button>
-                        <button class="action-btn document-export-btn" id="downloadWordBtn" onclick="downloadWord(this)" type="button">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                            Word
-                        </button>
-                        <button class="action-btn document-export-btn" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>TXT</button>
-                        <button class="action-btn document-edit-btn teach-primary-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
-                            Teach
-                        </button>
-                    </div>
+                <div class="teach-toolbar">
+                    <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
+                    <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
+                    <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
+                    <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI Suggestions</button>
                 </div>
 
-                <div class="teach-panel" id="teachPanel">
-                    <div class="inline-edit-head">
-                        <div>
-                            <strong>Teach &amp; correct</strong>
-                            <span id="paperSaveState" role="status" aria-live="polite"></span>
-                        </div>
-                        <button class="inline-edit-close" type="button" onclick="saveLearning()">Done</button>
-                    </div>
-
-                    <div class="teach-toolbar">
-                        <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
-                        <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
-                        <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
-                        <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI Suggestions</button>
-                    </div>
-
-                    <details class="teach-settings">
-                        <summary>More edit tools</summary>
-                        <button class="teach-secondary-restore" type="button" onclick="teachRestoreOriginal()">Restore original text</button>
-                        <div class="teach-language-bar">
-                            <label class="teach-lang-field">
-                                <span class="teach-lang-label">Input</span>
-                                <select class="teach-lang-select" id="teachFromSelect">
-                                    <option value="auto" selected>Auto detect</option>
-                                    <option value="en">English / Roman</option>
-                                    <option value="hi">Hindi</option>
-                                    <option value="mr">Marathi</option>
-                                    <option value="te">Telugu</option>
-                                    <option value="ta">Tamil</option>
-                                    <option value="kn">Kannada</option>
-                                    <option value="ml">Malayalam</option>
-                                    <option value="bn">Bengali</option>
-                                    <option value="gu">Gujarati</option>
-                                    <option value="pa">Punjabi</option>
-                                    <option value="or">Odia</option>
-                                    <option value="ur">Urdu</option>
-                                    <option value="ks">Kashmiri</option>
-                                </select>
-                            </label>
-                            <span class="teach-lang-arrow">→</span>
-                            <label class="teach-lang-field">
-                                <span class="teach-lang-label">Suggestions</span>
-                                <select class="teach-lang-select" id="teachToSelect">
-                                    <option value="auto">Auto from document</option>
-                                    <option value="en">English</option>
-                                    <option value="hi">Hindi</option>
-                                    <option value="mr">Marathi</option>
-                                    <option value="te">Telugu</option>
-                                    <option value="ta">Tamil</option>
-                                    <option value="kn">Kannada</option>
-                                    <option value="ml">Malayalam</option>
-                                    <option value="bn">Bengali</option>
-                                    <option value="gu">Gujarati</option>
-                                    <option value="pa">Punjabi</option>
-                                    <option value="or">Odia</option>
-                                    <option value="ur">Urdu</option>
-                                    <option value="ks">Kashmiri</option>
-                                </select>
-                            </label>
-                            <div class="teach-language-status" id="teachLanguageStatus"></div>
-                        </div>
-                    </details>
-
-                    <div class="teach-suggestion-card" id="aiSuggestionPanel" data-state="idle">
-                        <div class="teach-suggestion-head">
-                            <div>
-                                <div class="teach-suggestion-title">AI suggestions</div>
-                                <div class="teach-suggestion-source" id="aiSuggestionSource">Tap inside a sentence or select text.</div>
-                            </div>
-                        </div>
-                        <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Choose AI suggestions only when you want help. Nothing changes automatically.</div>
-                        <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
-                        <label class="ai-suggestion-editor-wrap" for="aiSuggestionEditor">
-                            <span>Edit suggestion before applying</span>
-                            <textarea class="ai-suggestion-editor" id="aiSuggestionEditor" spellcheck="false" placeholder="Pick an AI suggestion, edit it here, then apply it."></textarea>
+                <details class="teach-settings">
+                    <summary>More edit tools</summary>
+                    <button class="teach-secondary-restore" type="button" onclick="teachRestoreOriginal()">Restore original text</button>
+                    <div class="teach-language-bar">
+                        <label class="teach-lang-field">
+                            <span class="teach-lang-label">Input</span>
+                            <select class="teach-lang-select" id="teachFromSelect">
+                                <option value="auto" selected>Auto detect</option>
+                                <option value="en">English / Roman</option>
+                                <option value="hi">Hindi</option>
+                                <option value="mr">Marathi</option>
+                                <option value="te">Telugu</option>
+                                <option value="ta">Tamil</option>
+                                <option value="kn">Kannada</option>
+                                <option value="ml">Malayalam</option>
+                                <option value="bn">Bengali</option>
+                                <option value="gu">Gujarati</option>
+                                <option value="pa">Punjabi</option>
+                                <option value="or">Odia</option>
+                                <option value="ur">Urdu</option>
+                                <option value="ks">Kashmiri</option>
+                            </select>
                         </label>
-                        <div class="ai-suggestion-actions">
-                            <button class="teach-tool ai-apply-button" id="aiSuggestionApplyBtn" type="button" onclick="applyEditedAiSuggestion()" disabled>Apply suggestion</button>
-                            <button class="teach-tool" type="button" onclick="clearAiSuggestionDraft()">Clear</button>
+                        <span class="teach-lang-arrow">→</span>
+                        <label class="teach-lang-field">
+                            <span class="teach-lang-label">Suggestions</span>
+                            <select class="teach-lang-select" id="teachToSelect">
+                                <option value="auto">Auto from document</option>
+                                <option value="en">English</option>
+                                <option value="hi">Hindi</option>
+                                <option value="mr">Marathi</option>
+                                <option value="te">Telugu</option>
+                                <option value="ta">Tamil</option>
+                                <option value="kn">Kannada</option>
+                                <option value="ml">Malayalam</option>
+                                <option value="bn">Bengali</option>
+                                <option value="gu">Gujarati</option>
+                                <option value="pa">Punjabi</option>
+                                <option value="or">Odia</option>
+                                <option value="ur">Urdu</option>
+                                <option value="ks">Kashmiri</option>
+                            </select>
+                        </label>
+                        <div class="teach-language-status" id="teachLanguageStatus"></div>
+                    </div>
+                </details>
+
+                <div class="teach-suggestion-card" id="aiSuggestionPanel" data-state="idle">
+                    <div class="teach-suggestion-head">
+                        <div>
+                            <div class="teach-suggestion-title">AI suggestions</div>
+                            <div class="teach-suggestion-source" id="aiSuggestionSource">Tap inside a sentence or select text.</div>
                         </div>
                     </div>
-
-                    <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
+                    <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Choose AI suggestions only when you want help. Nothing changes automatically.</div>
+                    <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
+                    <label class="ai-suggestion-editor-wrap" for="aiSuggestionEditor">
+                        <span>Edit suggestion before applying</span>
+                        <textarea class="ai-suggestion-editor" id="aiSuggestionEditor" spellcheck="false" placeholder="Pick an AI suggestion, edit it here, then apply it."></textarea>
+                    </label>
+                    <div class="ai-suggestion-actions">
+                        <button class="teach-tool ai-apply-button" id="aiSuggestionApplyBtn" type="button" onclick="applyEditedAiSuggestion()" disabled>Apply suggestion</button>
+                        <button class="teach-tool" type="button" onclick="clearAiSuggestionDraft()">Clear</button>
+                    </div>
                 </div>
 
+                <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
+            </div>
+
+
+            <div class="output-card classic-output-card" id="outputCard">
+                <div class="output-tabs classic-output-tabs" aria-label="Document view">
+                    <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
+                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain Text</button>
+                </div>
                 <div class="output-body" id="textOut" aria-label="Extracted document preview"></div>
             </div>
 
@@ -8283,8 +8459,6 @@ function openTeachPanel() {
 
     teachPanel.classList.add('show');
     $('outputCard')?.classList.add('editing');
-    $('tabRaw').disabled = true;
-    $('tabVerified').disabled = true;
     const documentStatus = $('documentStatus');
     if (documentStatus) documentStatus.textContent = 'Editing';
 
@@ -8319,8 +8493,6 @@ function closeTeachPanel() {
 
     teachPanel.classList.remove('show');
     $('outputCard')?.classList.remove('editing');
-    $('tabRaw').disabled = false;
-    $('tabVerified').disabled = false;
     smartComposition = null;
     aiSuggestionSequence++;
     if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
