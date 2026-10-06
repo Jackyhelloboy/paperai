@@ -33,10 +33,13 @@ assert(css.includes('resize:vertical !important'), 'Teach editor must expose the
 assert(css.includes('height:260px !important'), 'Teach editor must open at a practical old-style height');
 assert(css.includes('max-height:72vh !important'), 'Teach editor must still be able to grow substantially');
 assert(css.includes('flex-wrap:wrap !important'), 'Old suggestion chips must wrap naturally instead of using a forced horizontal rail');
-assert(css.includes('max-height:400px !important'), 'Old extracted preview must remain a compact scrollable card');
+assert(css.includes('v58 full-width natural preview'), 'Preview must use the full-width natural document layout');
+assert(css.includes('max-height:none !important'), 'Preview must not hide content behind an inner height limit');
+assert(css.includes('overflow-y:visible !important'), 'Preview must use the page scroll instead of an inner scrollbar');
+assert(css.includes('border-radius:0 !important'), 'Preview must not be trapped in a rounded square card');
 
 assert(html.includes("Session-only mobile workflow"), 'Refresh/session cleanup behavior must remain intact');
 assert(html.includes("$('draftsCard').hidden = true;"), 'Draft-manager clutter must remain hidden');
 assert(!html.includes('await saveExtractionToPaper(assembled.ordered);'), 'Normal extraction must remain session-only');
 
-console.log('Oldest PaperAI results/Teach UI is restored and protected while current backend/session behavior remains intact.');
+console.log('Old Teach UI remains intact while Extracted/Raw OCR preview uses full-width natural page scrolling with no inner box.');
