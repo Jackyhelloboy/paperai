@@ -41,6 +41,9 @@ assert(css.includes('v47 automatic smart-suggestion Teach redesign'), 'Teach mus
 assert(css.includes('v51 stable Android Teach UI'), 'Stable Android Teach UI layer must be present');
 assert(css.includes('v52 larger resizable Teach editor'), 'Teach editor must restore a larger editing area');
 assert(css.includes('v53 viewport-aware Teach workspace'), 'Teach must use the visible Android viewport for stable sizing');
+assert(css.includes('v54 focused Teach workspace'), 'Focused Teach layout must compact controls around the editor');
+assert(results.includes('id="teachEditorSizeLabel"'), 'Teach must expose explicit smaller/larger editor controls');
+assert(css.includes('teach-keyboard-open'), 'Teach must adapt its layout when the Android keyboard is visible');
 assert(css.includes('height:calc(var(--teach-visible-height, 100dvh) - 16px) !important'), 'Teach panel must fit inside the visible viewport');
 assert(css.includes('flex:1 1 auto !important'), 'Teach editor must consume the remaining visible space');
 assert(css.includes('resize:none !important'), 'Mobile Teach sizing must be viewport controlled instead of unstable manual resizing');
@@ -56,4 +59,4 @@ assert(css.includes('font-size:11.5px !important'), 'Mobile extracted text must 
 assert(css.includes('min-height:36px !important'), 'Android action controls must use compact touch-friendly sizing');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
-console.log('PaperAI uses a viewport-aware Android Teach workspace with suggestions above the editor and preview below.');
+console.log('PaperAI uses a focused Android Teach workspace with suggestions above, explicit editor sizing, keyboard-aware controls, and preview below.');
