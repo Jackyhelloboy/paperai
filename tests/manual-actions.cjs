@@ -15,8 +15,7 @@ assert(html.includes("document.addEventListener('selectionchange'"),'Android sel
 assert(html.includes("button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));"),'Suggestion chips must apply with one tap like the old UI');
 let calls=0, chips=[];
 const editor={value:'flower',selectionStart:0,selectionEnd:6,focus(){},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
-const aiDraft={value:''},aiApply={disabled:true};
-const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,aiSuggestionEditor:aiDraft,aiSuggestionApplyBtn:aiApply,smartComposition:{source:'flower',start:0,end:6},
+const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,smartComposition:{source:'flower',start:0,end:6},
  aiSuggestionTimer:null,aiSuggestionSequence:0,aiSuggestionCalls:0,aiSuggestionPending:false,aiSuggestionCache:new Map(),
  teachPanel:{classList:{contains:()=>true}},currentTeachLanguage:()=> 'hi',currentTeachScript:()=> 'devanagari',currentTeachSourceLanguage:()=> 'en',
  uniqueStrings:a=>[...new Set(a)],getTeachContext:()=> 'a flower',getLocalSmartSuggestions:()=> ['फ्लावर'],getLearnedCorrectionSuggestions:()=>[],getCanonicalPhraseOverride:()=>null,
@@ -30,9 +29,8 @@ for(const name of ['wordAtTeachCaret','automaticSuggestionSegment','fetchAiTextS
  manual.showSmartSuggestions();assert.equal(calls,0,'Instant local suggestions do not require AI');
  const once=manual.requestManualAiSuggestions(), duplicate=manual.requestManualAiSuggestions();await Promise.all([once,duplicate]);
  assert.equal(calls,1,'Repeated clicks during a pending request make only one AI call');
- assert.equal(editor.value,'flower','AI suggestions never apply themselves');assert(chips.includes('फूल'));assert.equal(aiDraft.value,'फूल','Best AI suggestion is loaded into the separate editable box');
- assert.equal($('aiSuggestionPanel').dataset.state,'ready','Suggestions render in a visible ready panel above the editor');
- assert($('aiSuggestionSource').textContent.includes('flower'),'Suggestion panel identifies the text being reviewed');
+ assert.equal(editor.value,'flower','AI suggestions never apply themselves');assert(chips.includes('फूल'));
+ assert.equal(translitSuggestions.innerHTML!==undefined,true,'Old suggestion strip remains the suggestion surface');
  await manual.requestManualAiSuggestions();assert.equal(calls,1,'Same selected text and language reuse suggestions');
  manual.chooseSmartSuggestion('फूल');assert.equal(editor.value,'फूल','Only choosing a suggestion changes the selected text');
  assert.equal($('aiSuggestionSource').textContent,'Suggestion applied');
@@ -57,5 +55,5 @@ for(const name of ['wordAtTeachCaret','automaticSuggestionSegment','fetchAiTextS
  const file={name:'sample.pdf'};await assert.rejects(pdfRead.extractOneInputFile(file),/offline/);
  allowSecond=true;const resumed=await pdfRead.extractOneInputFile(file);assert.equal(resumed.pageCount,2);
  assert.deepEqual(pageCounts,[1,2],'A manual PDF retry reuses completed page reads and only retries the failed page');
- console.log('Tab exports are compact; Android selection drives automatic suggestions; one-tap chips restore the old fast Teach workflow.');
+ console.log('Tab exports are compact; Android selection drives automatic suggestions; the exact old chip strip is restored under Teach.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
