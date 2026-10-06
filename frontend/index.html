@@ -5675,6 +5675,297 @@
                 padding-top:.42rem !important;
             }
         }
+
+        /* v48 minimal Android session-only UI */
+        #draftsCard { display:none !important; }
+
+        body {
+            background:#f6f7f9 !important;
+        }
+
+        .main {
+            max-width:720px !important;
+            padding-left:.7rem !important;
+            padding-right:.7rem !important;
+            padding-bottom:1.4rem !important;
+        }
+
+        .upload-card {
+            padding:.7rem !important;
+            border-radius:14px !important;
+            box-shadow:none !important;
+        }
+
+        .drop-zone {
+            min-height:150px !important;
+            padding:1rem .75rem !important;
+            border-radius:12px !important;
+        }
+
+        .drop-icon {
+            width:46px !important;
+            height:46px !important;
+            margin-bottom:.55rem !important;
+        }
+
+        .drop-title {
+            font-size:1rem !important;
+            margin-bottom:.2rem !important;
+        }
+
+        .drop-subtitle,
+        .drop-help {
+            font-size:.72rem !important;
+            line-height:1.4 !important;
+        }
+
+        .btn-extract,
+        .action-btn,
+        .draft-btn,
+        .teach-tool,
+        .output-tab,
+        .preview-density-btn {
+            min-height:36px !important;
+            height:auto !important;
+            border-radius:9px !important;
+            font-size:.72rem !important;
+            font-weight:700 !important;
+            padding:.4rem .58rem !important;
+            box-shadow:none !important;
+        }
+
+        .classic-results-actions {
+            gap:.35rem !important;
+            margin-bottom:.42rem !important;
+            padding:.2rem 0 !important;
+        }
+
+        .classic-results-actions .action-btn {
+            min-height:38px !important;
+            height:38px !important;
+            font-size:.72rem !important;
+        }
+
+        .classic-results-header {
+            margin-bottom:.4rem !important;
+        }
+
+        .classic-results-header .results-title {
+            font-size:.8rem !important;
+        }
+
+        .classic-result-status {
+            font-size:.58rem !important;
+        }
+
+        .preview-density-btn {
+            min-height:30px !important;
+            padding:.25rem .45rem !important;
+            font-size:.62rem !important;
+        }
+
+        .classic-output-tabs .output-tab {
+            min-height:38px !important;
+            padding:.48rem .4rem !important;
+            font-size:.72rem !important;
+        }
+
+        .classic-output-card .output-body,
+        .classic-output-card[data-compact="true"] .output-body {
+            --paper-body-size:12px !important;
+            --paper-heading-size:13.5px !important;
+            --paper-title-size:17px !important;
+            min-height:180px !important;
+            padding:.5rem !important;
+            font-size:12px !important;
+            line-height:1.38 !important;
+            overflow-wrap:anywhere !important;
+            word-break:normal !important;
+        }
+
+        .classic-output-card .output-raw {
+            white-space:pre-wrap !important;
+            font-size:12px !important;
+            line-height:1.4 !important;
+        }
+
+        .classic-output-card .output-line,
+        .classic-output-card[data-compact="true"] .output-line {
+            min-height:1.18em !important;
+            line-height:1.38 !important;
+        }
+
+        .classic-output-card .ocr-structured-wrap {
+            max-width:100% !important;
+            overflow-x:hidden !important;
+        }
+
+        .classic-output-card .ocr-structured-table {
+            width:100% !important;
+            table-layout:fixed !important;
+            font-size:10.5px !important;
+            line-height:1.16 !important;
+        }
+
+        .classic-output-card .ocr-structured-table td,
+        .classic-output-card .ocr-structured-table th {
+            padding:.14rem .18rem !important;
+            font-size:10.5px !important;
+            line-height:1.16 !important;
+            overflow-wrap:anywhere !important;
+        }
+
+        .classic-teach-panel {
+            padding:.58rem !important;
+            border-radius:12px !important;
+            box-shadow:none !important;
+        }
+
+        .classic-teach-panel .teach-title {
+            font-size:.8rem !important;
+        }
+
+        .classic-teach-panel .teach-title::before {
+            width:22px !important;
+            height:22px !important;
+            flex-basis:22px !important;
+            font-size:.7rem !important;
+        }
+
+        .classic-teach-panel .teach-sub {
+            display:none !important;
+        }
+
+        .classic-teach-panel .teach-language-bar {
+            margin-bottom:.4rem !important;
+            padding:.38rem !important;
+        }
+
+        .classic-teach-panel .teach-lang-label,
+        .classic-teach-panel .teach-language-status {
+            font-size:.58rem !important;
+        }
+
+        .classic-teach-panel .teach-lang-select {
+            min-height:34px !important;
+            font-size:.66rem !important;
+            padding:.3rem 1.25rem .3rem .4rem !important;
+        }
+
+        .classic-teach-panel .teach-toolbar {
+            gap:.28rem !important;
+            margin-bottom:.38rem !important;
+        }
+
+        .classic-teach-panel .teach-tool {
+            min-height:34px !important;
+            font-size:.66rem !important;
+            padding:.34rem .4rem !important;
+        }
+
+        .classic-teach-panel .teach-editor-label {
+            margin-bottom:.22rem !important;
+            font-size:.62rem !important;
+        }
+
+        .classic-teach-panel .teach-editor-label strong {
+            font-size:.7rem !important;
+        }
+
+        .classic-teach-panel .teach-editor {
+            min-height:150px !important;
+            height:190px !important;
+            max-height:38vh !important;
+            padding:.55rem !important;
+            border-radius:9px !important;
+            font-size:15px !important;
+            line-height:1.45 !important;
+        }
+
+        .classic-teach-panel .teach-actions {
+            gap:.3rem !important;
+            margin-top:.38rem !important;
+        }
+
+        .classic-teach-panel .teach-actions .action-btn {
+            min-height:36px !important;
+            font-size:.7rem !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card {
+            left:6px !important;
+            right:6px !important;
+            max-height:26vh !important;
+            padding:.42rem !important;
+            border-radius:11px !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-title {
+            font-size:.65rem !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-source,
+        .classic-teach-panel .teach-ai-hint {
+            font-size:.6rem !important;
+            line-height:1.25 !important;
+        }
+
+        .classic-teach-panel .translit-chip {
+            min-height:32px !important;
+            padding:.3rem .55rem !important;
+            font-size:.7rem !important;
+        }
+
+        .classic-teach-panel .ai-suggestion-editor {
+            min-height:38px !important;
+            height:38px !important;
+            max-height:38px !important;
+            padding:.38rem .5rem !important;
+            font-size:14px !important;
+        }
+
+        @media(max-width:620px) {
+            .main {
+                padding-top:.65rem !important;
+            }
+
+            .upload-card {
+                margin-bottom:.55rem !important;
+            }
+
+            .drop-zone {
+                min-height:136px !important;
+            }
+
+            .classic-results-actions {
+                position:sticky !important;
+                top:0 !important;
+                z-index:8 !important;
+                background:rgba(246,247,249,.96) !important;
+            }
+
+            .classic-teach-panel {
+                padding-bottom:4.7rem !important;
+            }
+
+            .classic-teach-panel .teach-editor {
+                height:180px !important;
+                max-height:34vh !important;
+            }
+
+            .classic-output-card .output-body,
+            .classic-output-card[data-compact="true"] .output-body {
+                font-size:11.5px !important;
+                line-height:1.34 !important;
+                padding:.46rem !important;
+            }
+
+            .classic-output-card .ocr-structured-table,
+            .classic-output-card .ocr-structured-table td,
+            .classic-output-card .ocr-structured-table th {
+                font-size:10px !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -5880,7 +6171,7 @@
                     <span class="classic-result-status" id="documentStatus">Ready to review</span>
                 </div>
                 <div class="classic-result-tools">
-                    <button class="preview-density-btn" id="previewDensityBtn" type="button" onclick="togglePreviewDensity()">Fit view</button>
+                    <button class="preview-density-btn" id="previewDensityBtn" type="button" onclick="togglePreviewDensity()">Fit</button>
                     <div class="results-badges" id="statsBar"></div>
                 </div>
             </div>
@@ -9339,12 +9630,7 @@ function currentPlainText() {
 }
 
 function previewCompactPreference() {
-    try {
-        const saved = localStorage.getItem('paperai_preview_compact_v1');
-        if (saved === '1') return true;
-        if (saved === '0') return false;
-    } catch (_) {}
-    return typeof window !== 'undefined' && window.matchMedia?.('(max-width: 700px)').matches;
+    return true;
 }
 
 function applyPreviewDensity(compact) {
@@ -9352,7 +9638,7 @@ function applyPreviewDensity(compact) {
     if (!card) return;
     card.dataset.compact = compact ? 'true' : 'false';
     if (previewDensityBtn) {
-        previewDensityBtn.textContent = compact ? 'Paper view' : 'Fit view';
+        previewDensityBtn.textContent = compact ? 'Paper' : 'Fit';
         previewDensityBtn.setAttribute('aria-pressed', compact ? 'true' : 'false');
         previewDensityBtn.title = compact ? 'Show larger paper-like spacing' : 'Fit more extracted content on screen';
     }
@@ -9362,7 +9648,7 @@ function togglePreviewDensity() {
     const card = $('outputCard');
     const compact = card?.dataset?.compact !== 'true';
     applyPreviewDensity(compact);
-    try { localStorage.setItem('paperai_preview_compact_v1', compact ? '1' : '0'); } catch (_) {}
+    // View choice is session-only. Refresh returns to compact Fit view.
 }
 
 function updateResultActionsForTab() {
@@ -9376,7 +9662,7 @@ function updateResultActionsForTab() {
     const editing = Boolean(panel?.classList?.contains?.('show'));
     const draftLoaded = typeof lastResult !== 'undefined' && Boolean(lastResult?.draft_id);
     if (status && !editing) {
-        status.textContent = showingRaw ? 'Plain text view' : (draftLoaded ? 'Saved document' : 'Ready to review');
+        status.textContent = showingRaw ? 'Plain text' : 'Ready';
     }
 }
 
@@ -10663,7 +10949,7 @@ function setExtractionView(view) {
     }
     $('uploadControls').hidden = view !== 'select';
     $('extractionNav').hidden = view === 'select';
-    $('draftsCard').hidden = view === 'processing' || view === 'error';
+    $('draftsCard').hidden = true;
     $('extractionRetry').hidden = view !== 'error';
     $('extractionRetry').disabled = view === 'processing';
     $('extractionStatus').textContent = view === 'processing' ? 'Extracting your document' : view === 'error' ? 'Ready when you are' : 'Ready to review';
@@ -10826,7 +11112,11 @@ async function startExtraction() {
             : 'Ready');
         setTimeout(() => { if (active()) prog.classList.remove('show'); }, 900);
         updatePaperMarks(lastResult.text);
-        await saveExtractionToPaper(assembled.ordered);
+        // Session-only mobile workflow: keep the extracted document in memory.
+        // Refresh intentionally starts a clean workspace instead of creating a persistent draft.
+        activeDraft = null;
+        rememberActivePaper();
+        rememberPendingSources(null);
         loadUsage();
 
         if (window.matchMedia('(max-width: 479px)').matches) {
@@ -13230,15 +13520,39 @@ function wireDrafts() {
 }
 
 wireDrafts();
-try { const recovered = JSON.parse(localStorage.getItem(PENDING_SOURCE_STORAGE) || 'null'); if (recovered?.records?.length) rememberPendingSources(recovered); } catch (_) {}
-loadDraftList().then(() => {
-    let id = '';
-    try { id = localStorage.getItem(ACTIVE_PAPER_STORAGE) || ''; } catch (_) {}
-    if (id && draftItems.some(draft => draft.id === id)) openDraft(id);
-});
-addEventListener('online', () => { if (pendingPaperSave && !paperSaveConflict) flushPaperSave(); });
 
-applyPreviewDensity(previewCompactPreference());
+async function clearLegacyWorkingDocumentOnLoad() {
+    let legacyId = '';
+    try {
+        legacyId = localStorage.getItem(ACTIVE_PAPER_STORAGE) || '';
+        localStorage.removeItem(ACTIVE_PAPER_STORAGE);
+        localStorage.removeItem(PENDING_SOURCE_STORAGE);
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('paperai_unsaved_paper_v2_')) localStorage.removeItem(key);
+        }
+    } catch (_) {}
+
+    // Clean up the previously-active legacy draft once. New sessions no longer
+    // create persistent drafts, so future refreshes need no network cleanup.
+    if (legacyId) {
+        try { await fetchDraftEndpoint('/api/drafts/' + legacyId, { method: 'DELETE' }); } catch (_) {}
+    }
+
+    activeDraft = null;
+    pendingSourceBatch = null;
+    pendingPaperSave = null;
+    paperSaveConflict = false;
+    draftItems = [];
+    lastResult = null;
+    lastCompletedSelection = [];
+    $('draftsCard').hidden = true;
+    $('paperRecovery').hidden = true;
+    $('paperConflictBtn').hidden = true;
+}
+
+clearLegacyWorkingDocumentOnLoad();
+applyPreviewDensity(true);
 </script>
 </body>
 </html>
