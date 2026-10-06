@@ -5420,15 +5420,39 @@
             border-radius:9px !important;
         }
 
+        .classic-teach-panel .teach-suggestion-card {
+            display:block !important;
+            margin:0 0 .58rem !important;
+            padding:.58rem !important;
+            position:sticky !important;
+            top:.4rem !important;
+            z-index:12 !important;
+            background:rgba(255,255,255,.97) !important;
+            backdrop-filter:blur(10px) !important;
+            -webkit-backdrop-filter:blur(10px) !important;
+            box-shadow:0 4px 14px rgba(15,23,42,.08) !important;
+        }
+
         .classic-teach-panel .teach-suggestion-card[data-state="idle"] {
+            padding:.45rem .55rem !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .teach-ai-hint,
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .translit-suggestions,
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .ai-suggestion-editor-wrap,
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .ai-suggestion-actions {
             display:none !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .teach-suggestion-source {
+            margin-top:.08rem !important;
+            font-size:.67rem !important;
+            color:var(--text3) !important;
         }
 
         .classic-teach-panel .teach-suggestion-card[data-state="loading"],
         .classic-teach-panel .teach-suggestion-card[data-state="ready"],
         .classic-teach-panel .teach-suggestion-card[data-state="error"] {
-            display:block !important;
-            margin:0 0 .58rem !important;
             padding:.62rem !important;
         }
 
@@ -5490,6 +5514,31 @@
             .classic-teach-panel .ai-suggestion-editor {
                 min-height:58px !important;
                 max-height:100px !important;
+            }
+
+            .classic-teach-panel {
+                padding-bottom:5.7rem !important;
+            }
+
+            .classic-teach-panel .teach-suggestion-card {
+                position:fixed !important;
+                left:max(10px, env(safe-area-inset-left)) !important;
+                right:max(10px, env(safe-area-inset-right)) !important;
+                bottom:max(10px, env(safe-area-inset-bottom)) !important;
+                top:auto !important;
+                z-index:120 !important;
+                max-height:38vh !important;
+                overflow-y:auto !important;
+                margin:0 !important;
+                border-radius:14px !important;
+            }
+
+            .classic-teach-panel .teach-suggestion-card[data-state="idle"] {
+                max-height:none !important;
+            }
+
+            body:has(.classic-teach-panel.show) .classic-output-tabs {
+                scroll-margin-bottom:6.5rem !important;
             }
         }
 </style>
@@ -8454,10 +8503,8 @@ async function requestManualAiSuggestions() {
                 ? 'Choose a suggestion to replace only the selected text.'
                 : 'No useful change was found. Your current text has been left untouched.';
         }
-        const isMobile = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 620px)').matches;
-        if (isMobile && panel?.scrollIntoView) {
-            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+        // The suggestion dock stays visible on mobile, so do not move the page
+        // away from the text the user is editing.
     } catch (error) {
         if (sequence === aiSuggestionSequence) {
             renderSuggestionChips(localChoices, [], false);
@@ -8603,8 +8650,8 @@ function refreshSmartComposition() {
         }
         if (note) {
             note.textContent = sourceText
-                ? 'Tap “Get AI suggestions” to check only this text.'
-                : 'Tap inside a sentence or select the exact text you want help with.';
+                ? 'Selected: “' + (sourceText.length > 42 ? sourceText.slice(0, 39) + '…' : sourceText) + '” · tap Get AI suggestions'
+                : 'Tap inside the text you want to edit.';
         }
     }
 
