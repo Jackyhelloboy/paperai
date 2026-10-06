@@ -1794,7 +1794,7 @@
                     <button class="teach-tool teach-ai-btn" id="teachAiBtn" type="button" onclick="requestAdvancedAiSuggestions()">✦ AI Suggestions</button>
                 </div>
                 <div class="teach-ai-row">
-                    <span class="teach-ai-status" id="teachAiStatus">Select a word or sentence, then tap AI Suggestions.</span>
+                    <span class="teach-ai-status" id="teachAiStatus">Select any word or sentence — suggestions appear automatically.</span>
                 </div>
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
@@ -3958,7 +3958,7 @@ function replaceTeachRange(start, end, replacement) {
 }
 
 function refreshSmartComposition() {
-    smartComposition = findInputSegmentAtCaret();
+    smartComposition = selectedTeachSegment() || findInputSegmentAtCaret();
     updateTeachLanguageStatus();
     showSmartSuggestions();
 }
@@ -3984,7 +3984,7 @@ function openTeachPanel() {
     showSmartSuggestions();
     updateTeachButtons();
     renderTeachPreview();
-    if (teachAiStatus) teachAiStatus.textContent = 'Select a word or sentence, then tap AI Suggestions.';
+    if (teachAiStatus) teachAiStatus.textContent = 'Select any word or sentence — suggestions appear automatically.';
     if (teachAiBtn) teachAiBtn.disabled = false;
     teachEditor.focus();
 }
@@ -4053,6 +4053,17 @@ teachEditor.addEventListener('click', () => {
 teachEditor.addEventListener('select', () => {
     if (phoneticSelectionLock) return;
     refreshSmartComposition();
+});
+
+let teachSelectionTimer = null;
+document.addEventListener('selectionchange', () => {
+    if (phoneticSelectionLock || !teachPanel.classList.contains('show')) return;
+    if (document.activeElement !== teachEditor) return;
+    if (teachSelectionTimer) clearTimeout(teachSelectionTimer);
+    teachSelectionTimer = setTimeout(() => {
+        teachSelectionTimer = null;
+        refreshSmartComposition();
+    }, 200);
 });
 
 function saveLearning() {
