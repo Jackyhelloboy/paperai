@@ -17,9 +17,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+      - uses: actions/setup-node@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy frontend --project-name=paperai
+          node-version: '22'
+
+      - name: Verify frontend, OCR integration and Word export
+        run: |
+          npm ci --ignore-scripts
+          npm test
+
+      - name: Verify frontend files and current Pages settings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -s frontend/index.html
+          python3 -c 'import pathlib,tomllib; c=tomllib.loads(pathlib.Path("wrangler.toml").read_text()); p=pathlib.Path(c["pages_build_output_dir"]); assert (p / "index.html").is_file(), "Pages output directory has no index.html"'
+          python3 .github/scripts/verify-ai-quota.py --pages-settings
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.147.0 pages deploy --project-name=paperai --branch=main

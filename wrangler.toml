@@ -1,0 +1,5 @@
+# Website deployment from the repository root.
+# The OCR Worker has its own configuration in worker/wrangler.toml.
+name = "paperai"
+pages_build_output_dir = "./frontend"
+compatibility_date = "2026-09-12"

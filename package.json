@@ -1,0 +1,16 @@
+{
+  "name": "paperai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.cjs"
+  },
+  "devDependencies": {
+    "docx": "9.8.1",
+    "jszip": "3.10.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

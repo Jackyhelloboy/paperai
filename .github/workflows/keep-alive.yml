@@ -1,8 +1,7 @@
 name: Keep Backend Alive
 
 on:
-  schedule:
-    - cron: '*/14 * * * *'
+  # The legacy Render service is not used by production PaperAI.
   workflow_dispatch:
 
 jobs:

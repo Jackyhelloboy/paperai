@@ -1,0 +1,96 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const root = path.join(__dirname, '..');
+const context = vm.createContext({ window: {}, DurableObject: class {} });
+const modelSource = fs.readFileSync(path.join(root, 'frontend/vendor/paperai-document-model.js'), 'utf8');
+vm.runInContext(modelSource, context);
+const model = context.window.PaperAIDocumentModel;
+const paper = '[[QUESTION_SECTION: VI || सही जोड़ी बनाइए। || 4x1=4M]]\n' +
+    '[[QUESTION_ITEM: 1 || चिड़िया]]\n[[QUESTION_ITEM: 2 || नदी]]\n' +
+    '[[QUESTION_ITEM: 3 || पानी]]\n[[QUESTION_ITEM: 4 || बच्चा]]\n' +
+    '[[QUESTION_ITEM: 5 || निगरानी]]';
+const audit = '**AI reconstruction check:** question paper · high confidence · 52/100\n' +
+    '**Paper pattern:** Class IV - A · Hindi\n' +
+    '**Review:** expected 4, found 5\n';
+assert.equal(model.cleanOutputText(audit + paper), paper);
+assert.equal(model.cleanOutputText(audit.toUpperCase() + paper), paper);
+assert.equal(model.cleanOutputText('Review: discuss the poem.\n' + paper), 'Review: discuss the poem.\n' + paper);
+assert.equal(model.cleanOutputText(paper), paper);
+const compactList = '1.बाहर X2.काइने X3.विश्वास X4.गंदे X';
+const compactColumns = '[[COLUMN_START]][[COLUMN_ROW: 1. फूल || (a) dust]][[COLUMN_ROW: 2. वर्षा || (b) प्याऊ]][[COLUMN_END]]';
+const compactPaper = compactList + '**v. सही शब्दों से खाली स्थान भरिए। 4X1 = 4M**1.पहला ______2.दूसरा ______3.तीसरा ______4.चौथा ______' + compactColumns;
+const compactModel = model.parse(compactPaper);
+assert.equal(compactModel.nodes.filter(n => n.type === 'questionLine').length, 8);
+assert.equal(compactModel.nodes.filter(n => n.type === 'sectionHeading').length, 1);
+const compactRows = compactModel.nodes.find(n => n.type === 'columns').rows;
+assert.equal(compactRows.length, 2);
+assert.equal(compactRows[1][1], '(b) प्याऊ'); // Preserve wording; never guess a correction.
+assert(!compactModel.nodes.some(n => n.type === 'text' && /\[\[COLUMN/.test(n.text)));
+assert.equal(model.cleanOutputText(model.cleanOutputText(compactPaper)), model.cleanOutputText(compactPaper));
+for (const literal of ['1.25', '1. Value2.Word3.Other', '1.शब्द3.अन्य4.अंत']) assert.equal(model.cleanOutputText(literal), literal);
+assert.equal(model.parse(audit + paper).nodes.filter(n => n.type === 'questionLine').length, 5);
+assert(!model.parse(audit + paper).source.includes('reconstruction check'));
+assert.equal(model.cleanOutputText('VISIBLE ROMAN/SECTION LABEL. हिंदी'), '[unclear]. हिंदी');
+assert.equal(model.cleanOutputText('Exact Visible Question Text'), '[unclear]');
+assert(model.parse('1. हिंदी [[ANSWER_RULE: ]]').nodes.some(n => n.type === 'answerRule'));
+
+const html = fs.readFileSync(path.join(root, 'frontend/index.html'), 'utf8');
+const inline = html.match(/<script>\s*([\s\S]*?)<\/script>/)[1];
+new vm.Script(inline); // Parse all frontend code without starting its UI.
+function loadFunction(source, name) {
+    const start = source.indexOf('function ' + name + '(');
+    assert(start >= 0, name);
+    const next = source.indexOf('\nfunction ', start + 1);
+    vm.runInContext(source.slice(start, next < 0 ? undefined : next), context);
+}
+for (const name of ['circledNumberValue', 'collapsePortableAnswerBlankContinuations', 'stripLeakedLayoutLabels', 'portableText', 'normalizeQuestionMetadataForLegacy']) loadFunction(inline, name);
+for (const name of ['esc','formatVisibleText','formatOutputLine','repairLegacyBranchDiagram','renderStructuredHtmlTable','formatOutput']) loadFunction(inline,name);
+const preview = context.formatOutput(compactPaper);
+assert.equal((preview.match(/class="output-question-row"/g) || []).length,8);
+assert(preview.includes('<table') && preview.includes('(b) प्याऊ'));
+assert(!preview.includes('[[COLUMN') && !preview.includes('**v.'));
+assert(!context.portableText(audit + paper).includes('Paper pattern'));
+assert(context.portableText(audit + paper).includes('5. निगरानी'));
+assert(!context.normalizeQuestionMetadataForLegacy(audit + paper).includes('Review:'));
+
+const malformedTable = 'TABLE START\nTABLE ROW: Name || Marks\nTABLE ROW: Ravi || 4×1=4M\nTABLE END';
+const malformedBranch = 'BRANCH ROOT: Water\nBRANCH ITEM: River || Sea\nBRANCH ITEM: Rain || Cloud\nBRANCH END';
+const recoveredTable = model.parse(malformedTable);
+assert.equal(recoveredTable.nodes.filter(n => n.type === 'table').length, 1, 'Malformed internal table labels must be recovered as structure');
+assert.equal(recoveredTable.nodes.find(n => n.type === 'table').rows[1][1], '4×1=4M');
+assert(!context.portableText(malformedTable).match(/TABLE\s*(?:START|ROW|END)/i), 'Public text must never expose table implementation labels');
+assert(context.portableText(malformedTable).includes('Ravi | 4×1=4M'), 'Public text keeps real table cell content and literal marks');
+assert(!context.portableText(malformedBranch).match(/BRANCH\s*(?:ROOT|ITEM|END)/i), 'Public text must never expose branch implementation labels');
+assert(context.portableText(malformedBranch).includes('Water'));
+assert(context.portableText(malformedBranch).includes('River'));
+
+const worker = fs.readFileSync(path.join(root, 'worker/src/index.js'), 'utf8');
+vm.runInContext(worker.slice(worker.indexOf('    function normalizeInternalLayoutMarkers('), worker.indexOf('const FORBIDDEN_OCR_TEMPLATE_PHRASES')), context);
+loadFunction(worker, 'stripQuestionPaperMetadata');
+assert.equal(context.normalizeQuestionMetadata(compactPaper), model.normalizeQuestionMetadata(compactPaper));
+assert.equal(context.normalizeQuestionMetadata(malformedTable), model.normalizeQuestionMetadata(malformedTable), 'Worker and frontend recover malformed layout tags identically');
+loadFunction(worker, 'stripStructuredMetadata');
+const publicColumns = context.stripStructuredMetadata(context.normalizeQuestionMetadata(compactColumns));
+assert(!publicColumns.includes('[['));
+assert(publicColumns.includes('1. फूल    (a) dust'));
+new vm.Script(worker.replace(/^import .*;\s*$/gm, '').replace(/export default /g, 'const workerDefault = ').replace(/export class /g, 'class '));
+const start = worker.indexOf('const FORBIDDEN_OCR_TEMPLATE_PHRASES');
+const end = worker.indexOf('function structuredPageNeedsVerification', start);
+vm.runInContext(worker.slice(start, end), context);
+assert.equal(context.sanitizePromptTemplateLeakage('VISIBLE ROMAN/SECTION LABEL Hindi EXACT VISIBLE INSTRUCTION'), '[unclear] Hindi [unclear]');
+assert.equal(context.questionStructureNeedsVerification('[[QUESTION_SECTION: II || अर्थ लिखिए। || 1x1=1]]\n[[QUESTION_ITEM: 1 || ]]'), true);
+assert.equal(context.questionStructureNeedsVerification('[[QUESTION_SECTION: II || अर्थ लिखिए। || 1x1=1]]\n[[QUESTION_ITEM: 1 || कोयल]]'), false);
+assert.equal(context.questionStructureNeedsVerification(paper), true); // Check inconsistency, preserve all five source items.
+for (const name of ['hasDegenerateOcr', 'shouldAcceptVerifiedText']) loadFunction(worker, name);
+const runaway = Array.from({ length: 30 }, (_, i) => '[[TABLE_ROW: (' + 'a'.repeat(i + 1) + ') || ]]').join('\n');
+assert.equal(context.hasDegenerateOcr(runaway), true);
+assert.equal(context.hasDegenerateOcr('[[COLUMN_ROW: 1 फूल || (a) Dust]]'), false);
+assert.equal(context.shouldAcceptVerifiedText(runaway, 'I. निम्न लिखित प्रश्नों के उत्तर लिखिए।\n1. फूलों से हमें क्या मिलती है?'), true);
+assert.equal(context.shouldAcceptVerifiedText('1. फूल', runaway), false);
+const incomplete = '[[QUESTION_SECTION: I | उत्तर लिखिए। | 2x1=2]]\n[[QUESTION_ITEM: 1. | ]]\n[[QUESTION_ITEM: 2. | ]]';
+const recovered = '[[QUESTION_SECTION: I || उत्तर लिखिए। || 2x1=2]]\n[[QUESTION_ITEM: 1 || तीन मित्रों के क्या नाम थे?]]\n[[QUESTION_ITEM: 2 || बया खेतों से क्या लाती है?]]';
+assert.equal(context.shouldAcceptVerifiedText(incomplete, recovered), true);
+assert.equal(context.shouldAcceptVerifiedText(recovered, recovered.replace(/\n\[\[QUESTION_ITEM: 2[^\n]+/, '')), false);
+console.log('Output sanitization, source preservation, missing-word verification, and JavaScript syntax checks passed.');
