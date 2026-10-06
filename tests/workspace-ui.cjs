@@ -19,8 +19,9 @@ assert(results.includes('id="teachActionBtn"') && /\bTeach\b/.test(results), 'Te
 assert(results.includes('id="aiSuggestionEditor"'), 'Teach must include a separate editable AI suggestion box');
 assert(results.includes('id="previewDensityBtn"'), 'Result preview must expose a user-controlled Fit/Paper view toggle');
 assert(results.includes('onclick="applyEditedAiSuggestion()"'), 'AI suggestion text must require an explicit apply action');
-assert(!results.includes('<div class="teach-title">'), 'Legacy standalone edit-card title must be removed');
-assert(!results.includes('class="teach-actions"'), 'Legacy Save/Done button row must be removed');
+assert(results.includes('class="teach-panel classic-teach-panel"'), 'Classic compact Teach panel must be restored');
+assert(results.includes('<div class="teach-title">Review &amp; correct'), 'Classic Review & correct heading must be restored');
+assert(results.includes('class="teach-actions"'), 'Classic Save changes / Done action row must be restored');
 
 const draftStart = html.indexOf('<div class="drafts-card" id="draftsCard">');
 const draftEnd = html.indexOf('id="resBox"', draftStart);
@@ -44,6 +45,9 @@ assert(css.includes('.main.workflow-active[data-view="result"]'), 'Result mode m
 assert(css.includes('v44 exact classic Extracted / Plain Text results UI'), 'Classic result UI override must be present');
 assert(css.includes('.classic-output-card.editing .output-body'), 'Teach editing must keep the extracted preview visible');
 assert(css.includes('v45 mobile fit preview + user-controlled density'), 'Mobile extracted preview must include the compact fit-density layer');
+assert(css.includes('v46 restore compact old Teach interaction'), 'Compact old Teach layout must be present');
+assert(css.includes('.classic-teach-panel .teach-suggestion-card[data-state="idle"]'), 'AI suggestion card must stay hidden until requested');
+assert(css.includes('height:200px !important'), 'Mobile Teach editor must remain compact rather than taking most of the screen');
 assert(css.includes('.classic-output-card[data-compact="true"] .ocr-structured-table'), 'Compact mode must shrink structured tables to phone width');
 assert(css.includes('v43 restore classic draft UI'), 'Classic draft UI override must be present');
 assert(css.includes('height: 62px !important'), 'Phone source preview thumbnails must stay very compact');
@@ -52,4 +56,4 @@ assert(css.includes('.document-toolbar { flex-direction:column !important;'), 'M
 assert(css.includes('.teach-primary-btn'), 'Teach receives clear primary-action styling');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
-console.log('Classic PaperAI UI keeps Extracted/Plain Text, adds mobile Fit/Paper control, compact tables, and editable AI suggestions.');
+console.log('Classic PaperAI UI keeps Extracted/Plain Text, restores compact Teach, and shows AI help only when requested.');

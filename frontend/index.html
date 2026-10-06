@@ -5365,6 +5365,133 @@
             .ai-suggestion-editor{min-height:66px!important;max-height:130px!important;font-size:16px!important}
             .ai-suggestion-actions .teach-tool{min-height:42px!important}
         }
+
+        /* v46 restore compact old Teach interaction */
+        .classic-teach-panel {
+            margin:0 0 .7rem !important;
+            padding:.8rem !important;
+            border:1px solid #dbe3ee !important;
+            border-radius:14px !important;
+            background:#fff !important;
+            box-shadow:0 4px 14px rgba(15,23,42,.05) !important;
+        }
+
+        .classic-teach-panel .teach-title {
+            display:flex !important;
+            align-items:center !important;
+            gap:.4rem !important;
+            margin:0 0 .22rem !important;
+            font-size:.92rem !important;
+            font-weight:800 !important;
+        }
+
+        .classic-teach-panel .teach-title::before {
+            width:25px !important;
+            height:25px !important;
+            flex-basis:25px !important;
+            border-radius:8px !important;
+        }
+
+        .classic-teach-panel .teach-sub {
+            margin:0 0 .65rem !important;
+            font-size:.7rem !important;
+            line-height:1.45 !important;
+        }
+
+        .classic-teach-panel .teach-language-bar {
+            margin-bottom:.58rem !important;
+            padding:.5rem !important;
+            border-radius:10px !important;
+        }
+
+        .classic-teach-panel .teach-lang-select {
+            min-height:36px !important;
+            font-size:.7rem !important;
+        }
+
+        .classic-teach-panel .teach-toolbar {
+            margin-bottom:.58rem !important;
+            gap:.35rem !important;
+        }
+
+        .classic-teach-panel .teach-tool {
+            min-height:38px !important;
+            padding:.4rem .48rem !important;
+            border-radius:9px !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] {
+            display:none !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card[data-state="loading"],
+        .classic-teach-panel .teach-suggestion-card[data-state="ready"],
+        .classic-teach-panel .teach-suggestion-card[data-state="error"] {
+            display:block !important;
+            margin:0 0 .58rem !important;
+            padding:.62rem !important;
+        }
+
+        .classic-teach-panel .teach-editor-label {
+            display:flex !important;
+            margin:0 0 .3rem !important;
+        }
+
+        .classic-teach-panel .teach-editor {
+            min-height:190px !important;
+            height:220px !important;
+            max-height:42vh !important;
+            padding:.7rem !important;
+            font-size:.84rem !important;
+            line-height:1.55 !important;
+            border-radius:10px !important;
+        }
+
+        .classic-teach-panel .teach-actions {
+            display:grid !important;
+            grid-template-columns:1fr 1fr !important;
+            gap:.45rem !important;
+            margin-top:.58rem !important;
+        }
+
+        .classic-teach-panel .teach-actions .action-btn {
+            min-height:42px !important;
+            justify-content:center !important;
+        }
+
+        @media(max-width:620px) {
+            .classic-teach-panel {
+                margin-left:0 !important;
+                margin-right:0 !important;
+                padding:.7rem !important;
+            }
+
+            .classic-teach-panel .teach-language-bar {
+                grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr) !important;
+                gap:.26rem !important;
+            }
+
+            .classic-teach-panel .teach-toolbar {
+                grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+            }
+
+            .classic-teach-panel .teach-toolbar .ai-suggest-button {
+                grid-column:1/-1 !important;
+                min-height:42px !important;
+            }
+
+            .classic-teach-panel .teach-editor {
+                min-height:170px !important;
+                height:200px !important;
+                max-height:36vh !important;
+                font-size:16px !important;
+            }
+
+            .classic-teach-panel .ai-suggestion-editor {
+                min-height:58px !important;
+                max-height:100px !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -5593,81 +5720,72 @@
                 </button>
             </div>
 
-            <div class="teach-panel" id="teachPanel">
-                <div class="inline-edit-head">
-                    <div>
-                        <strong>Teach &amp; correct</strong>
-                        <span id="paperSaveState" role="status" aria-live="polite"></span>
-                    </div>
-                    <button class="inline-edit-close" type="button" onclick="saveLearning()">Done</button>
+            <div class="teach-panel classic-teach-panel" id="teachPanel">
+                <div class="teach-title">Review &amp; correct <span id="paperSaveState" role="status" aria-live="polite"></span></div>
+                <div class="teach-sub">Edit the extracted text directly. Select a word or sentence and tap <strong>Get AI suggestions</strong> only when you want help. Nothing changes until you apply it.</div>
+
+                <div class="teach-language-bar">
+                    <label class="teach-lang-field">
+                        <span class="teach-lang-label">Input language</span>
+                        <select class="teach-lang-select" id="teachFromSelect">
+                            <option value="auto" selected>Auto detect</option>
+                            <option value="en">English / Roman</option>
+                            <option value="hi">Hindi</option>
+                            <option value="mr">Marathi</option>
+                            <option value="te">Telugu</option>
+                            <option value="ta">Tamil</option>
+                            <option value="kn">Kannada</option>
+                            <option value="ml">Malayalam</option>
+                            <option value="bn">Bengali</option>
+                            <option value="gu">Gujarati</option>
+                            <option value="pa">Punjabi</option>
+                            <option value="or">Odia</option>
+                            <option value="ur">Urdu</option>
+                            <option value="ks">Kashmiri</option>
+                        </select>
+                    </label>
+                    <span class="teach-lang-arrow">→</span>
+                    <label class="teach-lang-field">
+                        <span class="teach-lang-label">Suggestion language</span>
+                        <select class="teach-lang-select" id="teachToSelect">
+                            <option value="auto">Auto from document</option>
+                            <option value="en">English</option>
+                            <option value="hi">Hindi</option>
+                            <option value="mr">Marathi</option>
+                            <option value="te">Telugu</option>
+                            <option value="ta">Tamil</option>
+                            <option value="kn">Kannada</option>
+                            <option value="ml">Malayalam</option>
+                            <option value="bn">Bengali</option>
+                            <option value="gu">Gujarati</option>
+                            <option value="pa">Punjabi</option>
+                            <option value="or">Odia</option>
+                            <option value="ur">Urdu</option>
+                            <option value="ks">Kashmiri</option>
+                        </select>
+                    </label>
+                    <div class="teach-language-status" id="teachLanguageStatus"></div>
                 </div>
 
                 <div class="teach-toolbar">
                     <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                     <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
-                    <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
+                    <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
                     <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ Get AI suggestions</button>
                 </div>
-
-                <details class="teach-settings">
-                    <summary>More edit tools</summary>
-                    <button class="teach-secondary-restore" type="button" onclick="teachRestoreOriginal()">Restore original text</button>
-                    <div class="teach-language-bar">
-                        <label class="teach-lang-field">
-                            <span class="teach-lang-label">Input</span>
-                            <select class="teach-lang-select" id="teachFromSelect">
-                                <option value="auto" selected>Auto detect</option>
-                                <option value="en">English / Roman</option>
-                                <option value="hi">Hindi</option>
-                                <option value="mr">Marathi</option>
-                                <option value="te">Telugu</option>
-                                <option value="ta">Tamil</option>
-                                <option value="kn">Kannada</option>
-                                <option value="ml">Malayalam</option>
-                                <option value="bn">Bengali</option>
-                                <option value="gu">Gujarati</option>
-                                <option value="pa">Punjabi</option>
-                                <option value="or">Odia</option>
-                                <option value="ur">Urdu</option>
-                                <option value="ks">Kashmiri</option>
-                            </select>
-                        </label>
-                        <span class="teach-lang-arrow">→</span>
-                        <label class="teach-lang-field">
-                            <span class="teach-lang-label">Suggestions</span>
-                            <select class="teach-lang-select" id="teachToSelect">
-                                <option value="auto">Auto from document</option>
-                                <option value="en">English</option>
-                                <option value="hi">Hindi</option>
-                                <option value="mr">Marathi</option>
-                                <option value="te">Telugu</option>
-                                <option value="ta">Tamil</option>
-                                <option value="kn">Kannada</option>
-                                <option value="ml">Malayalam</option>
-                                <option value="bn">Bengali</option>
-                                <option value="gu">Gujarati</option>
-                                <option value="pa">Punjabi</option>
-                                <option value="or">Odia</option>
-                                <option value="ur">Urdu</option>
-                                <option value="ks">Kashmiri</option>
-                            </select>
-                        </label>
-                        <div class="teach-language-status" id="teachLanguageStatus"></div>
-                    </div>
-                </details>
 
                 <div class="teach-suggestion-card" id="aiSuggestionPanel" data-state="idle">
                     <div class="teach-suggestion-head">
                         <div>
                             <div class="teach-suggestion-title">AI suggestions</div>
-                            <div class="teach-suggestion-source" id="aiSuggestionSource">Tap inside a sentence or select text.</div>
+                            <div class="teach-suggestion-source" id="aiSuggestionSource">Select text or place the cursor in a sentence.</div>
                         </div>
                     </div>
-                    <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Choose AI suggestions only when you want help. Nothing changes automatically.</div>
+                    <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Tap “Get AI suggestions” when you want help. Your document will not change automatically.</div>
                     <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
                     <label class="ai-suggestion-editor-wrap" for="aiSuggestionEditor">
                         <span>Edit suggestion before applying</span>
-                        <textarea class="ai-suggestion-editor" id="aiSuggestionEditor" spellcheck="false" placeholder="Pick an AI suggestion, edit it here, then apply it."></textarea>
+                        <textarea class="ai-suggestion-editor" id="aiSuggestionEditor" spellcheck="false" placeholder="Edit the suggestion here before applying it."></textarea>
                     </label>
                     <div class="ai-suggestion-actions">
                         <button class="teach-tool ai-apply-button" id="aiSuggestionApplyBtn" type="button" onclick="applyEditedAiSuggestion()" disabled>Apply suggestion</button>
@@ -5675,7 +5793,13 @@
                     </div>
                 </div>
 
+                <div class="teach-editor-label"><strong>Edit extracted text</strong><span>Changes preview live</span></div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
+
+                <div class="teach-actions">
+                    <button class="action-btn teach-save-btn" type="button" onclick="saveLearning()">Save changes</button>
+                    <button class="action-btn" type="button" onclick="closeTeachPanel()">Done</button>
+                </div>
             </div>
 
 
