@@ -919,6 +919,32 @@
             color: var(--accent);
         }
 
+        .teach-ai-row {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            margin: -0.05rem 0 0.5rem;
+        }
+
+        .teach-ai-btn {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+
+        .teach-ai-btn:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .teach-ai-status {
+            min-width: 0;
+            flex: 1;
+            font-size: 0.64rem;
+            color: var(--text3);
+            line-height: 1.35;
+        }
+
         .translit-suggestions {
             display: none;
             flex-wrap: wrap;
@@ -1766,6 +1792,10 @@
                     <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
                     <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
                 </div>
+                <div class="teach-ai-row">
+                    <button class="teach-tool teach-ai-btn" id="teachAiBtn" type="button" onclick="requestAdvancedAiSuggestions()">✦ AI Suggestions</button>
+                    <span class="teach-ai-status" id="teachAiStatus">Select a word or sentence, then tap AI Suggestions.</span>
+                </div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
                 <div class="teach-actions">
@@ -1808,6 +1838,7 @@ const quotaPercent=$('quotaPercent'),quotaNow=$('quotaNow'),quotaReset=$('quotaR
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
+const teachAiBtn=$('teachAiBtn'),teachAiStatus=$('teachAiStatus');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let file=null, lastResult=null, showingRaw=false;
@@ -3590,6 +3621,92 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
     }
 }
 
+function selectedTeachSegment() {
+    const startRaw = Number(teachEditor.selectionStart);
+    const endRaw = Number(teachEditor.selectionEnd);
+    if (!Number.isFinite(startRaw) || !Number.isFinite(endRaw) || endRaw <= startRaw) return null;
+
+    const raw = teachEditor.value.slice(startRaw, endRaw);
+    const source = raw.trim();
+    if (!source || source.length > 600) return null;
+
+    const leading = raw.indexOf(source);
+    const start = startRaw + Math.max(0, leading);
+    return { start, end: start + source.length, source };
+}
+
+async function requestAdvancedAiSuggestions() {
+    if (aiSuggestionTimer) {
+        clearTimeout(aiSuggestionTimer);
+        aiSuggestionTimer = null;
+    }
+
+    const selected = selectedTeachSegment();
+    const segment = selected || findInputSegmentAtCaret();
+
+    if (!segment?.source) {
+        teachAiStatus.textContent = 'Select a word or sentence first.';
+        translitSuggestions.classList.remove('show');
+        translitSuggestions.innerHTML = '';
+        teachEditor.focus();
+        return;
+    }
+
+    const sourceText = segment.source.replace(/\s+/g, ' ').trim();
+    smartComposition = { ...segment, source: sourceText };
+    const sourceLanguage = currentTeachSourceLanguage(sourceText);
+    const targetLanguage = currentTeachLanguage();
+    const targetScript = currentTeachScript();
+    const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
+    const isPhrase = sourceText.split(/\s+/).filter(Boolean).length >= 2;
+
+    let localChoices = [];
+    if (isRomanSource && targetScript !== 'latin' && isPhrase) {
+        const knownPhrase = getCanonicalPhraseOverride(sourceText, targetScript);
+        if (knownPhrase) localChoices.push(knownPhrase);
+    }
+    if (isRomanSource && targetScript !== 'latin' && !isPhrase) {
+        localChoices.push(...getLocalSmartSuggestions(sourceText)
+            .filter(choice => choice.toLowerCase() !== sourceText.toLowerCase()));
+    }
+
+    const learnedChoices = getLearnedCorrectionSuggestions(sourceText, localChoices);
+    localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
+
+    const sequence = ++aiSuggestionSequence;
+    teachAiBtn.disabled = true;
+    teachAiStatus.textContent = 'AI is checking “' + (sourceText.length > 70 ? sourceText.slice(0, 67) + '…' : sourceText) + '”';
+    renderSuggestionChips(localChoices, [], true);
+
+    try {
+        const aiChoices = await fetchAiTextSuggestions(
+            sourceText,
+            sourceLanguage,
+            targetLanguage,
+            localChoices,
+            learnedChoices,
+            sequence
+        );
+
+        if (sequence !== aiSuggestionSequence) return;
+        renderSuggestionChips(localChoices, aiChoices, false);
+
+        const count = uniqueStrings([...localChoices, ...aiChoices]).length;
+        teachAiStatus.textContent = count
+            ? 'Tap a suggestion below to replace only the selected text.'
+            : 'No useful alternative was found. Your text was not changed.';
+    } catch (_) {
+        if (sequence === aiSuggestionSequence) {
+            renderSuggestionChips(localChoices, [], false);
+            teachAiStatus.textContent = localChoices.length
+                ? 'AI is unavailable; local suggestions are shown below.'
+                : 'AI suggestions are unavailable right now. Your text was not changed.';
+        }
+    } finally {
+        if (sequence === aiSuggestionSequence) teachAiBtn.disabled = false;
+    }
+}
+
 function renderSuggestionChips(choices, aiChoices = [], loading = false) {
     const merged = uniqueStrings([...(choices || []), ...(aiChoices || [])]).slice(0, 8);
     const loadingChip = loading ? '<span class="translit-chip" style="cursor:default;opacity:.65">AI suggesting…</span>' : '';
@@ -3708,9 +3825,18 @@ function showSmartSuggestions() {
 function chooseSmartSuggestion(choice) {
     if (!smartComposition || !choice) return;
 
-    const current = findInputSegmentAtCaret();
-    const start = current?.start ?? smartComposition.start;
-    const end = current?.end ?? smartComposition.end;
+    const selectedStart = Number(smartComposition.start);
+    const selectedEnd = Number(smartComposition.end);
+    const exactSelectionStillExists =
+        Number.isFinite(selectedStart) &&
+        Number.isFinite(selectedEnd) &&
+        selectedEnd > selectedStart &&
+        teachEditor.value.slice(selectedStart, selectedEnd).trim().normalize('NFC') ===
+            String(smartComposition.source || '').trim().normalize('NFC');
+
+    const current = exactSelectionStillExists ? null : findInputSegmentAtCaret();
+    const start = exactSelectionStillExists ? selectedStart : (current?.start ?? smartComposition.start);
+    const end = exactSelectionStillExists ? selectedEnd : (current?.end ?? smartComposition.end);
     const newEnd = replaceTeachRange(start, end, choice);
 
     pushTeachHistory(teachEditor.value);
@@ -3719,6 +3845,7 @@ function chooseSmartSuggestion(choice) {
     smartComposition = null;
     translitSuggestions.classList.remove('show');
     translitSuggestions.innerHTML = '';
+    teachAiStatus.textContent = 'Suggestion applied. Undo is available above.';
     teachEditor.setSelectionRange(newEnd, newEnd);
 }
 
@@ -3826,6 +3953,8 @@ function openTeachPanel() {
     showSmartSuggestions();
     updateTeachButtons();
     renderTeachPreview();
+    if (teachAiStatus) teachAiStatus.textContent = 'Select a word or sentence, then tap AI Suggestions.';
+    if (teachAiBtn) teachAiBtn.disabled = false;
     teachEditor.focus();
 }
 
