@@ -11,6 +11,8 @@ assert(top.includes('id="copyTextBtn"') && top.includes('id="downloadWordBtn"') 
 assert(!top.includes('class="document-more"'),'Classic results keep primary actions directly visible instead of hiding them in More');
 assert(html.includes('scheduleTeachPreview();'),'Teach typing must debounce preview rendering instead of rebuilding on every keystroke');
 assert(html.includes('Session-only mobile workflow'),'Normal extraction must remain in-memory for the current session');
+assert(html.includes("document.addEventListener('selectionchange'"),'Android selection changes must refresh smart suggestions');
+assert(html.includes("button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));"),'Suggestion chips must apply with one tap like the old UI');
 let calls=0, chips=[];
 const editor={value:'flower',selectionStart:0,selectionEnd:6,focus(){},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
 const aiDraft={value:''},aiApply={disabled:true};
@@ -55,5 +57,5 @@ for(const name of ['wordAtTeachCaret','automaticSuggestionSegment','fetchAiTextS
  const file={name:'sample.pdf'};await assert.rejects(pdfRead.extractOneInputFile(file),/offline/);
  allowSecond=true;const resumed=await pdfRead.extractOneInputFile(file);assert.equal(resumed.pageCount,2);
  assert.deepEqual(pageCounts,[1,2],'A manual PDF retry reuses completed page reads and only retries the failed page');
- console.log('Tab exports are compact; smart suggestions are automatic and cached; large Teach previews are debounced for responsive Android editing.');
+ console.log('Tab exports are compact; Android selection drives automatic suggestions; one-tap chips restore the old fast Teach workflow.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

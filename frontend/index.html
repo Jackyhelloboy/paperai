@@ -5966,6 +5966,131 @@
                 font-size:10px !important;
             }
         }
+
+        /* v49 old-style smart suggestion chips, modernized */
+        .classic-teach-panel .teach-suggestion-card {
+            position:sticky !important;
+            top:.35rem !important;
+            bottom:auto !important;
+            left:auto !important;
+            right:auto !important;
+            z-index:10 !important;
+            max-height:none !important;
+            overflow:visible !important;
+            margin:0 0 .35rem !important;
+            padding:.42rem .48rem !important;
+            border:1px solid #dbeafe !important;
+            border-radius:10px !important;
+            background:rgba(248,251,255,.98) !important;
+            box-shadow:none !important;
+            backdrop-filter:blur(8px) !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-head {
+            align-items:center !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-title {
+            font-size:.62rem !important;
+            color:var(--text3) !important;
+            text-transform:uppercase !important;
+            letter-spacing:.04em !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-source {
+            margin-top:.05rem !important;
+            font-size:.66rem !important;
+            font-weight:700 !important;
+            color:var(--text2) !important;
+        }
+
+        .classic-teach-panel .teach-ai-hint {
+            margin:.16rem 0 0 !important;
+            font-size:.6rem !important;
+            line-height:1.2 !important;
+        }
+
+        .classic-teach-panel .translit-suggestions {
+            margin-top:.3rem !important;
+            gap:.3rem !important;
+        }
+
+        .classic-teach-panel .translit-chip {
+            min-height:30px !important;
+            padding:.28rem .55rem !important;
+            border-radius:8px !important;
+            font-size:.7rem !important;
+            font-weight:700 !important;
+            box-shadow:none !important;
+        }
+
+        .classic-teach-panel .translit-chip:first-child {
+            background:#2563eb !important;
+            border-color:#2563eb !important;
+            color:#fff !important;
+        }
+
+        .classic-teach-panel .ai-custom-edit {
+            margin-top:.3rem !important;
+            border-top:1px solid #e5e7eb !important;
+            padding-top:.25rem !important;
+        }
+
+        .classic-teach-panel .ai-custom-edit > summary {
+            width:max-content !important;
+            padding:.15rem .2rem !important;
+            color:var(--accent) !important;
+            font-size:.62rem !important;
+            font-weight:750 !important;
+            cursor:pointer !important;
+            list-style:none !important;
+        }
+
+        .classic-teach-panel .ai-custom-edit > summary::-webkit-details-marker {
+            display:none !important;
+        }
+
+        .classic-teach-panel .ai-custom-edit:not([open]) .ai-suggestion-editor-wrap,
+        .classic-teach-panel .ai-custom-edit:not([open]) .ai-suggestion-actions {
+            display:none !important;
+        }
+
+        .classic-teach-panel .ai-custom-edit[open] .ai-suggestion-editor {
+            margin-top:.25rem !important;
+        }
+
+        @media(max-width:620px) {
+            .classic-teach-panel {
+                padding-bottom:.58rem !important;
+            }
+
+            .classic-teach-panel .teach-suggestion-card {
+                position:sticky !important;
+                top:.25rem !important;
+                bottom:auto !important;
+                left:auto !important;
+                right:auto !important;
+                z-index:20 !important;
+                max-height:34vh !important;
+                overflow-y:auto !important;
+            }
+
+            .classic-teach-panel .translit-suggestions {
+                flex-wrap:nowrap !important;
+                overflow-x:auto !important;
+                padding-bottom:.08rem !important;
+            }
+
+            .classic-teach-panel .translit-chip {
+                flex:0 0 auto !important;
+                max-width:72vw !important;
+            }
+
+            .classic-teach-panel .teach-editor {
+                height:210px !important;
+                max-height:40vh !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -6256,14 +6381,17 @@
                     </div>
                     <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Suggestions update automatically as you select or type. Nothing changes until you apply one.</div>
                     <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
-                    <label class="ai-suggestion-editor-wrap" for="aiSuggestionEditor">
-                        <span>Edit suggestion before applying</span>
-                        <textarea class="ai-suggestion-editor" id="aiSuggestionEditor" spellcheck="false" placeholder="Edit the suggestion here before applying it."></textarea>
-                    </label>
-                    <div class="ai-suggestion-actions">
-                        <button class="teach-tool ai-apply-button" id="aiSuggestionApplyBtn" type="button" onclick="applyEditedAiSuggestion()" disabled>Apply suggestion</button>
-                        <button class="teach-tool" type="button" onclick="clearAiSuggestionDraft()">Clear</button>
-                    </div>
+                    <details class="ai-custom-edit" id="aiCustomEdit">
+                        <summary>Edit suggestion</summary>
+                        <label class="ai-suggestion-editor-wrap" for="aiSuggestionEditor">
+                            <span>Custom replacement</span>
+                            <textarea class="ai-suggestion-editor" id="aiSuggestionEditor" spellcheck="false" placeholder="Edit the replacement text."></textarea>
+                        </label>
+                        <div class="ai-suggestion-actions">
+                            <button class="teach-tool ai-apply-button" id="aiSuggestionApplyBtn" type="button" onclick="applyEditedAiSuggestion()" disabled>Apply</button>
+                            <button class="teach-tool" type="button" onclick="clearAiSuggestionDraft()">Clear</button>
+                        </div>
+                    </details>
                 </div>
 
                 <div class="teach-editor-label"><strong>Edit extracted text</strong><span>Changes preview live</span></div>
@@ -8768,7 +8896,7 @@ function renderSuggestionChips(choices, aiChoices = [], loading = false) {
 
     translitSuggestions.querySelectorAll('button.translit-chip').forEach((button, index) => {
         button.addEventListener('mousedown', event => event.preventDefault());
-        button.addEventListener('click', () => setAiSuggestionDraft(merged[index]));
+        button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));
     });
 }
 
@@ -8938,7 +9066,7 @@ async function requestManualAiSuggestions() {
         sourceLabel.textContent = 'For: “' + (sourceText.length > 110 ? sourceText.slice(0, 107) + '…' : sourceText) + '”';
     }
     if (note) note.textContent = 'Checking this text. You can keep editing while AI works.';
-    setAiSuggestionDraft(localChoices[0] || sourceText);
+    setAiSuggestionDraft(localChoices[0] || '');
     renderSuggestionChips(localChoices, [], true);
 
     try {
@@ -8950,6 +9078,8 @@ async function requestManualAiSuggestions() {
         renderSuggestionChips(localChoices, choices, false);
         setAiSuggestionDraft(visibleChoices[0] || '');
         if (panel) panel.dataset.state = 'ready';
+        const custom = $('aiCustomEdit');
+        if (custom && !custom.open) custom.removeAttribute('open');
         if (note) {
             note.textContent = visibleChoices.length
                 ? 'Choose a suggestion to replace only the selected text.'
@@ -9151,8 +9281,8 @@ function refreshSmartComposition(options = {}) {
         renderSuggestionChips([], [], false);
         clearAiSuggestionDraft();
         if (panel) panel.dataset.state = 'idle';
-        if (sourceLabel) sourceLabel.textContent = 'Select or edit a word to see suggestions.';
-        if (note) note.textContent = 'Suggestions update automatically as you select or type.';
+        if (sourceLabel) sourceLabel.textContent = 'Select or edit a word';
+        if (note) note.textContent = 'Suggestions appear here automatically.';
         updateTeachLanguageStatus();
         return;
     }
@@ -9192,8 +9322,8 @@ function refreshSmartComposition(options = {}) {
     }
     if (note) {
         note.textContent = localChoices.length
-            ? 'Instant suggestions shown. AI is checking for better options…'
-            : 'Checking this word automatically…';
+            ? 'Tap a suggestion to replace the selected text. AI is checking for more…'
+            : 'Checking suggestions for this selection…';
     }
 
     renderSuggestionChips(localChoices, [], true);
@@ -9331,6 +9461,32 @@ teachEditor.addEventListener('click', () => {
 teachEditor.addEventListener('select', () => {
     if (phoneticSelectionLock) return;
     refreshSmartComposition({ immediate: true });
+});
+
+// Android Chrome does not reliably emit textarea "select" while drag handles
+// are moving. Watch the document selection state too and refresh once the
+// handles settle.
+let teachSelectionTimer = null;
+document.addEventListener('selectionchange', () => {
+    if (!teachPanel.classList.contains('show') || document.activeElement !== teachEditor) return;
+    clearTimeout(teachSelectionTimer);
+    teachSelectionTimer = setTimeout(() => {
+        if (!phoneticSelectionLock) refreshSmartComposition({ immediate: true });
+    }, 90);
+});
+
+teachEditor.addEventListener('touchend', () => {
+    clearTimeout(teachSelectionTimer);
+    teachSelectionTimer = setTimeout(() => {
+        if (!phoneticSelectionLock) refreshSmartComposition({ immediate: true });
+    }, 120);
+}, { passive: true });
+
+teachEditor.addEventListener('pointerup', () => {
+    clearTimeout(teachSelectionTimer);
+    teachSelectionTimer = setTimeout(() => {
+        if (!phoneticSelectionLock) refreshSmartComposition({ immediate: true });
+    }, 80);
 });
 
 teachEditor.addEventListener('keyup', event => {
