@@ -15,6 +15,8 @@ assert(html.includes("document.addEventListener('selectionchange'"),'Android sel
 assert(html.includes("button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));"),'Suggestion chips must apply with one tap like the old UI');
 assert(html.includes("slice(0, 6)"),'Suggestion list must stay focused and compact');
 assert(html.includes("replace(/[\\u200B-\\u200D\\u2060\\uFEFF]/g, '')"),'Suggestion dedupe must remove invisible Unicode differences');
+assert(html.includes('syncTeachVisibleViewport'),'Teach must track the Android visual viewport');
+assert(html.includes("teachPanel.scrollIntoView?.({ behavior: 'smooth', block: 'start' })"),'Opening Teach must position the editor workspace itself, not the preview below it');
 let calls=0, chips=[];
 const editor={value:'flower',selectionStart:0,selectionEnd:6,focus(){},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
 const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,smartComposition:{source:'flower',start:0,end:6},
@@ -56,5 +58,5 @@ for(const name of ['wordAtTeachCaret','automaticSuggestionSegment','fetchAiTextS
  const file={name:'sample.pdf'};await assert.rejects(pdfRead.extractOneInputFile(file),/offline/);
  allowSecond=true;const resumed=await pdfRead.extractOneInputFile(file);assert.equal(resumed.pageCount,2);
  assert.deepEqual(pageCounts,[1,2],'A manual PDF retry reuses completed page reads and only retries the failed page');
- console.log('Android selection drives automatic suggestions; chips stay horizontal, focused, deduplicated and one-tap.');
+ console.log('Android selection and visual viewport tracking keep suggestions, editor and actions visible while Teach is open.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
