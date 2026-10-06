@@ -4299,6 +4299,39 @@
             display: none !important;
         }
 
+        /* v42 Teach-first friendly workspace */
+        .main.workflow-active[data-view="result"] { max-width: 760px !important; }
+        .draft-pages { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: 0.35rem !important; }
+        .draft-page-preview { aspect-ratio: 3 / 4 !important; max-height: 96px !important; }
+        .document-bar { min-height: 46px !important; padding: 0.55rem 0.75rem 0.4rem !important; }
+        .document-bar-title strong { font-size: 0.82rem !important; }
+        .document-toolbar { position: static !important; min-height: 46px !important; padding: 0.35rem 0.45rem !important; background: #fff !important; }
+        .results-actions { flex-wrap: nowrap !important; }
+        .results-actions .action-btn { min-width: 62px !important; justify-content: center !important; }
+        .teach-primary-btn { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; font-weight: 800 !important; }
+        .output-body { min-height: 300px !important; padding: 1rem !important; }
+        .teach-panel { margin: 0.55rem !important; padding: 0.8rem !important; border: 1px solid #dbeafe !important; border-radius: 14px !important; background: #f8fbff !important; }
+        .teach-suggestion-card { display: block !important; background: #fff !important; }
+        .teach-editor { min-height: 360px !important; border-radius: 10px !important; }
+        .ai-suggestion-editor-wrap { display:block; margin-top:0.6rem; }
+        .ai-suggestion-editor-wrap > span { display:block; margin-bottom:0.3rem; color:var(--text2); font-size:0.66rem; font-weight:800; }
+        .ai-suggestion-editor { width:100%; min-height:78px; max-height:180px; resize:vertical; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:9px; padding:0.62rem 0.7rem; background:#fff; color:var(--text); font:500 0.84rem/1.5 'Hind','Noto Sans Devanagari','Noto Sans Telugu',Tahoma,sans-serif; }
+        .ai-suggestion-actions { display:flex; gap:0.4rem; margin-top:0.45rem; }
+        .ai-suggestion-actions .teach-tool { flex:1; }
+        .ai-apply-button { background:var(--accent) !important; color:#fff !important; border-color:var(--accent) !important; }
+        @media (max-width:700px) {
+            .draft-pages { grid-template-columns:repeat(4,minmax(0,1fr)) !important; }
+            .draft-page-preview { max-height:84px !important; }
+            .document-toolbar { flex-direction:column !important; align-items:stretch !important; }
+            .output-tabs,.results-actions { width:100% !important; }
+            .output-tab,.results-actions .action-btn { flex:1 1 0 !important; }
+            .results-actions .action-btn svg { display:none !important; }
+            .teach-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+            .teach-toolbar .ai-suggest-button { grid-column:1/-1 !important; }
+            .teach-editor { min-height:48vh !important; height:auto !important; max-height:58vh !important; }
+        }
+        @media (max-width:380px) { .draft-pages { grid-template-columns:repeat(3,minmax(0,1fr)) !important; } }
+
         @media (max-width: 700px) {
             .main.workflow-active[data-view="result"] {
                 padding: 0.55rem 0.55rem 1.25rem !important;
@@ -4930,6 +4963,205 @@
                 font-size: 0.68rem !important;
             }
         }
+
+        /* v43 restore classic draft UI */
+        .drafts-card.has-active-draft {
+            margin: 0 0 0.75rem !important;
+            padding: 0.85rem !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 14px !important;
+            background: #fff !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        .drafts-card.has-active-draft .draft-editor {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+            border-top: 0 !important;
+        }
+
+        .draft-editor-head {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.45rem !important;
+            flex-wrap: wrap !important;
+            min-height: auto !important;
+            padding: 0 !important;
+            border: 0 !important;
+        }
+
+        .draft-title-input {
+            flex: 1 1 220px !important;
+            width: auto !important;
+            min-width: 0 !important;
+            padding: 0.55rem 0.65rem !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 9px !important;
+            background: var(--bg) !important;
+            font-size: 0.9rem !important;
+            font-weight: 700 !important;
+        }
+
+        .draft-meta {
+            width: 100% !important;
+            order: 5 !important;
+            color: var(--text3) !important;
+            font-size: 0.68rem !important;
+        }
+
+        .draft-sources {
+            display: block !important;
+            margin: 0.65rem 0 0 !important;
+            padding: 0.6rem 0 0 !important;
+            border: 0 !important;
+            border-top: 1px solid var(--border) !important;
+        }
+
+        .draft-sources > summary {
+            display: list-item !important;
+            min-height: auto !important;
+            color: var(--text2) !important;
+            font-size: 0.76rem !important;
+            font-weight: 750 !important;
+            cursor: pointer;
+        }
+
+        .draft-pages {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)) !important;
+            gap: 0.5rem !important;
+            margin-top: 0.55rem !important;
+            overflow: visible !important;
+        }
+
+        .draft-page {
+            min-width: 0 !important;
+            padding: 0.42rem !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            background: var(--bg) !important;
+        }
+
+        .draft-page-preview.old-draft-preview {
+            width: 100% !important;
+            height: 72px !important;
+            max-height: 72px !important;
+            aspect-ratio: auto !important;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 7px !important;
+            overflow: hidden !important;
+            background: var(--surface3) !important;
+        }
+
+        .draft-page-img {
+            width: 100% !important;
+            height: 72px !important;
+            object-fit: cover !important;
+            border-radius: 7px !important;
+        }
+
+        .draft-page-index {
+            margin-top: 0.3rem !important;
+            font-size: 0.66rem !important;
+            font-weight: 750 !important;
+            color: var(--text2) !important;
+        }
+
+        .draft-page-text {
+            display: block !important;
+            margin-top: 0.15rem !important;
+            max-height: 2.6em !important;
+            overflow: hidden !important;
+            color: var(--text3) !important;
+            font-size: 0.64rem !important;
+            line-height: 1.3 !important;
+        }
+
+        .draft-page-tools {
+            display: flex !important;
+            gap: 0.22rem !important;
+            margin-top: 0.35rem !important;
+        }
+
+        .draft-tool,
+        .draft-more > summary {
+            min-height: 30px !important;
+            padding: 0.28rem 0.3rem !important;
+            border: 1px solid var(--border2) !important;
+            border-radius: 7px !important;
+            background: #fff !important;
+            font-size: 0.62rem !important;
+            font-weight: 700 !important;
+        }
+
+        .draft-tool { flex: 1 !important; }
+
+        .draft-more {
+            display: block !important;
+            position: relative !important;
+        }
+
+        .draft-add {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.5rem !important;
+            flex-wrap: wrap !important;
+            margin-top: 0.65rem !important;
+        }
+
+        .draft-add .btn-extract {
+            position: static !important;
+            width: auto !important;
+            height: 40px !important;
+            margin: 0 !important;
+            padding: 0 0.8rem !important;
+            box-shadow: none !important;
+        }
+
+        .draft-hint {
+            color: var(--text3) !important;
+            font-size: 0.66rem !important;
+        }
+
+        .draft-actions {
+            display: flex !important;
+            gap: 0.45rem !important;
+            margin-top: 0.65rem !important;
+            padding-top: 0.65rem !important;
+            border-top: 1px solid var(--border) !important;
+        }
+
+        .draft-actions .draft-btn {
+            flex: 1 !important;
+            min-height: 42px !important;
+        }
+
+        @media (max-width: 600px) {
+            .drafts-card.has-active-draft {
+                padding: 0.7rem !important;
+            }
+            .draft-pages {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+                gap: 0.4rem !important;
+            }
+            .draft-page-preview.old-draft-preview,
+            .draft-page-img {
+                height: 62px !important;
+                max-height: 62px !important;
+            }
+            .draft-page-text {
+                display: none !important;
+            }
+            .draft-page-tools {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+            }
+            .draft-tool,
+            .draft-more > summary {
+                min-height: 32px !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -5098,36 +5330,31 @@
 
             <div class="draft-editor" id="draftEditor" hidden>
                 <div class="draft-editor-head">
-                    <div class="draft-identity">
-                        <input class="draft-title-input" id="draftTitleInput" maxlength="120" placeholder="Untitled paper" aria-label="Paper name">
-                        <span class="draft-meta" id="draftMeta"></span>
-                    </div>
-                    <details class="draft-document-menu">
-                        <summary aria-label="Document options">•••</summary>
-                        <div class="draft-document-menu-popover">
-                            <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close document</button>
-                            <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete document</button>
-                        </div>
-                    </details>
+                    <input class="draft-title-input" id="draftTitleInput" maxlength="120" placeholder="Paper name" aria-label="Paper name">
+                    <span class="draft-meta" id="draftMeta"></span>
+                    <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close</button>
+                    <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete</button>
                 </div>
 
-                <section class="draft-sources" aria-label="Source pages">
-                    <div class="draft-sources-head">
-                        <div>
-                            <strong>Pages <span class="draft-source-count" id="draftSourceCount"></span></strong>
-                            <span>Original uploads stay here while you edit the paper below.</span>
-                        </div>
-                        <button class="draft-add-compact" id="draftAddBtn" type="button">+ Add pages</button>
-                    </div>
+                <details class="draft-sources" open>
+                    <summary>Source pages</summary>
                     <div class="draft-pages" id="draftPages"></div>
-                    <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
-                    <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
-                </section>
+                </details>
 
                 <div class="draft-status" id="draftStatus" aria-live="polite"></div>
 
-                <div class="draft-actions" hidden>
-                    <button class="draft-btn" id="draftTeachBtn" type="button">Edit</button>
+                <div class="draft-add">
+                    <button class="btn-extract show" id="draftAddBtn" type="button">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16m8-8H4"/></svg>
+                        <span>Add pages</span>
+                    </button>
+                    <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
+                    <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
+                    <span class="draft-hint">Add more pages to the same paper anytime.</span>
+                </div>
+
+                <div class="draft-actions">
+                    <button class="draft-btn" id="draftTeachBtn" type="button">Teach paper</button>
                     <button class="draft-btn primary" id="draftWordBtn" type="button">Export Word</button>
                 </div>
             </div>
@@ -5139,7 +5366,7 @@
             <div class="output-card" id="outputCard">
                 <div class="document-bar">
                     <div class="document-bar-title">
-                        <strong>Document</strong>
+                        <strong>Extracted Text</strong>
                         <span id="documentStatus">Ready to review</span>
                     </div>
                     <div class="results-badges" id="statsBar"></div>
@@ -5147,34 +5374,30 @@
 
                 <div class="document-toolbar">
                     <div class="output-tabs" aria-label="Document view">
-                        <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Preview</button>
+                        <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
                         <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
                     </div>
                     <div class="results-actions">
-                        <button class="action-btn document-edit-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
-                            Edit
+                        <button class="action-btn" id="copyTextBtn" onclick="copyText(this)" type="button">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Copy
                         </button>
                         <button class="action-btn document-export-btn" id="downloadWordBtn" onclick="downloadWord(this)" type="button">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                             Word
                         </button>
-                        <details class="document-more">
-                            <summary aria-label="More document actions">•••</summary>
-                            <div class="document-more-popover">
-                                <button class="document-menu-action mobile-view-action" onclick="showTab('verified')" type="button">Preview</button>
-                                <button class="document-menu-action mobile-view-action" onclick="showTab('raw')" type="button">Plain text</button>
-                                <button class="document-menu-action" onclick="copyText(this)" type="button">Copy text</button>
-                                <button class="document-menu-action" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>Download TXT</button>
-                            </div>
-                        </details>
+                        <button class="action-btn document-export-btn" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>TXT</button>
+                        <button class="action-btn document-edit-btn teach-primary-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
+                            Teach
+                        </button>
                     </div>
                 </div>
 
                 <div class="teach-panel" id="teachPanel">
                     <div class="inline-edit-head">
                         <div>
-                            <strong>Edit preview</strong>
+                            <strong>Teach &amp; correct</strong>
                             <span id="paperSaveState" role="status" aria-live="polite"></span>
                         </div>
                         <button class="inline-edit-close" type="button" onclick="saveLearning()">Done</button>
@@ -5184,7 +5407,7 @@
                         <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                         <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
                         <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
-                        <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI help</button>
+                        <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI Suggestions</button>
                     </div>
 
                     <details class="teach-settings">
@@ -5243,6 +5466,14 @@
                         </div>
                         <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Choose AI suggestions only when you want help. Nothing changes automatically.</div>
                         <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
+                        <label class="ai-suggestion-editor-wrap" for="aiSuggestionEditor">
+                            <span>Edit suggestion before applying</span>
+                            <textarea class="ai-suggestion-editor" id="aiSuggestionEditor" spellcheck="false" placeholder="Pick an AI suggestion, edit it here, then apply it."></textarea>
+                        </label>
+                        <div class="ai-suggestion-actions">
+                            <button class="teach-tool ai-apply-button" id="aiSuggestionApplyBtn" type="button" onclick="applyEditedAiSuggestion()" disabled>Apply suggestion</button>
+                            <button class="teach-tool" type="button" onclick="clearAiSuggestionDraft()">Clear</button>
+                        </div>
                     </div>
 
                     <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
@@ -5282,6 +5513,7 @@ const quotaPercent=$('quotaPercent'),quotaNow=$('quotaNow'),quotaReset=$('quotaR
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
+const aiSuggestionEditor=$('aiSuggestionEditor'),aiSuggestionApplyBtn=$('aiSuggestionApplyBtn');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let files=[], file=null, lastResult=null, showingRaw=false;
@@ -7724,8 +7956,23 @@ function renderSuggestionChips(choices, aiChoices = [], loading = false) {
 
     translitSuggestions.querySelectorAll('button.translit-chip').forEach((button, index) => {
         button.addEventListener('mousedown', event => event.preventDefault());
-        button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));
+        button.addEventListener('click', () => setAiSuggestionDraft(merged[index]));
     });
+}
+
+function setAiSuggestionDraft(value) {
+    if (!aiSuggestionEditor) return;
+    const next = String(value || '').normalize('NFC');
+    aiSuggestionEditor.value = next;
+    if (aiSuggestionApplyBtn) aiSuggestionApplyBtn.disabled = !Boolean(next.trim() && smartComposition?.source);
+}
+
+function clearAiSuggestionDraft() { setAiSuggestionDraft(''); }
+
+function applyEditedAiSuggestion() {
+    const choice = String(aiSuggestionEditor?.value || '').trim();
+    if (!choice || !smartComposition?.source) return;
+    chooseSmartSuggestion(choice);
 }
 
 function showSmartSuggestions() {
@@ -7845,6 +8092,7 @@ async function requestManualAiSuggestions() {
         if (sequence !== aiSuggestionSequence || !teachPanel.classList.contains('show')) return;
         const visibleChoices = uniqueStrings([...choices, ...localChoices]);
         renderSuggestionChips(localChoices, choices, false);
+        setAiSuggestionDraft(visibleChoices[0] || '');
         if (panel) panel.dataset.state = 'ready';
         if (note) {
             note.textContent = visibleChoices.length
@@ -7891,6 +8139,7 @@ function chooseSmartSuggestion(choice) {
     const sourceLabel = $('aiSuggestionSource');
     const note = $('aiSuggestionNote');
     if (panel) panel.dataset.state = 'idle';
+    clearAiSuggestionDraft();
     if (sourceLabel) sourceLabel.textContent = 'Suggestion applied';
     if (note) note.textContent = 'Applied. Select another word or sentence whenever you want more help.';
 
@@ -7982,6 +8231,7 @@ function replaceTeachRange(start, end, replacement) {
 
 function refreshSmartComposition() {
     smartComposition = manualSuggestionSegment();
+    clearAiSuggestionDraft();
 
     if (!aiSuggestionPending) {
         const panel = $('aiSuggestionPanel');
@@ -8042,6 +8292,7 @@ function openTeachPanel() {
     const suggestionSource = $('aiSuggestionSource');
     const suggestionNote = $('aiSuggestionNote');
     if (suggestionPanel) suggestionPanel.dataset.state = 'idle';
+    clearAiSuggestionDraft();
     if (suggestionSource) suggestionSource.textContent = 'Tap inside a sentence or select text.';
     if (suggestionNote) suggestionNote.textContent = 'Choose AI suggestions only when you want help. Nothing changes automatically.';
 
@@ -8441,7 +8692,7 @@ function updateResultActionsForTab() {
     const word = $('downloadWordBtn'), txt = $('downloadTxtBtn'), edit = $('teachActionBtn');
     if (word) { word.hidden = showingRaw; word.disabled = showingRaw; }
     if (txt) { txt.hidden = !showingRaw; txt.disabled = !showingRaw; }
-    if (edit) { edit.hidden = showingRaw; edit.disabled = showingRaw; }
+    if (edit) { edit.hidden = false; edit.disabled = false; }
 
     const panel = $('teachPanel');
     const status = $('documentStatus');
@@ -11705,33 +11956,33 @@ function renderDraftPages() {
     const draft = activeDraft;
     const pages = draft?.pages || [];
     $('draftsCard')?.classList.toggle('has-active-draft', Boolean(draft));
-    const sourceCount = $('draftSourceCount');
-    if (sourceCount) sourceCount.textContent = draft ? '· ' + pages.length : '';
 
     if (draft && !pages.length) {
-        $('draftPages').innerHTML = '<div class="draft-empty">No source pages yet. Use Add pages to start.</div>';
+        $('draftPages').innerHTML = '<div class="draft-empty">No pages yet. Add a page below.</div>';
     } else {
         $('draftPages').innerHTML = pages.map((page, index) => {
             const text = String(page.text || '');
-            const preview = page.has_image
-                ? '<button class="draft-page-preview" type="button" data-page-preview="' + esc(page.id) + '" aria-label="Preview page ' + (index + 1) + '">' +
+            const image = page.has_image
+                ? '<button class="draft-page-preview old-draft-preview" type="button" data-page-preview="' + esc(page.id) + '" aria-label="Preview page ' + (index + 1) + '">' +
                     '<img class="draft-page-img" src="' + esc(draftImageUrl(draft.id, page.id)) + '" alt="Page ' + (index + 1) + '" loading="lazy">' +
                   '</button>'
-                : '<div class="draft-page-preview draft-page-placeholder"><div class="draft-page-img"></div></div>';
+                : '<div class="draft-page-img"></div>';
 
             return '<div class="draft-page">' +
-                preview +
-                '<div class="draft-page-row">' +
-                    '<div><div class="draft-page-index">Page ' + (index + 1) + '</div>' +
-                    '<div class="draft-page-state">' + (text ? 'Text ready' : (page.has_image ? 'Photo saved' : 'No photo')) + '</div></div>' +
-                    '<details class="draft-page-menu">' +
-                        '<summary aria-label="Page ' + (index + 1) + ' options">•••</summary>' +
-                        '<div class="draft-page-menu-popover">' +
-                            '<button type="button" data-page-up="' + esc(page.id) + '"' + (index === 0 ? ' disabled' : '') + '>Move earlier</button>' +
-                            '<button type="button" data-page-down="' + esc(page.id) + '"' + (index === pages.length - 1 ? ' disabled' : '') + '>Move later</button>' +
-                            (text
-                                ? '<button type="button" data-page-fix="' + esc(page.id) + '">Edit page text</button>'
-                                : '<button type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read text</button>') +
+                image +
+                '<div class="draft-page-index">Page ' + (index + 1) + '</div>' +
+                '<div class="draft-page-text">' +
+                    (esc(text.slice(0, 90)) || (page.has_image ? '<em>Photo saved</em>' : '<em>No photo</em>')) +
+                '</div>' +
+                '<div class="draft-page-tools">' +
+                    '<button class="draft-tool" type="button" data-page-up="' + esc(page.id) + '"' + (index === 0 ? ' disabled' : '') + '>Up</button>' +
+                    '<button class="draft-tool" type="button" data-page-down="' + esc(page.id) + '"' + (index === pages.length - 1 ? ' disabled' : '') + '>Down</button>' +
+                    (text
+                        ? '<button class="draft-tool" type="button" data-page-fix="' + esc(page.id) + '">Edit</button>'
+                        : '<button class="draft-tool" type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read</button>') +
+                    '<details class="draft-more">' +
+                        '<summary aria-label="More options for page ' + (index + 1) + '">More</summary>' +
+                        '<div class="draft-more-menu">' +
                             (page.has_image ? '<button type="button" data-page-replace="' + esc(page.id) + '">Replace photo</button>' : '') +
                             (text ? '<button type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read again</button>' : '') +
                             '<button type="button" class="rm" data-page-del="' + esc(page.id) + '">Remove page</button>' +
@@ -11753,7 +12004,7 @@ function renderDraftPages() {
     if (draft.document_text !== null && draft.document_text !== undefined) {
         $('draftPages').querySelectorAll('[data-page-up], [data-page-down], [data-page-fix], [data-page-del], [data-page-replace]').forEach(node => {
             node.disabled = true;
-            node.title = 'Edit the combined document below to preserve saved corrections.';
+            node.title = 'Edit the combined paper to preserve saved corrections.';
         });
         $('draftPages').querySelectorAll('[data-page-read]').forEach(node => {
             const page = pages.find(p => p.id === node.dataset.pageRead);
