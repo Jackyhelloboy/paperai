@@ -1708,7 +1708,7 @@ ${paperContextInstruction}`;
   if (isAiOutputTruncated(response)) {
     const continuation = await continueTruncatedOcr(env, model, imageContent, text, thinking, 2);
     text = continuation.text;
-    usage = mergeUsage(usage, continuation.usage);
+    usage = mergeAiUsage(usage, continuation.usage);
     attempts += continuation.extraAttempts;
     rescued = continuation.complete;
 
@@ -2155,7 +2155,7 @@ Rules:
     extraAttempts++;
     const continuation = sanitizePromptTemplateLeakage(extractAiText(response));
     text = mergeOcrContinuation(text, continuation);
-    usage = mergeUsage(usage, response?.usage || null);
+    usage = mergeAiUsage(usage, response?.usage || null);
 
     if (!isAiOutputTruncated(response)) {
       return { text, usage, extraAttempts, complete: true };
