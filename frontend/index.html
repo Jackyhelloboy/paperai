@@ -6657,6 +6657,320 @@
                 max-height:68vh !important;
             }
         }
+
+        /* v56 exact oldest PaperAI UI restoration */
+        .old-ui-compat {
+            display:none !important;
+        }
+
+        .classic-results {
+            display:none !important;
+            margin-top:1.25rem !important;
+            border:0 !important;
+            background:transparent !important;
+            box-shadow:none !important;
+        }
+
+        .classic-results.show {
+            display:block !important;
+        }
+
+        .classic-results-header {
+            display:flex !important;
+            align-items:center !important;
+            justify-content:space-between !important;
+            margin-bottom:.625rem !important;
+            padding:0 !important;
+            gap:.5rem !important;
+            border:0 !important;
+            background:transparent !important;
+        }
+
+        .classic-results-header .results-title {
+            font-size:.82rem !important;
+            font-weight:700 !important;
+            color:var(--text) !important;
+        }
+
+        .classic-results-actions {
+            display:flex !important;
+            position:static !important;
+            gap:.5rem !important;
+            margin:0 0 .625rem !important;
+            padding:0 !important;
+            background:transparent !important;
+            backdrop-filter:none !important;
+        }
+
+        .classic-results-actions .action-btn {
+            flex:1 1 0 !important;
+            width:auto !important;
+            min-width:0 !important;
+            height:40px !important;
+            min-height:40px !important;
+            padding:.4rem .5rem !important;
+            border:1px solid var(--border) !important;
+            border-radius:var(--radius-xs) !important;
+            background:var(--surface) !important;
+            color:var(--text2) !important;
+            font-size:.78rem !important;
+            font-weight:600 !important;
+            box-shadow:var(--shadow-xs) !important;
+        }
+
+        .classic-results-actions .teach-primary-btn,
+        .classic-results-actions .document-export-btn {
+            background:var(--surface) !important;
+            color:var(--text2) !important;
+            border-color:var(--border) !important;
+        }
+
+        .classic-teach-panel,
+        .classic-teach-panel.show,
+        .classic-teach-panel.teach-keyboard-open {
+            display:none !important;
+            height:auto !important;
+            max-height:none !important;
+            min-height:0 !important;
+            overflow:visible !important;
+            margin:0 0 .625rem !important;
+            padding:.75rem !important;
+            border:1px solid var(--border) !important;
+            border-radius:var(--radius-xs) !important;
+            background:var(--surface) !important;
+            box-shadow:var(--shadow-xs) !important;
+        }
+
+        .classic-teach-panel.show,
+        .classic-teach-panel.show.teach-keyboard-open {
+            display:block !important;
+        }
+
+        .classic-teach-panel .teach-title {
+            display:block !important;
+            margin:0 0 .35rem !important;
+            padding:0 !important;
+            font-size:.72rem !important;
+            font-weight:700 !important;
+            color:var(--text) !important;
+            line-height:1.3 !important;
+        }
+
+        .classic-teach-panel .teach-title::before {
+            display:none !important;
+        }
+
+        .classic-teach-panel .teach-sub,
+        .classic-teach-panel.teach-keyboard-open .teach-sub {
+            display:block !important;
+            margin:0 0 .5rem !important;
+            font-size:.62rem !important;
+            line-height:1.4 !important;
+            color:var(--text3) !important;
+        }
+
+        .classic-teach-panel .teach-toolbar,
+        .classic-teach-panel.teach-keyboard-open .teach-toolbar {
+            display:flex !important;
+            flex-wrap:wrap !important;
+            position:static !important;
+            gap:.4rem !important;
+            margin:0 0 .5rem !important;
+            padding:0 !important;
+            background:transparent !important;
+            backdrop-filter:none !important;
+        }
+
+        .classic-teach-panel .teach-tool,
+        .classic-teach-panel #teachOriginalBtn,
+        .classic-teach-panel.teach-keyboard-open .teach-tool,
+        .classic-teach-panel.teach-keyboard-open #teachOriginalBtn {
+            display:inline-flex !important;
+            width:auto !important;
+            min-width:0 !important;
+            height:auto !important;
+            min-height:34px !important;
+            padding:.35rem .65rem !important;
+            border:1px solid var(--border) !important;
+            border-radius:8px !important;
+            background:var(--surface) !important;
+            color:var(--text2) !important;
+            font:600 .68rem/1 Tahoma,Arial,sans-serif !important;
+            box-shadow:none !important;
+        }
+
+        .classic-teach-panel .teach-editor,
+        .classic-teach-panel.teach-keyboard-open .teach-editor {
+            display:block !important;
+            width:100% !important;
+            min-height:150px !important;
+            height:260px !important;
+            max-height:72vh !important;
+            resize:vertical !important;
+            overflow-y:auto !important;
+            border:1px solid var(--border) !important;
+            border-radius:var(--radius-xs) !important;
+            background:var(--bg) !important;
+            color:var(--text) !important;
+            font:.78rem/1.55 'Hind','Noto Sans Devanagari','Noto Sans Telugu','Mukta',Tahoma,sans-serif !important;
+            padding:.7rem !important;
+            outline:none !important;
+            box-shadow:none !important;
+        }
+
+        .classic-teach-panel .teach-editor:focus {
+            border-color:var(--accent) !important;
+        }
+
+        .classic-teach-panel .translit-suggestions,
+        .classic-teach-panel.teach-keyboard-open .translit-suggestions {
+            display:none !important;
+            flex-wrap:wrap !important;
+            position:static !important;
+            width:100% !important;
+            min-height:0 !important;
+            max-height:none !important;
+            gap:.35rem !important;
+            margin:.45rem 0 0 !important;
+            padding:.45rem !important;
+            border:1px solid var(--border) !important;
+            border-radius:8px !important;
+            background:var(--bg) !important;
+            overflow:visible !important;
+        }
+
+        .classic-teach-panel .translit-suggestions.show,
+        .classic-teach-panel.teach-keyboard-open .translit-suggestions.show {
+            display:flex !important;
+        }
+
+        .classic-teach-panel .translit-suggestions:not(.show)::before {
+            content:none !important;
+        }
+
+        .classic-teach-panel .translit-chip,
+        .classic-teach-panel.teach-keyboard-open .translit-chip {
+            flex:0 0 auto !important;
+            width:auto !important;
+            min-width:0 !important;
+            max-width:100% !important;
+            height:auto !important;
+            min-height:0 !important;
+            margin:0 !important;
+            padding:.28rem .6rem !important;
+            border:1px solid var(--border2) !important;
+            border-radius:999px !important;
+            background:var(--surface) !important;
+            color:var(--text) !important;
+            font:600 .78rem/1.2 'Hind','Noto Sans Devanagari',sans-serif !important;
+            white-space:normal !important;
+            overflow:visible !important;
+            text-overflow:clip !important;
+            box-shadow:none !important;
+        }
+
+        .classic-teach-panel .translit-chip:first-child {
+            border-color:var(--accent) !important;
+            background:var(--accent-soft) !important;
+            color:var(--accent) !important;
+        }
+
+        .classic-teach-panel .teach-actions,
+        .classic-teach-panel.teach-keyboard-open .teach-actions {
+            display:flex !important;
+            position:static !important;
+            gap:.5rem !important;
+            margin:.5rem 0 0 !important;
+            padding:0 !important;
+            background:transparent !important;
+        }
+
+        .classic-teach-panel .teach-actions .action-btn,
+        .classic-teach-panel.teach-keyboard-open .teach-actions .action-btn {
+            flex:1 !important;
+            width:auto !important;
+            height:40px !important;
+            min-height:40px !important;
+            padding:.4rem .5rem !important;
+            border-radius:var(--radius-xs) !important;
+            font-size:.78rem !important;
+            font-weight:600 !important;
+            box-shadow:var(--shadow-xs) !important;
+        }
+
+        .classic-output-card {
+            overflow:hidden !important;
+            border:1px solid var(--border) !important;
+            border-radius:var(--radius) !important;
+            background:var(--surface) !important;
+            box-shadow:var(--shadow) !important;
+        }
+
+        .classic-output-tabs {
+            display:flex !important;
+            width:100% !important;
+            padding:0 !important;
+            border-bottom:1px solid var(--border) !important;
+            background:var(--bg) !important;
+        }
+
+        .classic-output-tabs .output-tab {
+            flex:1 !important;
+            min-height:0 !important;
+            padding:.75rem !important;
+            border:0 !important;
+            border-radius:0 !important;
+            background:none !important;
+            color:var(--text3) !important;
+            font-size:.78rem !important;
+            font-weight:600 !important;
+        }
+
+        .classic-output-tabs .output-tab.active {
+            color:var(--text) !important;
+            background:var(--surface) !important;
+        }
+
+        .classic-output-card .output-body,
+        .classic-output-card[data-compact="true"] .output-body,
+        .classic-output-card[data-compact="false"] .output-body {
+            display:block !important;
+            min-height:0 !important;
+            max-height:400px !important;
+            padding:1.25rem !important;
+            overflow-y:auto !important;
+            background:var(--surface) !important;
+            font-family:Tahoma,'Noto Sans Devanagari','Noto Sans Telugu','Noto Sans',Arial,sans-serif !important;
+            font-size:11px !important;
+            line-height:1.65 !important;
+        }
+
+        @media(max-width:620px) {
+            .classic-results-actions .action-btn svg {
+                display:block !important;
+            }
+
+            .classic-teach-panel,
+            .classic-teach-panel.show,
+            .classic-teach-panel.show.teach-keyboard-open {
+                padding:.75rem !important;
+            }
+
+            .classic-teach-panel .teach-editor,
+            .classic-teach-panel.teach-keyboard-open .teach-editor {
+                min-height:150px !important;
+                height:260px !important;
+                max-height:68vh !important;
+                resize:vertical !important;
+                font-size:16px !important;
+            }
+
+            .classic-teach-panel .translit-suggestions,
+            .classic-teach-panel.teach-keyboard-open .translit-suggestions {
+                flex-wrap:wrap !important;
+                overflow:visible !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -6857,14 +7171,10 @@
 
         <div class="results classic-results" id="resBox">
             <div class="results-header classic-results-header">
-                <div>
-                    <span class="results-title">Extracted Text</span>
-                    <span class="classic-result-status" id="documentStatus">Ready to review</span>
-                </div>
-                <div class="classic-result-tools">
-                    <button class="preview-density-btn" id="previewDensityBtn" type="button" onclick="togglePreviewDensity()">Fit</button>
-                    <div class="results-badges" id="statsBar"></div>
-                </div>
+                <span class="results-title">Extracted Text</span>
+                <div class="results-badges" id="statsBar"></div>
+                <span class="classic-result-status old-ui-compat" id="documentStatus">Ready</span>
+                <button class="preview-density-btn old-ui-compat" id="previewDensityBtn" type="button" onclick="togglePreviewDensity()">Fit</button>
             </div>
 
             <details class="paper-marks" id="paperMarks" hidden><summary id="paperMarksSummary"></summary><div id="paperMarksDetail"></div></details>
@@ -6886,10 +7196,10 @@
             </div>
 
             <div class="teach-panel classic-teach-panel" id="teachPanel">
-                <div class="teach-title">Review &amp; correct <span id="paperSaveState" role="status" aria-live="polite"></span></div>
-                <div class="teach-sub">Select or type a word. Suggestions appear automatically above the editor; tap one to replace only that word.</div>
+                <div class="teach-title">Correct OCR to teach this browser <span id="paperSaveState" role="status" aria-live="polite"></span></div>
+                <div class="teach-sub">Smart multilingual typing is automatic. Select or edit text to see suggestions. Edits preview below.</div>
 
-                <div class="teach-language-bar">
+                <div class="teach-language-bar old-ui-compat" aria-hidden="true">
                     <label class="teach-lang-field">
                         <span class="teach-lang-label">Input language</span>
                         <select class="teach-lang-select" id="teachFromSelect">
@@ -6938,13 +7248,12 @@
                     <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
                 </div>
 
+                <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit extracted text"></textarea>
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite" aria-label="Suggestions"></div>
-                <div class="teach-editor-label"><strong>Edit extracted text</strong><span>Changes preview live</span></div>
-                <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
 
                 <div class="teach-actions">
-                    <button class="action-btn teach-save-btn" type="button" onclick="saveLearning()">Save changes</button>
-                    <button class="action-btn" type="button" onclick="closeTeachPanel()">Done</button>
+                    <button class="action-btn teach-save-btn" type="button" onclick="saveLearning()">Save &amp; apply</button>
+                    <button class="action-btn" type="button" onclick="closeTeachPanel()">Cancel</button>
                 </div>
             </div>
 
@@ -6952,7 +7261,7 @@
             <div class="output-card classic-output-card" id="outputCard">
                 <div class="output-tabs classic-output-tabs" aria-label="Document view">
                     <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
-                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain Text</button>
+                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Raw OCR</button>
                 </div>
                 <div class="output-body" id="textOut" aria-label="Extracted document preview"></div>
             </div>
