@@ -6360,6 +6360,182 @@
                 min-height:135px !important;
             }
         }
+
+        /* v54 focused Teach workspace */
+        .classic-teach-panel .teach-editor-controls {
+            display:flex !important;
+            align-items:center !important;
+            gap:.28rem !important;
+            color:var(--text3) !important;
+            font-size:.58rem !important;
+            font-weight:700 !important;
+        }
+
+        .classic-teach-panel .teach-size-btn {
+            width:28px !important;
+            height:28px !important;
+            min-height:28px !important;
+            padding:0 !important;
+            border:1px solid var(--border2) !important;
+            border-radius:7px !important;
+            background:#fff !important;
+            color:var(--text) !important;
+            font-size:.9rem !important;
+            font-weight:800 !important;
+            line-height:1 !important;
+        }
+
+        @media(max-width:620px) {
+            .classic-teach-panel.show {
+                display:grid !important;
+                grid-template-rows:auto auto auto auto auto minmax(120px,1fr) auto !important;
+                height:var(--teach-panel-height, calc(100dvh - 10px)) !important;
+                max-height:var(--teach-panel-height, calc(100dvh - 10px)) !important;
+                min-height:330px !important;
+                overflow:hidden !important;
+                padding:.46rem !important;
+                gap:0 !important;
+            }
+
+            .classic-teach-panel .teach-title {
+                grid-row:1 !important;
+            }
+
+            .classic-teach-panel .teach-language-bar {
+                grid-row:2 !important;
+            }
+
+            .classic-teach-panel .teach-toolbar {
+                grid-row:3 !important;
+            }
+
+            .classic-teach-panel .translit-suggestions {
+                grid-row:4 !important;
+                position:relative !important;
+                top:auto !important;
+                min-height:36px !important;
+                max-height:40px !important;
+                margin:.18rem 0 .22rem !important;
+                padding:.24rem !important;
+            }
+
+            .classic-teach-panel .translit-suggestions:not(.show) {
+                display:flex !important;
+                min-height:34px !important;
+                border:1px dashed var(--border) !important;
+                background:transparent !important;
+            }
+
+            .classic-teach-panel .translit-suggestions:not(.show)::before {
+                content:'Select or edit a word for suggestions' !important;
+                align-self:center !important;
+                padding:0 .25rem !important;
+                color:var(--text3) !important;
+                font-size:.6rem !important;
+                white-space:nowrap !important;
+            }
+
+            .classic-teach-panel .teach-editor-label {
+                grid-row:5 !important;
+                display:flex !important;
+                align-items:center !important;
+                justify-content:space-between !important;
+                margin:0 0 .16rem !important;
+            }
+
+            .classic-teach-panel .teach-editor {
+                grid-row:6 !important;
+                min-height:0 !important;
+                height:100% !important;
+                max-height:none !important;
+                resize:none !important;
+                overflow-y:auto !important;
+                padding:.5rem !important;
+            }
+
+            .classic-teach-panel .teach-actions {
+                grid-row:7 !important;
+                margin:.25rem 0 0 !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open {
+                grid-template-rows:auto auto auto minmax(108px,1fr) auto !important;
+                padding:.35rem !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-title,
+            .classic-teach-panel.teach-keyboard-open .teach-sub,
+            .classic-teach-panel.teach-keyboard-open .teach-lang-label,
+            .classic-teach-panel.teach-keyboard-open .teach-lang-arrow,
+            .classic-teach-panel.teach-keyboard-open .teach-language-status {
+                display:none !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-language-bar {
+                grid-row:1 !important;
+                display:grid !important;
+                grid-template-columns:1fr 1fr !important;
+                gap:.25rem !important;
+                padding:.25rem !important;
+                margin:0 0 .2rem !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-lang-select {
+                height:30px !important;
+                min-height:30px !important;
+                padding:.2rem 1.2rem .2rem .35rem !important;
+                font-size:.62rem !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-toolbar {
+                grid-row:2 !important;
+                margin:0 0 .18rem !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-tool,
+            .classic-teach-panel.teach-keyboard-open #teachOriginalBtn {
+                height:28px !important;
+                min-height:28px !important;
+                padding:.2rem .3rem !important;
+                font-size:.58rem !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .translit-suggestions {
+                grid-row:3 !important;
+                min-height:32px !important;
+                max-height:34px !important;
+                margin:0 0 .18rem !important;
+                padding:.18rem !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .translit-chip {
+                min-height:28px !important;
+                height:28px !important;
+                padding:.2rem .48rem !important;
+                font-size:.66rem !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-editor-label {
+                display:none !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-editor {
+                grid-row:4 !important;
+                min-height:108px !important;
+                font-size:15px !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-actions {
+                grid-row:5 !important;
+                margin:.18rem 0 0 !important;
+            }
+
+            .classic-teach-panel.teach-keyboard-open .teach-actions .action-btn {
+                height:30px !important;
+                min-height:30px !important;
+                font-size:.62rem !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -6642,7 +6818,14 @@
                 </div>
 
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite" aria-label="Suggestions"></div>
-                <div class="teach-editor-label"><strong>Edit extracted text</strong><span>Changes preview live</span></div>
+                <div class="teach-editor-label">
+                    <strong>Edit extracted text</strong>
+                    <div class="teach-editor-controls">
+                        <button class="teach-size-btn" type="button" onclick="adjustTeachEditorSize(-1)" aria-label="Make editor smaller">−</button>
+                        <span id="teachEditorSizeLabel">Large</span>
+                        <button class="teach-size-btn" type="button" onclick="adjustTeachEditorSize(1)" aria-label="Make editor larger">+</button>
+                    </div>
+                </div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
 
                 <div class="teach-actions">
@@ -9558,12 +9741,39 @@ function refreshSmartComposition(options = {}) {
     const delay = options.immediate ? 80 : (options.fromInput ? 650 : 360);
     scheduleAutomaticAiSuggestions(segment, delay);
 }
+let teachEditorSizeIndex = 2;
+const TEACH_EDITOR_SIZES = [
+    { label: 'Compact', factor: 0.72 },
+    { label: 'Medium', factor: 0.86 },
+    { label: 'Large', factor: 1 }
+];
+
 function syncTeachVisibleViewport() {
     const viewport = window.visualViewport;
-    const height = Math.max(360, Math.round(viewport?.height || window.innerHeight || 720));
+    const height = Math.max(340, Math.round(viewport?.height || window.innerHeight || 720));
     const top = Math.max(0, Math.round(viewport?.offsetTop || 0));
+    const layoutHeight = Math.max(height, Math.round(window.innerHeight || height));
+    const keyboardOpen = Boolean(viewport && height < layoutHeight * 0.76);
+    const size = TEACH_EDITOR_SIZES[teachEditorSizeIndex] || TEACH_EDITOR_SIZES[2];
+    const factor = keyboardOpen ? 1 : size.factor;
+    const panelHeight = Math.max(330, Math.round(height * factor) - 10);
+
     document.documentElement.style.setProperty('--teach-visible-height', height + 'px');
     document.documentElement.style.setProperty('--teach-visible-top', top + 'px');
+    document.documentElement.style.setProperty('--teach-panel-height', panelHeight + 'px');
+    teachPanel?.classList.toggle('teach-keyboard-open', keyboardOpen);
+
+    const label = $('teachEditorSizeLabel');
+    if (label) label.textContent = keyboardOpen ? 'Fit' : size.label;
+}
+
+function adjustTeachEditorSize(direction) {
+    teachEditorSizeIndex = Math.max(0, Math.min(TEACH_EDITOR_SIZES.length - 1, teachEditorSizeIndex + direction));
+    syncTeachVisibleViewport();
+    const size = TEACH_EDITOR_SIZES[teachEditorSizeIndex];
+    try { sessionStorage.setItem('paperai_teach_size_v1', String(teachEditorSizeIndex)); } catch (_) {}
+    const label = $('teachEditorSizeLabel');
+    if (label && !teachPanel.classList.contains('teach-keyboard-open')) label.textContent = size.label;
 }
 
 if (window.visualViewport) {
@@ -9597,6 +9807,12 @@ function openTeachPanel() {
         ? selectedDocumentLanguage
         : detectTeachLanguage(teachOriginalText);
 
+    try {
+        const savedTeachSize = Number(sessionStorage.getItem('paperai_teach_size_v1'));
+        if (Number.isInteger(savedTeachSize) && savedTeachSize >= 0 && savedTeachSize < TEACH_EDITOR_SIZES.length) {
+            teachEditorSizeIndex = savedTeachSize;
+        }
+    } catch (_) {}
     syncTeachVisibleViewport();
     teachPanel.classList.add('show');
     $('outputCard')?.classList.add('editing');
@@ -9621,8 +9837,16 @@ function openTeachPanel() {
         try { teachEditor.focus({ preventScroll: true }); }
         catch (_) { teachEditor.focus(); }
     };
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusInlineEditor);
-    else focusInlineEditor();
+    if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => {
+            syncTeachVisibleViewport();
+            focusInlineEditor();
+            setTimeout(syncTeachVisibleViewport, 120);
+        });
+    } else {
+        syncTeachVisibleViewport();
+        focusInlineEditor();
+    }
 }
 
 function closeTeachPanel() {
@@ -9639,6 +9863,8 @@ function closeTeachPanel() {
     $('outputCard')?.classList.remove('editing');
     document.documentElement.style.removeProperty('--teach-visible-height');
     document.documentElement.style.removeProperty('--teach-visible-top');
+    document.documentElement.style.removeProperty('--teach-panel-height');
+    teachPanel.classList.remove('teach-keyboard-open');
     smartComposition = null;
     aiSuggestionSequence++;
     if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
