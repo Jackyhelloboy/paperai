@@ -33,10 +33,10 @@ vm.runInContext(html.slice(start, end), context);
     const setFilesEnd = html.indexOf('\nfunction setFile(', setFilesStart);
     const setFilesSource = html.slice(setFilesStart, setFilesEnd);
     assert(setFilesSource.includes("let selectionNotice = '';"), 'Upload selection notice must be locally defined before preview rendering');
-    assert(setFilesSource.includes('renderBatchPreview();'), 'Valid uploads must render previews before background OCR begins');
+    assert(setFilesSource.includes('renderBatchPreview();'), 'Valid uploads must render previews immediately');
     assert(setFilesSource.includes('imageCount > SMART_MAX_IMAGES'), 'Upload path must enforce the five-image limit');
     assert(setFilesSource.includes('pdfCount > SMART_MAX_PDFS'), 'Upload path must enforce the one-PDF limit');
-    assert(setFilesSource.includes('scheduleSmartExtractionAfterPreview();'), 'Background extraction must be scheduled after preview rendering');
+    assert(!setFilesSource.includes('scheduleSmartExtractionAfterPreview();'), 'Selecting a file must not start background OCR');
 
     const previewClickStart = html.indexOf('batchPreview.onclick = e => {');
     const previewClickEnd = html.indexOf('\nloadLayoutPreferences();', previewClickStart);
@@ -63,6 +63,6 @@ vm.runInContext(html.slice(start, end), context);
     const sendSource = html.slice(sendStart, sendEnd);
     assert(sendSource.includes("formData.append('detail_' + index"), 'Prepared detail views must be sent with the full page');
     assert(sendSource.includes('pattern_hints'), 'OCR request must carry structural-only question-paper hints');
-    console.log('Prefetch/upload: selection cannot crash before preview, PDF taps open the correct page, fresh HTML is forced, and background OCR remains preview-first.');
+    console.log('Prefetch/upload: selection stays idle until Scan & Rebuild, PDF taps open the correct page, and fresh HTML is forced.');
 })().catch(e => { console.error(e); process.exitCode = 1; });
 
