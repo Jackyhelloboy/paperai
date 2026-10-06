@@ -6222,6 +6222,144 @@
                 max-height:56vh !important;
             }
         }
+
+        /* v53 viewport-aware Teach workspace */
+        .classic-teach-panel .translit-suggestions {
+            order:4 !important;
+            margin:.25rem 0 .3rem !important;
+            min-height:0 !important;
+        }
+
+        .classic-teach-panel .teach-editor-label {
+            order:5 !important;
+        }
+
+        .classic-teach-panel .teach-editor {
+            order:6 !important;
+        }
+
+        .classic-teach-panel .teach-actions {
+            order:7 !important;
+        }
+
+        .classic-teach-panel .translit-loading {
+            border-style:dashed !important;
+            color:var(--text3) !important;
+            background:transparent !important;
+        }
+
+        @media(max-width:620px) {
+            .classic-teach-panel.show {
+                display:flex !important;
+                flex-direction:column !important;
+                height:calc(var(--teach-visible-height, 100dvh) - 16px) !important;
+                max-height:calc(var(--teach-visible-height, 100dvh) - 16px) !important;
+                min-height:430px !important;
+                overflow:hidden !important;
+                scroll-margin-top:8px !important;
+                padding:.5rem !important;
+            }
+
+            .classic-teach-panel .teach-title,
+            .classic-teach-panel .teach-language-bar,
+            .classic-teach-panel .teach-toolbar,
+            .classic-teach-panel .translit-suggestions,
+            .classic-teach-panel .teach-editor-label,
+            .classic-teach-panel .teach-actions {
+                flex:0 0 auto !important;
+            }
+
+            .classic-teach-panel .teach-title {
+                margin-bottom:.28rem !important;
+            }
+
+            .classic-teach-panel .teach-language-bar {
+                margin-bottom:.28rem !important;
+                padding:.32rem !important;
+            }
+
+            .classic-teach-panel .teach-lang-label {
+                margin-bottom:.08rem !important;
+                font-size:.55rem !important;
+            }
+
+            .classic-teach-panel .teach-lang-select {
+                height:34px !important;
+                min-height:34px !important;
+                font-size:.65rem !important;
+            }
+
+            .classic-teach-panel .teach-toolbar {
+                margin-bottom:.28rem !important;
+            }
+
+            .classic-teach-panel .teach-tool,
+            .classic-teach-panel #teachOriginalBtn {
+                height:32px !important;
+                min-height:32px !important;
+                font-size:.62rem !important;
+            }
+
+            .classic-teach-panel .translit-suggestions {
+                min-height:38px !important;
+                max-height:44px !important;
+                padding:.28rem !important;
+                overflow-x:auto !important;
+                overflow-y:hidden !important;
+            }
+
+            .classic-teach-panel .translit-suggestions:not(.show) {
+                display:none !important;
+                min-height:0 !important;
+                margin:0 !important;
+                padding:0 !important;
+                border:0 !important;
+            }
+
+            .classic-teach-panel .translit-chip {
+                min-height:30px !important;
+                height:30px !important;
+                padding:.25rem .52rem !important;
+                font-size:.7rem !important;
+            }
+
+            .classic-teach-panel .teach-editor-label {
+                margin:.02rem 0 .18rem !important;
+            }
+
+            .classic-teach-panel .teach-editor {
+                flex:1 1 auto !important;
+                width:100% !important;
+                min-height:150px !important;
+                height:auto !important;
+                max-height:none !important;
+                resize:none !important;
+                overflow-y:auto !important;
+                overscroll-behavior:contain !important;
+                -webkit-overflow-scrolling:touch !important;
+                font-size:15px !important;
+                line-height:1.42 !important;
+            }
+
+            .classic-teach-panel .teach-actions {
+                margin-top:.3rem !important;
+            }
+
+            .classic-teach-panel .teach-actions .action-btn {
+                height:34px !important;
+                min-height:34px !important;
+            }
+        }
+
+        @media(max-width:380px) {
+            .classic-teach-panel.show {
+                min-height:400px !important;
+            }
+
+            .classic-teach-panel .teach-editor {
+                min-height:135px !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -6452,7 +6590,7 @@
 
             <div class="teach-panel classic-teach-panel" id="teachPanel">
                 <div class="teach-title">Review &amp; correct <span id="paperSaveState" role="status" aria-live="polite"></span></div>
-                <div class="teach-sub">Edit the extracted text directly. Select or type a word and suggestions appear automatically below the editor.</div>
+                <div class="teach-sub">Select or type a word. Suggestions appear automatically above the editor; tap one to replace only that word.</div>
 
                 <div class="teach-language-bar">
                     <label class="teach-lang-field">
@@ -6503,9 +6641,9 @@
                     <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
                 </div>
 
+                <div class="translit-suggestions" id="translitSuggestions" aria-live="polite" aria-label="Suggestions"></div>
                 <div class="teach-editor-label"><strong>Edit extracted text</strong><span>Changes preview live</span></div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
-                <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
 
                 <div class="teach-actions">
                     <button class="action-btn teach-save-btn" type="button" onclick="saveLearning()">Save changes</button>
@@ -9003,7 +9141,7 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
 
 function renderSuggestionChips(choices, aiChoices = [], loading = false) {
     const merged = uniqueStrings([...(choices || []), ...(aiChoices || [])]).slice(0, 6);
-    const loadingChip = loading ? '<span class="translit-chip" style="cursor:default;opacity:.65">AI suggesting…</span>' : '';
+    const loadingChip = loading ? '<span class="translit-chip translit-loading" style="cursor:default;opacity:.6">Checking…</span>' : '';
 
     translitSuggestions.innerHTML =
         merged.map((choice, index) =>
@@ -9420,6 +9558,20 @@ function refreshSmartComposition(options = {}) {
     const delay = options.immediate ? 80 : (options.fromInput ? 650 : 360);
     scheduleAutomaticAiSuggestions(segment, delay);
 }
+function syncTeachVisibleViewport() {
+    const viewport = window.visualViewport;
+    const height = Math.max(360, Math.round(viewport?.height || window.innerHeight || 720));
+    const top = Math.max(0, Math.round(viewport?.offsetTop || 0));
+    document.documentElement.style.setProperty('--teach-visible-height', height + 'px');
+    document.documentElement.style.setProperty('--teach-visible-top', top + 'px');
+}
+
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncTeachVisibleViewport, { passive: true });
+    window.visualViewport.addEventListener('scroll', syncTeachVisibleViewport, { passive: true });
+}
+window.addEventListener('resize', syncTeachVisibleViewport, { passive: true });
+
 function openTeachPanel() {
     if (!lastResult) return;
     if (teachPanel.classList.contains('show')) { teachEditor.focus(); return; }
@@ -9445,6 +9597,7 @@ function openTeachPanel() {
         ? selectedDocumentLanguage
         : detectTeachLanguage(teachOriginalText);
 
+    syncTeachVisibleViewport();
     teachPanel.classList.add('show');
     $('outputCard')?.classList.add('editing');
     const documentStatus = $('documentStatus');
@@ -9464,8 +9617,9 @@ function openTeachPanel() {
     renderTeachPreview();
 
     const focusInlineEditor = () => {
-        $('outputCard')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-        teachEditor.focus();
+        teachPanel.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        try { teachEditor.focus({ preventScroll: true }); }
+        catch (_) { teachEditor.focus(); }
     };
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusInlineEditor);
     else focusInlineEditor();
@@ -9483,6 +9637,8 @@ function closeTeachPanel() {
 
     teachPanel.classList.remove('show');
     $('outputCard')?.classList.remove('editing');
+    document.documentElement.style.removeProperty('--teach-visible-height');
+    document.documentElement.style.removeProperty('--teach-visible-top');
     smartComposition = null;
     aiSuggestionSequence++;
     if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
