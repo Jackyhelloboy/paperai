@@ -4299,6 +4299,39 @@
             display: none !important;
         }
 
+        /* v42 Teach-first friendly workspace */
+        .main.workflow-active[data-view="result"] { max-width: 760px !important; }
+        .draft-pages { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: 0.35rem !important; }
+        .draft-page-preview { aspect-ratio: 3 / 4 !important; max-height: 96px !important; }
+        .document-bar { min-height: 46px !important; padding: 0.55rem 0.75rem 0.4rem !important; }
+        .document-bar-title strong { font-size: 0.82rem !important; }
+        .document-toolbar { position: static !important; min-height: 46px !important; padding: 0.35rem 0.45rem !important; background: #fff !important; }
+        .results-actions { flex-wrap: nowrap !important; }
+        .results-actions .action-btn { min-width: 62px !important; justify-content: center !important; }
+        .teach-primary-btn { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; font-weight: 800 !important; }
+        .output-body { min-height: 300px !important; padding: 1rem !important; }
+        .teach-panel { margin: 0.55rem !important; padding: 0.8rem !important; border: 1px solid #dbeafe !important; border-radius: 14px !important; background: #f8fbff !important; }
+        .teach-suggestion-card { display: block !important; background: #fff !important; }
+        .teach-editor { min-height: 360px !important; border-radius: 10px !important; }
+        .ai-suggestion-editor-wrap { display:block; margin-top:0.6rem; }
+        .ai-suggestion-editor-wrap > span { display:block; margin-bottom:0.3rem; color:var(--text2); font-size:0.66rem; font-weight:800; }
+        .ai-suggestion-editor { width:100%; min-height:78px; max-height:180px; resize:vertical; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:9px; padding:0.62rem 0.7rem; background:#fff; color:var(--text); font:500 0.84rem/1.5 'Hind','Noto Sans Devanagari','Noto Sans Telugu',Tahoma,sans-serif; }
+        .ai-suggestion-actions { display:flex; gap:0.4rem; margin-top:0.45rem; }
+        .ai-suggestion-actions .teach-tool { flex:1; }
+        .ai-apply-button { background:var(--accent) !important; color:#fff !important; border-color:var(--accent) !important; }
+        @media (max-width:700px) {
+            .draft-pages { grid-template-columns:repeat(4,minmax(0,1fr)) !important; }
+            .draft-page-preview { max-height:84px !important; }
+            .document-toolbar { flex-direction:column !important; align-items:stretch !important; }
+            .output-tabs,.results-actions { width:100% !important; }
+            .output-tab,.results-actions .action-btn { flex:1 1 0 !important; }
+            .results-actions .action-btn svg { display:none !important; }
+            .teach-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+            .teach-toolbar .ai-suggest-button { grid-column:1/-1 !important; }
+            .teach-editor { min-height:48vh !important; height:auto !important; max-height:58vh !important; }
+        }
+        @media (max-width:380px) { .draft-pages { grid-template-columns:repeat(3,minmax(0,1fr)) !important; } }
+
         @media (max-width: 700px) {
             .main.workflow-active[data-view="result"] {
                 padding: 0.55rem 0.55rem 1.25rem !important;
@@ -5139,7 +5172,7 @@
             <div class="output-card" id="outputCard">
                 <div class="document-bar">
                     <div class="document-bar-title">
-                        <strong>Document</strong>
+                        <strong>Extracted Text</strong>
                         <span id="documentStatus">Ready to review</span>
                     </div>
                     <div class="results-badges" id="statsBar"></div>
@@ -5147,34 +5180,30 @@
 
                 <div class="document-toolbar">
                     <div class="output-tabs" aria-label="Document view">
-                        <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Preview</button>
+                        <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
                         <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
                     </div>
                     <div class="results-actions">
-                        <button class="action-btn document-edit-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
-                            Edit
+                        <button class="action-btn" id="copyTextBtn" onclick="copyText(this)" type="button">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Copy
                         </button>
                         <button class="action-btn document-export-btn" id="downloadWordBtn" onclick="downloadWord(this)" type="button">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                             Word
                         </button>
-                        <details class="document-more">
-                            <summary aria-label="More document actions">•••</summary>
-                            <div class="document-more-popover">
-                                <button class="document-menu-action mobile-view-action" onclick="showTab('verified')" type="button">Preview</button>
-                                <button class="document-menu-action mobile-view-action" onclick="showTab('raw')" type="button">Plain text</button>
-                                <button class="document-menu-action" onclick="copyText(this)" type="button">Copy text</button>
-                                <button class="document-menu-action" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>Download TXT</button>
-                            </div>
-                        </details>
+                        <button class="action-btn document-export-btn" id="downloadTxtBtn" onclick="downloadText(this)" type="button" hidden>TXT</button>
+                        <button class="action-btn document-edit-btn teach-primary-btn" id="teachActionBtn" onclick="openTeachPanel()" type="button">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
+                            Teach
+                        </button>
                     </div>
                 </div>
 
                 <div class="teach-panel" id="teachPanel">
                     <div class="inline-edit-head">
                         <div>
-                            <strong>Edit preview</strong>
+                            <strong>Teach &amp; correct</strong>
                             <span id="paperSaveState" role="status" aria-live="polite"></span>
                         </div>
                         <button class="inline-edit-close" type="button" onclick="saveLearning()">Done</button>
@@ -5184,7 +5213,7 @@
                         <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                         <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
                         <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Restore</button>
-                        <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI help</button>
+                        <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ AI Suggestions</button>
                     </div>
 
                     <details class="teach-settings">
@@ -5243,6 +5272,14 @@
                         </div>
                         <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Choose AI suggestions only when you want help. Nothing changes automatically.</div>
                         <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
+                        <label class="ai-suggestion-editor-wrap" for="aiSuggestionEditor">
+                            <span>Edit suggestion before applying</span>
+                            <textarea class="ai-suggestion-editor" id="aiSuggestionEditor" spellcheck="false" placeholder="Pick an AI suggestion, edit it here, then apply it."></textarea>
+                        </label>
+                        <div class="ai-suggestion-actions">
+                            <button class="teach-tool ai-apply-button" id="aiSuggestionApplyBtn" type="button" onclick="applyEditedAiSuggestion()" disabled>Apply suggestion</button>
+                            <button class="teach-tool" type="button" onclick="clearAiSuggestionDraft()">Clear</button>
+                        </div>
                     </div>
 
                     <textarea class="teach-editor" id="teachEditor" spellcheck="false" aria-label="Edit document text"></textarea>
@@ -5282,6 +5319,7 @@ const quotaPercent=$('quotaPercent'),quotaNow=$('quotaNow'),quotaReset=$('quotaR
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
+const aiSuggestionEditor=$('aiSuggestionEditor'),aiSuggestionApplyBtn=$('aiSuggestionApplyBtn');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let files=[], file=null, lastResult=null, showingRaw=false;
@@ -7724,8 +7762,23 @@ function renderSuggestionChips(choices, aiChoices = [], loading = false) {
 
     translitSuggestions.querySelectorAll('button.translit-chip').forEach((button, index) => {
         button.addEventListener('mousedown', event => event.preventDefault());
-        button.addEventListener('click', () => chooseSmartSuggestion(merged[index]));
+        button.addEventListener('click', () => setAiSuggestionDraft(merged[index]));
     });
+}
+
+function setAiSuggestionDraft(value) {
+    if (!aiSuggestionEditor) return;
+    const next = String(value || '').normalize('NFC');
+    aiSuggestionEditor.value = next;
+    if (aiSuggestionApplyBtn) aiSuggestionApplyBtn.disabled = !Boolean(next.trim() && smartComposition?.source);
+}
+
+function clearAiSuggestionDraft() { setAiSuggestionDraft(''); }
+
+function applyEditedAiSuggestion() {
+    const choice = String(aiSuggestionEditor?.value || '').trim();
+    if (!choice || !smartComposition?.source) return;
+    chooseSmartSuggestion(choice);
 }
 
 function showSmartSuggestions() {
@@ -7845,6 +7898,7 @@ async function requestManualAiSuggestions() {
         if (sequence !== aiSuggestionSequence || !teachPanel.classList.contains('show')) return;
         const visibleChoices = uniqueStrings([...choices, ...localChoices]);
         renderSuggestionChips(localChoices, choices, false);
+        setAiSuggestionDraft(visibleChoices[0] || '');
         if (panel) panel.dataset.state = 'ready';
         if (note) {
             note.textContent = visibleChoices.length
@@ -7891,6 +7945,7 @@ function chooseSmartSuggestion(choice) {
     const sourceLabel = $('aiSuggestionSource');
     const note = $('aiSuggestionNote');
     if (panel) panel.dataset.state = 'idle';
+    clearAiSuggestionDraft();
     if (sourceLabel) sourceLabel.textContent = 'Suggestion applied';
     if (note) note.textContent = 'Applied. Select another word or sentence whenever you want more help.';
 
@@ -7982,6 +8037,7 @@ function replaceTeachRange(start, end, replacement) {
 
 function refreshSmartComposition() {
     smartComposition = manualSuggestionSegment();
+    clearAiSuggestionDraft();
 
     if (!aiSuggestionPending) {
         const panel = $('aiSuggestionPanel');
@@ -8042,6 +8098,7 @@ function openTeachPanel() {
     const suggestionSource = $('aiSuggestionSource');
     const suggestionNote = $('aiSuggestionNote');
     if (suggestionPanel) suggestionPanel.dataset.state = 'idle';
+    clearAiSuggestionDraft();
     if (suggestionSource) suggestionSource.textContent = 'Tap inside a sentence or select text.';
     if (suggestionNote) suggestionNote.textContent = 'Choose AI suggestions only when you want help. Nothing changes automatically.';
 
@@ -8441,7 +8498,7 @@ function updateResultActionsForTab() {
     const word = $('downloadWordBtn'), txt = $('downloadTxtBtn'), edit = $('teachActionBtn');
     if (word) { word.hidden = showingRaw; word.disabled = showingRaw; }
     if (txt) { txt.hidden = !showingRaw; txt.disabled = !showingRaw; }
-    if (edit) { edit.hidden = showingRaw; edit.disabled = showingRaw; }
+    if (edit) { edit.hidden = false; edit.disabled = false; }
 
     const panel = $('teachPanel');
     const status = $('documentStatus');
