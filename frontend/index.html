@@ -4963,6 +4963,205 @@
                 font-size: 0.68rem !important;
             }
         }
+
+        /* v43 restore classic draft UI */
+        .drafts-card.has-active-draft {
+            margin: 0 0 0.75rem !important;
+            padding: 0.85rem !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 14px !important;
+            background: #fff !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        .drafts-card.has-active-draft .draft-editor {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+            border-top: 0 !important;
+        }
+
+        .draft-editor-head {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.45rem !important;
+            flex-wrap: wrap !important;
+            min-height: auto !important;
+            padding: 0 !important;
+            border: 0 !important;
+        }
+
+        .draft-title-input {
+            flex: 1 1 220px !important;
+            width: auto !important;
+            min-width: 0 !important;
+            padding: 0.55rem 0.65rem !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 9px !important;
+            background: var(--bg) !important;
+            font-size: 0.9rem !important;
+            font-weight: 700 !important;
+        }
+
+        .draft-meta {
+            width: 100% !important;
+            order: 5 !important;
+            color: var(--text3) !important;
+            font-size: 0.68rem !important;
+        }
+
+        .draft-sources {
+            display: block !important;
+            margin: 0.65rem 0 0 !important;
+            padding: 0.6rem 0 0 !important;
+            border: 0 !important;
+            border-top: 1px solid var(--border) !important;
+        }
+
+        .draft-sources > summary {
+            display: list-item !important;
+            min-height: auto !important;
+            color: var(--text2) !important;
+            font-size: 0.76rem !important;
+            font-weight: 750 !important;
+            cursor: pointer;
+        }
+
+        .draft-pages {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)) !important;
+            gap: 0.5rem !important;
+            margin-top: 0.55rem !important;
+            overflow: visible !important;
+        }
+
+        .draft-page {
+            min-width: 0 !important;
+            padding: 0.42rem !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            background: var(--bg) !important;
+        }
+
+        .draft-page-preview.old-draft-preview {
+            width: 100% !important;
+            height: 72px !important;
+            max-height: 72px !important;
+            aspect-ratio: auto !important;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 7px !important;
+            overflow: hidden !important;
+            background: var(--surface3) !important;
+        }
+
+        .draft-page-img {
+            width: 100% !important;
+            height: 72px !important;
+            object-fit: cover !important;
+            border-radius: 7px !important;
+        }
+
+        .draft-page-index {
+            margin-top: 0.3rem !important;
+            font-size: 0.66rem !important;
+            font-weight: 750 !important;
+            color: var(--text2) !important;
+        }
+
+        .draft-page-text {
+            display: block !important;
+            margin-top: 0.15rem !important;
+            max-height: 2.6em !important;
+            overflow: hidden !important;
+            color: var(--text3) !important;
+            font-size: 0.64rem !important;
+            line-height: 1.3 !important;
+        }
+
+        .draft-page-tools {
+            display: flex !important;
+            gap: 0.22rem !important;
+            margin-top: 0.35rem !important;
+        }
+
+        .draft-tool,
+        .draft-more > summary {
+            min-height: 30px !important;
+            padding: 0.28rem 0.3rem !important;
+            border: 1px solid var(--border2) !important;
+            border-radius: 7px !important;
+            background: #fff !important;
+            font-size: 0.62rem !important;
+            font-weight: 700 !important;
+        }
+
+        .draft-tool { flex: 1 !important; }
+
+        .draft-more {
+            display: block !important;
+            position: relative !important;
+        }
+
+        .draft-add {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.5rem !important;
+            flex-wrap: wrap !important;
+            margin-top: 0.65rem !important;
+        }
+
+        .draft-add .btn-extract {
+            position: static !important;
+            width: auto !important;
+            height: 40px !important;
+            margin: 0 !important;
+            padding: 0 0.8rem !important;
+            box-shadow: none !important;
+        }
+
+        .draft-hint {
+            color: var(--text3) !important;
+            font-size: 0.66rem !important;
+        }
+
+        .draft-actions {
+            display: flex !important;
+            gap: 0.45rem !important;
+            margin-top: 0.65rem !important;
+            padding-top: 0.65rem !important;
+            border-top: 1px solid var(--border) !important;
+        }
+
+        .draft-actions .draft-btn {
+            flex: 1 !important;
+            min-height: 42px !important;
+        }
+
+        @media (max-width: 600px) {
+            .drafts-card.has-active-draft {
+                padding: 0.7rem !important;
+            }
+            .draft-pages {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+                gap: 0.4rem !important;
+            }
+            .draft-page-preview.old-draft-preview,
+            .draft-page-img {
+                height: 62px !important;
+                max-height: 62px !important;
+            }
+            .draft-page-text {
+                display: none !important;
+            }
+            .draft-page-tools {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+            }
+            .draft-tool,
+            .draft-more > summary {
+                min-height: 32px !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -5131,36 +5330,31 @@
 
             <div class="draft-editor" id="draftEditor" hidden>
                 <div class="draft-editor-head">
-                    <div class="draft-identity">
-                        <input class="draft-title-input" id="draftTitleInput" maxlength="120" placeholder="Untitled paper" aria-label="Paper name">
-                        <span class="draft-meta" id="draftMeta"></span>
-                    </div>
-                    <details class="draft-document-menu">
-                        <summary aria-label="Document options">•••</summary>
-                        <div class="draft-document-menu-popover">
-                            <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close document</button>
-                            <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete document</button>
-                        </div>
-                    </details>
+                    <input class="draft-title-input" id="draftTitleInput" maxlength="120" placeholder="Paper name" aria-label="Paper name">
+                    <span class="draft-meta" id="draftMeta"></span>
+                    <button class="draft-btn ghost" id="draftCloseBtn" type="button">Close</button>
+                    <button class="draft-btn danger" id="draftDeleteBtn" type="button">Delete</button>
                 </div>
 
-                <section class="draft-sources" aria-label="Source pages">
-                    <div class="draft-sources-head">
-                        <div>
-                            <strong>Pages <span class="draft-source-count" id="draftSourceCount"></span></strong>
-                            <span>Original uploads stay here while you edit the paper below.</span>
-                        </div>
-                        <button class="draft-add-compact" id="draftAddBtn" type="button">+ Add pages</button>
-                    </div>
+                <details class="draft-sources" open>
+                    <summary>Source pages</summary>
                     <div class="draft-pages" id="draftPages"></div>
-                    <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
-                    <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
-                </section>
+                </details>
 
                 <div class="draft-status" id="draftStatus" aria-live="polite"></div>
 
-                <div class="draft-actions" hidden>
-                    <button class="draft-btn" id="draftTeachBtn" type="button">Edit</button>
+                <div class="draft-add">
+                    <button class="btn-extract show" id="draftAddBtn" type="button">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16m8-8H4"/></svg>
+                        <span>Add pages</span>
+                    </button>
+                    <input type="file" id="draftAddInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.pdf,.txt,.docx">
+                    <input type="file" id="draftReplaceInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
+                    <span class="draft-hint">Add more pages to the same paper anytime.</span>
+                </div>
+
+                <div class="draft-actions">
+                    <button class="draft-btn" id="draftTeachBtn" type="button">Teach paper</button>
                     <button class="draft-btn primary" id="draftWordBtn" type="button">Export Word</button>
                 </div>
             </div>
@@ -11762,33 +11956,33 @@ function renderDraftPages() {
     const draft = activeDraft;
     const pages = draft?.pages || [];
     $('draftsCard')?.classList.toggle('has-active-draft', Boolean(draft));
-    const sourceCount = $('draftSourceCount');
-    if (sourceCount) sourceCount.textContent = draft ? '· ' + pages.length : '';
 
     if (draft && !pages.length) {
-        $('draftPages').innerHTML = '<div class="draft-empty">No source pages yet. Use Add pages to start.</div>';
+        $('draftPages').innerHTML = '<div class="draft-empty">No pages yet. Add a page below.</div>';
     } else {
         $('draftPages').innerHTML = pages.map((page, index) => {
             const text = String(page.text || '');
-            const preview = page.has_image
-                ? '<button class="draft-page-preview" type="button" data-page-preview="' + esc(page.id) + '" aria-label="Preview page ' + (index + 1) + '">' +
+            const image = page.has_image
+                ? '<button class="draft-page-preview old-draft-preview" type="button" data-page-preview="' + esc(page.id) + '" aria-label="Preview page ' + (index + 1) + '">' +
                     '<img class="draft-page-img" src="' + esc(draftImageUrl(draft.id, page.id)) + '" alt="Page ' + (index + 1) + '" loading="lazy">' +
                   '</button>'
-                : '<div class="draft-page-preview draft-page-placeholder"><div class="draft-page-img"></div></div>';
+                : '<div class="draft-page-img"></div>';
 
             return '<div class="draft-page">' +
-                preview +
-                '<div class="draft-page-row">' +
-                    '<div><div class="draft-page-index">Page ' + (index + 1) + '</div>' +
-                    '<div class="draft-page-state">' + (text ? 'Text ready' : (page.has_image ? 'Photo saved' : 'No photo')) + '</div></div>' +
-                    '<details class="draft-page-menu">' +
-                        '<summary aria-label="Page ' + (index + 1) + ' options">•••</summary>' +
-                        '<div class="draft-page-menu-popover">' +
-                            '<button type="button" data-page-up="' + esc(page.id) + '"' + (index === 0 ? ' disabled' : '') + '>Move earlier</button>' +
-                            '<button type="button" data-page-down="' + esc(page.id) + '"' + (index === pages.length - 1 ? ' disabled' : '') + '>Move later</button>' +
-                            (text
-                                ? '<button type="button" data-page-fix="' + esc(page.id) + '">Edit page text</button>'
-                                : '<button type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read text</button>') +
+                image +
+                '<div class="draft-page-index">Page ' + (index + 1) + '</div>' +
+                '<div class="draft-page-text">' +
+                    (esc(text.slice(0, 90)) || (page.has_image ? '<em>Photo saved</em>' : '<em>No photo</em>')) +
+                '</div>' +
+                '<div class="draft-page-tools">' +
+                    '<button class="draft-tool" type="button" data-page-up="' + esc(page.id) + '"' + (index === 0 ? ' disabled' : '') + '>Up</button>' +
+                    '<button class="draft-tool" type="button" data-page-down="' + esc(page.id) + '"' + (index === pages.length - 1 ? ' disabled' : '') + '>Down</button>' +
+                    (text
+                        ? '<button class="draft-tool" type="button" data-page-fix="' + esc(page.id) + '">Edit</button>'
+                        : '<button class="draft-tool" type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read</button>') +
+                    '<details class="draft-more">' +
+                        '<summary aria-label="More options for page ' + (index + 1) + '">More</summary>' +
+                        '<div class="draft-more-menu">' +
                             (page.has_image ? '<button type="button" data-page-replace="' + esc(page.id) + '">Replace photo</button>' : '') +
                             (text ? '<button type="button" data-page-read="' + esc(page.id) + '"' + (page.has_image ? '' : ' disabled') + '>Read again</button>' : '') +
                             '<button type="button" class="rm" data-page-del="' + esc(page.id) + '">Remove page</button>' +
@@ -11810,7 +12004,7 @@ function renderDraftPages() {
     if (draft.document_text !== null && draft.document_text !== undefined) {
         $('draftPages').querySelectorAll('[data-page-up], [data-page-down], [data-page-fix], [data-page-del], [data-page-replace]').forEach(node => {
             node.disabled = true;
-            node.title = 'Edit the combined document below to preserve saved corrections.';
+            node.title = 'Edit the combined paper to preserve saved corrections.';
         });
         $('draftPages').querySelectorAll('[data-page-read]').forEach(node => {
             const page = pages.find(p => p.id === node.dataset.pageRead);
