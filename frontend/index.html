@@ -8825,6 +8825,10 @@ function scheduleAutomaticAiSuggestions(segment, delay = 520) {
         if (currentKey !== autoSuggestionKey) return;
 
         smartComposition = current;
+        if (aiSuggestionPending) {
+            scheduleAutomaticAiSuggestions(current, 220);
+            return;
+        }
         await requestManualAiSuggestions();
     }, delay);
 }
@@ -8854,6 +8858,16 @@ function refreshSmartComposition(options = {}) {
     }
 
     const sourceLanguage = currentTeachSourceLanguage(sourceText);
+    const segmentKey = [
+        segment.start,
+        segment.end,
+        sourceText.normalize('NFC'),
+        sourceLanguage,
+        currentTeachLanguage()
+    ].join('\u0000');
+    if (autoSuggestionKey && segmentKey !== autoSuggestionKey) {
+        aiSuggestionSequence++;
+    }
     const targetScript = currentTeachScript();
     const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
     const isPhrase = sourceText.split(/\s+/).filter(Boolean).length >= 2;
