@@ -38,6 +38,8 @@ assert(css.includes('v46 restore compact old Teach interaction'), 'Compact old T
 assert(css.includes('position:fixed !important;'), 'Mobile AI suggestions must stay visible while editing');
 assert(css.includes('v47 automatic smart-suggestion Teach redesign'), 'Teach must use the automatic smart-suggestion redesign');
 assert(css.includes('v51 stable Android Teach UI'), 'Stable Android Teach UI layer must be present');
+assert(css.includes('v52 larger resizable Teach editor'), 'Teach editor must restore a larger resizable editing area');
+assert(css.includes('height:320px !important'), 'Android Teach editor must open at a larger practical height');
 assert(css.includes('flex-flow:row nowrap !important'), 'Suggestion chips must stay in one horizontal row');
 assert(css.includes('overflow-x:auto !important'), 'Suggestion row must scroll horizontally instead of stacking');
 assert(css.includes('#teachOriginalBtn'), 'Original control must remain available in the compact toolbar');
