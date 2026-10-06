@@ -22,25 +22,28 @@ assert(!results.includes('class="teach-actions"'), 'Legacy Save/Done button row 
 const draftStart = html.indexOf('<div class="drafts-card" id="draftsCard">');
 const draftEnd = html.indexOf('<div class="results" id="resBox">', draftStart);
 const draft = html.slice(draftStart, draftEnd);
-assert(draft.includes('<section class="draft-sources"'), 'Source pages must stay directly visible');
-assert(!draft.includes('<details class="draft-sources"'), 'Source pages must not be hidden behind disclosure');
-assert(draft.includes('class="draft-document-menu"'), 'Close and delete belong in the document overflow menu');
-assert(draft.includes('id="draftAddBtn"') && draft.includes('+ Add pages'), 'Add pages stays directly available');
+assert(draft.includes('<details class="draft-sources" open>'), 'Classic source-pages disclosure is restored and open by default');
+assert(draft.includes('id="draftCloseBtn"') && draft.includes('>Close</button>'), 'Classic Close control is directly visible');
+assert(draft.includes('id="draftDeleteBtn"') && draft.includes('>Delete</button>'), 'Classic Delete control is directly visible');
+assert(draft.includes('id="draftAddBtn"') && draft.includes('<span>Add pages</span>'), 'Classic Add pages button is restored');
+assert(draft.includes('id="draftTeachBtn"') && draft.includes('Teach paper'), 'Classic draft Teach action is restored');
 
 const renderStart = html.indexOf('function renderDraftPages() {');
 const renderEnd = html.indexOf('\nasync function loadDraftList()', renderStart);
 const render = html.slice(renderStart, renderEnd);
-assert(render.includes('class="draft-page-menu"'), 'Each source page must use one compact page menu');
-assert(render.includes('data-page-preview'), 'Source thumbnails must open the full preview');
-assert(!render.includes('class="draft-page-text"'), 'Long OCR snippets must not clutter source thumbnails');
+assert(render.includes('class="draft-page-tools"'), 'Classic per-page controls are restored');
+assert(render.includes('data-page-preview'), 'Source thumbnails still open the full preview');
+assert(render.includes('class="draft-page-text"'), 'Classic page cards retain a short text hint');
+assert(render.includes('data-page-fix'), 'Page-level Edit remains directly available');
 
 const css = html.slice(html.indexOf('/* v41 unified document workspace */'));
 assert(css.includes('.main.workflow-active[data-view="result"]'), 'Result mode must have a dedicated focused layout');
 assert(css.includes('.output-card.editing .output-body'), 'Editing must happen in the same preview workspace');
-assert(css.includes('max-height:84px !important'), 'Phone source previews must stay small and compact');
-assert(css.includes('grid-template-columns:repeat(4,minmax(0,1fr)) !important'), 'Phone source previews use a compact multi-column grid');
+assert(css.includes('v43 restore classic draft UI'), 'Classic draft UI override must be present');
+assert(css.includes('height: 62px !important'), 'Phone source preview thumbnails must stay very compact');
+assert(css.includes('grid-template-columns: repeat(3, minmax(0, 1fr)) !important'), 'Phone source pages use a compact three-column layout');
 assert(css.includes('.document-toolbar { flex-direction:column !important;'), 'Mobile keeps tabs and primary actions readable without hiding them');
 assert(css.includes('.teach-primary-btn'), 'Teach receives clear primary-action styling');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
-console.log('Teach-first workspace keeps previews compact, exposes core actions, and makes AI suggestions editable before apply.');
+console.log('Teach-first workspace restores classic draft controls, compact source cards, direct actions, and editable AI suggestions.');
