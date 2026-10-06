@@ -6547,6 +6547,7 @@ async function getSmartExtractionResult(file, index, total, signal) {
 }
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
+let teachPreviewTimer=null;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
 let autoSuggestionKey='', autoSuggestionDelay=0;
 const aiSuggestionCache = new Map();
@@ -9003,6 +9004,14 @@ function chooseSmartSuggestion(choice) {
     teachEditor.focus();
 }
 
+function scheduleTeachPreview(delay = 90) {
+    clearTimeout(teachPreviewTimer);
+    teachPreviewTimer = setTimeout(() => {
+        teachPreviewTimer = null;
+        renderTeachPreview();
+    }, delay);
+}
+
 function renderTeachPreview() {
     if (!lastResult) return;
     const preview = teachEditor.value.normalize('NFC');
@@ -9246,6 +9255,8 @@ function openTeachPanel() {
 }
 
 function closeTeachPanel() {
+    clearTimeout(teachPreviewTimer);
+    teachPreviewTimer = null;
     if (lastResult?.draft_id && lastResult.preview_layout_text !== undefined) {
         lastResult.text = lastResult.preview_layout_text;
         lastResult.plain_text = publicPlainTextFromStructured(lastResult.text);
@@ -9309,7 +9320,7 @@ teachEditor.addEventListener('input', () => {
 
     refreshSmartComposition({ fromInput: true });
     pushTeachHistory(teachEditor.value);
-    renderTeachPreview();
+    scheduleTeachPreview();
 });
 
 teachEditor.addEventListener('click', () => {
@@ -9331,6 +9342,8 @@ teachEditor.addEventListener('keyup', event => {
 
 function saveLearning() {
     if (!lastResult) return;
+    clearTimeout(teachPreviewTimer);
+    teachPreviewTimer = null;
     const original = teachOriginalText || lastResult.plain_text || lastResult.text || '';
     const corrected = teachEditor.value.normalize('NFC');
     if (!corrected.trim()) return;
