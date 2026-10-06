@@ -1590,8 +1590,8 @@
         <section class="quota-card" id="quotaCard" aria-live="polite">
             <div class="quota-head">
                 <div>
-                    <div class="quota-title">Today's free AI OCR quota</div>
-                    <div class="quota-subtitle">Free AI usage today</div>
+                    <div class="quota-title">Cloudflare AI · daily usage</div>
+                    <div class="quota-subtitle">Reported by Cloudflare Analytics · may be delayed</div>
                 </div>
                 <div class="quota-live" id="quotaBadge">
                     <span class="quota-live-dot"></span>
@@ -1601,11 +1601,11 @@
 
             <div class="quota-stats">
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Remaining</span>
+                    <span class="quota-stat-label">Reported remaining</span>
                     <span class="quota-stat-value" id="quotaRemaining">—</span>
                 </div>
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Used</span>
+                    <span class="quota-stat-label">Reported used</span>
                     <span class="quota-stat-value" id="quotaUsed">—</span>
                 </div>
             </div>
@@ -1615,23 +1615,17 @@
             </div>
             <div class="quota-scale">
                 <span id="quotaPercent">0% used</span>
-                <span>10,000 Neurons / day</span>
+                <span>10,000 Neurons/day reference</span>
             </div>
 
-            <svg class="quota-chart" viewBox="0 0 320 54" preserveAspectRatio="none" role="img" aria-label="AI usage trend today">
-                <line class="quota-chart-grid" x1="0" y1="13.5" x2="320" y2="13.5"></line>
-                <line class="quota-chart-grid" x1="0" y1="27" x2="320" y2="27"></line>
-                <line class="quota-chart-grid" x1="0" y1="40.5" x2="320" y2="40.5"></line>
-                <polyline class="quota-chart-line" id="quotaLine" points="0,53 320,53"></polyline>
-            </svg>
 
             <div class="quota-times">
                 <div>
-                    <span class="quota-time-label">Now</span>
+                    <span class="quota-time-label">Usage last updated</span>
                     <span class="quota-time-value" id="quotaNow">—</span>
                 </div>
                 <div>
-                    <span class="quota-time-label">Renews</span>
+                    <span class="quota-time-label">Cloudflare daily reset</span>
                     <span class="quota-time-value" id="quotaReset">—</span>
                 </div>
             </div>
@@ -1810,7 +1804,7 @@ const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('file
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
 const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
-const quotaPercent=$('quotaPercent'),quotaLine=$('quotaLine'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
+const quotaPercent=$('quotaPercent'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
 const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
@@ -1833,12 +1827,11 @@ let quotaResetAt = null;
 const fmtNeuron = n => {
     const value = Number(n);
     if (!Number.isFinite(value)) return '—';
-    if (value >= 1000) return Math.round(value).toLocaleString();
-    if (value >= 100) return value.toFixed(0);
-    return value.toFixed(1);
+    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 };
 
 function formatLocalDateTime(value) {
+    if (!value) return '—';
     const d = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(d.getTime())) return '—';
     return new Intl.DateTimeFormat(undefined, {
@@ -1847,88 +1840,58 @@ function formatLocalDateTime(value) {
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit',
+        timeZone: 'Asia/Kolkata',
         timeZoneName: 'short'
     }).format(d);
 }
 
 function updateQuotaClock() {
-    quotaNow.textContent = formatLocalDateTime(new Date());
-    if (quotaResetAt) {
-        const reset = new Date(quotaResetAt);
-        const ms = reset - Date.now();
-        const mins = Math.max(0, Math.ceil(ms / 60000));
-        const h = Math.floor(mins / 60);
-        const m = mins % 60;
-        quotaReset.textContent = 'in ' + h + 'h ' + m + 'm · ' + formatLocalDateTime(reset);
+    if (!quotaResetAt) {
+        quotaReset.textContent = '—';
+        return;
     }
-}
-
-function drawQuotaHistory(history, limit, resetAt) {
-    const width = 320, height = 53;
-    const reset = new Date(resetAt);
-    const start = new Date(reset.getTime() - 86400000);
-    const startMs = start.getTime();
-    const span = Math.max(1, reset.getTime() - startMs);
-
-    const rows = Array.isArray(history) ? history.slice() : [];
-    const points = [{ at: start.toISOString(), used: 0 }, ...rows];
-
-    const lastUsed = Number(points[points.length - 1]?.used || 0);
-    points.push({ at: new Date().toISOString(), used: lastUsed });
-
-    const mapped = points.map(p => {
-        const t = new Date(p.at).getTime();
-        const x = Math.max(0, Math.min(width, ((t - startMs) / span) * width));
-        const y = Math.max(1, Math.min(height, height - ((Number(p.used) || 0) / Math.max(1, limit)) * height));
-        return x.toFixed(1) + ',' + y.toFixed(1);
-    });
-
-    quotaLine.setAttribute('points', mapped.join(' '));
+    quotaReset.textContent = formatLocalDateTime(quotaResetAt) + ' · 00:00 UTC';
 }
 
 async function loadUsage() {
     try {
-        let res;
-        try {
-            res = await fetch(API_LOCAL + '/api/usage?t=' + Date.now(), { cache: 'no-store' });
-            if (!res.ok && [404,405,502,503,504].includes(res.status)) throw new Error('proxy unavailable');
-        } catch (_) {
-            res = await fetch(API_DIRECT + '/api/usage?t=' + Date.now(), { cache: 'no-store' });
-        }
+        const res = await fetch('/usage.json?t=' + Date.now(), { cache: 'no-store' });
         if (!res.ok) throw new Error('status ' + res.status);
         const data = await res.json();
+        if (data.source !== 'cloudflare-analytics') throw new Error('untrusted source');
 
-        const limit = Number(data.free_limit) || 10000;
-        const used = Math.max(0, Number(data.estimated_used) || 0);
-        const remaining = Math.max(0, Number(data.estimated_remaining ?? (limit - used)) || 0);
-        const pct = Math.max(0, Math.min(100, Number(data.percent_used) || (used / limit * 100)));
+        const used = Number(data.reported_used);
+        const remaining = Number(data.reported_remaining);
+        const pct = Number(data.percent_used);
+        if (![used, remaining, pct].every(Number.isFinite)) throw new Error('invalid report');
 
         quotaRemaining.textContent = fmtNeuron(remaining);
         quotaUsed.textContent = fmtNeuron(used);
-        quotaFill.style.width = pct.toFixed(2) + '%';
+        quotaFill.style.width = Math.max(0, Math.min(100, pct)).toFixed(2) + '%';
         quotaPercent.textContent = pct.toFixed(pct < 10 ? 1 : 0) + '% used';
+        quotaNow.textContent = formatLocalDateTime(data.last_updated);
         quotaResetAt = data.reset_at || null;
+        updateQuotaClock();
 
         quotaCard.classList.toggle('warning', pct >= 75 && pct < 100);
-        quotaCard.classList.toggle('exhausted', pct >= 100 || data.exhausted);
-        quotaBadgeText.textContent = (pct >= 100 || data.exhausted) ? 'Limit reached' : 'Live estimate';
-
-        drawQuotaHistory(data.history || [], limit, data.reset_at);
-        updateQuotaClock();
-
-        const requests = Number(data.ocr_requests_tracked) || 0;
-        quotaCard.dataset.requests = String(requests);
+        quotaCard.classList.toggle('exhausted', pct >= 100);
+        quotaBadgeText.textContent = 'Cloudflare report';
+        quotaCard.title = data.accuracy || 'Cloudflare-reported analytics';
     } catch (e) {
+        quotaRemaining.textContent = '—';
+        quotaUsed.textContent = '—';
+        quotaFill.style.width = '0%';
+        quotaPercent.textContent = 'Usage unavailable';
+        quotaNow.textContent = '—';
+        quotaResetAt = null;
+        quotaReset.textContent = '—';
         quotaBadgeText.textContent = 'Unavailable';
-        updateQuotaClock();
+        quotaCard.classList.remove('warning', 'exhausted');
     }
 }
 
-updateQuotaClock();
-setInterval(updateQuotaClock, 1000);
 loadUsage();
-setInterval(loadUsage, 120000);
+setInterval(loadUsage, 60000);
 
 let presenceSocket = null;
 let presenceRetry = null;
