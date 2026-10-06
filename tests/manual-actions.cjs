@@ -11,7 +11,8 @@ assert(top.includes('id="copyTextBtn"') && top.includes('id="downloadWordBtn"') 
 assert(!top.includes('class="document-more"'),'Classic results keep primary actions directly visible instead of hiding them in More');
 let calls=0, chips=[];
 const editor={value:'flower',selectionStart:0,selectionEnd:6,focus(){},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
-const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,smartComposition:{source:'flower',start:0,end:6},
+const aiDraft={value:''},aiApply={disabled:true};
+const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,aiSuggestionEditor:aiDraft,aiSuggestionApplyBtn:aiApply,smartComposition:{source:'flower',start:0,end:6},
  aiSuggestionTimer:null,aiSuggestionSequence:0,aiSuggestionCalls:0,aiSuggestionPending:false,aiSuggestionCache:new Map(),
  teachPanel:{classList:{contains:()=>true}},currentTeachLanguage:()=> 'hi',currentTeachScript:()=> 'devanagari',currentTeachSourceLanguage:()=> 'en',
  uniqueStrings:a=>[...new Set(a)],getTeachContext:()=> 'a flower',getLocalSmartSuggestions:()=> ['फ्लावर'],getLearnedCorrectionSuggestions:()=>[],getCanonicalPhraseOverride:()=>null,
@@ -20,12 +21,12 @@ const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,smartCo
  fetchOcrEndpoint:async()=>{calls++;return Response.json({suggestions:['फूल','फ्लावर']});},
  replaceTeachRange:(a,b,v)=>{editor.value=editor.value.slice(0,a)+v+editor.value.slice(b);return a+v.length;},pushTeachHistory(){},renderTeachPreview(){},
  translitSuggestions:{classList:{remove(){}},innerHTML:''}});
-for(const name of ['fetchAiTextSuggestions','showSmartSuggestions','manualSuggestionSegment','requestManualAiSuggestions','chooseSmartSuggestion'])vm.runInContext(fn(name),manual);
+for(const name of ['fetchAiTextSuggestions','setAiSuggestionDraft','clearAiSuggestionDraft','showSmartSuggestions','manualSuggestionSegment','requestManualAiSuggestions','chooseSmartSuggestion'])vm.runInContext(fn(name),manual);
 (async()=>{
  manual.showSmartSuggestions();assert.equal(calls,0,'Typing and local suggestions use no AI');
  const once=manual.requestManualAiSuggestions(), duplicate=manual.requestManualAiSuggestions();await Promise.all([once,duplicate]);
  assert.equal(calls,1,'Repeated clicks during a pending request make only one AI call');
- assert.equal(editor.value,'flower','AI suggestions never apply themselves');assert(chips.includes('फूल'));
+ assert.equal(editor.value,'flower','AI suggestions never apply themselves');assert(chips.includes('फूल'));assert.equal(aiDraft.value,'फूल','Best AI suggestion is loaded into the separate editable box');
  assert.equal($('aiSuggestionPanel').dataset.state,'ready','Suggestions render in a visible ready panel above the editor');
  assert($('aiSuggestionSource').textContent.includes('flower'),'Suggestion panel identifies the text being reviewed');
  await manual.requestManualAiSuggestions();assert.equal(calls,1,'Same selected text and language reuse suggestions');
