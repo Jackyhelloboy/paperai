@@ -16,11 +16,10 @@ assert(results.indexOf('id="teachPanel"') < results.indexOf('id="textOut"'), 'Te
 assert(results.includes('id="copyTextBtn"'), 'Copy must remain directly visible in the result toolbar');
 assert(results.includes('>Extracted</button>') && results.includes('>Plain Text</button>'), 'Classic Extracted and Plain Text tabs are restored');
 assert(results.includes('id="teachActionBtn"') && /\bTeach\b/.test(results), 'Teach must be restored as a primary action');
-assert(results.includes('id="aiSuggestionEditor"'), 'Teach must include a separate editable AI suggestion box');
+assert(!results.includes('id="aiSuggestionEditor"'), 'Old Teach suggestions must not use a separate editable AI box');
 assert(!results.includes('id="aiSuggestBtn"'), 'Teach must not require a manual AI suggestion button');
 assert(results.includes('id="previewDensityBtn"'), 'Result preview must expose a user-controlled Fit/Paper view toggle');
-assert(results.includes('onclick="applyEditedAiSuggestion()"'), 'Custom suggestion text must still support explicit Apply');
-assert(results.includes('id="aiCustomEdit"'), 'Custom suggestion editing must be optional and secondary');
+assert(results.includes('id="translitSuggestions"'), 'Old suggestion chips must sit directly under the Teach editor');
 assert(results.includes('class="teach-panel classic-teach-panel"'), 'Classic compact Teach panel must be restored');
 assert(results.includes('<div class="teach-title">Review &amp; correct'), 'Classic Review & correct heading must be restored');
 assert(results.includes('class="teach-actions"'), 'Classic Save changes / Done action row must be restored');
@@ -38,7 +37,7 @@ assert(css.includes('v45 mobile fit preview + user-controlled density'), 'Mobile
 assert(css.includes('v46 restore compact old Teach interaction'), 'Compact old Teach layout must be present');
 assert(css.includes('position:fixed !important;'), 'Mobile AI suggestions must stay visible while editing');
 assert(css.includes('v47 automatic smart-suggestion Teach redesign'), 'Teach must use the automatic smart-suggestion redesign');
-assert(css.includes('v49 old-style smart suggestion chips, modernized'), 'Old one-tap suggestion chips must be restored in the modern Teach UI');
+assert(css.includes('v50 exact old Teach suggestion UI'), 'Exact old Teach suggestion styling must be restored');
 assert(css.includes('max-height:38vh !important;'), 'Mobile AI suggestion dock must stay compact and scroll internally');
 assert(css.includes('.classic-output-card[data-compact="true"] .ocr-structured-table'), 'Compact mode must shrink structured tables to phone width');
 assert(css.includes('v48 minimal Android session-only UI'), 'Minimal Android UI layer must be present');
@@ -47,4 +46,4 @@ assert(css.includes('font-size:11.5px !important'), 'Mobile extracted text must 
 assert(css.includes('min-height:36px !important'), 'Android action controls must use compact touch-friendly sizing');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
-console.log('PaperAI keeps the minimal Android workflow and restores old one-tap smart suggestion chips near the Teach editor.');
+console.log('PaperAI keeps the minimal Android workflow and restores the exact old suggestion chips directly under the Teach editor.');
