@@ -1127,7 +1127,7 @@ async function handleOCR(request, env, corsHeaders) {
   } catch (e) {
     if (e?.code === 'AI_OUTPUT_TRUNCATED') {
       return Response.json({
-        error: 'The AI read reached its output limit. Retry this page with a lighter scan to obtain a complete transcription.',
+        error: 'This page is exceptionally dense and could not finish even after automatic continuation. Retry once or use a clearer/lower-density page image.',
         code: 'AI_OUTPUT_TRUNCATED',
         retryable: true,
       }, { status: 422, headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' } });
@@ -2103,6 +2103,16 @@ function mergeOcrContinuation(existing, continuation) {
     if (left.slice(-count) === right.slice(0, count)) {
       return left + right.slice(count);
     }
+  }
+
+  // A generation can stop in the middle of a token/word. When both sides
+  // are word characters and there is no structural marker at the boundary,
+  // join directly instead of inventing a newline.
+  const leftChar = left.slice(-1);
+  const rightChar = right.slice(0, 1);
+  const wordChar = ch => /[\p{L}\p{M}\p{N}]/u.test(ch || '');
+  if (wordChar(leftChar) && wordChar(rightChar)) {
+    return left + right;
   }
 
   return left + '\n' + right;
