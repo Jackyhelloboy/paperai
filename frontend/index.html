@@ -5541,6 +5541,140 @@
                 scroll-margin-bottom:6.5rem !important;
             }
         }
+
+        /* v47 automatic smart-suggestion Teach redesign */
+        .classic-teach-panel .teach-toolbar {
+            grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card {
+            display:block !important;
+            border:1px solid #bfdbfe !important;
+            background:#f8fbff !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] {
+            padding:.42rem .55rem !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .teach-suggestion-title {
+            display:none !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .teach-suggestion-source {
+            color:var(--text2) !important;
+            font-weight:650 !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .teach-ai-hint {
+            display:none !important;
+        }
+
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .ai-suggestion-editor-wrap,
+        .classic-teach-panel .teach-suggestion-card[data-state="idle"] .ai-suggestion-actions {
+            display:none !important;
+        }
+
+        .classic-teach-panel .translit-suggestions {
+            display:flex !important;
+            flex-wrap:nowrap !important;
+            overflow-x:auto !important;
+            gap:.38rem !important;
+            margin-top:.42rem !important;
+            padding-bottom:.12rem !important;
+            scrollbar-width:none !important;
+        }
+
+        .classic-teach-panel .translit-suggestions::-webkit-scrollbar {
+            display:none !important;
+        }
+
+        .classic-teach-panel .translit-chip {
+            flex:0 0 auto !important;
+            width:auto !important;
+            min-height:36px !important;
+            max-width:78vw !important;
+            padding:.38rem .65rem !important;
+            border-radius:999px !important;
+            white-space:nowrap !important;
+            overflow:hidden !important;
+            text-overflow:ellipsis !important;
+            font-size:.78rem !important;
+        }
+
+        .classic-teach-panel .ai-suggestion-editor-wrap > span {
+            font-size:.62rem !important;
+        }
+
+        .classic-teach-panel .ai-suggestion-editor {
+            min-height:42px !important;
+            height:42px !important;
+            max-height:42px !important;
+            resize:none !important;
+            padding:.48rem .6rem !important;
+            line-height:1.35 !important;
+        }
+
+        .classic-teach-panel .ai-suggestion-actions {
+            margin-top:.38rem !important;
+        }
+
+        .classic-teach-panel .ai-suggestion-actions .teach-tool {
+            min-height:36px !important;
+        }
+
+        @media(max-width:620px) {
+            .classic-teach-panel {
+                padding-bottom:5.2rem !important;
+            }
+
+            .classic-teach-panel .teach-suggestion-card {
+                left:8px !important;
+                right:8px !important;
+                bottom:max(8px, env(safe-area-inset-bottom)) !important;
+                max-height:30vh !important;
+                padding:.5rem !important;
+            }
+
+            .classic-teach-panel .teach-suggestion-head {
+                gap:.3rem !important;
+            }
+
+            .classic-teach-panel .teach-suggestion-title {
+                font-size:.7rem !important;
+            }
+
+            .classic-teach-panel .teach-suggestion-source {
+                font-size:.65rem !important;
+                line-height:1.25 !important;
+            }
+
+            .classic-teach-panel .teach-ai-hint {
+                margin-top:.25rem !important;
+                font-size:.64rem !important;
+                line-height:1.3 !important;
+            }
+
+            .classic-teach-panel .translit-chip {
+                max-width:72vw !important;
+                min-height:34px !important;
+                font-size:.76rem !important;
+            }
+
+            .classic-teach-panel .teach-editor {
+                height:230px !important;
+                max-height:40vh !important;
+                padding-bottom:1rem !important;
+            }
+
+            .classic-teach-panel .teach-actions {
+                position:sticky !important;
+                bottom:0 !important;
+                z-index:5 !important;
+                background:#fff !important;
+                padding-top:.42rem !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -5820,17 +5954,16 @@
                     <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                     <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
                     <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
-                    <button class="teach-tool ai-suggest-button" id="aiSuggestBtn" type="button" onclick="requestManualAiSuggestions()">✦ Get AI suggestions</button>
                 </div>
 
                 <div class="teach-suggestion-card" id="aiSuggestionPanel" data-state="idle">
                     <div class="teach-suggestion-head">
                         <div>
-                            <div class="teach-suggestion-title">AI suggestions</div>
-                            <div class="teach-suggestion-source" id="aiSuggestionSource">Select text or place the cursor in a sentence.</div>
+                            <div class="teach-suggestion-title">Smart suggestions</div>
+                            <div class="teach-suggestion-source" id="aiSuggestionSource">Select or edit a word to see suggestions.</div>
                         </div>
                     </div>
-                    <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Tap “Get AI suggestions” when you want help. Your document will not change automatically.</div>
+                    <div class="teach-ai-hint" id="aiSuggestionNote" role="status" aria-live="polite">Suggestions update automatically as you select or type. Nothing changes until you apply one.</div>
                     <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
                     <label class="ai-suggestion-editor-wrap" for="aiSuggestionEditor">
                         <span>Edit suggestion before applying</span>
@@ -6124,6 +6257,7 @@ async function getSmartExtractionResult(file, index, total, signal) {
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
+let autoSuggestionKey='', autoSuggestionDelay=0;
 const aiSuggestionCache = new Map();
 let aiSuggestionPending = false;
 
@@ -8426,6 +8560,30 @@ function showSmartSuggestions() {
     aiSuggestionSequence++;
 }
 
+function wordAtTeachCaret() {
+    const value = String(teachEditor?.value || '');
+    const caret = Math.max(0, Math.min(value.length, teachEditor?.selectionStart ?? 0));
+    const isWord = ch => /[\p{L}\p{M}\p{N}'’\-]/u.test(ch || '');
+    let start = caret, end = caret;
+    while (start > 0 && isWord(value[start - 1])) start--;
+    while (end < value.length && isWord(value[end])) end++;
+    const source = value.slice(start, end).trim();
+    if (!source || source.length > 120 || !/[\p{L}\p{N}]/u.test(source)) return null;
+    return { start, end, source };
+}
+
+function automaticSuggestionSegment() {
+    const a = teachEditor.selectionStart, b = teachEditor.selectionEnd;
+    if (b > a) {
+        const raw = teachEditor.value.slice(a, b);
+        const source = raw.trim();
+        if (!source || source.length > 180) return null;
+        const start = a + raw.indexOf(source);
+        return { start, end: start + source.length, source };
+    }
+    return wordAtTeachCaret();
+}
+
 function manualSuggestionSegment() {
     const a = teachEditor.selectionStart, b = teachEditor.selectionEnd;
     if (b > a) {
@@ -8440,7 +8598,7 @@ function manualSuggestionSegment() {
 
 async function requestManualAiSuggestions() {
     if (aiSuggestionPending) return;
-    const segment = manualSuggestionSegment();
+    const segment = automaticSuggestionSegment() || manualSuggestionSegment();
     const panel = $('aiSuggestionPanel');
     const sourceLabel = $('aiSuggestionSource');
     const note = $('aiSuggestionNote');
@@ -8478,8 +8636,10 @@ async function requestManualAiSuggestions() {
     localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
 
     aiSuggestionPending = true;
-    btn.disabled = true;
-    btn.textContent = 'Getting suggestions…';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Getting suggestions…';
+    }
     hideErr();
     if (panel) panel.dataset.state = 'loading';
     if (sourceLabel) {
@@ -8518,8 +8678,10 @@ async function requestManualAiSuggestions() {
         }
     } finally {
         aiSuggestionPending = false;
-        btn.disabled = false;
-        btn.textContent = '✦ Get AI suggestions';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '✦ Get AI suggestions';
+        }
         loadUsage();
     }
 }
@@ -8632,33 +8794,115 @@ function replaceTeachRange(start, end, replacement) {
     return caret;
 }
 
-function refreshSmartComposition() {
-    smartComposition = manualSuggestionSegment();
-    clearAiSuggestionDraft();
-
-    if (!aiSuggestionPending) {
-        const panel = $('aiSuggestionPanel');
-        const sourceLabel = $('aiSuggestionSource');
-        const note = $('aiSuggestionNote');
-        const sourceText = String(smartComposition?.source || '').replace(/\s+/g, ' ').trim();
-
-        if (panel) panel.dataset.state = 'idle';
-        if (sourceLabel) {
-            sourceLabel.textContent = sourceText
-                ? 'Ready for: “' + (sourceText.length > 110 ? sourceText.slice(0, 107) + '…' : sourceText) + '”'
-                : 'Select text or place the cursor in a sentence.';
-        }
-        if (note) {
-            note.textContent = sourceText
-                ? 'Selected: “' + (sourceText.length > 42 ? sourceText.slice(0, 39) + '…' : sourceText) + '” · tap Get AI suggestions'
-                : 'Tap inside the text you want to edit.';
-        }
+function scheduleAutomaticAiSuggestions(segment, delay = 520) {
+    if (aiSuggestionTimer) {
+        clearTimeout(aiSuggestionTimer);
+        aiSuggestionTimer = null;
     }
+    if (!segment?.source || !teachPanel.classList.contains('show')) return;
 
-    updateTeachLanguageStatus();
-    showSmartSuggestions();
+    const key = [
+        segment.start,
+        segment.end,
+        segment.source.normalize('NFC'),
+        currentTeachSourceLanguage(segment.source),
+        currentTeachLanguage()
+    ].join('\u0000');
+
+    autoSuggestionKey = key;
+    autoSuggestionDelay = delay;
+    aiSuggestionTimer = setTimeout(async () => {
+        aiSuggestionTimer = null;
+        const current = automaticSuggestionSegment();
+        if (!current?.source) return;
+        const currentKey = [
+            current.start,
+            current.end,
+            current.source.normalize('NFC'),
+            currentTeachSourceLanguage(current.source),
+            currentTeachLanguage()
+        ].join('\u0000');
+        if (currentKey !== autoSuggestionKey) return;
+
+        smartComposition = current;
+        if (aiSuggestionPending) {
+            scheduleAutomaticAiSuggestions(current, 220);
+            return;
+        }
+        await requestManualAiSuggestions();
+    }, delay);
 }
 
+function refreshSmartComposition(options = {}) {
+    const segment = automaticSuggestionSegment();
+    smartComposition = segment;
+
+    const panel = $('aiSuggestionPanel');
+    const sourceLabel = $('aiSuggestionSource');
+    const note = $('aiSuggestionNote');
+    const sourceText = String(segment?.source || '').replace(/\s+/g, ' ').trim();
+
+    if (!sourceText) {
+        autoSuggestionKey = '';
+        if (aiSuggestionTimer) {
+            clearTimeout(aiSuggestionTimer);
+            aiSuggestionTimer = null;
+        }
+        renderSuggestionChips([], [], false);
+        clearAiSuggestionDraft();
+        if (panel) panel.dataset.state = 'idle';
+        if (sourceLabel) sourceLabel.textContent = 'Select or edit a word to see suggestions.';
+        if (note) note.textContent = 'Suggestions update automatically as you select or type.';
+        updateTeachLanguageStatus();
+        return;
+    }
+
+    const sourceLanguage = currentTeachSourceLanguage(sourceText);
+    const segmentKey = [
+        segment.start,
+        segment.end,
+        sourceText.normalize('NFC'),
+        sourceLanguage,
+        currentTeachLanguage()
+    ].join('\u0000');
+    if (autoSuggestionKey && segmentKey !== autoSuggestionKey) {
+        aiSuggestionSequence++;
+    }
+    const targetScript = currentTeachScript();
+    const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
+    const isPhrase = sourceText.split(/\s+/).filter(Boolean).length >= 2;
+
+    let localChoices = [];
+    if (isRomanSource && targetScript !== 'latin' && isPhrase) {
+        const knownPhrase = getCanonicalPhraseOverride(sourceText, targetScript);
+        if (knownPhrase) localChoices.push(knownPhrase);
+    }
+    if (isRomanSource && targetScript !== 'latin' && !isPhrase) {
+        localChoices.push(...getLocalSmartSuggestions(sourceText)
+            .filter(choice => choice.toLowerCase() !== sourceText.toLowerCase()));
+    }
+    localChoices = uniqueStrings([
+        ...getLearnedCorrectionSuggestions(sourceText, localChoices),
+        ...localChoices
+    ]);
+
+    if (!aiSuggestionPending && panel) panel.dataset.state = localChoices.length ? 'ready' : 'loading';
+    if (sourceLabel) {
+        sourceLabel.textContent = 'For “' + (sourceText.length > 54 ? sourceText.slice(0, 51) + '…' : sourceText) + '”';
+    }
+    if (note) {
+        note.textContent = localChoices.length
+            ? 'Instant suggestions shown. AI is checking for better options…'
+            : 'Checking this word automatically…';
+    }
+
+    renderSuggestionChips(localChoices, [], true);
+    setAiSuggestionDraft(localChoices[0] || sourceText);
+    updateTeachLanguageStatus();
+
+    const delay = options.immediate ? 80 : (options.fromInput ? 650 : 360);
+    scheduleAutomaticAiSuggestions(segment, delay);
+}
 function openTeachPanel() {
     if (!lastResult) return;
     if (teachPanel.classList.contains('show')) { teachEditor.focus(); return; }
@@ -8694,8 +8938,8 @@ function openTeachPanel() {
     const suggestionNote = $('aiSuggestionNote');
     if (suggestionPanel) suggestionPanel.dataset.state = 'idle';
     clearAiSuggestionDraft();
-    if (suggestionSource) suggestionSource.textContent = 'Tap inside a sentence or select text.';
-    if (suggestionNote) suggestionNote.textContent = 'Choose AI suggestions only when you want help. Nothing changes automatically.';
+    if (suggestionSource) suggestionSource.textContent = 'Select or edit a word to see suggestions.';
+    if (suggestionNote) suggestionNote.textContent = 'Suggestions appear automatically while you edit. Nothing changes until you apply one.';
 
     updateTeachLanguageStatus();
     showSmartSuggestions();
@@ -8742,7 +8986,7 @@ function closeTeachPanel() {
 teachFromSelect.addEventListener('change', () => {
     aiSuggestionSequence++;
     if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
-    refreshSmartComposition();
+    refreshSmartComposition({ immediate: true });
     updateTeachLanguageStatus();
     teachEditor.focus();
 });
@@ -8750,7 +8994,7 @@ teachFromSelect.addEventListener('change', () => {
 teachToSelect.addEventListener('change', () => {
     aiSuggestionSequence++;
     if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
-    refreshSmartComposition();
+    refreshSmartComposition({ immediate: true });
     updateTeachLanguageStatus();
     teachEditor.focus();
 });
@@ -8772,7 +9016,7 @@ teachEditor.addEventListener('keydown', event => {
 teachEditor.addEventListener('input', () => {
     if (teachHistoryLock) return;
 
-    refreshSmartComposition();
+    refreshSmartComposition({ fromInput: true });
     pushTeachHistory(teachEditor.value);
     renderTeachPreview();
 });
@@ -8784,7 +9028,14 @@ teachEditor.addEventListener('click', () => {
 
 teachEditor.addEventListener('select', () => {
     if (phoneticSelectionLock) return;
-    refreshSmartComposition();
+    refreshSmartComposition({ immediate: true });
+});
+
+teachEditor.addEventListener('keyup', event => {
+    if (phoneticSelectionLock) return;
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key)) {
+        refreshSmartComposition();
+    }
 });
 
 function saveLearning() {

@@ -17,6 +17,7 @@ assert(results.includes('id="copyTextBtn"'), 'Copy must remain directly visible 
 assert(results.includes('>Extracted</button>') && results.includes('>Plain Text</button>'), 'Classic Extracted and Plain Text tabs are restored');
 assert(results.includes('id="teachActionBtn"') && /\bTeach\b/.test(results), 'Teach must be restored as a primary action');
 assert(results.includes('id="aiSuggestionEditor"'), 'Teach must include a separate editable AI suggestion box');
+assert(!results.includes('id="aiSuggestBtn"'), 'Teach must not require a manual AI suggestion button');
 assert(results.includes('id="previewDensityBtn"'), 'Result preview must expose a user-controlled Fit/Paper view toggle');
 assert(results.includes('onclick="applyEditedAiSuggestion()"'), 'AI suggestion text must require an explicit apply action');
 assert(results.includes('class="teach-panel classic-teach-panel"'), 'Classic compact Teach panel must be restored');
@@ -47,6 +48,7 @@ assert(css.includes('.classic-output-card.editing .output-body'), 'Teach editing
 assert(css.includes('v45 mobile fit preview + user-controlled density'), 'Mobile extracted preview must include the compact fit-density layer');
 assert(css.includes('v46 restore compact old Teach interaction'), 'Compact old Teach layout must be present');
 assert(css.includes('position:fixed !important;'), 'Mobile AI suggestions must stay visible while editing');
+assert(css.includes('v47 automatic smart-suggestion Teach redesign'), 'Teach must use the automatic smart-suggestion redesign');
 assert(css.includes('max-height:38vh !important;'), 'Mobile AI suggestion dock must stay compact and scroll internally');
 assert(css.includes('.classic-teach-panel .teach-suggestion-card[data-state="idle"]'), 'AI suggestion card must stay hidden until requested');
 assert(css.includes('height:200px !important'), 'Mobile Teach editor must remain compact rather than taking most of the screen');
@@ -58,4 +60,4 @@ assert(css.includes('.document-toolbar { flex-direction:column !important;'), 'M
 assert(css.includes('.teach-primary-btn'), 'Teach receives clear primary-action styling');
 assert(css.includes('.flagged-card {\n            display: none !important;'), 'Technical review cards must not clutter the primary workspace');
 
-console.log('Classic PaperAI UI keeps compact Teach and pins AI suggestions in view while editing on mobile.');
+console.log('Teach automatically suggests on select/type, keeps suggestions visible, and preserves the classic compact editor.');
