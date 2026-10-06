@@ -923,7 +923,7 @@
             display: flex;
             align-items: center;
             gap: 0.45rem;
-            margin: -0.05rem 0 0.5rem;
+            margin: -0.1rem 0 0.3rem;
         }
 
         .teach-ai-btn {
@@ -949,7 +949,7 @@
             display: none;
             flex-wrap: wrap;
             gap: 0.35rem;
-            margin-top: 0.45rem;
+            margin: 0 0 0.45rem;
             padding: 0.45rem;
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -1791,13 +1791,13 @@
                     <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
                     <button class="teach-tool" id="teachRedoBtn" type="button" onclick="teachRedo()">↷ Redo</button>
                     <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
+                    <button class="teach-tool teach-ai-btn" id="teachAiBtn" type="button" onclick="requestAdvancedAiSuggestions()">✦ AI Suggestions</button>
                 </div>
                 <div class="teach-ai-row">
-                    <button class="teach-tool teach-ai-btn" id="teachAiBtn" type="button" onclick="requestAdvancedAiSuggestions()">✦ AI Suggestions</button>
                     <span class="teach-ai-status" id="teachAiStatus">Select a word or sentence, then tap AI Suggestions.</span>
                 </div>
-                <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
+                <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
                 <div class="teach-actions">
                     <button class="action-btn" onclick="saveLearning()">Save & apply</button>
                     <button class="action-btn" onclick="closeTeachPanel()">Cancel</button>
@@ -3672,11 +3672,15 @@ async function requestAdvancedAiSuggestions() {
 
     const learnedChoices = getLearnedCorrectionSuggestions(sourceText, localChoices);
     localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
+    const normalizedSource = sourceText.normalize('NFC').toLocaleLowerCase();
+    const visibleLocalChoices = localChoices.filter(choice =>
+        String(choice || '').normalize('NFC').toLocaleLowerCase() !== normalizedSource
+    );
 
     const sequence = ++aiSuggestionSequence;
     teachAiBtn.disabled = true;
     teachAiStatus.textContent = 'AI is checking “' + (sourceText.length > 70 ? sourceText.slice(0, 67) + '…' : sourceText) + '”';
-    renderSuggestionChips(localChoices, [], true);
+    renderSuggestionChips(visibleLocalChoices, [], true);
 
     try {
         const aiChoices = await fetchAiTextSuggestions(
@@ -3689,17 +3693,28 @@ async function requestAdvancedAiSuggestions() {
         );
 
         if (sequence !== aiSuggestionSequence) return;
-        renderSuggestionChips(localChoices, aiChoices, false);
+        const normalizedSource = sourceText.normalize('NFC').toLocaleLowerCase();
+        const usefulLocal = localChoices.filter(choice =>
+            String(choice || '').normalize('NFC').toLocaleLowerCase() !== normalizedSource
+        );
+        const usefulAi = aiChoices.filter(choice =>
+            String(choice || '').normalize('NFC').toLocaleLowerCase() !== normalizedSource
+        );
+        renderSuggestionChips(usefulLocal, usefulAi, false);
 
-        const count = uniqueStrings([...localChoices, ...aiChoices]).length;
+        const count = uniqueStrings([...usefulLocal, ...usefulAi]).length;
         teachAiStatus.textContent = count
-            ? 'Tap a suggestion below to replace only the selected text.'
-            : 'No useful alternative was found. Your text was not changed.';
+            ? 'Tap a suggestion above the text box to replace only the selected text.'
+            : 'AI found no better correction. Your selected text was not changed.';
     } catch (_) {
         if (sequence === aiSuggestionSequence) {
-            renderSuggestionChips(localChoices, [], false);
-            teachAiStatus.textContent = localChoices.length
-                ? 'AI is unavailable; local suggestions are shown below.'
+            const normalizedSource = sourceText.normalize('NFC').toLocaleLowerCase();
+            const usefulLocal = localChoices.filter(choice =>
+                String(choice || '').normalize('NFC').toLocaleLowerCase() !== normalizedSource
+            );
+            renderSuggestionChips(usefulLocal, [], false);
+            teachAiStatus.textContent = usefulLocal.length
+                ? 'AI is unavailable; local alternatives are shown above the text box.'
                 : 'AI suggestions are unavailable right now. Your text was not changed.';
         }
     } finally {
