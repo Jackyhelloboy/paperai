@@ -16,6 +16,8 @@ assert(html.includes("button.addEventListener('click', () => chooseSmartSuggesti
 assert(html.includes("slice(0, 6)"),'Suggestion list must stay focused and compact');
 assert(html.includes("replace(/[\\u200B-\\u200D\\u2060\\uFEFF]/g, '')"),'Suggestion dedupe must remove invisible Unicode differences');
 assert(html.includes('syncTeachVisibleViewport'),'Teach must track the Android visual viewport');
+assert(html.includes('adjustTeachEditorSize'),'Teach must provide explicit editor size controls');
+assert(html.includes('paperai_teach_size_v1'),'Teach editor size preference must persist for the current session');
 assert(html.includes("teachPanel.scrollIntoView?.({ behavior: 'smooth', block: 'start' })"),'Opening Teach must position the editor workspace itself, not the preview below it');
 let calls=0, chips=[];
 const editor={value:'flower',selectionStart:0,selectionEnd:6,focus(){},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
@@ -58,5 +60,5 @@ for(const name of ['wordAtTeachCaret','automaticSuggestionSegment','fetchAiTextS
  const file={name:'sample.pdf'};await assert.rejects(pdfRead.extractOneInputFile(file),/offline/);
  allowSecond=true;const resumed=await pdfRead.extractOneInputFile(file);assert.equal(resumed.pageCount,2);
  assert.deepEqual(pageCounts,[1,2],'A manual PDF retry reuses completed page reads and only retries the failed page');
- console.log('Android selection and visual viewport tracking keep suggestions, editor and actions visible while Teach is open.');
+ console.log('Android Teach tracks the visual viewport, supports explicit editor sizing, and keeps suggestions/actions around the editor.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
