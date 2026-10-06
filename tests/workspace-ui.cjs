@@ -3,11 +3,13 @@ const fs = require('node:fs');
 
 const html = fs.readFileSync('frontend/index.html', 'utf8');
 
-const resultsStart = html.indexOf('<div class="results" id="resBox">');
+const resultsStart = html.indexOf('id="resBox"');
 const resultsEnd = html.indexOf('</main>', resultsStart);
 const results = html.slice(resultsStart, resultsEnd);
 
-assert(results.includes('id="outputCard"'), 'Results must use one document workspace');
+assert(resultsStart >= 0, 'Results section must exist');
+assert(results.includes('class="results classic-results"') || html.includes('class="results classic-results"'), 'Classic results layout must be present');
+assert(results.includes('id="outputCard"'), 'Classic results must contain the output card');
 assert(results.includes('id="documentStatus"'), 'Workspace must expose one compact document status');
 assert(results.indexOf('id="teachPanel"') < results.indexOf('id="outputCard"'), 'Classic Teach editor sits above the output tabs');
 assert(results.indexOf('id="teachPanel"') < results.indexOf('id="textOut"'), 'Teach corrections remain separate from the extracted preview');
@@ -20,7 +22,7 @@ assert(!results.includes('<div class="teach-title">'), 'Legacy standalone edit-c
 assert(!results.includes('class="teach-actions"'), 'Legacy Save/Done button row must be removed');
 
 const draftStart = html.indexOf('<div class="drafts-card" id="draftsCard">');
-const draftEnd = html.indexOf('<div class="results" id="resBox">', draftStart);
+const draftEnd = html.indexOf('id="resBox"', draftStart);
 const draft = html.slice(draftStart, draftEnd);
 assert(draft.includes('<details class="draft-sources" open>'), 'Classic source-pages disclosure is restored and open by default');
 assert(draft.includes('id="draftCloseBtn"') && draft.includes('>Close</button>'), 'Classic Close control is directly visible');
