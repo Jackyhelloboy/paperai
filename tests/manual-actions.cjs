@@ -5,9 +5,10 @@ const nodes=new Map();const $=id=>{if(!nodes.has(id))nodes.set(id,{disabled:fals
 const ctx=vm.createContext({$,showingRaw:false});vm.runInContext(fn('updateResultActionsForTab'),ctx);
 ctx.updateResultActionsForTab();assert(!$('downloadWordBtn').hidden && $('downloadTxtBtn').hidden);
 ctx.showingRaw=true;ctx.updateResultActionsForTab();assert($('downloadWordBtn').hidden && !$('downloadTxtBtn').hidden);
-const top=html.slice(html.indexOf('<div class="results-actions">'),html.indexOf('<div class="teach-panel"'));
-assert(top.includes('id="teachActionBtn"') && top.includes('id="downloadWordBtn"'),'Edit and Word are the two primary document actions');
-assert(top.includes('class="document-more"'),'Copy and TXT move into one More menu instead of adding more top-level buttons');
+const topStart=html.indexOf('class="results-actions classic-results-actions"');
+const top=html.slice(topStart,html.indexOf('<div class="teach-panel"',topStart));
+assert(top.includes('id="copyTextBtn"') && top.includes('id="downloadWordBtn"') && top.includes('id="teachActionBtn"'),'Copy, Word and Teach are the restored primary document actions');
+assert(!top.includes('class="document-more"'),'Classic results keep primary actions directly visible instead of hiding them in More');
 let calls=0, chips=[];
 const editor={value:'flower',selectionStart:0,selectionEnd:6,focus(){},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
 const manual=vm.createContext({$,Response,AbortSignal,teachEditor:editor,smartComposition:{source:'flower',start:0,end:6},
