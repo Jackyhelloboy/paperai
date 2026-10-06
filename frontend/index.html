@@ -3019,13 +3019,84 @@ function extractLayoutWordEdits(before, after) {
     const afterLines = String(after || '').split('\n');
     const edits = [];
 
+    const useful = s =>
+        s &&
+        s.length <= 80 &&
+        !/^[\s|()[\]{}.,;:!?/\\]+$/.test(s);
+
     const collect = (leftText, rightText, lineIndex = null) => {
         const a = tokeniseLearning(leftText);
         const b = tokeniseLearning(rightText);
+
+        // Character position of every token, so edit spans are cut from the
+        // raw text. Re-joining tokens would lose the original spacing.
+        const locate = (text, tokens) => {
+            const positions = [];
+            let cursor = 0;
+            for (const token of tokens) {
+                const at = text.indexOf(token, cursor);
+                positions.push(at);
+                if (at >= 0) cursor = at + token.length;
+            }
+            return positions;
+        };
+
+        const posA = locate(leftText, a);
+        const posB = locate(rightText, b);
+        const alignedB = new Array(a.length).fill(-1);
+
+        const endAt = (positions, tokens, index) =>
+            positions[index] >= 0 ? positions[index] + tokens[index].length : -1;
+
+        const spanOf = (text, positions, tokens, from, to) => {
+            if (from < 0 || to > tokens.length || from >= to) return '';
+            const start = positions[from];
+            const end = endAt(positions, tokens, to - 1);
+            if (start < 0 || end < 0 || end <= start) return '';
+            return text.slice(start, end);
+        };
+
         let i = 0, j = 0;
+
+        const push = (wrong, right, aIndex) => {
+            if (!Number.isInteger(aIndex) || aIndex < 0 || aIndex >= a.length) return;
+            if (!useful(wrong) || !useful(right) || wrong === right || edits.length >= 80) return;
+            edits.push({
+                lineIndex,
+                wrong,
+                right,
+                occurrence: tokenOccurrenceOnLine(a, aIndex, a[aIndex]),
+                aIndex
+            });
+        };
+
+        // Raw corrected text from the token aligned with `anchor` through
+        // token `bTo` (or the end of the line when bTo is null).
+        const anchorRight = (anchor, bTo) => {
+            const from = alignedB[anchor];
+            if (from < 0 || from >= posB.length || posB[from] < 0) return '';
+            const end = bTo === null ? rightText.length : endAt(posB, b, bTo);
+            if (end < 0 || end <= posB[from]) return '';
+            return rightText.slice(posB[from], end);
+        };
+
+        // Extend the edit already anchored on `anchor`, or open a new one, so
+        // two edits never target the same original token.
+        const extendAnchor = (anchor, bTo) => {
+            const right = anchorRight(anchor, bTo);
+            if (!right) return false;
+            const tail = edits[edits.length - 1];
+            if (tail && tail.aIndex === anchor) {
+                tail.right = right;
+                return true;
+            }
+            push(a[anchor], right, anchor);
+            return true;
+        };
 
         while (i < a.length && j < b.length && edits.length < 80) {
             if (a[i] === b[j]) {
+                alignedB[i] = j;
                 i++; j++;
                 continue;
             }
@@ -3033,11 +3104,20 @@ function extractLayoutWordEdits(before, after) {
             let matched = false;
             for (let look = 1; look <= 3; look++) {
                 if (i + look < a.length && a[i + look] === b[j]) {
+                    // a[i..i+look-1] were deleted just before a kept token.
+                    push(spanOf(leftText, posA, a, i, i + look + 1), a[i + look], i);
+                    alignedB[i + look] = j;
                     i += look;
                     matched = true;
                     break;
                 }
                 if (j + look < b.length && a[i] === b[j + look]) {
+                    // b[j..j+look-1] were inserted right after a[i - 1].
+                    const anchor = i - 1;
+                    if (anchor >= 0) {
+                        alignedB[i] = j + look;
+                        extendAnchor(anchor, j + look - 1);
+                    }
                     j += look;
                     matched = true;
                     break;
@@ -3045,22 +3125,26 @@ function extractLayoutWordEdits(before, after) {
             }
             if (matched) continue;
 
-            const wrong = a[i];
-            const right = b[j];
-            const useful = s =>
-                s &&
-                s.length <= 80 &&
-                !/^[\s|()[\]{}.,;:!?/\\]+$/.test(s);
-
-            if (useful(wrong) && useful(right) && wrong !== right) {
-                edits.push({
-                    lineIndex,
-                    wrong,
-                    right,
-                    occurrence: tokenOccurrenceOnLine(a, i, wrong)
-                });
-            }
+            push(a[i], b[j], i);
+            alignedB[i] = j;
             i++; j++;
+        }
+
+        // The loop stops as soon as either side runs out of tokens, so words
+        // appended to (or removed from) the end of a line never reach it.
+        // Anchor them on the final original token so live Teach edits always
+        // show up in the Extracted layout too.
+        if (i === a.length && j < b.length && a.length) {
+            extendAnchor(a.length - 1, null);
+        } else if (j === b.length && i < a.length && i > 0) {
+            const anchor = i - 1;
+            const wrong = spanOf(leftText, posA, a, anchor, a.length);
+            const tail = edits[edits.length - 1];
+            if (tail && tail.aIndex === anchor) {
+                tail.wrong = wrong || tail.wrong;
+            } else if (wrong) {
+                push(wrong, a[anchor], anchor);
+            }
         }
     };
 
@@ -3898,6 +3982,10 @@ function renderTeachPreview() {
     if (!showingRaw) {
         textOut.innerHTML = formatOutput(layoutPreview);
         textOut.className = 'output-body';
+    } else {
+        // Plain text tab stays in sync with Teach edits as they happen.
+        textOut.textContent = currentPlainText();
+        textOut.className = 'output-body output-raw';
     }
 }
 
