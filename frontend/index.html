@@ -1092,6 +1092,79 @@
             opacity: 0.85;
         }
 
+        .ocr-picture-placeholder {
+            display:inline-flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            width:92px;
+            min-height:76px;
+            margin:0.28rem 0.3rem 0.28rem 0;
+            padding:0.35rem;
+            border:1.4px solid var(--border2);
+            border-radius:8px;
+            background:var(--surface);
+            vertical-align:middle;
+            box-sizing:border-box;
+            gap:0.22rem;
+        }
+        .ocr-picture-placeholder img {
+            width:34px;
+            height:34px;
+            object-fit:contain;
+            opacity:.7;
+        }
+        .ocr-picture-label {
+            max-width:100%;
+            font-size:.68rem;
+            font-weight:600;
+            text-align:center;
+            line-height:1.2;
+            overflow-wrap:anywhere;
+        }
+        .ocr-checkbox {
+            display:inline-block;
+            width:16px;
+            height:16px;
+            border:1.5px solid currentColor;
+            border-radius:2px;
+            margin:0 .22rem;
+            vertical-align:-3px;
+            box-sizing:border-box;
+        }
+        .ocr-picture-option {
+            display:inline-flex;
+            flex-direction:column;
+            align-items:center;
+            gap:.2rem;
+            margin:.2rem .45rem .35rem 0;
+            vertical-align:top;
+        }
+        .ocr-option-row {
+            display:flex;
+            flex-wrap:wrap;
+            gap:.5rem .85rem;
+            align-items:center;
+            margin:.28rem 0 .5rem;
+        }
+        .ocr-option-item {
+            display:inline-flex;
+            align-items:center;
+            gap:.28rem;
+            white-space:nowrap;
+        }
+        .ocr-match-row {
+            display:grid;
+            grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+            gap:1.25rem;
+            align-items:center;
+            margin:.18rem 0;
+        }
+        .ocr-match-cell {
+            min-width:0;
+            overflow-wrap:anywhere;
+        }
+
         .output-heading {
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
             font-size: 12px;
@@ -2813,7 +2886,17 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const hard = analysis.difficulty === 'hard';
 
     let lineMosaic = null;
-    if (layout.lineFriendly) {
+    const allowLineMosaic =
+        layout.lineFriendly &&
+        !hard &&
+        !forceSafe &&
+        Number(layout.multiColumnRows || 0) === 0 &&
+        Number(layout.denseOptionRows || 0) === 0 &&
+        Number(layout.longHorizontalRules || 0) === 0 &&
+        Number(layout.longVerticalRules || 0) === 0 &&
+        Number(layout.lineCount || 0) <= 20;
+
+    if (allowLineMosaic) {
         try {
             lineMosaic = await makeLineMosaic(workSource, layout, originalWidth, originalHeight, forceSafe);
         } catch (_) {}
@@ -2853,7 +2936,7 @@ async function prepareImageForOCR(source, forceSafe = false) {
         };
     }
 
-    const maxLongEdge = forceSafe ? 2200 : (hard ? 3200 : 2600);
+    const maxLongEdge = forceSafe ? 2600 : (layout.structured ? 3600 : (hard ? 3400 : 2800));
     const quality = forceSafe ? 0.88 : (hard ? 0.95 : 0.92);
     const longEdge = Math.max(originalWidth, originalHeight);
     const scale = Math.min(1, maxLongEdge / Math.max(1, longEdge));
@@ -4469,6 +4552,15 @@ function portableText(value) {
     let out = String(value || '');
 
     out = out
+        .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
+            String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' [ ]').join('   '))
+        .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
+            String(left || '').trim() + ' | ' + String(right || '').trim())
+        .replace(/\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]/gi, (_, label) =>
+            '[' + String(label || '').trim() + ' picture] [ ]')
+        .replace(/\[\[PICTURE:\s*([\s\S]*?)\]\]/gi, (_, label) =>
+            '[' + String(label || '').trim() + ' picture]')
+        .replace(/\[\[CHECKBOX\]\]/gi, '[ ]')
         .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
             return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
         })
@@ -4499,6 +4591,24 @@ function formatOcrAnnotation(type, content) {
     if (type === 'MARGIN') return '<span class="ocr-margin">' + safe + '</span>';
     if (type === 'STAMP') return '<span class="ocr-stamp">' + safe + '</span>';
     if (type === 'SIGNATURE') return '<span class="ocr-signature">Signature: ' + safe + '</span>';
+    if (type === 'PICTURE') {
+        const label = String(content || '').trim() || '[unreadable]';
+        return '<span class="ocr-picture-placeholder" title="Picture placeholder">' +
+            '<img src="/default-picture.svg" alt="Picture placeholder">' +
+            '<span class="ocr-picture-label">' + esc(label) + '</span>' +
+        '</span>';
+    }
+    if (type === 'PICTURE_OPTION') {
+        const label = String(content || '').trim() || '[unreadable]';
+        return '<span class="ocr-picture-option">' +
+            '<span class="ocr-picture-placeholder">' +
+                '<img src="/default-picture.svg" alt="Picture placeholder">' +
+                '<span class="ocr-picture-label">' + esc(label) + '</span>' +
+            '</span>' +
+            '<span class="ocr-checkbox" aria-label="empty checkbox"></span>' +
+        '</span>';
+    }
+    if (type === 'CHECKBOX') return '<span class="ocr-checkbox" aria-label="empty checkbox"></span>';
 
     if (type === 'REPLACE') {
         const parts = String(content || '').split(/\s*(?:->|→|=>)\s*/);
@@ -4658,14 +4768,15 @@ function isOutputHeadingLine(line, index, firstNonEmptyIndex) {
 }
 
 function formatOutputLine(line) {
-    const token = /\[\[(DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):\s*([\s\S]*?)\]\]/g;
+    const token = /\[\[(DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION):\s*([\s\S]*?)\]\]|\[\[(CHECKBOX)\]\]/g;
     let html = '';
     let last = 0;
     let match;
 
     while ((match = token.exec(line)) !== null) {
         html += formatVisibleText(line.slice(last, match.index));
-        html += formatOcrAnnotation(match[1], match[2]);
+        if (match[3] === 'CHECKBOX') html += formatOcrAnnotation('CHECKBOX', '');
+        else html += formatOcrAnnotation(match[1], match[2]);
         last = token.lastIndex;
     }
 
@@ -4697,6 +4808,28 @@ function isAnswerBlankContinuationLine(line) {
     return /^\s*_{2,}\s*$/.test(String(line || ''));
 }
 
+function formatStructuredWorksheetLine(line) {
+    const source = String(line || '').trim();
+
+    const option = source.match(/^\[\[OPTION_ROW:\s*([\s\S]*?)\]\]$/i);
+    if (option) {
+        const items = option[1].split(/\s*\|\|\s*/).map(x => x.trim()).filter(Boolean);
+        return '<div class="ocr-option-row">' + items.map(item =>
+            '<span class="ocr-option-item"><span>' + formatOutputLine(item) + '</span><span class="ocr-checkbox" aria-label="empty checkbox"></span></span>'
+        ).join('') + '</div>';
+    }
+
+    const matchRow = source.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+    if (matchRow) {
+        return '<div class="ocr-match-row">' +
+            '<div class="ocr-match-cell">' + formatOutputLine(matchRow[1].trim()) + '</div>' +
+            '<div class="ocr-match-cell">' + formatOutputLine(matchRow[2].trim()) + '</div>' +
+        '</div>';
+    }
+
+    return null;
+}
+
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
@@ -4714,6 +4847,13 @@ function formatOutput(text) {
         }
 
         const line = lines[i];
+        const structuredLine = formatStructuredWorksheetLine(line);
+        if (structuredLine) {
+            html += structuredLine;
+            i++;
+            continue;
+        }
+
         const answerBlank = formatSingleAnswerBlankLine(line);
         if (answerBlank) {
             html += answerBlank;
@@ -4879,6 +5019,15 @@ function docxVisibleText(value) {
     let out = String(value || '');
 
     out = out
+        .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
+            String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' ☐').join('    '))
+        .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
+            String(left || '').trim() + '    ' + String(right || '').trim())
+        .replace(/\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]/gi, (_, label) =>
+            '[' + String(label || '').trim() + ' picture] ☐')
+        .replace(/\[\[PICTURE:\s*([\s\S]*?)\]\]/gi, (_, label) =>
+            '[' + String(label || '').trim() + ' picture]')
+        .replace(/\[\[CHECKBOX\]\]/gi, '☐')
         .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) =>
             [oldText.trim(), newText.trim()].filter(Boolean).join(' → '))
         .replace(/\[\[CIRCLED:\s*([\s\S]*?)\]\]/gi, (_, content) => {
