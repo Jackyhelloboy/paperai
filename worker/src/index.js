@@ -1344,7 +1344,15 @@ Use only text actually visible in the image. If there is no right-side label, le
 15. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
 16. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
 17. For diagrams, shapes, flowcharts, maps, or labelled drawings: preserve visible labels, numbers, arrows and shape relationships. Use visible symbols such as ○, □, →, ←, ↗, ↘, ↑, ↓ only when the corresponding shape/arrow is actually visible. Keep connected branches on separate lines when needed so the relationship remains readable. Do not invent a description of the drawing.
+17A. WORKSHEET PICTURES: when a visible box contains a written picture label such as "chips pic", "tiger pic", "pizza pic", "caravan pic", or similar, do NOT output it as ordinary loose text. Output exactly [[PICTURE: chips]], [[PICTURE: tiger]], etc. Remove only the literal trailing word "pic/picture" from the label. The frontend will show a default image placeholder with that label.
+17B. If a picture/illustration is visibly present but its object name is NOT visibly written, output [[PICTURE: [unreadable]]] instead of guessing the object from school knowledge.
+17C. When a picture label has its own empty answer/check box directly below or beside it, output [[PICTURE_OPTION: label]] so the frontend renders the picture placeholder together with an empty checkbox.
+17D. EMPTY CHECKBOXES/SQUARE ANSWER BOXES: output [[CHECKBOX]] for each clearly visible empty square/rectangular selection box. Do not convert several boxes into one.
+17E. MULTIPLE-CHOICE ROWS: when one question has several horizontal text choices, output ONE line exactly as [[OPTION_ROW: choice one || choice two || choice three]]. Preserve the visible choice order. The frontend will render a checkbox beside every choice.
+17F. MATCH-THE-FOLLOWING: for a clear left/right pair on the same visual row, output [[MATCH_ROW: left text || right text]]. Do not solve or rearrange the matching exercise. If the columns are not aligned enough to establish a row, keep the two columns as literal text instead of guessing a pair.
+17G. Picture rows, option rows, matching rows, tables, blanks and boxes are CONTENT. Never omit them just because they contain little text.
 18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
+18A. COMPLETENESS CHECK: before finalizing, confirm that you read the TOP, MIDDLE and BOTTOM of the visible paper. Preserve every visible section heading (for example IV, V, VI, VII), every numbered question and every option row. Do not stop after an easy lower section.
 19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
 20. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row, using " | " only as a column separator.
 21. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
@@ -1432,6 +1440,9 @@ VERIFICATION RULES:
 - For branch diagrams, remove fake "| |" connector rows and return the exact [[BRANCH_ROOT]], [[BRANCH_ITEM]], [[BRANCH_END]] structure defined above.
 - Re-check each branch label independently. Never merge the root/prefix into a branch label; preserve only the characters visibly written on that branch.
 - Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
+- Compare the FIRST OCR against the complete visual page from TOP to BOTTOM. If whole headings, sections, picture rows, questions, choices, checkboxes, matching rows, or the bottom of the page were omitted, restore those missing items from the image even when this makes the verified transcription much longer.
+- Use [[PICTURE: label]], [[PICTURE_OPTION: label]], [[CHECKBOX]], [[OPTION_ROW: ... || ...]], and [[MATCH_ROW: ... || ...]] exactly as defined in the main rules when those structures are visible.
+- Do not keep a short first OCR merely because its existing words are correct; completeness of the visible page is mandatory.
 - When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
 
@@ -1503,11 +1514,15 @@ function shouldVerifyOcr(text, imageMeta = {}) {
     actualLines < Math.max(2, Math.floor(expectedLines * 0.50));
 
   const hasUnclear = /\[unclear(?::[^\]]*)?\]/i.test(visible);
-  const hasEditMetadata = /\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/i.test(visible);
+  const hasEditMetadata = /\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION|OPTION_ROW|MATCH_ROW):/i.test(visible) ||
+    /\[\[CHECKBOX\]\]/i.test(visible);
   const structuredPage =
     Boolean(imageMeta?.structuredLayout) ||
-    Number(imageMeta?.multiColumnRows || 0) >= 2 ||
-    Number(imageMeta?.denseOptionRows || 0) >= 2;
+    Number(imageMeta?.multiColumnRows || 0) >= 1 ||
+    Number(imageMeta?.denseOptionRows || 0) >= 1 ||
+    Number(imageMeta?.longHorizontalRules || 0) >= 2 ||
+    Number(imageMeta?.longVerticalRules || 0) >= 1 ||
+    Number(imageMeta?.lineCount || 0) >= 10;
   const hardPage =
     imageMeta?.difficulty === 'hard' ||
     Number(imageMeta?.score || 0) >= 2;
@@ -1534,7 +1549,7 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
     .length;
 
   const uncertainCount = s => (s.match(/\[unclear(?::[^\]]*)?\]/gi) || []).length;
-  const editCount = s => (s.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
+  const editCount = s => (s.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION|OPTION_ROW|MATCH_ROW):/g) || []).length + (s.match(/\[\[CHECKBOX\]\]/g) || []).length;
   const lineCount = s => s.split(/\n+/).filter(line => line.trim()).length;
 
   const tokenAgreement = (x, y) => {
@@ -1566,23 +1581,45 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
 
   const aLen = usefulLength(a);
   const bLen = usefulLength(b);
+  const aLines = lineCount(a);
   const expectedLines = Number(imageMeta?.lineCount) || 0;
   const bLines = lineCount(b);
   const agreement = tokenAgreement(a, b);
   const firstWasUncertain = uncertainCount(a) > 0 || editCount(a) > 0;
+  const structuredPage =
+    Boolean(imageMeta?.structuredLayout) ||
+    Number(imageMeta?.multiColumnRows || 0) >= 1 ||
+    Number(imageMeta?.denseOptionRows || 0) >= 1 ||
+    Number(imageMeta?.longHorizontalRules || 0) >= 2 ||
+    Number(imageMeta?.longVerticalRules || 0) >= 1 ||
+    expectedLines >= 10;
 
   if (bLen < Math.max(4, aLen * 0.68)) return false;
-  if (bLen > aLen * 1.55 && aLen > 20) return false;
+  if (!structuredPage && bLen > aLen * 1.55 && aLen > 20) return false;
+  if (structuredPage && bLen > aLen * 5.0 && aLen > 20) return false;
   if (expectedLines >= 4 && bLines < Math.max(2, Math.floor(expectedLines * 0.40))) return false;
+
+  // On structured worksheets the first pass often misses entire visual rows.
+  // A longer verified result is desirable when it preserves existing tokens
+  // and restores additional visible lines/sections.
+  const recoveredStructure =
+    structuredPage &&
+    bLines >= aLines + 2 &&
+    bLen >= aLen * 1.10 &&
+    (agreement >= 0.28 || aLen < 80);
+
+  if (recoveredStructure) return true;
 
   // Verification may fix several characters, but it should not rewrite the
   // entire document into a different same-length answer.
-  if (!firstWasUncertain && aLen > 40 && agreement < 0.50) return false;
+  if (!firstWasUncertain && !structuredPage && aLen > 40 && agreement < 0.50) return false;
+  if (!firstWasUncertain && structuredPage && aLen > 80 && agreement < 0.28 && bLines <= aLines + 1) return false;
 
   if (uncertainCount(b) < uncertainCount(a)) return true;
   if (editCount(b) < editCount(a) && bLen >= aLen * 0.75) return true;
 
-  return bLen >= aLen * 0.88 && (aLen <= 40 || agreement >= 0.50 || firstWasUncertain);
+  return bLen >= aLen * 0.88 &&
+    (aLen <= 40 || agreement >= (structuredPage ? 0.28 : 0.50) || firstWasUncertain);
 }
 
 function mergeAiUsage(a, b) {
@@ -1731,6 +1768,15 @@ function stripOcrMetadata(text) {
   if (!text) return '';
 
   return stripBranchMetadata(String(text))
+    .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
+      String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' [ ]').join('   '))
+    .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
+      String(left || '').trim() + ' | ' + String(right || '').trim())
+    .replace(/\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]/gi, (_, label) =>
+      String(label || '').trim() + ' pic [ ]')
+    .replace(/\[\[PICTURE:\s*([\s\S]*?)\]\]/gi, (_, label) =>
+      String(label || '').trim() + ' pic')
+    .replace(/\[\[CHECKBOX\]\]/gi, '[ ]')
     .replace(/\[\[REPLACE:\s*([\s\S]*?)\s*(?:->|→|=>)\s*([\s\S]*?)\]\]/gi, (_, oldText, newText) => {
       return [oldText.trim(), newText.trim()].filter(Boolean).join(' ');
     })
