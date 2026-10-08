@@ -1351,6 +1351,15 @@ Use only text actually visible in the image. If there is no right-side label, le
 17E. MULTIPLE-CHOICE ROWS: when one question has several horizontal text choices, output ONE line exactly as [[OPTION_ROW: choice one || choice two || choice three]]. Preserve the visible choice order. The frontend will render a checkbox beside every choice.
 17F. MATCH-THE-FOLLOWING: for a clear left/right pair on the same visual row, output [[MATCH_ROW: left text || right text]]. Do not solve or rearrange the matching exercise. If the columns are not aligned enough to establish a row, keep the two columns as literal text instead of guessing a pair.
 17G. Picture rows, option rows, matching rows, tables, blanks and boxes are CONTENT. Never omit them just because they contain little text.
+17H. PICTURE GRID WITH BLANK ANSWER RECTANGLES: when 2–8 distinct picture frames appear evenly across ONE row with separate answer boxes, output [[PICTURE_ROW: 1. [unreadable] || 2. [unreadable] || 3. [unreadable]]] with exactly the visible count. A word label may replace [unreadable] ONLY when that label is visibly printed or handwritten beside the picture. Never infer "lotus", "deer", or another object by general knowledge. Keep all other visible text outside the picture row.
+17I. GEOMETRIC SHAPE IDENTIFICATION: if a row contains visually obvious geometric outlines without visible labels, output [[SHAPE_ROW: square || cube || rectangle || circle]] using the observed basic shape type; do not include invented answers.
+17J. LETTER/VOWEL BOX GRIDS: a simple straight row with N uniformly bordered squares is [[GRID: Nx1]], and a visible R-row C-column grid is [[GRID: CxR]] (for example [[GRID: 5x8]]). Only output these dimensions if the cell borders clearly show the counts. If individual cells contain visible characters, use [[GRID_ROW: अ || _ || आ || _]] for each row, using _ for a visibly empty cell. Do not make up letters in empty cells.
+17K. PRINTED TABLES: when a clearly bordered table has multiple column headers and data rows, output one [[TABLE_ROW: cell one || cell two || cell three]] for EACH visible row, keeping empty cells as empty values. Never use these markers for ordinary body paragraphs.
+17L. LONG EMPTY ANSWER LINES: when one or more horizontal blank answer rules are visible without text, output [[ANSWER_LINES: N]] for N consecutive visible blank rules (maximum 10). A question's spoken answer must NEVER be supplied.
+17M. PLAIN INLINE CHOICES: use [[CHOICE_ROW: A. first || B. second || C. third]] when the page displays a horizontal set of choices but DOES NOT show separate checkboxes. Use [[OPTION_ROW: ...]] ONLY if each choice has a visible selection box. Preserve exact spelling and choice labels; do not choose an answer.
+17N. Keep section headings, marks, whitespace, numbering, and reading order. One visual worksheet page should be complete and its geometry should be faithfully represented, not reduced to a list of words.
+17O. An image/drawing or an outline of a map is NOT text. When unrecognizable use a default picture marker; never hallucinate a map, body-part labels, or missing questions.
+
 18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
 18A. COMPLETENESS CHECK: before finalizing, confirm that you read the TOP, MIDDLE and BOTTOM of the visible paper. Preserve every visible section heading (for example IV, V, VI, VII), every numbered question and every option row. Do not stop after an easy lower section.
 19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
@@ -1441,7 +1450,7 @@ VERIFICATION RULES:
 - Re-check each branch label independently. Never merge the root/prefix into a branch label; preserve only the characters visibly written on that branch.
 - Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
 - Compare the FIRST OCR against the complete visual page from TOP to BOTTOM. If whole headings, sections, picture rows, questions, choices, checkboxes, matching rows, or the bottom of the page were omitted, restore those missing items from the image even when this makes the verified transcription much longer.
-- Use [[PICTURE: label]], [[PICTURE_OPTION: label]], [[CHECKBOX]], [[OPTION_ROW: ... || ...]], and [[MATCH_ROW: ... || ...]] exactly as defined in the main rules when those structures are visible.
+- Use [[PICTURE: label]], [[PICTURE_OPTION: label]], [[PICTURE_ROW: ... || ...]], [[SHAPE_ROW: ... || ...]], [[GRID: 5x8]], [[GRID_ROW: ... || ...]], [[ANSWER_LINES: 2]], [[TABLE_ROW: ... || ...]], [[CHECKBOX]], [[CHOICE_ROW: ... || ...]], [[OPTION_ROW: ... || ...]], and [[MATCH_ROW: ... || ...]] when those visual structures are clearly present. Preserve the number and geometry of every visible cell, option, line and picture.
 - Do not keep a short first OCR merely because its existing words are correct; completeness of the visible page is mandatory.
 - When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
@@ -1768,6 +1777,21 @@ function stripOcrMetadata(text) {
   if (!text) return '';
 
   return stripBranchMetadata(String(text))
+    .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+      String(body).split(/\s*\|\|\s*/).map(x => '[' + x.trim() + ' picture] ______').join('    '))
+    .replace(/\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+      String(body).split(/\s*\|\|\s*/).map(x => '[' + x.trim() + ' shape] ______').join('    '))
+    .replace(/\[\[GRID:\s*(\d{1,2})[x×](\d{1,2})\]\]/gi, (_,c,r) =>
+      Array.from({length:Math.min(24,+r)},()=>Array.from({length:Math.min(24,+c)},()=> '□').join(' ')).join('\n'))
+    .replace(/\[\[GRID_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+      String(body).split(/\s*\|\|\s*/).map(x => x.trim() === '_' ? '□' : x.trim()).join(' | '))
+    .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+      String(body).split(/\s*\|\|\s*/).join(' | '))
+    .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+      String(body).split(/\s*\|\|\s*/).join('    '))
+    .replace(/\[\[ANSWER_LINES:\s*(\d{1,2})\]\]/gi, (_,n) =>
+      Array.from({length:Math.min(10,+n)},()=> '____________________________').join('\n'))
+    .replace(/\[\[PAGE_BREAK\]\]/gi, '\n\n')
     .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
       String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' [ ]').join('   '))
     .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
