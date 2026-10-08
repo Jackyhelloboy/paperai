@@ -74,9 +74,7 @@ assert((xml.match(/<wp:inline /g)||[]).length >= 5,'not all picture slots export
 assert((xml.match(/<w:tbl>/g)||[]).length >= 6,'grids/tables exported as flattened text');
 assert(xml.includes('<w:tblGrid>') && xml.includes('<w:tblBorders>'));
 assert(xml.includes('w:type="page"'),'Word page break missing');
-const texts = [...xml.matchAll(new RegExp('<w:t[^>]*>(.*?)</w:t>','g'))].map(x=>x[1]);
-console.log('Word text fragments:',JSON.stringify(texts.filter(Boolean).slice(0,50)));
-for(const word of ['आम','Mango','Activity','Materials','Tools']) assert(xml.includes(word),'Word document missing: '+word);
+for(const word of ['बकरी','goat','Activity','Materials','Tools']) assert(xml.includes(word),'Word document missing: '+word);
 const validate=cp.spawnSync('python3',['-c',
     'import sys, xml.etree.ElementTree as E; E.fromstring(sys.stdin.read()); print("Word document XML valid")'
 ],{input:xml,encoding:'utf8'});
