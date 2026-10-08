@@ -1358,6 +1358,7 @@ Use only text actually visible in the image. If there is no right-side label, le
 17L. LONG EMPTY ANSWER LINES: when one or more horizontal blank answer rules are visible without text, output [[ANSWER_LINES: N]] for N consecutive visible blank rules (maximum 10). A question's spoken answer must NEVER be supplied.
 17M. PLAIN INLINE CHOICES: use [[CHOICE_ROW: A. first || B. second || C. third]] when the page displays a horizontal set of choices but DOES NOT show separate checkboxes. Use [[OPTION_ROW: ...]] ONLY if each choice has a visible selection box. Preserve exact spelling and choice labels; do not choose an answer.
 17N. Keep section headings, marks, whitespace, numbering, and reading order. One visual worksheet page should be complete and its geometry should be faithfully represented, not reduced to a list of words.
+17P. EXAM SECTION HEADINGS: when a bold/underlined section title appears at left and a short mark value such as "5x2=10M" appears aligned at right on the same row, output [[SECTION_ROW: IX. चित्र देखकर नाम लिखो। || 5x2=10M]]. Preserve the actual visible heading and actual mark value, do not invent them.
 17O. An image/drawing or an outline of a map is NOT text. When unrecognizable use a default picture marker; never hallucinate a map, body-part labels, or missing questions.
 
 18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
@@ -1777,6 +1778,8 @@ function stripOcrMetadata(text) {
   if (!text) return '';
 
   return stripBranchMetadata(String(text))
+    .replace(/\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
+      (_,title,marks)=>title.trim()+'    '+marks.trim())
     .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
       String(body).split(/\s*\|\|\s*/).map(x => '[' + x.trim() + ' picture] ______').join('    '))
     .replace(/\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
