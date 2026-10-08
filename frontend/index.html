@@ -1153,6 +1153,32 @@
             gap:.28rem;
             white-space:nowrap;
         }
+        /* A4-like compact worksheet preview; rows and Word tables share widths. */
+        .output-body { max-height: min(76vh, 900px); font-size: 11px; }
+        .ocr-figure-row { display:grid; grid-template-columns:repeat(var(--figure-cols),minmax(0,1fr)); gap:.35rem; align-items:start; margin:.5rem 0 .8rem; width:100%; }
+        .ocr-figure-cell { display:flex; flex-direction:column; gap:.28rem; align-items:center; min-width:0; }
+        .ocr-figure-cell .ocr-picture-placeholder { width:100%; max-width:110px; min-width:0; min-height:68px; margin:0; padding:.18rem; }
+        .ocr-figure-cell .ocr-picture-placeholder img { width:min(65%,48px); height:40px; }
+        .ocr-figure-number { align-self:flex-start; font-size:.7rem; }
+        .ocr-figure-answer { display:block; width:90%; max-width:120px; height:20px; border:1px solid var(--text3); box-sizing:border-box; }
+        .ocr-shape-icon { width:min(100%,100px); height:72px; color:var(--text); }
+        .ocr-layout-scroll { width:100%; overflow-x:auto; margin:.42rem 0 .7rem; }
+        .ocr-worksheet-grid { display:grid; grid-template-columns:repeat(var(--grid-cols),minmax(0,1fr)); width:100%; max-width:540px; border-left:1px solid var(--text3); border-top:1px solid var(--text3); box-sizing:border-box; }
+        .ocr-grid-cell { min-height:23px; display:flex; justify-content:center; align-items:center; border-right:1px solid var(--text3); border-bottom:1px solid var(--text3); box-sizing:border-box; font-size:.9em; }
+        .ocr-worksheet-table { border-collapse:collapse; width:100%; table-layout:fixed; font-size:inherit; }
+        .ocr-worksheet-table th,.ocr-worksheet-table td { border:1px solid var(--text3); padding:.35rem .25rem; vertical-align:top; text-align:left; overflow-wrap:anywhere; }
+        .ocr-worksheet-table th { font-weight:600; }
+        .ocr-answer-lines { display:flex; flex-direction:column; gap:.85rem; padding:.6rem .2rem .5rem; }
+        .ocr-answer-rule { border-bottom:1px solid var(--text3); height:.75rem; }
+        .ocr-page-break { border-top:2px dashed var(--border2); margin:1.2rem 0; }
+        @media (max-width:479px) {
+            .output-body { padding:.7rem; font-size:10px; }
+            .ocr-figure-row { gap:.17rem; }
+            .ocr-figure-cell .ocr-picture-placeholder { min-height:56px; }
+            .ocr-figure-cell .ocr-picture-placeholder img { height:28px; }
+            .ocr-figure-answer { height:17px; }
+            .ocr-grid-cell { min-height:19px; }
+        }
         .ocr-match-row {
             display:grid;
             grid-template-columns:minmax(0,1fr) minmax(0,1fr);
@@ -4808,25 +4834,100 @@ function isAnswerBlankContinuationLine(line) {
     return /^\s*_{2,}\s*$/.test(String(line || ''));
 }
 
+function worksheetCells(raw, max = 16) {
+    return String(raw || '').split(/\s*\|\|\s*/).map(cell => cell.trim()).slice(0, max);
+}
+function worksheetGridSize(value) {
+    const hit = String(value || '').match(/^(\d{1,2})\s*[x×]\s*(\d{1,2})$/i);
+    if (!hit) return null;
+    const columns = Number(hit[1]), rows = Number(hit[2]);
+    return columns >= 1 && columns <= 24 && rows >= 1 && rows <= 24 && columns * rows <= 300
+        ? { columns, rows } : null;
+}
+function worksheetPictureCell(label, withAnswer = true) {
+    const safe = esc(String(label || '').replace(/^\d+[.)]\s*/, '').trim() || 'Picture');
+    const number = String(label || '').match(/^\d+[.)]/)?.[0] || '';
+    return '<div class="ocr-figure-cell">' +
+        (number ? '<span class="ocr-figure-number">' + esc(number) + '</span>' : '') +
+        '<span class="ocr-picture-placeholder"><img src="/default-picture.svg" alt="Replaceable picture placeholder">' +
+        '<span class="ocr-picture-label">' + safe + '</span></span>' +
+        (withAnswer ? '<span class="ocr-figure-answer" aria-label="blank answer box"></span>' : '') +
+    '</div>';
+}
+function worksheetShapeSvg(value) {
+    const name = String(value || '').toLowerCase().trim();
+    const common = 'fill="none" stroke="currentColor" stroke-width="2"';
+    if (/square|वर्ग/.test(name)) return '<rect x="25" y="12" width="58" height="58" ' + common + '/>';
+    if (/rectangle|आयत/.test(name)) return '<rect x="10" y="25" width="90" height="40" ' + common + '/>';
+    if (/circle|वृत्त/.test(name)) return '<circle cx="55" cy="45" r="32" ' + common + '/>';
+    if (/triangle|त्रिभुज/.test(name)) return '<path d="M55 11 L99 78 H11 Z" ' + common + '/>';
+    if (/cube/.test(name)) return '<path d="M23 30h46v46H23z M23 30l17-17h46v46L69 76 M69 30l17-17 M86 59L69 76" ' + common + '/>';
+    return '<rect x="22" y="18" width="66" height="55" stroke="currentColor" stroke-dasharray="5 4" fill="none"/>';
+}
+function worksheetRenderTable(rows) {
+    const columns = Math.min(8, Math.max(1, ...rows.map(row => worksheetCells(row, 8).length)));
+    const content = rows.map((row, index) => {
+        const cells = worksheetCells(row, columns);
+        return '<tr>' + Array.from({length: columns}, (_, col) =>
+            '<' + (index === 0 ? 'th' : 'td') + '>' + formatOutputLine(cells[col] || '') +
+            '</' + (index === 0 ? 'th' : 'td') + '>'
+        ).join('') + '</tr>';
+    }).join('');
+    return '<div class="ocr-layout-scroll"><table class="ocr-worksheet-table"><tbody>' + content + '</tbody></table></div>';
+}
 function formatStructuredWorksheetLine(line) {
     const source = String(line || '').trim();
-
-    const option = source.match(/^\[\[OPTION_ROW:\s*([\s\S]*?)\]\]$/i);
-    if (option) {
-        const items = option[1].split(/\s*\|\|\s*/).map(x => x.trim()).filter(Boolean);
+    let found = source.match(/^\[\[(OPTION_ROW|CHOICE_ROW):\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const hasCheckboxes = found[1].toUpperCase() === 'OPTION_ROW';
+        const items = worksheetCells(found[2], 12).filter(Boolean);
         return '<div class="ocr-option-row">' + items.map(item =>
-            '<span class="ocr-option-item"><span>' + formatOutputLine(item) + '</span><span class="ocr-checkbox" aria-label="empty checkbox"></span></span>'
+            '<span class="ocr-option-item"><span>' + formatOutputLine(item) + '</span>' +
+            (hasCheckboxes ? '<span class="ocr-checkbox" aria-label="empty checkbox"></span>' : '') +
+            '</span>'
         ).join('') + '</div>';
     }
-
-    const matchRow = source.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
-    if (matchRow) {
-        return '<div class="ocr-match-row">' +
-            '<div class="ocr-match-cell">' + formatOutputLine(matchRow[1].trim()) + '</div>' +
-            '<div class="ocr-match-cell">' + formatOutputLine(matchRow[2].trim()) + '</div>' +
-        '</div>';
+    found = source.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        return '<div class="ocr-match-row"><div class="ocr-match-cell">' +
+            formatOutputLine(found[1].trim()) + '</div><div class="ocr-match-cell">' +
+            formatOutputLine(found[2].trim()) + '</div></div>';
     }
-
+    found = source.match(/^\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const cells = worksheetCells(found[1], 8).filter(Boolean);
+        return '<div class="ocr-figure-row" style="--figure-cols:' + cells.length + '">' +
+            cells.map(cell => worksheetPictureCell(cell)).join('') + '</div>';
+    }
+    found = source.match(/^\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const cells = worksheetCells(found[1], 8).filter(Boolean);
+        return '<div class="ocr-figure-row" style="--figure-cols:' + cells.length + '">' +
+            cells.map(cell => '<div class="ocr-figure-cell"><svg class="ocr-shape-icon" viewBox="0 0 110 90" aria-label="' +
+                esc(cell) + '">' + worksheetShapeSvg(cell) + '</svg><span class="ocr-figure-answer"></span></div>'
+            ).join('') + '</div>';
+    }
+    found = source.match(/^\[\[GRID:\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const dim = worksheetGridSize(found[1]);
+        if (!dim) return null;
+        return '<div class="ocr-layout-scroll"><div class="ocr-worksheet-grid" style="--grid-cols:' +
+            dim.columns + '">' + '<span class="ocr-grid-cell"></span>'.repeat(dim.columns * dim.rows) +
+            '</div></div>';
+    }
+    found = source.match(/^\[\[GRID_ROW:\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const cells = worksheetCells(found[1], 24);
+        return '<div class="ocr-layout-scroll"><div class="ocr-worksheet-grid" style="--grid-cols:' +
+            cells.length + '">' + cells.map(cell => '<span class="ocr-grid-cell">' +
+            formatOutputLine(cell === '_' ? '' : cell) + '</span>').join('') + '</div></div>';
+    }
+    found = source.match(/^\[\[ANSWER_LINES:\s*(\d{1,2})\]\]$/i);
+    if (found) {
+        return '<div class="ocr-answer-lines">' +
+            '<div class="ocr-answer-rule"></div>'.repeat(Math.max(1, Math.min(10, Number(found[1])))) + '</div>';
+    }
+    if (/^\[\[PAGE_BREAK\]\]$/i.test(source)) return '<div class="ocr-page-break"></div>';
     return null;
 }
 
@@ -4847,6 +4948,19 @@ function formatOutput(text) {
         }
 
         const line = lines[i];
+        const tableRows = [];
+        let tableIndex = i;
+        while (tableIndex < lines.length) {
+            const m = String(lines[tableIndex]).trim().match(/^\[\[TABLE_ROW:\s*([\s\S]*?)\]\]$/i);
+            if (!m) break;
+            tableRows.push(m[1]);
+            tableIndex++;
+        }
+        if (tableRows.length) {
+            html += worksheetRenderTable(tableRows);
+            i = tableIndex;
+            continue;
+        }
         const structuredLine = formatStructuredWorksheetLine(line);
         if (structuredLine) {
             html += structuredLine;
