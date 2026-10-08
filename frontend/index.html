@@ -2253,12 +2253,27 @@ async function pdfToPages(pdfFile) {
         const baseViewport = page.getViewport({ scale: 1 });
         const embedded = reconstructPdfText(textContent, baseViewport.width);
 
-        if (embedded.length >= 20 && (textContent.items || []).length >= 3) {
+        // Text-layer extraction drops vector grids, tables and embedded illustrations.
+        // Rasterize pages with real drawn geometry; retain lossless text for plain pages.
+        let visualArtwork = false;
+        try {
+            const ops = await page.getOperatorList();
+            const commands = ops.fnArray || [];
+            const ids = pdfjsLib.OPS || {};
+            let images = 0, paths = 0;
+            for (const cmd of commands) {
+                if ([ids.paintImageXObject, ids.paintInlineImageXObject, ids.paintJpegXObject].includes(cmd)) images++;
+                if ([ids.constructPath, ids.rectangle, ids.stroke, ids.fill, ids.fillStroke].includes(cmd)) paths++;
+            }
+            visualArtwork = images >= 2 || paths >= 6 ||
+                (images >= 1 && (paths >= 2 || (textContent.items || []).length < 90));
+        } catch (_) { /* Text-layer fallback remains available. */ }
+        if (!visualArtwork && embedded.length >= 20 && (textContent.items || []).length >= 3) {
             pages.push({ type: 'text', text: embedded });
             continue;
         }
 
-        const scale = 2.25;
+        const scale = 2.5;
         const viewport = page.getViewport({ scale });
         const canvas = document.createElement('canvas');
         canvas.width = Math.ceil(viewport.width);
@@ -4578,6 +4593,21 @@ function portableText(value) {
     let out = String(value || '');
 
     out = out
+        .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).map(label=>'[' + label + ' picture] ______').join('    '))
+        .replace(/\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).map(label=>'[' + label + ' shape] ______').join('    '))
+        .replace(/\[\[GRID:\s*(\d{1,2})[x×](\d{1,2})\]\]/gi, (_,cols,rows) =>
+            Array.from({length:Math.min(24,+rows)},()=> '□ '.repeat(Math.min(24,+cols)).trim()).join('\n'))
+        .replace(/\[\[GRID_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,24).map(x=>x==='_'?'□':x).join(' | '))
+        .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).join(' | '))
+        .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,12).join('    '))
+        .replace(/\[\[ANSWER_LINES:\s*(\d{1,2})\]\]/gi, (_,n) =>
+            Array.from({length:Math.min(10,+n)},()=> '____________________________').join('\n'))
+        .replace(/\[\[PAGE_BREAK\]\]/gi, '\n\n')
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' [ ]').join('   '))
         .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
@@ -5012,7 +5042,7 @@ goBtn.onclick = async () => {
             setProg(8, 'Loading PDF...');
             const pages = await pdfToPages(file);
             for (let i = 0; i < pages.length; i++) {
-                const prefix = allText ? '\n\n' : '';
+                const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
                 if (pages[i].type === 'text') {
                     setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
                     allText += prefix + pages[i].text;
@@ -5133,6 +5163,21 @@ function docxVisibleText(value) {
     let out = String(value || '');
 
     out = out
+        .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).map(x=>'['+x+' picture]  ☐').join('    '))
+        .replace(/\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).map(x=>'['+x+' shape]  ☐').join('    '))
+        .replace(/\[\[GRID:\s*(\d{1,2})[x×](\d{1,2})\]\]/gi, (_,cols,rows) =>
+            Array.from({length:Math.min(24,+rows)},()=> '□ '.repeat(Math.min(24,+cols)).trim()).join('\n'))
+        .replace(/\[\[GRID_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,24).map(x=>x==='_'?'□':x).join(' | '))
+        .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).join(' | '))
+        .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,12).join('    '))
+        .replace(/\[\[ANSWER_LINES:\s*(\d{1,2})\]\]/gi, (_,n) =>
+            Array.from({length:Math.min(10,+n)},()=> '____________________________').join('\n'))
+        .replace(/\[\[PAGE_BREAK\]\]/gi, '\n\n')
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' ☐').join('    '))
         .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
@@ -5250,7 +5295,7 @@ function docxTableCells(rows, widths, options = {}) {
     const tableRows = rows.map(row => {
         const cells = widths.map((width, index) => {
             const content = row[index] ?? '';
-            const inner = (typeof content === 'string') ? docxParagraph(docxVisibleText(content), {
+            const inner = (typeof content === 'string') ? docxRichParagraph(content, {
                 size: options.fontSize || 19, after: 0
             }) : String(content.xml || docxParagraph('', {after:0}));
             return '<w:tc><w:tcPr><w:tcW w:w="' + width + '" w:type="dxa"/>' +
@@ -5342,7 +5387,7 @@ function docxRichParagraph(raw, options = {}) {
             (picture[1].toUpperCase() === 'PICTURE_OPTION' ? '  ☐' : ''),{size:18});
     }).join('');
     return '<w:p><w:pPr><w:spacing w:after="' + (options.after ?? 45) +
-        '"/><w:spacing w:line="300" w:lineRule="auto"/></w:pPr>' + runs + '</w:p>';
+        '" w:line="300" w:lineRule="auto"/></w:pPr>' + runs + '</w:p>';
 }
 function buildDocxBody(structuredText) {
     docxPictureCounter = 0;
