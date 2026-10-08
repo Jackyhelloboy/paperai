@@ -32,6 +32,8 @@ out=ui('[[CHOICE_ROW: A. Flat || B. Bungalow || C. Hut]]');
 assert.equal((out.match(/ocr-checkbox/g)||[]).length,0);
 out=ui('[[MATCH_ROW: आम || Mango]]');
 assert(out.includes('आम') && out.includes('Mango'));
+out=ui('[[SECTION_ROW: IX. चित्र देखकर नाम लिखो। || 5x2=10M]]');
+assert(out.includes('ocr-section-marks') && out.includes('5x2=10M'));
 out=ui('[[SHAPE_ROW: square || cube || rectangle || circle]]');
 assert.equal((out.match(/ocr-shape-icon/g)||[]).length,4);
 out=ui('[[ANSWER_LINES: 3]]');
@@ -50,7 +52,7 @@ const wordCtx=vm.createContext({
 });
 vm.runInContext(named('function docxVisibleText','function createWordPlaceholderPngBase64'),wordCtx);
 const fixture=[
-    'IX. चित्र देखकर नाम लिखो।',
+    '[[SECTION_ROW: IX. चित्र देखकर नाम लिखो। || 5x2=10M]]',
     '[[PICTURE_ROW: 1. lotus || 2. umbrella || 3. feather || 4. 5 || 5. sun]]',
     'X. जोड़ी बनाओ।',
     '[[MATCH_ROW: बकरी || goat]]',
@@ -74,7 +76,7 @@ assert((xml.match(/<wp:inline /g)||[]).length >= 5,'not all picture slots export
 assert((xml.match(/<w:tbl>/g)||[]).length >= 6,'grids/tables exported as flattened text');
 assert(xml.includes('<w:tblGrid>') && xml.includes('<w:tblBorders>'));
 assert(xml.includes('w:type="page"'),'Word page break missing');
-for(const word of ['बकरी','goat','Activity','Materials','Tools']) assert(xml.includes(word),'Word document missing: '+word);
+for(const word of ['बकरी','goat','Activity','Materials','Tools','5x2=10M']) assert(xml.includes(word),'Word document missing: '+word);
 const validate=cp.spawnSync('python3',['-c',
     'import sys, xml.etree.ElementTree as E; E.fromstring(sys.stdin.read()); print("Word document XML valid")'
 ],{input:xml,encoding:'utf8'});
