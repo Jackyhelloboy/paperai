@@ -2347,6 +2347,75 @@ function xmlParagraphText(xmlText, paragraphLocalName = 'p', textLocalName = 't'
     return textNodes.map(n => n.textContent || '').filter(Boolean).join(' ').trim();
 }
 
+function docxStructuredXml(xmlText) {
+    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+    if (doc.querySelector('parsererror')) throw new Error('Invalid Word document XML');
+    const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const main = doc.getElementsByTagNameNS(ns, 'body')[0];
+    if (!main) return xmlParagraphText(xmlText, 'p', 't');
+
+    const children = element => Array.from(element.children || []);
+    const tag = element => String(element?.localName || '');
+    const paragraphText = p => {
+        let out = '';
+        for (const child of p.getElementsByTagNameNS(ns,'t')) out += child.textContent || '';
+        if (p.getElementsByTagNameNS('*','drawing').length ||
+            p.getElementsByTagNameNS('*','pict').length) {
+            out += ' [[PICTURE: [unreadable]]]';
+        }
+        return out.trim();
+    };
+    const results = [];
+    let emptyRules = 0;
+    const flushRules = () => {
+        while (emptyRules > 0) {
+            const count = Math.min(10,emptyRules);
+            results.push('[[ANSWER_LINES: ' + count + ']]');
+            emptyRules -= count;
+        }
+    };
+    for (const child of children(main)) {
+        if (tag(child) === 'p') {
+            const text = paragraphText(child);
+            const ruled = child.getElementsByTagNameNS(ns,'pBdr').length > 0;
+            if (!text && ruled) { emptyRules++;continue; }
+            flushRules();
+            if (text) results.push(text);
+            else if (results.length && results[results.length-1] !== '') results.push('');
+            if (child.getElementsByTagNameNS(ns,'br').length) {
+                for (const br of child.getElementsByTagNameNS(ns,'br')) {
+                    if (br.getAttributeNS(ns,'type') === 'page') results.push('[[PAGE_BREAK]]');
+                }
+            }
+            continue;
+        }
+        if (tag(child) !== 'tbl') continue;
+        flushRules();
+        const rows = children(child).filter(x => tag(x) === 'tr').map(row =>
+            children(row).filter(x => tag(x) === 'tc').map(cell => {
+                const texts = children(cell).filter(x=>tag(x)==='p').map(paragraphText).filter(Boolean);
+                return texts.join('; ').trim();
+            })
+        );
+        if (!rows.length) continue;
+        const cols = Math.max(...rows.map(row=>row.length));
+        const empty = rows.every(row=>row.every(cell=>!cell));
+        const isLetterGrid = cols >= 4 && rows.every(row =>
+            row.every(cell => !cell || Array.from(cell).length <= 2));
+        if (empty && cols <= 24 && rows.length <= 24) {
+            results.push('[[GRID: ' + cols + 'x' + rows.length + ']]');
+        } else if (isLetterGrid && cols <= 24) {
+            rows.forEach(row => results.push('[[GRID_ROW: ' +
+                Array.from({length:cols},(_,index)=>row[index] || '_').join(' || ') + ']]'));
+        } else {
+            rows.forEach(row => results.push('[[TABLE_ROW: ' +
+                Array.from({length:cols},(_,index)=>row[index] || '').join(' || ') + ']]'));
+        }
+    }
+    flushRules();
+    return results.join('\n').trim();
+}
+
 async function extractOfficeZipFile(officeFile) {
     if (typeof JSZip === 'undefined') throw new Error('Office reader failed to load. Refresh and try again.');
     const ext = officeFile.name.split('.').pop().toLowerCase();
@@ -2359,7 +2428,9 @@ async function extractOfficeZipFile(officeFile) {
         const sections = [];
         for (const name of parts) {
             const xml = await zip.file(name).async('text');
-            const text = xmlParagraphText(xml, 'p', 't');
+            const text = name === 'word/document.xml'
+                ? docxStructuredXml(xml)
+                : xmlParagraphText(xml, 'p', 't');
             if (text) sections.push(text);
         }
         const out = sections.join('\n\n').trim();
