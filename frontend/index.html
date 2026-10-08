@@ -1140,6 +1140,8 @@
             margin:.2rem .45rem .35rem 0;
             vertical-align:top;
         }
+        .ocr-section-row { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; font-weight:700; margin:.75rem 0 .3rem; }
+        .ocr-section-marks { flex:0 0 auto; white-space:nowrap; text-align:right; }
         .ocr-option-row {
             display:flex;
             flex-wrap:wrap;
@@ -4664,6 +4666,8 @@ function portableText(value) {
     let out = String(value || '');
 
     out = out
+        .replace(/\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
+            (_,title,marks)=>title.trim()+'    '+marks.trim())
         .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,8).map(label=>'[' + label + ' picture] ______').join('    '))
         .replace(/\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
@@ -4978,6 +4982,10 @@ function worksheetRenderTable(rows) {
 }
 function formatStructuredWorksheetLine(line) {
     const source = String(line || '').trim();
+    const section = source.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+    if (section) return '<div class="ocr-section-row"><span>' +
+        formatOutputLine(section[1].trim()) + '</span><span class="ocr-section-marks">' +
+        formatOutputLine(section[2].trim()) + '</span></div>';
     let found = source.match(/^\[\[(OPTION_ROW|CHOICE_ROW):\s*([\s\S]*?)\]\]$/i);
     if (found) {
         const hasCheckboxes = found[1].toUpperCase() === 'OPTION_ROW';
@@ -5114,11 +5122,12 @@ goBtn.onclick = async () => {
             const pages = await pdfToPages(file);
             for (let i = 0; i < pages.length; i++) {
                 const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
+                const plainPrefix = allText ? '\n\n' : '';
                 if (pages[i].type === 'text') {
                     setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
                     allText += prefix + pages[i].text;
-                    allPlain += prefix + pages[i].text;
-                    allRaw += prefix + pages[i].text;
+                    allPlain += plainPrefix + pages[i].text;
+                    allRaw += plainPrefix + pages[i].text;
                     continue;
                 }
 
@@ -5131,8 +5140,8 @@ goBtn.onclick = async () => {
                     const annotated = result.result.annotated_text || result.result.full_text || '';
                     const plain = result.result.full_text || annotated;
                     allText += prefix + annotated;
-                    allPlain += prefix + plain;
-                    allRaw += prefix + (result.result.raw_text || annotated);
+                    allPlain += plainPrefix + plain;
+                    allRaw += plainPrefix + (result.result.raw_text || annotated);
                 }
             }
         } else if (XLS_EXTS.includes(ext)) {
@@ -5234,6 +5243,8 @@ function docxVisibleText(value) {
     let out = String(value || '');
 
     out = out
+        .replace(/\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
+            (_,title,marks)=>title.trim()+'    '+marks.trim())
         .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,8).map(x=>'['+x+' picture]  ☐').join('    '))
         .replace(/\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
@@ -5430,10 +5441,22 @@ function docxPictureRow(labels) {
 }
 function docxShapeParagraph(shape) {
     const value = String(shape || '').toLowerCase();
-    const style = 'position:relative;width:70pt;height:48pt';
+    const style = 'position:relative;width:68pt;height:51pt';
     const common = ' stroked="t" strokecolor="#333333" fillcolor="#ffffff"';
-    const tag = /circle/.test(value) ? 'oval' : 'rect';
-    const element = '<v:' + tag + ' style="' + style + '"' + common + '/>';
+    let element;
+    if (/circle/.test(value)) {
+        element = '<v:oval style="' + style + '"' + common + '/>';
+    } else if (/triangle/.test(value)) {
+        element = '<v:shape style="' + style + '" coordsize="100,100"' + common +
+            ' path="m 50,8 l 94,90 6,90 x e"/>';
+    } else if (/cube/.test(value)) {
+        element = '<v:shape style="' + style + '" coordsize="100,100"' + common +
+            ' path="m 18,28 l 70,28 70,88 18,88 x m 18,28 l 38,8 90,8 70,28 e m 70,28 l 90,8 90,68 70,88 e"/>';
+    } else if (/square/.test(value)) {
+        element = '<v:rect style="position:relative;width:51pt;height:51pt"' + common + '/>';
+    } else {
+        element = '<v:rect style="' + style + '"' + common + '/>';
+    }
     return '<w:p><w:pPr><w:spacing w:after="75"/></w:pPr><w:r><w:pict>' +
         element + '</w:pict></w:r></w:p>';
 }
@@ -5453,7 +5476,7 @@ function docxRichParagraph(raw, options = {}) {
     if (tokens.length === 1) return docxParagraph(docxVisibleText(raw),options);
     const runs = tokens.map(token => {
         const picture = token.match(/^\[\[(PICTURE|PICTURE_OPTION):\s*([\s\S]*?)\]\]$/i);
-        if (!picture) return docxRun(docxVisibleText(token),{size:options.size || 22});
+        if (!picture) return docxRun(docxVisibleText(token),{size:options.size || 22,bold:!!options.bold});
         return docxPictureRun(600000,430000) + docxRun(' ' + picture[2].trim() +
             (picture[1].toUpperCase() === 'PICTURE_OPTION' ? '  ☐' : ''),{size:18});
     }).join('');
@@ -5476,6 +5499,12 @@ function buildDocxBody(structuredText) {
             continue;
         }
         const line = String(lines[i] || '').trim();
+        const section = line.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+        if (section) {
+            body.push(docxTableCells([[section[1].trim(),section[2].trim()]], [7950,1950],
+                {bordered:false,fontSize:21,minHeight:320}));
+            i++; continue;
+        }
         let m = line.match(/^\[\[GRID:\s*([\s\S]*?)\]\]$/i);
         if (m) {
             const dims = worksheetGridSize(m[1]);
