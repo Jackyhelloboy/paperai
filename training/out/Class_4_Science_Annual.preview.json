@@ -1,0 +1,395 @@
+{
+ "sample": "training/out/Class_4_Science_Annual.docx",
+ "blocks": [
+  {
+   "type": "title",
+   "text": "PART - ANUR - ENG(W)IV -Secience"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "section",
+   "text": "I. Answer any ten of the following.",
+   "marks": "(10 x 3 = 30)"
+  },
+  {
+   "type": "text",
+   "text": "1) Define photosynthesis."
+  },
+  {
+   "type": "text",
+   "text": "2) Name two animals that undergo metamorphosis."
+  },
+  {
+   "type": "text",
+   "text": "3) What is migration?"
+  },
+  {
+   "type": "text",
+   "text": "4) How is calcium helpful to the body?"
+  },
+  {
+   "type": "text",
+   "text": "5) Name the three types of blood vessels."
+  },
+  {
+   "type": "text",
+   "text": "6) What are clothes made of?"
+  },
+  {
+   "type": "text",
+   "text": "7) Name the force exerted by the Earth."
+  },
+  {
+   "type": "text",
+   "text": "8) What is precipitation?"
+  },
+  {
+   "type": "text",
+   "text": "9) What are constellations? Give two examples."
+  },
+  {
+   "type": "text",
+   "text": "10) What is humus?"
+  },
+  {
+   "type": "text",
+   "text": "11) Name any two foods that are bad for our teeth."
+  },
+  {
+   "type": "section",
+   "text": "II. Answer any five of the following.",
+   "marks": "(5 x 4 = 20)"
+  },
+  {
+   "type": "text",
+   "text": "1) What adaptations help a bird fly in air?"
+  },
+  {
+   "type": "text",
+   "text": "2) Give reasons why proteins are said to be body-building food."
+  },
+  {
+   "type": "text",
+   "text": "3) Write any three ways by which we can take care of our teeth."
+  },
+  {
+   "type": "text",
+   "text": "4) Differentiate between an artery and a vein."
+  },
+  {
+   "type": "text",
+   "text": "5) Explain the uses of air and water for humans."
+  },
+  {
+   "type": "text",
+   "text": "6) What are human-made fibres? Give three examples of human-made fibres."
+  },
+  {
+   "type": "section",
+   "text": "III. Answer in one word.",
+   "marks": "(10 x 2 = 20)"
+  },
+  {
+   "type": "text",
+   "text": "1) The substance present in leaves that makes leaves appear green: _______________"
+  },
+  {
+   "type": "text",
+   "text": "2) A method of food preservation that removes water from food: _______________"
+  },
+  {
+   "type": "text",
+   "text": "3) Blood vessels that take blood away from the heart: _______________"
+  },
+  {
+   "type": "text",
+   "text": "4) Blood vessels that bring blood back to the heart: _______________"
+  },
+  {
+   "type": "text",
+   "text": "5) The amount of space matter takes up: _______________"
+  },
+  {
+   "type": "text",
+   "text": "6) The liquid in which a substance gets dissolved: _______________"
+  },
+  {
+   "type": "text",
+   "text": "7) This is formed when water vapour freezes on objects on cold nights: _______________"
+  },
+  {
+   "type": "text",
+   "text": "8) Dead and decayed plant and animal matter in the soil: _______________"
+  },
+  {
+   "type": "text",
+   "text": "9) Cutting down of trees in a forest in large numbers: _______________"
+  },
+  {
+   "type": "text",
+   "text": "10) Growing of trees in large numbers: _______________"
+  },
+  {
+   "type": "section",
+   "text": "IV. Fill in the blanks.",
+   "marks": "(10 x 1 = 10)"
+  },
+  {
+   "type": "text",
+   "text": "1) Plants that grow under water are called _______________."
+  },
+  {
+   "type": "text",
+   "text": "2) The female frog lays eggs in bunches called _______________."
+  },
+  {
+   "type": "text",
+   "text": "3) Sugar and starch are types of _______________."
+  },
+  {
+   "type": "text",
+   "text": "4) Iodised salt is a source of _______________."
+  },
+  {
+   "type": "text",
+   "text": "5) The _______________ system is the transport system of our body."
+  },
+  {
+   "type": "text",
+   "text": "6) _______________ carries nutrients, oxygen and carbon dioxide."
+  },
+  {
+   "type": "text",
+   "text": "7) _______________ are materials that have a definite shape and volume."
+  },
+  {
+   "type": "text",
+   "text": "8) The process of water from water bodies changing to water vapour is called _______________."
+  },
+  {
+   "type": "text",
+   "text": "9) _______________ are minerals used to make jewellery."
+  },
+  {
+   "type": "text",
+   "text": "10) The bottom layer of soil is called the _______________."
+  },
+  {
+   "type": "section",
+   "text": "V. Choose the correct answer.",
+   "marks": "(10 x 1 = 10)"
+  },
+  {
+   "type": "text",
+   "text": "1) These are areas of land that are very cold most of the layers. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Plains ii) Mountains iii) Swamps iv) Coastal areas"
+  },
+  {
+   "type": "text",
+   "text": "2) A whale lives in this habitat. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Terrestrial ii) Aerial iii) Arboreal iv) Aquatic"
+  },
+  {
+   "type": "text",
+   "text": "3) Animals that spend a lot of time in the air are called this. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Terrestrial ii) Aerial iii) Arboreal iv) Aquatic"
+  },
+  {
+   "type": "text",
+   "text": "4) These are teeth used to bite and cut food. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Incissors ii) Canines iii) Premolars iv) Molars"
+  },
+  {
+   "type": "text",
+   "text": "5) This is an animal fibre. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Cotton ii) Jute iii) Coir iv) Silk"
+  },
+  {
+   "type": "text",
+   "text": "6) This is a pulling force. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Work ii) Gravity iii) Friction iv) Energy"
+  },
+  {
+   "type": "text",
+   "text": "7) This is the hottest planet. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Mercury ii) Venus iii) Earth iv) Jupiter"
+  },
+  {
+   "type": "text",
+   "text": "8) Seasons are caused by this. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Rotation of the Earth ii) Revolution of the Earth iii) Both of these iv) None of these"
+  },
+  {
+   "type": "text",
+   "text": "9) This energy comes from the Sun. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Muscular ii) Solar iii) Electricity iv) Wind"
+  },
+  {
+   "type": "text",
+   "text": "10) This is a human-made fibre. ( )"
+  },
+  {
+   "type": "text",
+   "text": "i) Acrylic ii) Jute iii) Wool iv) Silk"
+  },
+  {
+   "type": "section",
+   "text": "VI. Write T for True. F for False.",
+   "marks": "(10 x 1 = 10)"
+  },
+  {
+   "type": "text",
+   "text": "1) The food made by green plants is called starch. ( )"
+  },
+  {
+   "type": "text",
+   "text": "2) The eggs of a butterfly hatch to form a pupa. ( )"
+  },
+  {
+   "type": "text",
+   "text": "3) The Arctic tern is a migratory bird. ( )"
+  },
+  {
+   "type": "text",
+   "text": "4) Digestion of carbohydrates begins in the stomach. ( )"
+  },
+  {
+   "type": "text",
+   "text": "5) Cotton clothes keep us warm. ( )"
+  },
+  {
+   "type": "text",
+   "text": "6) Waterproof clothes allow water to pass through them. ( )"
+  },
+  {
+   "type": "text",
+   "text": "7) A playground slide is an example of a lever. ( )"
+  },
+  {
+   "type": "text",
+   "text": "8) Solar energy is the energy obtained from wind. ( )"
+  },
+  {
+   "type": "text",
+   "text": "9) The Sun moves around the Earth. ( )"
+  },
+  {
+   "type": "text",
+   "text": "10) Subsoil is rich in humus. ( )"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PART - ANUR - ENG(W)IV -SeciencePAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  }
+ ]
+}

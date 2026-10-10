@@ -1,0 +1,12 @@
+{
+  "source": "pending",
+  "report_date_utc": "",
+  "reported_used": 0,
+  "daily_reference": 10000,
+  "reported_remaining": 10000,
+  "percent_used": 0,
+  "last_updated": "",
+  "reset_at": "",
+  "scope": "Placeholder until the Cloudflare analytics build step writes frontend/usage.json",
+  "accuracy": "This is a build placeholder, not Cloudflare-reported analytics"
+}

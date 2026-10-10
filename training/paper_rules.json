@@ -1,0 +1,96 @@
+{
+  "version": 3,
+  "source": "training/paper_model.json + training/docx_refs.json (measured from training/*.pdf and training/*.docx)",
+  "corpus": {
+    "printed_papers_a4_pt": ["I - SA-1 SCIENCE.pdf", "II-SA-1 SCIENCE.pdf", "III-SA-1 SCIENCE.pdf", "IV SA-1 SCIENCE.pdf", "V-SA-1 SCIENCE.pdf", "UKG FA-1.pdf", "HINDI SA-1.pdf", "fa-2 sci.pdf", "entrance class 2..5.pdf", "entrance class UKG.pdf"],
+    "word_references": ["Social 6..10.docx", "English 6.docx", "Class_1..5_Science_Annual.docx", "1Class_1_Science_Annual.docx", "1Class_2_Science_Annual.docx", "New Microsoft Office Word Document (3).docx"],
+    "handwriting_inputs": ["english.pdf", "maths.pdf", "hindi class 1.pdf", "class 2 hindi.pdf", "class 3 hindi.pdf"]
+  },
+  "page": {
+    "size": "A4",
+    "orientation": "portrait",
+    "width_twips": 11906,
+    "height_twips": 16838,
+    "margin_top_twips": 1008,
+    "margin_bottom_twips": 720,
+    "margin_left_twips": 720,
+    "margin_right_twips": 720,
+    "content_width_twips": 10466,
+    "measured_reference_ranges_in": {"left": [0.29, 0.81], "right": [0.41, 0.56], "top": [0.23, 1.12], "bottom": [0.34, 1.83]},
+    "decision": "A4 portrait. Sides 0.5in (narrow, current). Top 0.7in to reserve header room. Bottom 0.5in above a 0.25in footer. Reference Word files that are US Letter are ignored: the school deliverable is A4."
+  },
+  "typography": {
+    "font_family": "Tahoma",
+    "fallback_devanagari": "Noto Sans Devanagari",
+    "title_pt": 14,
+    "section_pt": 12,
+    "question_pt": 11,
+    "blanks_pt": 11,
+    "footer_pt": 11,
+    "title_docx_half_pt": 28,
+    "section_docx_half_pt": 24,
+    "body_docx_half_pt": 22,
+    "measured_sizes_pt": [11, 12, 13, 14],
+    "large_title_sizes_pt": [16.1, 33.4]
+  },
+  "header": {
+    "banner_image": true,
+    "banner_size_pt": {"w": 558, "h": 100},
+    "note": "Every reference on A4/Letter carries a full-width banner image ~555x100pt. Requires a school banner asset; until provided, reserve the top margin and centre the title."
+  },
+  "footer": {
+    "rule": true,
+    "rule_style": "single top border on footer paragraph",
+    "columns": ["assessment", "class-subject title", "PAGE NO: {PAGE}"],
+    "bold": true,
+    "size_pt": 11,
+    "page_field": "PAGE",
+    "implemented": true
+  },
+  "section_heading": {
+    "bold": true,
+    "roman_numerals": true,
+    "roman_dot_variants": [true, false],
+    "marks_right_aligned": true,
+    "marks_pattern": "^\\d+\\s*[xX×]\\s*\\d+(?:\\s*/\\s*\\d+)?\\s*=\\s*\\d+$",
+    "marks_tab_pos_twips": 10466,
+    "keep_with_next": true
+  },
+  "question_types": {
+    "short_answer": {"answer": "underscore_rule", "size_pt": 11},
+    "long_answer": {"answer": "underscore_rule"},
+    "fill_blanks": {"inline_blank": "__+", "options_in_parens": true},
+    "mcq": {"answer_box": "(       )", "option_prefixes": ["A)", "B)", "C)", "D)"], "inline_options": true},
+    "true_false": {"answer_box": "(       )"},
+    "match": {"left_column_n": 5, "right_marks": ["i)", "ii)", "iii)", "iv)", "v)"]},
+    "label_picture": {"grid_columns": 3},
+    "map_pointing": {"note": "IV sections in Social refs ask to locate places; keep as text list"}
+  },
+  "layout": {
+    "part_markers": ["PART - A", "PART - B", "Section A:", "Section B:"],
+    "or_variants": ["(or)", "Or"],
+    "image_fit": {"preserve_aspect": true, "max_width_pt": 500, "grid_columns": 3, "columns_by_count": {"2": 2, "3": 3, "4": 2, "5+": 3}, "blank_between_ok": true, "implemented": true},
+    "compact": true
+  },
+  "multipage": {
+    "logical_document": true,
+    "continuous_page_numbers": true,
+    "page_break_before": "w:pageBreakBefore on the boundary heading paragraph",
+    "break_triggers": ["[[PAGEBREAK]] marker", "PART/SECTION/UNIT line", "CLASS/GRADE/STD/STANDARD line", "SUMMATIVE/ANNUAL/HALF-YEARLY/FA/SA + roman", "repeated all-caps school banner <=60 chars"],
+    "keep_section_with_first_question": true,
+    "serialize_random_uploads": true,
+    "implemented_in_docx": true,
+    "implemented_in_preview": "dashed qp-page-break divider"
+  },
+  "self_improvement_loop": {
+    "signals": ["ocr_confidence", "structure_confidence", "layout_overflow", "user_edits"],
+    "score_rule": "penalize overflow, orphaned headings, missed text, extra pages",
+    "store": "KV namespace (binding still missing in worker/wrangler.toml)",
+    "status": "not implemented"
+  },
+  "open_gaps": [
+    "Header banner image asset not available; only reserved space + centred title",
+    "No source Word/PDF pairs to train extraction-to-design mapping",
+    "Self-learning loop needs KV binding"
+  ]
+}

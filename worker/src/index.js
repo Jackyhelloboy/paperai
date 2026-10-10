@@ -97,6 +97,13 @@ export default {
       return Response.json({ error: 'Not found' }, { status: 404, headers: corsHeaders });
     }
 
+    if (url.pathname.startsWith('/api/train/') && !env.KV) {
+      return Response.json(
+        { error: 'Training storage (KV binding) is not configured' },
+        { status: 503, headers: corsHeaders }
+      );
+    }
+
     // Training data collection: save OCR result as training sample
     if (url.pathname === '/api/train/collect' && request.method === 'POST') {
       try {
@@ -128,6 +135,15 @@ export default {
     if (url.pathname === '/api/train/stats' && request.method === 'GET') {
       try {
         return await getTrainingStats(env, corsHeaders);
+      } catch (e) {
+        return Response.json({ error: e.message }, { status: 500, headers: corsHeaders });
+      }
+    }
+
+    // Reuse learned corrections: apply verified correction pairs to text
+    if (url.pathname === '/api/train/apply' && request.method === 'POST') {
+      try {
+        return await applyLearnedCorrections(request, env, corsHeaders);
       } catch (e) {
         return Response.json({ error: e.message }, { status: 500, headers: corsHeaders });
       }
@@ -1371,6 +1387,16 @@ Use only text actually visible in the image. If there is no right-side label, le
 34. Do not hallucinate text hidden by blur, glare, cropping, scribble, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
 35. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
 
+QUESTION PAPER FORMAT (the page is usually a school exam/question paper; reproduce its structure so it can be reprinted as an A4 paper):
+36. Typical top block, in this order: school/institution name (often bold, centered), address line, exam title ("ANNUAL EXAMINATION", "SUMMATIVE ASSESSMENT - 1", "FORMATIVE ASSESSMENT - 2", "ENTRANCE EXAMINATION"), then a fields line/row such as "Name : _____   Class : ....   Roll No. : ...   Subject : ...   Date : ...   Time : ...", then a marks line such as "Max. Marks : 100" / "Time : 3 Hrs". Keep every field on its own visible line.
+37. Questions are grouped under numbered section headings such as "I.", "II.", "III.", "IV.", "V.", "A.", "B." with heading text like "Answer the following questions.", "Fill in the blanks.", "Choose the correct answer.", "Match the following.", "Answer any ten of the following."
+38. A section heading and its marks equation belong on the SAME line exactly as visible, for example "IV Fill in the blanks.   (10 x 1 = 10)" or "Answer the following questions.   10 x 4 = 40". Never move the marks equation to its own line and never drop it.
+39. Keep question numbering exactly as visible: "1.", "2)", "11.", roman numerals "I", "II", and sub-questions "a)", "b)", "(i)", "ii)". Never merge two questions onto one line.
+40. Answer blanks (______, "(", ")", "[   ]", empty brackets) stay blank on their own line as visible answer space; do not collapse consecutive blank lines into one if the image shows a long answer gap.
+41. Preserve option letters (A), B), C), D)) with their choices. When several choices of one question sit in one horizontal row, output them as ONE [[OPTION_ROW: ...]] line (rule 17E) or, if no markers are used, keep them on one line separated by wide visible spaces.
+42. Keep a blank line between sections, questions with long answer space, and the end of the paper, so the blocks stay separated when the text is reprinted.
+43. Never drop trailing section headings, marks equations, page-foot lines (e.g. "Page 1 of 2"), or the last questions at the bottom of the page.
+
 Return only the final transcription plus the allowed [[...]] edit markers when needed.`;
 
   const requestBody = {
@@ -1442,6 +1468,7 @@ VERIFICATION RULES:
 - Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
 - Compare the FIRST OCR against the complete visual page from TOP to BOTTOM. If whole headings, sections, picture rows, questions, choices, checkboxes, matching rows, or the bottom of the page were omitted, restore those missing items from the image even when this makes the verified transcription much longer.
 - Use [[PICTURE: label]], [[PICTURE_OPTION: label]], [[CHECKBOX]], [[OPTION_ROW: ... || ...]], and [[MATCH_ROW: ... || ...]] exactly as defined in the main rules when those structures are visible.
+- For question papers, re-check the structure rules 36-43: header block order (school name, address, exam title, Name/Class/Roll/Subject fields, Max. Marks), each section heading on its own line with its marks equation kept on that same line, question numbering and sub-question letters, and the blank lines that separate sections and answer space.
 - Do not keep a short first OCR merely because its existing words are correct; completeness of the visible page is mandatory.
 - When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
@@ -2522,5 +2549,48 @@ async function getTrainingStats(env, corsHeaders) {
     top_correction_pairs: topPairs.slice(0, 20),
     total_samples: Object.values(stats).reduce((sum, s) => sum + s.total_samples, 0),
     total_verified: Object.values(stats).reduce((sum, s) => sum + s.verified_samples, 0),
+  }, { headers: corsHeaders });
+}
+
+async function loadLearnedPairs(env, language, limit = 1000) {
+  const list = await env.KV.list({ prefix: 'train:pair:', limit });
+  const pairs = [];
+  for (const key of list.keys) {
+    const pair = await env.KV.get(key.name, { type: 'json' });
+    if (!pair) continue;
+    if (language && pair.language && pair.language !== language) continue;
+    pairs.push(pair);
+  }
+  pairs.sort((a, b) => (b.count || 0) - (a.count || 0));
+  return pairs;
+}
+
+// Reuse: apply learned (human-verified) correction pairs to raw OCR text.
+async function applyLearnedCorrections(request, env, corsHeaders) {
+  const body = await request.json();
+  const { text, language } = body;
+  const minCount = Math.max(1, parseInt(body.min_count || '1', 10) || 1);
+
+  if (!text) {
+    return Response.json({ error: 'text required' }, { status: 400, headers: corsHeaders });
+  }
+
+  const pairs = await loadLearnedPairs(env, language);
+  let corrected = text;
+  const applied = [];
+  for (const pair of pairs) {
+    if (!pair.original || !pair.corrected) continue;
+    if ((pair.count || 0) < minCount) continue;
+    if (pair.original === pair.corrected) continue;
+    if (!corrected.includes(pair.original)) continue;
+    corrected = corrected.split(pair.original).join(pair.corrected);
+    applied.push({ original: pair.original, corrected: pair.corrected, count: pair.count || 0 });
+  }
+
+  return Response.json({
+    text: corrected,
+    changed: corrected !== text,
+    applied,
+    pairs_considered: pairs.length,
   }, { headers: corsHeaders });
 }

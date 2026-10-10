@@ -1,0 +1,302 @@
+{
+ "sample": "training/out/Social 7.docx",
+ "blocks": [
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "VII Social"
+  },
+  {
+   "type": "section",
+   "text": "I. Answer the following questions.",
+   "marks": "2x2=4"
+  },
+  {
+   "type": "text",
+   "text": "1. Name the important crops of southern Europe?"
+  },
+  {
+   "type": "text",
+   "text": "2. Name the two large deserts of Africa?"
+  },
+  {
+   "type": "section",
+   "text": "II. Answer the following questions.",
+   "marks": "2x3=6"
+  },
+  {
+   "type": "text",
+   "text": "3. A) How can you say that the slave trade is highly heinous? (or)"
+  },
+  {
+   "type": "text",
+   "text": "B) What are the stages of weaving sarees?"
+  },
+  {
+   "type": "text",
+   "text": "4. A) What is meant by Industrial Revolution? (or)"
+  },
+  {
+   "type": "text",
+   "text": "B) What do you understand the problems of weavers?"
+  },
+  {
+   "type": "section",
+   "text": "III. Observe the following table carefully and Answer the questions?",
+   "marks": "4x1=4"
+  },
+  {
+   "type": "table",
+   "rows": [
+    [
+     "",
+     "Raw Materials",
+     "Tools"
+    ],
+    [
+     "Basket Making",
+     "Wild date plam leavesCaneBamboo",
+     "Knife"
+    ],
+    [
+     "Handloom Wearing",
+     "Silk yarmDyeing cottonThread",
+     "Wooden LoomSmall KnivesMagginBobbin"
+    ]
+   ]
+  },
+  {
+   "type": "text",
+   "text": "1. List the raw materials used to make baskets?"
+  },
+  {
+   "type": "text",
+   "text": "2. What are the raw materials used to make Ikkat sarees?"
+  },
+  {
+   "type": "text",
+   "text": "3. Where are basket-making raw materials found?"
+  },
+  {
+   "type": "text",
+   "text": "4. How do weavers get silk yarn?"
+  },
+  {
+   "type": "section",
+   "text": "IV. Map pointing: Locate the states under given India map.",
+   "marks": "4x1/2=2"
+  },
+  {
+   "type": "text",
+   "text": "1. Locate the following parts."
+  },
+  {
+   "type": "text",
+   "text": "a) Goa | b) Arunachal pradesh. | c) Ladakh | D) Kerala."
+  },
+  {
+   "type": "text",
+   "text": "PART - B."
+  },
+  {
+   "type": "section",
+   "text": "V. Choose the correct answer.",
+   "marks": "8x1/2 = 4"
+  },
+  {
+   "type": "text",
+   "text": "The inventor of Aeroplane in the early period of 20th century. ( )"
+  },
+  {
+   "type": "text",
+   "text": "A) George Stephenson. | B) Wright Brothers | C) Braganza Brothers | D) William Brothers."
+  },
+  {
+   "type": "text",
+   "text": "The Biggest Lake in the world? ( )"
+  },
+  {
+   "type": "text",
+   "text": "A) Superior | B) Baikal | C) Caspian Sea | D) Black sea"
+  },
+  {
+   "type": "text",
+   "text": "3. The Largest sand desert in the world? ( )"
+  },
+  {
+   "type": "text",
+   "text": "A) Kalahari | B) Thar | C) Sahara | D) Pacific ocean"
+  },
+  {
+   "type": "text",
+   "text": "4. The Highest Peak in Africa? ( )"
+  },
+  {
+   "type": "text",
+   "text": "A) Meckenlee | B) Everest. | C) Kilimanjaru | D) Sahara"
+  },
+  {
+   "type": "text",
+   "text": "5. Ikkat means? ( )"
+  },
+  {
+   "type": "text",
+   "text": "A) cloth is dyed after weaving on looms"
+  },
+  {
+   "type": "text",
+   "text": "B) cloth is dyed after weaving"
+  },
+  {
+   "type": "text",
+   "text": "C) Never dyed"
+  },
+  {
+   "type": "text",
+   "text": "D) None."
+  },
+  {
+   "type": "text",
+   "text": "6. Pochampally is in which district? ( )"
+  },
+  {
+   "type": "text",
+   "text": "A) Yadadri | B) Medak | C) Ranga Reddy | D) Hyderabad"
+  },
+  {
+   "type": "text",
+   "text": "7. Labour fought for these? ( )"
+  },
+  {
+   "type": "text",
+   "text": "A) civil rights | B) Construction of houses. | C) improvement in the conditions of Labour."
+  },
+  {
+   "type": "text",
+   "text": "D) All the above."
+  },
+  {
+   "type": "text",
+   "text": "8. The steam engine was invented by? ( )"
+  },
+  {
+   "type": "text",
+   "text": "A) Copernicus | B) John Gutenberg | C) James Watt | D) Boulton"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "text",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "PAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  },
+  {
+   "type": "picture",
+   "text": "PicturePAGE NO: 1"
+  },
+  {
+   "type": "picture",
+   "text": "Picture"
+  }
+ ]
+}

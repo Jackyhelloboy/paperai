@@ -1,0 +1,79 @@
+{
+ "generated_from": [
+  "I - SA-1 SCIENCE.pdf",
+  "II-SA-1 SCIENCE.pdf",
+  "III-SA-1 SCIENCE.pdf",
+  "IV SA-1 SCIENCE.pdf",
+  "UKG FA-1.pdf",
+  "V-SA-1 SCIENCE.pdf",
+  "english.pdf",
+  "maths.pdf"
+ ],
+ "files_analysed": 8,
+ "page_sizes": [
+  [
+   "8.27x11.69 portrait",
+   6
+  ],
+  [
+   "8.26x11.69 portrait",
+   2
+  ]
+ ],
+ "margins": [],
+ "table_shapes": [],
+ "header_fields": [],
+ "section_headings": [
+  [
+   "I SCIENCE",
+   2
+  ],
+  [
+   "III SCIENCE",
+   2
+  ],
+  [
+   "IV SCIENCE",
+   2
+  ],
+  [
+   "V SCIENCE",
+   2
+  ],
+  [
+   "A Oil : ___________________________________________",
+   1
+  ],
+  [
+   "B Fruits :_________________________________________",
+   1
+  ],
+  [
+   "II Science",
+   1
+  ],
+  [
+   "II SCIENCE",
+   1
+  ],
+  [
+   "I Shorts Questions and Answers.",
+   1
+  ]
+ ],
+ "marks_notations": [
+  [
+   "15x3=45",
+   4
+  ],
+  [
+   "10x3=30",
+   1
+  ],
+  [
+   "10x1=10",
+   1
+  ]
+ ],
+ "bold_line_count": 37
+}

@@ -6,6 +6,12 @@ account_id = "9195bc9144b0e1c8811dfae71e58c7e4"
 [ai]
 binding = "AI"
 
+# Teach / feedback loop storage: verified OCR corrections, correction pairs and
+# training samples (see src/index.js collectTrainingSample / verifyTrainingSample).
+[[kv_namespaces]]
+binding = "KV"
+id = "3e32cb6f40d74a3a9f2362b9eb952c09"
+
 [[durable_objects.bindings]]
 name = "USAGE_TRACKER"
 class_name = "UsageTracker"
