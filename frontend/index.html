@@ -15,6 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="vendor/pdf-word-layout.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -1835,14 +1836,16 @@
                 </button>
                 <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Download Word
+                    Editable Word
                 </button>
+                <button class="action-btn" id="downloadPdfWordBtn" style="display:none" onclick="downloadPdfWord(this)" title="Preserves original PDF pages as images, including pictures, tables and alignment. Text is not individually editable.">Word matching PDF</button>
                 <button class="action-btn" onclick="openTeachPanel()">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
                     Teach
                 </button>
             </div>
 
+            <p id="pdfWordNote" style="display:none;font-size:0.82rem;color:var(--text2)">Word matching PDF preserves the original pages as images. Use Editable Word to edit extracted text and Teach corrections.</p>
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
                 <div class="teach-sub">Pronunciation-based script typing: keep the same spoken English words and write how they sound in the target script. Example: <strong>jawad</strong> → <strong>जवाद</strong> and <strong>i love you</strong> → <strong>आई लव यू</strong>. Difficult spellings can receive AI phonetic suggestions.</div>
@@ -2356,13 +2359,21 @@ function docxStructuredXml(xmlText) {
     const main = doc.getElementsByTagNameNS(ns, 'body')[0];
     if (!main) return xmlParagraphText(xmlText, 'p', 't');
 
-    const children = element => Array.from(element.children || []);
+    const children = element => Array.from(element.childNodes || []).filter(node => node.nodeType === 1);
     const tag = element => String(element?.localName || '');
     const paragraphText = p => {
         let out = '';
-        for (const child of p.getElementsByTagNameNS(ns,'t')) out += child.textContent || '';
+        const visit = node => {
+            // Floating text boxes are handled separately in reading order below.
+            if (tag(node) === 'txbxContent') return;
+            if (node.namespaceURI === ns && tag(node) === 't') out += node.textContent || '';
+            else if (node.namespaceURI === ns && tag(node) === 'tab') out += '\t';
+            else if (node.namespaceURI === ns && tag(node) === 'br' && node.getAttributeNS(ns,'type') !== 'page') out += '\n';
+            else for (const child of children(node)) visit(child);
+        };
+        visit(p);
         if (p.getElementsByTagNameNS('*','drawing').length ||
-            p.getElementsByTagNameNS('*','pict').length) {
+            p.getElementsByTagNameNS('*','imagedata').length) {
             out += ' [[PICTURE: [unreadable]]]';
         }
         return out.trim();
@@ -2378,17 +2389,39 @@ function docxStructuredXml(xmlText) {
     };
     for (const child of children(main)) {
         if (tag(child) === 'p') {
+            const pageBreakBefore = child.getElementsByTagNameNS(ns,'pageBreakBefore')[0];
+            const breakValue = pageBreakBefore?.getAttributeNS(ns,'val');
+            if (pageBreakBefore && !['0','false','off'].includes(breakValue) && results.length) {
+                flushRules(); results.push('[[PAGE_BREAK]]');
+            }
             const text = paragraphText(child);
             const ruled = child.getElementsByTagNameNS(ns,'pBdr').length > 0;
             if (!text && ruled) { emptyRules++;continue; }
             flushRules();
             if (text) results.push(text);
             else if (results.length && results[results.length-1] !== '') results.push('');
+            const boxes = Array.from(child.getElementsByTagNameNS(ns,'txbxContent'));
+            const position = box => {
+                let shape = box.parentNode;
+                while (shape && tag(shape) !== 'shape') shape = shape.parentNode;
+                const style = shape?.getAttribute('style') || '';
+                return ['margin-top','margin-left'].map(key => Number(style.match(new RegExp(key + ':\\s*(-?[\\d.]+)pt'))?.[1] || 0));
+            };
+            boxes.sort((a,b) => { const x=position(a), y=position(b); return x[0]-y[0] || x[1]-y[1]; });
+            for (const box of boxes) {
+                for (const p of children(box).filter(x=>tag(x)==='p')) {
+                    const boxText = paragraphText(p);
+                    if (boxText) results.push(boxText);
+                }
+            }
             if (child.getElementsByTagNameNS(ns,'br').length) {
                 for (const br of child.getElementsByTagNameNS(ns,'br')) {
                     if (br.getAttributeNS(ns,'type') === 'page') results.push('[[PAGE_BREAK]]');
                 }
             }
+            const section = child.getElementsByTagNameNS(ns,'sectPr')[0];
+            const sectionType = section?.getElementsByTagNameNS(ns,'type')[0]?.getAttributeNS(ns,'val') || 'nextPage';
+            if (section && ['nextPage','oddPage','evenPage'].includes(sectionType)) results.push('[[PAGE_BREAK]]');
             continue;
         }
         if (tag(child) !== 'tbl') continue;
@@ -4581,6 +4614,14 @@ function updateResultActionsForTab() {
     if (!downloadBtn) return;
     downloadBtn.style.display = showingRaw ? 'none' : '';
     downloadBtn.disabled = showingRaw;
+    const pdfBtn = $('downloadPdfWordBtn');
+    if (pdfBtn) {
+        const available = !showingRaw && !!lastResult?.source_file && /\.pdf$/i.test(lastResult.source_file.name);
+        pdfBtn.style.display = available ? '' : 'none';
+        pdfBtn.disabled = !available;
+        const note = $('pdfWordNote');
+        if (note) note.style.display = available ? '' : 'none';
+    }
 }
 
 function showTab(tab) {
@@ -5104,13 +5145,14 @@ function formatOutput(text) {
 
 goBtn.onclick = async () => {
     if(!file) return;
+    const sourceFile = file;
     goBtn.disabled=true;
     hideErr();
     resBox.classList.remove('show');
     prog.classList.add('show');
     setProg(5,'Reading file...');
 
-    const ext = file.name.split('.').pop().toLowerCase();
+    const ext = sourceFile.name.split('.').pop().toLowerCase();
 
     try {
         let allText = '';
@@ -5119,7 +5161,7 @@ goBtn.onclick = async () => {
 
         if (ext === 'pdf') {
             setProg(8, 'Loading PDF...');
-            const pages = await pdfToPages(file);
+            const pages = await pdfToPages(sourceFile);
             for (let i = 0; i < pages.length; i++) {
                 const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
                 const plainPrefix = allText ? '\n\n' : '';
@@ -5146,7 +5188,7 @@ goBtn.onclick = async () => {
             }
         } else if (XLS_EXTS.includes(ext)) {
             setProg(20, 'Reading spreadsheet...');
-            allText = await extractSpreadsheetFile(file);
+            allText = await extractSpreadsheetFile(sourceFile);
             allPlain = allText;
             allRaw = allText;
             setProg(90, 'Formatting cells...');
@@ -5154,7 +5196,7 @@ goBtn.onclick = async () => {
             setProg(12, 'Analyzing image...');
             const ctrl = new AbortController();
             const tid = setTimeout(() => ctrl.abort(), 240000);
-            const result = await sendToOCR(file, ctrl.signal, 'Preparing image');
+            const result = await sendToOCR(sourceFile, ctrl.signal, 'Preparing image');
             clearTimeout(tid);
             if (result.status !== 'completed' || !result.result) throw new Error('No results');
             allText = result.result.annotated_text || result.result.full_text || '';
@@ -5162,12 +5204,12 @@ goBtn.onclick = async () => {
             allRaw = result.result.raw_text || allText;
         } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
             setProg(25, 'Reading text...');
-            allText = await extractPlainTextFile(file);
+            allText = await extractPlainTextFile(sourceFile);
             allPlain = allText;
             allRaw = allText;
         } else if (['docx','odt','pptx','odp'].includes(ext)) {
             setProg(25, 'Reading Office document...');
-            allText = await extractOfficeZipFile(file);
+            allText = await extractOfficeZipFile(sourceFile);
             allPlain = allText;
             allRaw = allText;
         } else {
@@ -5194,7 +5236,8 @@ goBtn.onclick = async () => {
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         $('statsBar').innerHTML = badges;
 
-        lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw };
+        if (file !== sourceFile) return;
+        lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw, source_file: sourceFile };
         teachPanel.classList.remove('show');
         showingRaw = false;
         $('tabVerified').classList.add('active');
@@ -5695,6 +5738,26 @@ async function downloadWord(btn) {
             btn.disabled = false;
             btn.innerHTML = original;
         }
+    }
+}
+
+async function downloadPdfWord(btn) {
+    const source = lastResult?.source_file;
+    if (showingRaw || !source || !/\.pdf$/i.test(source.name)) return;
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const blob = await PaperAIPdfWord.makePdfWord(source, {
+            onProgress: (page, total) => { btn.textContent = 'Creating page ' + page + '/' + total + '…'; }
+        });
+        const base = source.name.replace(/\.pdf$/i, '').replace(/[^\p{L}\p{N}_-]+/gu, '-') || 'paperai';
+        dlBlob(blob, base + '-pdf-layout.docx');
+    } catch (error) {
+        showErr(error?.message || 'Could not create the PDF layout Word file.');
+    } finally {
+        btn.innerHTML = original;
+        updateResultActionsForTab();
     }
 }
 
