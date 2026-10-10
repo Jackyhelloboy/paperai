@@ -40,13 +40,14 @@ def audit():
                     if run.font.name: fonts[run.font.name] += len(run.text)
                     if run.font.size: sizes[str(run.font.size.pt)] += len(run.text)
             excluded = path.name.startswith('final PT_')
-            record.update(kind='excluded-non-question-paper' if excluded else 'word-reference',
+            exported = 'extracted' in path.stem.lower()
+            record.update(kind='excluded-non-question-paper' if excluded else 'exported-output-under-review' if exported else 'word-reference',
                 paragraphs=len(doc.paragraphs), tables=len(doc.tables), inline_images=len(doc.inline_shapes),
                 sections=[{'page_inches':[round(s.page_width.inches,3),round(s.page_height.inches,3)],
                     'margins_inches':{k:round(getattr(s,k+'_margin').inches,3) for k in ['top','bottom','left','right']}}
                     for s in doc.sections], explicit_fonts=dict(fonts), explicit_sizes=dict(sizes))
         records.append(record)
-    return {'version':4, 'scope':'Top-level source documents only; no supervised input/output pairs established.',
+    return {'version':5, 'scope':'Top-level documents; exported outputs are review inputs, not formatting targets. No verified supervised input/output pairs established.',
         'output_policy':'A4 portrait, 0.5 inch margins; native editable questions/tables/grids/basic shapes; original illustrations cropped separately.',
         'runtime_profile':'frontend/vendor/paper-layout.js', 'ocr_instructions':'worker/src/paper-layout-rules.js',
         'records':records}

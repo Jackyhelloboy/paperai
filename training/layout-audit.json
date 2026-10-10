@@ -1,6 +1,6 @@
 {
-  "version": 4,
-  "scope": "Top-level source documents only; no supervised input/output pairs established.",
+  "version": 5,
+  "scope": "Top-level documents; exported outputs are review inputs, not formatting targets. No verified supervised input/output pairs established.",
   "output_policy": "A4 portrait, 0.5 inch margins; native editable questions/tables/grids/basic shapes; original illustrations cropped separately.",
   "runtime_profile": "frontend/vendor/paper-layout.js",
   "ocr_instructions": "worker/src/paper-layout-rules.js",
@@ -1115,6 +1115,36 @@
         1,
         0
       ]
+    },
+    {
+      "file": "fa-2-sci-1-extracted (2).docx",
+      "sha256": "acb1fdfd4eac438dbf17a2a7c18aaa684c520fdb29679e6b3323b2d0d93aecb0",
+      "bytes": 2131968,
+      "kind": "exported-output-under-review",
+      "paragraphs": 288,
+      "tables": 2,
+      "inline_images": 12,
+      "sections": [
+        {
+          "page_inches": [
+            8.268,
+            11.693
+          ],
+          "margins_inches": {
+            "top": 0.5,
+            "bottom": 0.5,
+            "left": 0.5,
+            "right": 0.5
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Arial": 7840
+      },
+      "explicit_sizes": {
+        "12.0": 6750,
+        "13.0": 1090
+      }
     },
     {
       "file": "final PT_Form_VIII_Declaration_Updated (1).docx",

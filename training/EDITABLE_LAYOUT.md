@@ -64,3 +64,24 @@ local border detector supplies observed one-row empty grid dimensions to the OCR
 prompt; it rejects incomplete borders and does not rewrite larger or populated
 grids. Empty duplicate grids are reconciled only when the observed grids map
 unambiguously to separate section containers. Faint notebook ruling still requires visual review.
+
+## Printed PDF fidelity
+
+`frontend/vendor/pdf-editable-layout.js` reads selectable PDF text, individual
+embedded pictures and supported rectangle/rule geometry at their actual page
+coordinates. The Editable Word action uses this path only when every source page
+is supported. One uniform scale fits all content within A4 and 0.5-inch margins.
+Text is editable Word text boxes; answer rules are editable shapes; each picture
+is an independent original image. Source fonts, fractional-mark positions, picture
+sizes, matching columns and page boundaries are retained. Pictures sit behind
+overlaid text so class labels remain visible on scanned banner backgrounds.
+Scans and unsupported geometry use the OCR formatter. Teach changes deliberately
+use the flow formatter with original media retained; they never get ignored in a
+download of the original PDF layout.
+
+The uploaded `fa-2-sci-1-extracted (2).docx` is an output under review, not a template
+to imitate. Its 12-page source rendered as 15 Word pages, with repeated banner
+metadata, reduced plant art, duplicated picture fragments and literal "none"
+captions. The measured path removes those conversion errors for this printed PDF.
+Run `node tests/pdf-editable-layout.cjs` to check its twelve measured page scenes,
+source artwork, editable text and A4 bounds.

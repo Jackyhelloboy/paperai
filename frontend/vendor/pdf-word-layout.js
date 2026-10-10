@@ -47,7 +47,7 @@
         const Zip = options.Zip || root.JSZip;
         const createCanvas = options.createCanvas || (() => root.document.createElement('canvas'));
         if (!pdfjs || !Zip) throw new Error('PDF or Word library failed to load. Refresh and try again.');
-        const loading = pdfjs.getDocument({data: await pdfFile.arrayBuffer()});
+        const loading = pdfjs.getDocument({data: await pdfFile.arrayBuffer(), isEvalSupported: false});
         let pdf;
         try {
             pdf = await loading.promise;

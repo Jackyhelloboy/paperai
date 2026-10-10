@@ -17,6 +17,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="vendor/pdf-word-layout.js"></script>
 <script src="./vendor/paper-layout.js"></script>
+<script src="./vendor/pdf-editable-layout.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -2273,8 +2274,10 @@ function reconstructPdfText(textContent, pageWidth) {
 async function pdfToPages(pdfFile) {
     const arrayBuffer = await pdfFile.arrayBuffer();
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false, fontExtraProperties: true }).promise;
     const pages = [];
+    const nativeScenes=[];
+    let nativeSupported=true;
 
     for (let i = 1; i <= pdf.numPages; i++) {
         setProg(10 + Math.round((i / pdf.numPages) * 35), 'Reading PDF page ' + i + '/' + pdf.numPages + '...');
@@ -2283,6 +2286,11 @@ async function pdfToPages(pdfFile) {
         const textContent = await page.getTextContent();
         const baseViewport = page.getViewport({ scale: 1 });
         const embedded = reconstructPdfText(textContent, baseViewport.width);
+        if(embedded.length>=20){
+            try{const native=await PaperAIPdfEditable.scene(page,pdfjsLib,{createCanvas:()=>document.createElement('canvas')});
+                nativeScenes.push(native);if(!native.supported)nativeSupported=false;
+            }catch(_){nativeSupported=false;}
+        }else nativeSupported=false;
 
         // Text-layer extraction drops vector grids, tables and embedded illustrations.
         // Rasterize pages with real drawn geometry; retain lossless text for plain pages.
@@ -2318,7 +2326,26 @@ async function pdfToPages(pdfFile) {
         });
         pages.push({ type: 'image', blob });
     }
+    await pdf.destroy();
+    if(nativeSupported&&nativeScenes.length===pages.length)return nativeScenes.map(native=>({type:'text',text:nativePdfFlowText(native),nativeScene:native}));
     return pages;
+}
+
+function nativePdfFlowText(scene) {
+    // Keep original media available when Teach deliberately changes the text.
+    const rows=[];
+    for(const item of scene.texts){
+        let row=rows.find(r=>r.items&&Math.abs(r.y-item.y)<4);
+        if(row)row.items.push(item);else rows.push({y:item.y,items:[item]});
+    }
+    for(const im of scene.images){
+        const id='pdf-source-'+(extractedMedia.length+1),banner=im.w/im.h>3.5&&im.y<scene.height*.2;
+        extractedMedia.push({id,dataUrl:im.dataUrl,w:im.pixelWidth,h:im.pixelHeight,widthTwips:Math.round(im.w*20),role:banner?'banner':undefined});
+        rows.push({y:im.y,text:banner?'[[SOURCE_BANNER: '+id+']]':'[[SOURCE_FIGURE: '+id+'| |none]]'});
+    }
+    for(const s of scene.shapes)if(s.w>100&&s.h<2)rows.push({y:s.y,text:'[[ANSWER_LINES: 1]]'});
+    return PaperAILayout.normalise(rows.sort((a,b)=>a.y-b.y).map(row=>row.text||row.items.sort((a,b)=>a.x-b.x).map((t,n,items)=>
+        (n&&(t.x-items[n-1].x-items[n-1].w>30)?'    ':' ')+t.text).join('').trim()).join('\n'));
 }
 
 async function extractSpreadsheetFile(spreadsheetFile) {
@@ -5196,6 +5223,7 @@ function formatStructuredWorksheetLine(line) {
 
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
+    if(lastResult?.native_pdf_preview&&text===lastResult.native_pdf_text)return lastResult.native_pdf_preview;
 
     const lines = repairLegacyBranchDiagram(String(text)).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
@@ -5269,17 +5297,19 @@ async function extractOneFile(f, onProgress, label) {
     let allText = '';
     let allPlain = '';
     let allRaw = '';
+    let nativePdfPages=null;
 
     if (ext === 'pdf') {
         report('Loading PDF...', 8);
         const pages = await pdfToPages(f);
+        if(pages.every(p=>p.nativeScene))nativePdfPages=pages.map(p=>p.nativeScene);
         for (let i = 0; i < pages.length; i++) {
             const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
             const plainPrefix = allPlain ? '\n\n' : '';
             if (pages[i].type === 'text') {
                 report('Reading text page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
                 allText += prefix + pages[i].text;
-                allPlain += plainPrefix + pages[i].text;
+                allPlain += plainPrefix + portableText(pages[i].text);
                 allRaw += plainPrefix + pages[i].text;
                 continue;
             }
@@ -5339,7 +5369,7 @@ async function extractOneFile(f, onProgress, label) {
     }
 
     if (!allPlain) allPlain = allText;
-    return { text: allText, plain: allPlain, raw: allRaw };
+    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages };
 }
 
 goBtn.onclick = async () => {
@@ -5357,12 +5387,14 @@ goBtn.onclick = async () => {
         let allText = '';
         let allPlain = '';
         let allRaw = '';
+        let nativePdfPages=null;
 
         for (let idx = 0; idx < batch.length; idx++) {
             const part = await extractOneFile(batch[idx], (msg, pct) => {
                 const overall = Math.min(95, 5 + Math.round(((idx + (pct / 100)) / batch.length) * 90));
                 setProg(overall, msg);
             }, batch.length > 1 ? 'File ' + (idx+1) + '/' + batch.length + ': ' : '');
+            if(batch.length===1)nativePdfPages=part.nativePdfPages;
             if (!String(part.plain || part.text || '').trim()) continue;
             allText += allText ? '\n[[PAGE_BREAK]]\n' + part.text : part.text;
             allPlain += allPlain ? '\n\n' + part.plain : part.plain;
@@ -5382,7 +5414,8 @@ goBtn.onclick = async () => {
         $('statsBar').innerHTML = badges;
 
         if (file !== sourceFile) return;
-        lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw, source_file: sourceFile };
+        lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw, source_file: sourceFile,
+            native_pdf_pages:nativePdfPages,native_pdf_text:allText,native_pdf_preview:nativePdfPages?PaperAIPdfEditable.preview(nativePdfPages):null };
         teachPanel.classList.remove('show');
         showingRaw = false;
         $('tabVerified').classList.add('active');
@@ -5577,7 +5610,8 @@ function docxTableCells(rows, widths, options = {}) {
     }).join('');
     return '<w:tbl><w:tblPr><w:tblW w:w="'+total+'" w:type="dxa"/><w:jc w:val="center"/>'+
         '<w:tblLayout w:type="fixed"/>'+borders+'</w:tblPr><w:tblGrid>'+widths.map(w=>'<w:gridCol w:w="'+w+'"/>').join('')+
-        '</w:tblGrid>'+tableRows+'</w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="40" w:line="20" w:lineRule="exact"/></w:pPr></w:p>';
+        '</w:tblGrid>'+tableRows+'</w:tbl><w:p><w:pPr>'+(options.keepNext?'<w:keepNext/>':'')+
+        '<w:spacing w:before="0" w:after="40" w:line="20" w:lineRule="exact"/></w:pPr></w:p>';
 }
 function docxSectionRow(title,marks) {
     return '<w:p><w:pPr><w:keepNext/><w:keepLines/><w:tabs><w:tab w:val="right" w:pos="10466"/></w:tabs>'+
@@ -5798,8 +5832,8 @@ function buildDocxBody(structuredText) {
         }
         const questionAnswer=PaperAILayout.questionAnswer(raw);
         if(questionAnswer){
-            body.push(docxTableCells([[questionAnswer.question,{xml:docxParagraph(questionAnswer.answer,{center:true,size:24,after:0})}]],
-                [DOCX_CONTENT_W-1520,1520],{bordered:false,fontSize:24,minHeight:360}));
+            body.push(docxTableCells([[questionAnswer.question,{xml:docxParagraph(questionAnswer.answer,{center:true,size:24,after:0,keepNext:true})}]],
+                [DOCX_CONTENT_W-1520,1520],{bordered:false,fontSize:24,minHeight:360,keepNext:true}));
             i++;continue;
         }
         const heading=isOutputHeadingLine(raw,i,firstNonEmptyIndex);
@@ -6189,7 +6223,9 @@ async function downloadWord(btn) {
     }
 
     try {
-        const blob = await makeExtractedDocx(structuredText);
+        const blob = lastResult.native_pdf_pages&&structuredText===lastResult.native_pdf_text
+            ? await PaperAIPdfEditable.makeWord(lastResult.native_pdf_pages)
+            : await makeExtractedDocx(structuredText);
         const base = String(file?.name || 'paperai')
             .replace(/\.[^.]+$/, '')
             .replace(/[^\p{L}\p{N}_-]+/gu, '-')
