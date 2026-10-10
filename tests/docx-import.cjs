@@ -32,6 +32,8 @@ assert(!disabled.includes('[[PAGE_BREAK]]'));
 const alt=wrap('<w:p><mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><mc:Choice Requires="a"><w:r><w:drawing><a:blip xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" r:embed="rIdPicture"/></w:drawing></w:r></mc:Choice><mc:Fallback><w:r><w:pict><v:imagedata r:id="rIdPicture"/></w:pict></w:r></mc:Fallback></mc:AlternateContent></w:p>');
 const picture=ctx.docxStructuredXml(alt,{rIdPicture:{id:'original-banner',role:'banner'}});
 assert.equal((picture.match(/SOURCE_BANNER/g)||[]).length,1,'DrawingML and VML fallback must not duplicate the source picture');
+const nested=wrap('<w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent><w:p><w:r><w:drawing><a:blip xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rIdPicture"/></w:drawing></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>');
+assert.equal((ctx.docxStructuredXml(nested,{rIdPicture:{id:'original-banner',role:'banner'}}).match(/SOURCE_BANNER/g)||[]).length,1,'A picture inside a floating text box must occur once');
 const numbered=body=>'<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>'+body+'</w:t></w:r></w:p>';
 const lists=ctx.docxStructuredXml(wrap(numbered('Leaves')+numbered('Bamboo')),{}, {'7':{0:{start:1,format:'decimal',text:'%1.'}}});
 assert.equal(lists,'1. Leaves\n2. Bamboo','Native Word list numbers must remain visible');

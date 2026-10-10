@@ -2401,6 +2401,7 @@ function docxStructuredXml(xmlText, media = {}, numbering = {}) {
         visit(p);
         const refs=[];
         const collect=node=>{
+            if(tag(node)==='txbxContent')return; // Text-box paragraphs are read separately below.
             if(tag(node)==='AlternateContent') {
                 const choice=children(node).find(x=>tag(x)==='Choice')||children(node).find(x=>tag(x)==='Fallback');
                 if(choice)collect(choice);return;
