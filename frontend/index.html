@@ -4623,7 +4623,8 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         if (res.ok) {
             if (!body || body.status !== 'completed' || !body.result) throw new Error('OCR returned an incomplete page.');
             body.result.annotated_text = await recoverSourceFigures(
-                PaperAILayout.normalise(body.result.annotated_text || body.result.full_text || ''), prepared.blob);
+                PaperAILayout.reconcileEmptyGrids(PaperAILayout.normalise(body.result.annotated_text || body.result.full_text || ''), prepared.meta?.detectedGrids || []), prepared.blob);
+            body.result.full_text=portableText(docxVisibleText(body.result.annotated_text));
             return body;
         }
 

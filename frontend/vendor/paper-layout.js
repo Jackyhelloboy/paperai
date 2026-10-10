@@ -18,7 +18,8 @@
         const [x,y,w,h] = nums;
         // Coordinates refer to the exact preprocessed OCR page, on a 0–1000 scale.
         if (x < 0 || y < 0 || w <= 0 || h <= 0 || x+w > 1001 || y+h > 1001 || w*h > 600000) return null;
-        return {x,y,w,h,caption:(parts[1] || '').trim(), answer:parts[2]?.trim() === 'box'};
+        const caption=parts.length===2&&/^(?:none|box)$/.test(parts[1].trim()) ? '' : (parts[1]||'').trim();
+        return {x,y,w,h,caption, answer:parts[parts.length-1]?.trim() === 'box'};
     }
     function pixels(region, width, height) {
         const x=Math.floor(region.x * width/1000), y=Math.floor(region.y * height/1000);
@@ -111,10 +112,25 @@
     function normalise(text) {
         const types='SECTION_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
-        return String(text||'').split('\n').map(line=>{
+        const lines=String(text||'').split('\n').map(line=>{
             const m=line.match(bare);
             return m ? '[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]' : line;
-        }).join('\n');
+        });
+        for(let i=0;i<lines.length;i++)if(/^\s*\(?Note:.*FIGURE_ROW.*conceptual representation/i.test(lines[i])){
+            lines[i]='';
+            if(i&&/^\s*\[\[FIGURE_ROW:/.test(lines[i-1]))lines[i-1]='';
+        }
+        let matching=false;
+        for(let i=0;i<lines.length;i++){
+            if(/^\s*(?:\[\[SECTION_ROW:\s*)?(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[. )\s]+\S/.test(lines[i]))
+                matching=/match(?:ing| the following)|जोड़ी|मिलान/i.test(lines[i]);
+            if(!matching||/^\s*\[\[/.test(lines[i]))continue;
+            const pair=lines[i].match(/^(\s*\d+[.)]?\s+[A-Za-z]\s*[-–]?)\s+([A-Za-z])\s*$/)||
+                lines[i].match(/^(\s*\d+[.)]?\s+[A-Za-z][A-Za-z ]*?)\s+(\d+)\s*$/)||
+                lines[i].match(/^(.+?)\s{3,}(\S.*?)\s*$/);
+            if(pair)lines[i]='[[MATCH_ROW: '+pair[1].trim()+' || '+pair[2].trim()+']]';
+        }
+        return lines.join('\n');
     }
     function overlap(a,b) {
         const area=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x))*
@@ -130,7 +146,11 @@
             }
         }
         return String(text).replace(/\[\[FIGURE_ROW:\s*([\s\S]*?)\]\]/gi,(_,body)=>{
-            const cells=body.split(/\s*\|\|\s*/).filter(spec=>{
+            const all=body.split(/\s*\|\|\s*/);
+            // An impossible detached row must not duplicate an already complete
+            // set of pictures attached to their individual questions.
+            if(all.some(x=>!figure(x))&&inline.length>=all.length)return '';
+            const cells=all.filter(spec=>{
                 const region=figure(spec);
                 return !region||!inline.some(r=>overlap(r,region)>.75);
             });
@@ -148,5 +168,27 @@
         for(const row of rows)row.sort((a,b)=>(a.x||0)-(b.x||0));
         return rows;
     }
-    return {profile,figure,pixels,source,fit,tableWidths,section,emptyGrids,normalise,deduplicateFigures,figureRows};
+    function reconcileEmptyGrids(text,grids=[]) {
+        if(!grids.length)return text;
+        const lines=String(text).split('\n'), blocks=[];
+        let block=null;
+        for(let i=0;i<lines.length;i++){
+            if(/^\s*(?:\[\[SECTION_ROW:\s*)?(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[. )\s]+\S/.test(lines[i])){
+                block={indexes:[]};blocks.push(block);
+            }
+            if(block&&(/^\s*\[\[GRID:\s*\d+[x×]\d+\]\]\s*$/i.test(lines[i])||
+                /^\s*\[\[GRID_ROW:\s*(?:_|\s|\|)*\]\]\s*$/i.test(lines[i])))block.indexes.push(i);
+        }
+        const candidates=blocks.filter(b=>b.indexes.length);
+        // Only reconcile when each observed source grid has one section container.
+        // Preserve populated grids and ambiguous mappings rather than deleting data.
+        if(candidates.length!==grids.length)return text;
+        for(let n=0;n<candidates.length;n++){
+            const indexes=candidates[n].indexes;
+            lines[indexes[0]]='[[GRID: '+grids[n].columns+'x'+grids[n].rows+']]';
+            for(const i of indexes.slice(1))lines[i]='';
+        }
+        return lines.join('\n');
+    }
+    return {profile,figure,pixels,source,fit,tableWidths,section,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

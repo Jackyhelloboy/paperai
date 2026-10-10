@@ -70,6 +70,14 @@ const fixture=[
     assert.deepEqual(Layout.emptyGrids(image),[],'Isolated vertical strokes are not a grid');
     for(let x=100;x<=345;x++){black(x,50);black(x,115);}
     assert.equal(Layout.emptyGrids(image)[0].columns,7,'Count drawn divisions, not expected answers');
+    const duplicatedGrids='I. Alphabet\n[[GRID: 13x1]]\n[[GRID: 12x1]]\nII. Small letters\n[[GRID: 24x1]]';
+    const reconciled=Layout.reconcileEmptyGrids(duplicatedGrids,[{columns:13,rows:1},{columns:13,rows:1}]);
+    assert.equal((reconciled.match(/GRID:/g)||[]).length,2,'Duplicate OCR grids must not add source cells');
+    assert(!reconciled.includes('12x1')&&!reconciled.includes('24x1'));
+    assert.equal(Layout.reconcileEmptyGrids(duplicatedGrids,[{columns:13,rows:1}]),duplicatedGrids,'An ambiguous geometry mapping must not change output');
+    assert(!Layout.normalise('[[FIGURE_ROW: 1,1,10,10| |none]]\n(Note: The above FIGURE_ROW is a conceptual representation.)').includes('FIGURE_ROW'),'Generated conceptual notes are not paper content');
+    assert(Layout.normalise('IV. Match the following\n1 E - b\n2 Thirteen 15').includes('[[MATCH_ROW: 2 Thirteen || 15]]'),'Visible matching columns should become native rows without solving');
+    assert.equal(Layout.normalise('I. Answer the questions\n1 Thirteen 15'),'I. Answer the questions\n1 Thirteen 15','Ordinary questions must not become matching rows');
     if(process.env.PAPERAI_DOCX_OUT)fs.writeFileSync(process.env.PAPERAI_DOCX_OUT,Buffer.from(await blob.arrayBuffer()));
     console.log('Editable paper: A4 narrow margins, original source pixels, editable grids/shapes/tables, aspect ratio, repeated headers and page-break cleanup pass.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

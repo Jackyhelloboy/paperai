@@ -62,4 +62,5 @@ native Word list numbering, malformed OCR marker rows, and repeated detached
 illustrations. The importer/exporter now handles these cases. A conservative
 local border detector supplies observed one-row empty grid dimensions to the OCR
 prompt; it rejects incomplete borders and does not rewrite larger or populated
-grids. Faint notebook ruling still requires visual review.
+grids. Empty duplicate grids are reconciled only when the observed grids map
+unambiguously to separate section containers. Faint notebook ruling still requires visual review.
