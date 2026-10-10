@@ -1945,7 +1945,7 @@ const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSugg
 const teachAiBtn=$('teachAiBtn'),teachAiStatus=$('teachAiStatus');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
-let file=null, lastResult=null, showingRaw=false;
+let file=null, fileBatch=[], lastResult=null, showingRaw=false;
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
@@ -2089,33 +2089,53 @@ function getFileCategory(ext) {
     return 'txt';
 }
 
-function setFile(f) {
-    const ext = f.name.split('.').pop().toLowerCase();
-    if (BLOCKED_EXTS.includes(ext) || f.type.startsWith('video/') || f.type.startsWith('audio/') || f.type === 'image/vnd.adobe.photoshop') {
-        showErr('Video, audio and PSD/design files are intentionally not supported.');
-        return;
+function setFiles(input) {
+    const list = Array.from(input || []).filter(Boolean);
+    if (!list.length) return;
+    for (const f of list) {
+        const ext = f.name.split('.').pop().toLowerCase();
+        if (BLOCKED_EXTS.includes(ext) || f.type.startsWith('video/') || f.type.startsWith('audio/') || f.type === 'image/vnd.adobe.photoshop') {
+            showErr('Video, audio and PSD/design files are intentionally not supported.');
+            return;
+        }
+        if (!ALLOWED_EXTS.includes(ext)) {
+            showErr('File type not supported: .' + ext + '. Use image, PDF, Word, PowerPoint, Excel or text files.');
+            return;
+        }
+        if (f.size > 52428800) { showErr('File too large (max 50 MB)'); return; }
     }
-    if (!ALLOWED_EXTS.includes(ext)) {
-        showErr('File type not supported: .' + ext + '. Use image, PDF, Word, PowerPoint, Excel or text files.');
-        return;
-    }
-    if (f.size > 52428800) { showErr('File too large (max 50 MB)'); return; }
-    file = f;
-    fileName.textContent = f.name;
-    const typeLabel = ext.toUpperCase();
-    fileMeta.textContent = fmtSize(f.size) + ' · ' + typeLabel;
-    const cat = getFileCategory(ext);
-    const isImage = IMAGE_EXTS.includes(ext);
-    if (isImage) {
-        const r = new FileReader();
-        r.onload = e => { fileThumb.src = e.target.result; fileThumb.style.display='block'; fileTypeIcon.style.display='none'; };
-        r.readAsDataURL(f);
+
+    const sorted = list.slice().sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    fileBatch = sorted;
+    file = sorted[0];
+
+    if (sorted.length === 1) {
+        const f = sorted[0];
+        const ext = f.name.split('.').pop().toLowerCase();
+        fileName.textContent = f.name;
+        fileMeta.textContent = fmtSize(f.size) + ' · ' + ext.toUpperCase();
+        const cat = getFileCategory(ext);
+        if (IMAGE_EXTS.includes(ext)) {
+            const r = new FileReader();
+            r.onload = e => { fileThumb.src = e.target.result; fileThumb.style.display='block'; fileTypeIcon.style.display='none'; };
+            r.readAsDataURL(f);
+        } else {
+            fileThumb.style.display='none';
+            fileTypeIcon.textContent = ext.toUpperCase().length > 4 ? ext.toUpperCase().substring(0,4) : ext.toUpperCase();
+            fileTypeIcon.className = 'file-type-icon ' + cat;
+            fileTypeIcon.style.display='flex';
+        }
     } else {
+        const total = sorted.reduce((n, f) => n + f.size, 0);
+        fileName.textContent = sorted.length + ' pages selected';
+        fileMeta.textContent = fmtSize(total) + ' · ' + sorted.slice(0, 3).map(f => f.name).join(', ') + (sorted.length > 3 ? ' ...' : '');
         fileThumb.style.display='none';
-        fileTypeIcon.textContent = typeLabel.length > 4 ? typeLabel.substring(0,4) : typeLabel;
-        fileTypeIcon.className = 'file-type-icon ' + cat;
+        fileTypeIcon.textContent = String(sorted.length);
+        fileTypeIcon.className = 'file-type-icon txt';
         fileTypeIcon.style.display='flex';
     }
+
     dropZone.style.display = 'none';
     filePreview.classList.add('show');
     goBtn.classList.add('show');
@@ -2124,8 +2144,13 @@ function setFile(f) {
     resBox.classList.remove('show');
 }
 
+function setFile(f) {
+    setFiles([f]);
+}
+
 function clearFile() {
     file=null;
+    fileBatch=[];
     dropZone.style.display = '';
     filePreview.classList.remove('show');
     goBtn.classList.remove('show');
@@ -2138,10 +2163,10 @@ function clearFile() {
 }
 
 dropZone.onclick = () => fileInput.click();
-fileInput.onchange = e => { if(e.target.files[0]) setFile(e.target.files[0]); };
+fileInput.onchange = e => { if(e.target.files.length) setFiles([...e.target.files]); };
 dropZone.ondragover = e => { e.preventDefault(); dropZone.classList.add('over'); };
 dropZone.ondragleave = () => dropZone.classList.remove('over');
-dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
+dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files.length) setFiles([...e.dataTransfer.files]); };
 clearBtn.onclick = clearFile;
 
 function median(values) {
@@ -5143,85 +5168,106 @@ function formatOutput(text) {
     return html;
 }
 
+async function extractOneFile(f, onProgress, label) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    const report = typeof onProgress === 'function' ? onProgress : () => {};
+    let allText = '';
+    let allPlain = '';
+    let allRaw = '';
+
+    if (ext === 'pdf') {
+        report('Loading PDF...', 8);
+        const pages = await pdfToPages(f);
+        for (let i = 0; i < pages.length; i++) {
+            const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
+            const plainPrefix = allPlain ? '\n\n' : '';
+            if (pages[i].type === 'text') {
+                report('Reading text page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
+                allText += prefix + pages[i].text;
+                allPlain += plainPrefix + pages[i].text;
+                allRaw += plainPrefix + pages[i].text;
+                continue;
+            }
+
+            report('OCR scanned page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 240000);
+            const result = await sendToOCR(pages[i].blob, ctrl.signal, label + 'Preparing page ' + (i+1) + '/' + pages.length);
+            clearTimeout(tid);
+            if (result.status === 'completed' && result.result) {
+                const annotated = result.result.annotated_text || result.result.full_text || '';
+                const plain = result.result.full_text || annotated;
+                allText += prefix + annotated;
+                allPlain += plainPrefix + plain;
+                allRaw += plainPrefix + (result.result.raw_text || annotated);
+            }
+        }
+    } else if (XLS_EXTS.includes(ext)) {
+        report('Reading spreadsheet...', 20);
+        allText = await extractSpreadsheetFile(f);
+        allPlain = allText;
+        allRaw = allText;
+        report('Formatting cells...', 90);
+    } else if (IMAGE_EXTS.includes(ext)) {
+        report('Analyzing image...', 12);
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 240000);
+        const result = await sendToOCR(f, ctrl.signal, label + 'Preparing image');
+        clearTimeout(tid);
+        if (result.status !== 'completed' || !result.result) throw new Error('No results');
+        allText = result.result.annotated_text || result.result.full_text || '';
+        allPlain = result.result.full_text || allText;
+        allRaw = result.result.raw_text || allText;
+    } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
+        report('Reading text...', 25);
+        allText = await extractPlainTextFile(f);
+        allPlain = allText;
+        allRaw = allText;
+    } else if (['docx','odt','pptx','odp'].includes(ext)) {
+        report('Reading Office document...', 25);
+        allText = await extractOfficeZipFile(f);
+        allPlain = allText;
+        allRaw = allText;
+    } else {
+        report('Reading legacy document...', 20);
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 120000);
+        const result = await sendFileToWorker(f, ctrl.signal);
+        clearTimeout(tid);
+        if (result.status !== 'completed' || !result.result) throw new Error('No results');
+        allText = result.result.annotated_text || result.result.full_text || '';
+        allPlain = result.result.full_text || allText;
+        allRaw = result.result.raw_text || allText;
+    }
+
+    if (!allPlain) allPlain = allText;
+    return { text: allText, plain: allPlain, raw: allRaw };
+}
+
 goBtn.onclick = async () => {
-    if(!file) return;
+    const batch = fileBatch.length ? fileBatch.slice() : (file ? [file] : []);
+    if (!batch.length) return;
     const sourceFile = file;
     goBtn.disabled=true;
     hideErr();
     resBox.classList.remove('show');
     prog.classList.add('show');
-    setProg(5,'Reading file...');
-
-    const ext = sourceFile.name.split('.').pop().toLowerCase();
+    setProg(5, batch.length > 1 ? 'Reading ' + batch.length + ' files...' : 'Reading file...');
 
     try {
         let allText = '';
         let allPlain = '';
         let allRaw = '';
 
-        if (ext === 'pdf') {
-            setProg(8, 'Loading PDF...');
-            const pages = await pdfToPages(sourceFile);
-            for (let i = 0; i < pages.length; i++) {
-                const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
-                const plainPrefix = allText ? '\n\n' : '';
-                if (pages[i].type === 'text') {
-                    setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
-                    allText += prefix + pages[i].text;
-                    allPlain += plainPrefix + pages[i].text;
-                    allRaw += plainPrefix + pages[i].text;
-                    continue;
-                }
-
-                setProg(48 + Math.round((i / pages.length) * 45), 'OCR scanned page ' + (i+1) + '/' + pages.length + '...');
-                const ctrl = new AbortController();
-                const tid = setTimeout(() => ctrl.abort(), 240000);
-                const result = await sendToOCR(pages[i].blob, ctrl.signal, 'Preparing page ' + (i+1) + '/' + pages.length);
-                clearTimeout(tid);
-                if (result.status === 'completed' && result.result) {
-                    const annotated = result.result.annotated_text || result.result.full_text || '';
-                    const plain = result.result.full_text || annotated;
-                    allText += prefix + annotated;
-                    allPlain += plainPrefix + plain;
-                    allRaw += plainPrefix + (result.result.raw_text || annotated);
-                }
-            }
-        } else if (XLS_EXTS.includes(ext)) {
-            setProg(20, 'Reading spreadsheet...');
-            allText = await extractSpreadsheetFile(sourceFile);
-            allPlain = allText;
-            allRaw = allText;
-            setProg(90, 'Formatting cells...');
-        } else if (IMAGE_EXTS.includes(ext)) {
-            setProg(12, 'Analyzing image...');
-            const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 240000);
-            const result = await sendToOCR(sourceFile, ctrl.signal, 'Preparing image');
-            clearTimeout(tid);
-            if (result.status !== 'completed' || !result.result) throw new Error('No results');
-            allText = result.result.annotated_text || result.result.full_text || '';
-            allPlain = result.result.full_text || allText;
-            allRaw = result.result.raw_text || allText;
-        } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
-            setProg(25, 'Reading text...');
-            allText = await extractPlainTextFile(sourceFile);
-            allPlain = allText;
-            allRaw = allText;
-        } else if (['docx','odt','pptx','odp'].includes(ext)) {
-            setProg(25, 'Reading Office document...');
-            allText = await extractOfficeZipFile(sourceFile);
-            allPlain = allText;
-            allRaw = allText;
-        } else {
-            setProg(20, 'Reading legacy document...');
-            const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 120000);
-            const result = await sendFileToWorker(file, ctrl.signal);
-            clearTimeout(tid);
-            if (result.status !== 'completed' || !result.result) throw new Error('No results');
-            allText = result.result.annotated_text || result.result.full_text || '';
-            allPlain = result.result.full_text || allText;
-            allRaw = result.result.raw_text || allText;
+        for (let idx = 0; idx < batch.length; idx++) {
+            const part = await extractOneFile(batch[idx], (msg, pct) => {
+                const overall = Math.min(95, 5 + Math.round(((idx + (pct / 100)) / batch.length) * 90));
+                setProg(overall, msg);
+            }, batch.length > 1 ? 'File ' + (idx+1) + '/' + batch.length + ': ' : '');
+            if (!String(part.plain || part.text || '').trim()) continue;
+            allText += allText ? '\n[[PAGE_BREAK]]\n' + part.text : part.text;
+            allPlain += allPlain ? '\n\n' + part.plain : part.plain;
+            allRaw += allRaw ? '\n\n' + part.raw : part.raw;
         }
 
         if (!allPlain) allPlain = allText;
@@ -5645,13 +5691,187 @@ function docxStylesXml() {
     '</w:styles>';
 }
 
+// Word page furniture: exam-paper banner header and a footer that shows the
+// paper title plus the live page number.
+const DOCX_CONTENT_W = 11906 - 720 - 720;
+const DOCX_TOP_MARGIN = 1740;
+const DOCX_HEADER_MAX_H = DOCX_TOP_MARGIN - 360 - 72;
+const DEFAULT_BANNER_URL = './default-banner.svg';
+let defaultBannerPngPromise = null;
+let extractedMedia = [];
+
+function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Could not read picture data.'));
+        reader.readAsDataURL(blob);
+    });
+}
+
+function rasterizeSvgToPng(svg, width, height) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG conversion failed.')), 'image/png');
+            } catch (e) {
+                reject(e);
+            }
+        };
+        img.onerror = () => reject(new Error('Picture file could not be loaded.'));
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    });
+}
+
+function imageDataUrlSize(dataUrl) {
+    return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => resolve({ w: img.naturalWidth || 0, h: img.naturalHeight || 0 });
+        img.onerror = () => resolve({ w: 0, h: 0 });
+        img.src = dataUrl;
+    });
+}
+
+function parseDataUrl(dataUrl) {
+    const m = /^data:([^;,]+);base64,([\s\S]*)$/.exec(String(dataUrl || ''));
+    if (!m) return null;
+    return { mime: m[1], base64: m[2] };
+}
+
+function builtinBannerPng(title) {
+    return new Promise((resolve, reject) => {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1200;
+            canvas.height = 150;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 1200, 150);
+            ctx.strokeStyle = '#1f2a44';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(4, 4, 1192, 142);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#9aa4b8';
+            ctx.strokeRect(18, 18, 1164, 114);
+            ctx.fillStyle = '#1f2a44';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 52px Tahoma, sans-serif';
+            ctx.fillText(String(title || 'QUESTION PAPER').slice(0, 40).toUpperCase(), 600, 66);
+            ctx.font = '22px Tahoma, sans-serif';
+            ctx.fillStyle = '#55617a';
+            ctx.fillText('PAPER AI  ·  AUTO-FORMATTED', 600, 108);
+            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG conversion failed.')), 'image/png');
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+function docxFooterXml(title) {
+    const centerPos = Math.round(DOCX_CONTENT_W / 2);
+    const label = xmlEscape(String(title || '').trim().slice(0, 80));
+    const runProps = '<w:rPr><w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>';
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:p><w:pPr>' +
+        '<w:pBdr><w:top w:val="single" w:sz="6" w:space="4" w:color="333333"/></w:pBdr>' +
+        '<w:tabs><w:tab w:val="center" w:pos="' + centerPos + '"/><w:tab w:val="right" w:pos="' + DOCX_CONTENT_W + '"/></w:tabs>' +
+        '<w:spacing w:before="0" w:after="0"/>' +
+        runProps +
+      '</w:pPr>' +
+      '<w:r>' + runProps + '<w:t xml:space="preserve">' + label + '</w:t></w:r>' +
+      '<w:r><w:tab/></w:r>' +
+      '<w:r>' + runProps + '<w:t xml:space="preserve">PAGE NO: </w:t></w:r>' +
+      '<w:fldSimple w:instr=" PAGE "><w:r>' + runProps + '<w:t>1</w:t></w:r></w:fldSimple>' +
+    '</w:p></w:ftr>';
+}
+
+function docxHeaderXml(cx, cy) {
+    const id = 9000;
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
+      ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0"/></w:pPr>' +
+        '<w:r><w:drawing>' +
+          '<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0">' +
+            '<wp:extent cx="' + cx + '" cy="' + cy + '"/>' +
+            '<wp:effectExtent l="0" t="0" r="0" b="0"/>' +
+            '<wp:docPr id="' + id + '" name="Banner" descr="Paper header banner"/>' +
+            '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+            '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+              '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+                '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+                  '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="Banner"/><pic:cNvPicPr/></pic:nvPicPr>' +
+                  '<pic:blipFill><a:blip r:embed="rIdHeaderImg"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
+                  '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
+                '</pic:pic>' +
+              '</a:graphicData>' +
+            '</a:graphic>' +
+          '</wp:inline>' +
+        '</w:drawing></w:r>' +
+      '</w:p>' +
+    '</w:hdr>';
+}
+
+function docxHeaderTextXml(title) {
+    const label = xmlEscape(String(title || '').trim().slice(0, 80) || 'QUESTION PAPER');
+    const runProps = '<w:rPr><w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/><w:b/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr>';
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0"/>' + runProps + '</w:pPr>' +
+        '<w:r>' + runProps + '<w:t>' + label + '</w:t></w:r>' +
+      '</w:p>' +
+    '</w:hdr>';
+}
+
+// Prefer a wide image the teacher uploaded (scanned header/banner); otherwise
+// fall back to the shipped banner asset, and finally to a generated banner.
+async function resolveHeaderBanner(structuredText) {
+    const title = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
+    for (const item of (extractedMedia || [])) {
+        const src = item && typeof item === 'object' ? (item.dataUrl || item.src || item.url) : item;
+        if (typeof src !== 'string' || !/^data:image\//.test(src)) continue;
+        const dim = await imageDataUrlSize(src);
+        if (dim.w && dim.h && dim.w / dim.h >= 3.5) return { dataUrl: src, w: dim.w, h: dim.h };
+    }
+    try {
+        if (!defaultBannerPngPromise) {
+            defaultBannerPngPromise = (async () => {
+                const res = await fetch(DEFAULT_BANNER_URL, { cache: 'no-store' });
+                if (!res.ok) throw new Error('missing');
+                const svg = await res.text();
+                if (!/<svg[\s>]/i.test(svg)) throw new Error('not svg');
+                const blob = await rasterizeSvgToPng(svg, 1200, 150);
+                return await blobToDataURL(blob);
+            })().catch(() => null);
+        }
+        const fromAsset = await defaultBannerPngPromise;
+        if (fromAsset) return { dataUrl: fromAsset, w: 1200, h: 150 };
+    } catch (e) {}
+    try {
+        const blob = await builtinBannerPng(title);
+        return { dataUrl: await blobToDataURL(blob), w: 1200, h: 150 };
+    } catch (e) {
+        return null;
+    }
+}
+
 function docxDocumentXml(structuredText) {
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml">' +
       '<w:body>' + buildDocxBody(structuredText) +
         '<w:sectPr>' +
+          '<w:headerReference w:type="default" r:id="rIdHeader"/>' +
+          '<w:footerReference w:type="default" r:id="rIdFooter"/>' +
           '<w:pgSz w:w="11906" w:h="16838"/>' +
-          '<w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/>' +
+          '<w:pgMar w:top="1740" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/>' +
         '</w:sectPr>' +
       '</w:body>' +
     '</w:document>';
@@ -5675,15 +5895,50 @@ function createWordPlaceholderPngBase64() {
 async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
 
+    const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
+    const footerXml = docxFooterXml(footerTitle);
+
+    const banner = await resolveHeaderBanner(structuredText);
+    let headerXml = docxHeaderTextXml(footerTitle);
+    let headerRelsXml = '';
+    let headerBannerFile = null;
+    if (banner) {
+        const parsed = parseDataUrl(banner.dataUrl);
+        if (parsed) {
+            const headerExt = parsed.mime === 'image/jpeg' ? 'jpeg' : (parsed.mime.split('/')[1] || 'png');
+            let widthTwips = DOCX_CONTENT_W;
+            let heightTwips = Math.max(1, Math.round(widthTwips * (banner.h || 150) / (banner.w || 1200)));
+            if (heightTwips > DOCX_HEADER_MAX_H) {
+                heightTwips = DOCX_HEADER_MAX_H;
+                widthTwips = Math.max(1, Math.round(heightTwips * (banner.w || 1200) / (banner.h || 150)));
+            }
+            headerXml = docxHeaderXml(widthTwips * 635, heightTwips * 635);
+            headerRelsXml =
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+                  '<Relationship Id="rIdHeaderImg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header_banner.' + headerExt + '"/>' +
+                '</Relationships>';
+            headerBannerFile = { ext: headerExt, base64: parsed.base64 };
+        }
+    }
+
+    const imageDefaults = [
+        ['png', 'image/png'],
+        ['jpeg', 'image/jpeg'],
+        ['gif', 'image/gif']
+    ].map(([ext, type]) => '<Default Extension="' + ext + '" ContentType="' + type + '"/>').join('');
+
     const zip = new JSZip();
     zip.file('[Content_Types].xml',
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
           '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
           '<Default Extension="xml" ContentType="application/xml"/>' +
-          '<Default Extension="png" ContentType="image/png"/>' +
+          imageDefaults +
           '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
           '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+          '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' +
+          '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' +
         '</Types>');
 
     zip.folder('_rels').file('.rels',
@@ -5694,12 +5949,20 @@ async function makeExtractedDocx(structuredText) {
 
     zip.folder('word').file('document.xml', docxDocumentXml(structuredText));
     zip.folder('word').file('styles.xml', docxStylesXml());
-    zip.folder('word').folder('media').file('default-picture.png', createWordPlaceholderPngBase64(), { base64:true });
+    zip.folder('word').file('header1.xml', headerXml);
+    zip.folder('word').file('footer1.xml', footerXml);
+    if (headerBannerFile) {
+        zip.folder('word').folder('_rels').file('header1.xml.rels', headerRelsXml);
+        zip.folder('word').folder('media').file('header_banner.' + headerBannerFile.ext, headerBannerFile.base64, { base64: true });
+    }
+    zip.folder('word').folder('media').file('default-picture.png', createWordPlaceholderPngBase64(), { base64: true });
     zip.folder('word').folder('_rels').file('document.xml.rels',
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
           '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
           '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/default-picture.png"/>' +
+          '<Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' +
+          '<Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' +
         '</Relationships>');
 
     return zip.generateAsync({
