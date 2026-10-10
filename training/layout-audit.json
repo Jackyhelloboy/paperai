@@ -1,0 +1,1303 @@
+{
+  "version": 4,
+  "scope": "Top-level source documents only; no supervised input/output pairs established.",
+  "output_policy": "A4 portrait, 0.5 inch margins; native editable questions/tables/grids/basic shapes; original illustrations cropped separately.",
+  "runtime_profile": "frontend/vendor/paper-layout.js",
+  "ocr_instructions": "worker/src/paper-layout-rules.js",
+  "records": [
+    {
+      "file": "1Class_1_Science_Annual.docx",
+      "sha256": "526e43e1872edbeb07933a769a6bdc93c0eff83c250ff5cb07305238b2086c36",
+      "bytes": 60028,
+      "kind": "word-reference",
+      "paragraphs": 73,
+      "tables": 0,
+      "inline_images": 0,
+      "sections": [
+        {
+          "page_inches": [
+            8.268,
+            11.693
+          ],
+          "margins_inches": {
+            "top": 0.7,
+            "bottom": 0.7,
+            "left": 0.7,
+            "right": 0.5
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Arial": 3988
+      },
+      "explicit_sizes": {
+        "12.0": 891
+      }
+    },
+    {
+      "file": "1Class_2_Science_Annual.docx",
+      "sha256": "417ba840696e1948eb5057181e057c6788f8e35337e05d807ed02fcdc3eabad2",
+      "bytes": 1019491,
+      "kind": "word-reference",
+      "paragraphs": 71,
+      "tables": 0,
+      "inline_images": 1,
+      "sections": [
+        {
+          "page_inches": [
+            8.268,
+            11.693
+          ],
+          "margins_inches": {
+            "top": 0.7,
+            "bottom": 0.7,
+            "left": 0.7,
+            "right": 0.5
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Arial": 3762
+      },
+      "explicit_sizes": {
+        "12.0": 321
+      }
+    },
+    {
+      "file": "Class_3_Science_Annual.docx",
+      "sha256": "2a8c664e0d9c10f9a547184cc0f8952cafb0b8e9f31410c50a5494f4a494abf5",
+      "bytes": 60565,
+      "kind": "word-reference",
+      "paragraphs": 83,
+      "tables": 0,
+      "inline_images": 0,
+      "sections": [
+        {
+          "page_inches": [
+            8.268,
+            11.693
+          ],
+          "margins_inches": {
+            "top": 0.7,
+            "bottom": 0.7,
+            "left": 0.7,
+            "right": 0.5
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Arial": 4601
+      },
+      "explicit_sizes": {
+        "13.0": 61,
+        "12.0": 240
+      }
+    },
+    {
+      "file": "Class_4_Science_Annual.docx",
+      "sha256": "cd9518bef02a51689eeca31cdbdc32f0943ba06baf02e26c3cf9f6366e9bfa89",
+      "bytes": 60361,
+      "kind": "word-reference",
+      "paragraphs": 76,
+      "tables": 0,
+      "inline_images": 0,
+      "sections": [
+        {
+          "page_inches": [
+            8.268,
+            11.693
+          ],
+          "margins_inches": {
+            "top": 0.7,
+            "bottom": 0.7,
+            "left": 0.7,
+            "right": 0.5
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Arial": 4146
+      },
+      "explicit_sizes": {
+        "13.0": 36,
+        "12.0": 182
+      }
+    },
+    {
+      "file": "Class_5_Science_Annual.docx",
+      "sha256": "07fe704e0587a5bdffa6d3eee25a66545350dab2c575c513af42bab55af6ebd7",
+      "bytes": 60789,
+      "kind": "word-reference",
+      "paragraphs": 84,
+      "tables": 0,
+      "inline_images": 0,
+      "sections": [
+        {
+          "page_inches": [
+            8.268,
+            11.693
+          ],
+          "margins_inches": {
+            "top": 0.7,
+            "bottom": 0.7,
+            "left": 0.7,
+            "right": 0.5
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Arial": 4536
+      },
+      "explicit_sizes": {
+        "13.0": 36,
+        "12.0": 407
+      }
+    },
+    {
+      "file": "English 6.docx",
+      "sha256": "5fdd07bda194ec5d73daa31a3598ef6c03358985af460065e981562dc8510d22",
+      "bytes": 517867,
+      "kind": "word-reference",
+      "paragraphs": 43,
+      "tables": 0,
+      "inline_images": 1,
+      "sections": [
+        {
+          "page_inches": [
+            8.5,
+            11.0
+          ],
+          "margins_inches": {
+            "top": 0.347,
+            "bottom": 0.194,
+            "left": 0.886,
+            "right": 0.556
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Times New Roman": 175,
+        "Tahoma": 1533
+      },
+      "explicit_sizes": {
+        "13.0": 750,
+        "11.0": 855
+      }
+    },
+    {
+      "file": "HINDI SA-1 (1).pdf",
+      "sha256": "048db671f2a6b92caa2ac958fc8df9d7775467eff69c07769fd3b4e483fea773",
+      "bytes": 1097789,
+      "kind": "printed-reference",
+      "pages": 17,
+      "text_chars": 17590,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        1,
+        5,
+        5,
+        1,
+        0,
+        11,
+        1,
+        0,
+        4,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "file": "HINDI SA-1.pdf",
+      "sha256": "048db671f2a6b92caa2ac958fc8df9d7775467eff69c07769fd3b4e483fea773",
+      "bytes": 1097789,
+      "duplicate_of": "HINDI SA-1 (1).pdf",
+      "kind": "printed-reference",
+      "pages": 17,
+      "text_chars": 17590,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        1,
+        5,
+        5,
+        1,
+        0,
+        11,
+        1,
+        0,
+        4,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "file": "I - SA-1 SCIENCE.pdf",
+      "sha256": "3a7d0af2f35f33d02927f8c6c50a29b7cd242b9a7500bba23388204d1b9ad40b",
+      "bytes": 965307,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 5687,
+      "page_points": [
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ]
+      ],
+      "image_counts": [
+        1,
+        0,
+        0,
+        20
+      ]
+    },
+    {
+      "file": "II-SA-1 SCIENCE.pdf",
+      "sha256": "f1c1ed925b4a300ef91fac58066779976664322eb67edc90847a019ebae2c096",
+      "bytes": 707109,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 7254,
+      "page_points": [
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ]
+      ],
+      "image_counts": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "file": "III-SA-1 SCIENCE.pdf",
+      "sha256": "34ba4201c4827a3527d149331507f2d1bf5563e730d0ace2ec574aeced35abbc",
+      "bytes": 820201,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 7113,
+      "page_points": [
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ]
+      ],
+      "image_counts": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "file": "IV SA-1 SCIENCE.pdf",
+      "sha256": "d2ad1c5baaadfa7f8797f332b8b55551f83d20d1936685cbeb49d2956344dc7a",
+      "bytes": 845305,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 7305,
+      "page_points": [
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ]
+      ],
+      "image_counts": [
+        1,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "file": "New Microsoft Office Word Document (3).docx",
+      "sha256": "ca4bd470229fa20d81f9f09fdd0650d47a6389b7a583ede9c5e9a2c2511db4ca",
+      "bytes": 323417,
+      "kind": "word-reference",
+      "paragraphs": 322,
+      "tables": 3,
+      "inline_images": 0,
+      "sections": [
+        {
+          "page_inches": [
+            8.5,
+            11.0
+          ],
+          "margins_inches": {
+            "top": 0.5,
+            "bottom": 0.5,
+            "left": 0.5,
+            "right": 0.5
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Tahoma": 6059
+      },
+      "explicit_sizes": {
+        "12.0": 6059
+      }
+    },
+    {
+      "file": "Social 10.docx",
+      "sha256": "e83c6102a88e9db8fe544abb224d006e33b2c295237c77d8314dad33898cb4c5",
+      "bytes": 518989,
+      "kind": "word-reference",
+      "paragraphs": 58,
+      "tables": 0,
+      "inline_images": 1,
+      "sections": [
+        {
+          "page_inches": [
+            8.5,
+            11.0
+          ],
+          "margins_inches": {
+            "top": 0.347,
+            "bottom": 0.194,
+            "left": 0.886,
+            "right": 0.556
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Times New Roman": 122,
+        "Tahoma": 1563
+      },
+      "explicit_sizes": {
+        "13.0": 455,
+        "11.0": 1565
+      }
+    },
+    {
+      "file": "Social 6.docx",
+      "sha256": "3d0d3dc08f1d65c40ddf012e6c7cdfecc7ef0eb33ae8463d04d5d84cb6eb2ce2",
+      "bytes": 516218,
+      "kind": "word-reference",
+      "paragraphs": 52,
+      "tables": 0,
+      "inline_images": 1,
+      "sections": [
+        {
+          "page_inches": [
+            8.5,
+            11.0
+          ],
+          "margins_inches": {
+            "top": 0.347,
+            "bottom": 0.194,
+            "left": 0.886,
+            "right": 0.556
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Times New Roman": 122,
+        "Tahoma": 1077
+      },
+      "explicit_sizes": {
+        "13.0": 423,
+        "11.0": 641
+      }
+    },
+    {
+      "file": "Social 7.docx",
+      "sha256": "1a714af1e5c24851bea0d14175e63ebf068a0bc8e192c5b30aaa0e85b46487b1",
+      "bytes": 518700,
+      "kind": "word-reference",
+      "paragraphs": 54,
+      "tables": 1,
+      "inline_images": 1,
+      "sections": [
+        {
+          "page_inches": [
+            8.5,
+            11.0
+          ],
+          "margins_inches": {
+            "top": 0.347,
+            "bottom": 0.194,
+            "left": 0.886,
+            "right": 0.556
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Times New Roman": 122,
+        "Tahoma": 512
+      },
+      "explicit_sizes": {
+        "13.0": 437,
+        "11.0": 384
+      }
+    },
+    {
+      "file": "Social 8.docx",
+      "sha256": "8d05c0c65d0df702546b0bbf2ab41b7734c9cb7bc4f538ba25e108f4c7fa2349",
+      "bytes": 518947,
+      "kind": "word-reference",
+      "paragraphs": 56,
+      "tables": 0,
+      "inline_images": 1,
+      "sections": [
+        {
+          "page_inches": [
+            8.5,
+            11.0
+          ],
+          "margins_inches": {
+            "top": 0.347,
+            "bottom": 0.194,
+            "left": 0.886,
+            "right": 0.556
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Times New Roman": 122,
+        "Tahoma": 497
+      },
+      "explicit_sizes": {
+        "13.0": 465,
+        "11.0": 992
+      }
+    },
+    {
+      "file": "Social 9.docx",
+      "sha256": "78457360eb8b4a1255e460f065716fcc378c809948a964e6ff93f6123e3a23d1",
+      "bytes": 517983,
+      "kind": "word-reference",
+      "paragraphs": 58,
+      "tables": 0,
+      "inline_images": 1,
+      "sections": [
+        {
+          "page_inches": [
+            8.5,
+            11.0
+          ],
+          "margins_inches": {
+            "top": 0.347,
+            "bottom": 0.194,
+            "left": 0.886,
+            "right": 0.556
+          }
+        }
+      ],
+      "explicit_fonts": {
+        "Times New Roman": 122,
+        "Tahoma": 1572
+      },
+      "explicit_sizes": {
+        "13.0": 494,
+        "11.0": 1293
+      }
+    },
+    {
+      "file": "UKG FA-1.pdf",
+      "sha256": "ed5b4bebfe36525d76e8729a0a43a545d54dea356fb226893752fb8d6da089a1",
+      "bytes": 956968,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 5421,
+      "page_points": [
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ]
+      ],
+      "image_counts": [
+        1,
+        0,
+        5,
+        11
+      ]
+    },
+    {
+      "file": "V-SA-1 SCIENCE.pdf",
+      "sha256": "5ae04d80fe681c33a76677597bff246bdc9ed23f4492e5091acc2db855b98416",
+      "bytes": 746766,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 9143,
+      "page_points": [
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ]
+      ],
+      "image_counts": [
+        1,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "file": "class 2 hindi.pdf",
+      "sha256": "77cd18751d42052aa0ee21d6c01e8653888dad03f2572b9174d5601dde47c229",
+      "bytes": 210655,
+      "kind": "scan-input",
+      "pages": 2,
+      "text_chars": 0,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        1,
+        1
+      ]
+    },
+    {
+      "file": "class 3 hindi (1).pdf",
+      "sha256": "3bae98e4b14620446e7768a4f6876674893f05ef9c9afb8c3e5282b14ad33e09",
+      "bytes": 90291,
+      "kind": "scan-input",
+      "pages": 1,
+      "text_chars": 0,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        1
+      ]
+    },
+    {
+      "file": "class 3 hindi.pdf",
+      "sha256": "3bae98e4b14620446e7768a4f6876674893f05ef9c9afb8c3e5282b14ad33e09",
+      "bytes": 90291,
+      "duplicate_of": "class 3 hindi (1).pdf",
+      "kind": "scan-input",
+      "pages": 1,
+      "text_chars": 0,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        1
+      ]
+    },
+    {
+      "file": "english.pdf",
+      "sha256": "843a051de631bc55f7034ff3636ded19d42150140927766a4d6aa1f29946f83c",
+      "bytes": 8738221,
+      "kind": "scan-input",
+      "pages": 13,
+      "text_chars": 0,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "file": "entrance class 2.pdf",
+      "sha256": "2c29224a717d35d8656b4e8a2217d08b49d470e325df3039b80c2355861d7dbc",
+      "bytes": 52941,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 5300,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "file": "entrance class 3.pdf",
+      "sha256": "3ca9848f456c50f421372f231c916ed5da42aa2d300544d5a64a2e7e6f0d5f3a",
+      "bytes": 58152,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 5944,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "file": "entrance class 4.pdf",
+      "sha256": "4af1b61308cb0d9863737398b53df0e20e9d470ca9836703ef440e32391af2d0",
+      "bytes": 63626,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 5256,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        0,
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "file": "entrance class 5.pdf",
+      "sha256": "df6ea157d94d79b6c23ec28babf7a2ebd7f4cb1519303dbe8418b62d104c2cb6",
+      "bytes": 57958,
+      "kind": "printed-reference",
+      "pages": 4,
+      "text_chars": 5398,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "file": "entrance class UKG.pdf",
+      "sha256": "665d5bbdade3d662ad3856c690c82c73e4810018aac817c521d39b8114c40fb0",
+      "bytes": 10208,
+      "kind": "printed-reference",
+      "pages": 3,
+      "text_chars": 2991,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "file": "fa-2 sci.pdf",
+      "sha256": "d954c3ff044af38977a867ce0f9bd35cf60012eeb682e02e993bc87a8cb3bfdc",
+      "bytes": 1318664,
+      "kind": "printed-reference",
+      "pages": 12,
+      "text_chars": 16268,
+      "page_points": [
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ]
+      ],
+      "image_counts": [
+        1,
+        5,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "file": "final PT_Form_VIII_Declaration_Updated (1).docx",
+      "sha256": "188a21ea9793ebd77ffec59cc8647785fabc5fee4b2aaf33b3945597a92369df",
+      "bytes": 13217,
+      "kind": "excluded-non-question-paper",
+      "paragraphs": 24,
+      "tables": 0,
+      "inline_images": 0,
+      "sections": [
+        {
+          "page_inches": [
+            8.269,
+            11.694
+          ],
+          "margins_inches": {
+            "top": 0.5,
+            "bottom": 0.5,
+            "left": 0.5,
+            "right": 0.5
+          }
+        }
+      ],
+      "explicit_fonts": {},
+      "explicit_sizes": {
+        "12.0": 1953
+      }
+    },
+    {
+      "file": "hindi class 1.pdf",
+      "sha256": "cd0dbdcc3badf5e4152a250ccaa61f9327e84c166e2eb3ae78b3fabf3cfa85dd",
+      "bytes": 307943,
+      "kind": "scan-input",
+      "pages": 3,
+      "text_chars": 0,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "file": "maths.pdf",
+      "sha256": "e7f63355f5b69fb323ba1161c0509d7cb09d52d43bf87b82b88f9cee636f2d12",
+      "bytes": 5398891,
+      "kind": "scan-input",
+      "pages": 9,
+      "text_chars": 0,
+      "page_points": [
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ],
+        [
+          595.0,
+          842.0
+        ]
+      ],
+      "image_counts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "file": "sci fa-2.pdf",
+      "sha256": "3e1f41fe7cc487294332a407ef4db28191dbba8d7bcba08a9b043f1d70dd2ce9",
+      "bytes": 1341937,
+      "kind": "printed-reference",
+      "pages": 12,
+      "text_chars": 15244,
+      "page_points": [
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ],
+        [
+          595.32,
+          841.92
+        ]
+      ],
+      "image_counts": [
+        1,
+        5,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0
+      ]
+    }
+  ]
+}

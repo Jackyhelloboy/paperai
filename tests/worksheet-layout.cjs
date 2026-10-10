@@ -14,6 +14,7 @@ const named = (a,b) => {
     return inline.slice(start,end);
 };
 const uiCtx = vm.createContext({
+    PaperAILayout:require('../frontend/vendor/paper-layout.js'),
     esc:s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'),
     formatOutputLine:s=>String(s)
 });
@@ -71,11 +72,12 @@ const fixture=[
 ].join('\n');
 const xml=wordCtx.docxDocumentXml(fixture);
 assert(xml.includes('xmlns:pic=') && xml.includes('xmlns:r='));
-assert(xml.includes('r:embed="rId2"'),'Word picture drawing relationship missing');
-assert((xml.match(/<wp:inline /g)||[]).length >= 5,'not all picture slots exported');
+assert(!xml.includes('r:embed="rId2"'),'Missing illustrations must not become invented pictures');
+assert(xml.includes('[picture needs review]'),'Unrecovered picture must be flagged');
+assert.equal((xml.match(/<wp:inline /g)||[]).length,4,'Text-only picture requests are not original images');
 assert((xml.match(/<w:tbl>/g)||[]).length >= 6,'grids/tables exported as flattened text');
 assert(xml.includes('<w:tblGrid>') && xml.includes('<w:tblBorders>'));
-assert(xml.includes('w:type="page"'),'Word page break missing');
+assert(xml.includes('<w:pageBreakBefore/>'),'Word page break missing');
 for(const word of ['बकरी','goat','Activity','Materials','Tools','5x2=10M']) assert(xml.includes(word),'Word document missing: '+word);
 const validate=cp.spawnSync('python3',['-c',
     'import sys, xml.etree.ElementTree as E; E.fromstring(sys.stdin.read()); print("Word document XML valid")'

@@ -21,3 +21,7 @@ frontend/node_modules/
 Thumbs.db
 .wrangler/
 .vercel/
+
+# Temporary document rendering profiles
+soffice_convert_*/
+soffice_profile_*/

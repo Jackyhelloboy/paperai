@@ -1,3 +1,4 @@
+import { PAPER_LAYOUT_RULES } from './paper-layout-rules.js';
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
 
@@ -30,7 +31,8 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v19',
+        architecture: 'production-literal-ocr-v20',
+        layout_rules_version: 4,
       }, { headers: corsHeaders });
     }
 
@@ -38,7 +40,8 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v19',
+        architecture: 'production-literal-ocr-v20',
+        layout_rules_version: 4,
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -989,7 +992,8 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v19',
+        architecture: 'production-literal-ocr-v20',
+        layout_rules_version: 4,
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1320,6 +1324,7 @@ LANGUAGE INSTRUCTION:
 ${languageHint}
 ${learningSection}
 ${layoutSection}
+${PAPER_LAYOUT_RULES}
 SCAN MODE:
 ${scanMode === 'line-by-line'
   ? 'The image has been locally reorganized into horizontal text strips in original top-to-bottom order. Read ONE strip at a time, left-to-right, and output one corresponding text line per strip. Blank vertical gaps were removed only to reduce wasted vision work. Do not invent strip numbers or separators.'
@@ -1360,14 +1365,14 @@ Use only text actually visible in the image. If there is no right-side label, le
 15. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
 16. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
 17. For diagrams, shapes, flowcharts, maps, or labelled drawings: preserve visible labels, numbers, arrows and shape relationships. Use visible symbols such as ○, □, →, ←, ↗, ↘, ↑, ↓ only when the corresponding shape/arrow is actually visible. Keep connected branches on separate lines when needed so the relationship remains readable. Do not invent a description of the drawing.
-17A. WORKSHEET PICTURES: when a visible box contains a written picture label such as "chips pic", "tiger pic", "pizza pic", "caravan pic", or similar, do NOT output it as ordinary loose text. Output exactly [[PICTURE: chips]], [[PICTURE: tiger]], etc. Remove only the literal trailing word "pic/picture" from the label. The frontend will show a default image placeholder with that label.
-17B. If a picture/illustration is visibly present but its object name is NOT visibly written, output [[PICTURE: [unreadable]]] instead of guessing the object from school knowledge.
-17C. When a picture label has its own empty answer/check box directly below or beside it, output [[PICTURE_OPTION: label]] so the frontend renders the picture placeholder together with an empty checkbox.
+17A. WRITTEN PICTURE REQUESTS WITHOUT AN ILLUSTRATION: a box with only a written request such as "tiger pic" uses [[PICTURE: tiger]]. This is flagged for review, not filled with a fabricated picture. Remove only the trailing word "pic/picture".
+17B. ACTUAL ILLUSTRATIONS: always use the FIGURE crop syntax in the reference layout rules above, even when the object name is not written. A blank caption is correct. Never replace actual pixels with an [unreadable] picture placeholder or guess an object name.
+17C. An actual picture with a separate answer box uses FIGURE with the box flag. A written picture request with no illustration and a visible checkbox uses PICTURE_OPTION.
 17D. EMPTY CHECKBOXES/SQUARE ANSWER BOXES: output [[CHECKBOX]] for each clearly visible empty square/rectangular selection box. Do not convert several boxes into one.
 17E. MULTIPLE-CHOICE ROWS: when one question has several horizontal text choices, output ONE line exactly as [[OPTION_ROW: choice one || choice two || choice three]]. Preserve the visible choice order. The frontend will render a checkbox beside every choice.
 17F. MATCH-THE-FOLLOWING: for a clear left/right pair on the same visual row, output [[MATCH_ROW: left text || right text]]. Do not solve or rearrange the matching exercise. If the columns are not aligned enough to establish a row, keep the two columns as literal text instead of guessing a pair.
 17G. Picture rows, option rows, matching rows, tables, blanks and boxes are CONTENT. Never omit them just because they contain little text.
-17H. PICTURE GRID WITH BLANK ANSWER RECTANGLES: when 2–8 distinct picture frames appear evenly across ONE row with separate answer boxes, output [[PICTURE_ROW: 1. [unreadable] || 2. [unreadable] || 3. [unreadable]]] with exactly the visible count. A word label may replace [unreadable] ONLY when that label is visibly printed or handwritten beside the picture. Never infer "lotus", "deer", or another object by general knowledge. Keep all other visible text outside the picture row.
+17H. ACTUAL PICTURE ROWS: use FIGURE_ROW with a distinct normalized bounding box for EACH illustration. Preserve the exact visible count, left-to-right order, and any printed captions; use the box flag only where a blank answer box is visible. No object labels may be guessed. Keep surrounding questions outside the crop.
 17I. GEOMETRIC SHAPE IDENTIFICATION: if a row contains visually obvious geometric outlines without visible labels, output [[SHAPE_ROW: square || cube || rectangle || circle]] using the observed basic shape type; do not include invented answers.
 17J. LETTER/VOWEL BOX GRIDS: a simple straight row with N uniformly bordered squares is [[GRID: Nx1]], and a visible R-row C-column grid is [[GRID: CxR]] (for example [[GRID: 5x8]]). Only output these dimensions if the cell borders clearly show the counts. If individual cells contain visible characters, use [[GRID_ROW: अ || _ || आ || _]] for each row, using _ for a visibly empty cell. Do not make up letters in empty cells.
 17K. PRINTED TABLES: when a clearly bordered table has multiple column headers and data rows, output one [[TABLE_ROW: cell one || cell two || cell three]] for EACH visible row, keeping empty cells as empty values. Never use these markers for ordinary body paragraphs.
@@ -1375,7 +1380,7 @@ Use only text actually visible in the image. If there is no right-side label, le
 17M. PLAIN INLINE CHOICES: use [[CHOICE_ROW: A. first || B. second || C. third]] when the page displays a horizontal set of choices but DOES NOT show separate checkboxes. Use [[OPTION_ROW: ...]] ONLY if each choice has a visible selection box. Preserve exact spelling and choice labels; do not choose an answer.
 17N. Keep section headings, marks, whitespace, numbering, and reading order. One visual worksheet page should be complete and its geometry should be faithfully represented, not reduced to a list of words.
 17P. EXAM SECTION HEADINGS: when a bold/underlined section title appears at left and a short mark value such as "5x2=10M" appears aligned at right on the same row, output [[SECTION_ROW: IX. चित्र देखकर नाम लिखो। || 5x2=10M]]. Preserve the actual visible heading and actual mark value, do not invent them.
-17O. An image/drawing or an outline of a map is NOT text. When unrecognizable use a default picture marker; never hallucinate a map, body-part labels, or missing questions.
+17O. An image/drawing or an outline of a map is NOT text. Preserve it as a FIGURE crop even when unrecognizable; never hallucinate a map, body-part labels, or missing questions.
 
 18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
 18A. COMPLETENESS CHECK: before finalizing, confirm that you read the TOP, MIDDLE and BOTTOM of the visible paper. Preserve every visible section heading (for example IV, V, VI, VII), every numbered question and every option row. Do not stop after an easy lower section.
@@ -1477,6 +1482,7 @@ VERIFICATION RULES:
 - Re-check each branch label independently. Never merge the root/prefix into a branch label; preserve only the characters visibly written on that branch.
 - Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
 - Compare the FIRST OCR against the complete visual page from TOP to BOTTOM. If whole headings, sections, picture rows, questions, choices, checkboxes, matching rows, or the bottom of the page were omitted, restore those missing items from the image even when this makes the verified transcription much longer.
+- Recheck normalized crop bounds for every FIGURE and FIGURE_ROW; preserve real illustrations even without readable captions. Count actual grid borders, not expected answer counts. Background notebook ruling is not a grid row. Use SECTION_ROW for handwritten headings with right-aligned marks. Use MATCH_ROW instead of alternating column lines.
 - Use [[PICTURE: label]], [[PICTURE_OPTION: label]], [[PICTURE_ROW: ... || ...]], [[SHAPE_ROW: ... || ...]], [[GRID: 5x8]], [[GRID_ROW: ... || ...]], [[ANSWER_LINES: 2]], [[TABLE_ROW: ... || ...]], [[CHECKBOX]], [[CHOICE_ROW: ... || ...]], [[OPTION_ROW: ... || ...]], and [[MATCH_ROW: ... || ...]] when those visual structures are clearly present. Preserve the number and geometry of every visible cell, option, line and picture.
 - For question papers, re-check the structure rules 36-43: header block order (school name, address, exam title, Name/Class/Roll/Subject fields, Max. Marks), each section heading on its own line with its marks equation kept on that same line, question numbering and sub-question letters, and the blank lines that separate sections and answer space.
 - Do not keep a short first OCR merely because its existing words are correct; completeness of the visible page is mandatory.
@@ -1805,6 +1811,8 @@ function stripOcrMetadata(text) {
   if (!text) return '';
 
   return stripBranchMetadata(String(text))
+    .replace(/\[\[(?:FIGURE|FIGURE_ROW):\s*([\s\S]*?)\]\]/gi,(_,body)=>String(body).split(/\s*\|\|\s*/).map(x=>x.split('|')[1]?.trim() || '[illustration]').join('    '))
+    .replace(/\[\[(?:BANNER|TABLE_WIDTHS|FOOTER):[\s\S]*?\]\]/gi,'')
     .replace(/\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
       (_,title,marks)=>title.trim()+'    '+marks.trim())
     .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
@@ -1812,7 +1820,7 @@ function stripOcrMetadata(text) {
     .replace(/\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
       String(body).split(/\s*\|\|\s*/).map(x => '[' + x.trim() + ' shape] ______').join('    '))
     .replace(/\[\[GRID:\s*(\d{1,2})[x×](\d{1,2})\]\]/gi, (_,c,r) =>
-      Array.from({length:Math.min(24,+r)},()=>Array.from({length:Math.min(24,+c)},()=> '□').join(' ')).join('\n'))
+      Array.from({length:Math.min(32,+r)},()=>Array.from({length:Math.min(52,+c)},()=> '□').join(' ')).join('\n'))
     .replace(/\[\[GRID_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
       String(body).split(/\s*\|\|\s*/).map(x => x.trim() === '_' ? '□' : x.trim()).join(' | '))
     .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>

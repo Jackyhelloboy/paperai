@@ -31,6 +31,7 @@ jobs:
           node tests/worksheet-layout.cjs
           node tests/pdf-word-layout.cjs
           node tests/docx-import.cjs
+          node tests/editable-paper.cjs
 
       - name: Build Cloudflare usage snapshot
         env:
