@@ -59,6 +59,17 @@ const fixture=[
     assert.equal(widths.reduce((a,b)=>a+b),10466);assert(widths[1]>widths[0]);
     for(const invalid of ['-1,0,20,20','950,0,60,20','0,0,1000,1000','x,1,2,3'])assert.equal(Layout.figure(invalid),null);
     assert.deepEqual(Layout.pixels(Layout.figure('100,200,300,400|1.|box'),2000,3000),{x:200,y:600,w:600,h:1200});
+    assert.equal(Layout.section('IV. Map pointing. 4x1/2=2').marks,'4x1/2=2');
+    assert.equal(Layout.normalise('SECTION_ROW: I. Count || 5M'),'[[SECTION_ROW: I. Count || 5M]]');
+    const duplicate='[[FIGURE_ROW: 100,200,200,100|1.|none]]\n1. [[FIGURE: 100,200,200,100| |none]] = _____';
+    assert(!Layout.deduplicateFigures(duplicate).includes('FIGURE_ROW'),'Duplicated detached illustration should not print twice');
+    assert.equal(Layout.figureRows([{x:10,y:20,w:20,h:20},{x:40,y:22,w:20,h:20},{x:10,y:60,w:20,h:20}]).length,2,'Vertical picture rows must not be flattened horizontally');
+    const image={width:600,height:200,data:new Uint8Array(600*200*4).fill(255)};
+    const black=(x,y)=>{const n=(y*600+x)*4;image.data[n]=image.data[n+1]=image.data[n+2]=0;};
+    for(let n=0;n<=7;n++)for(let y=50;y<=115;y++)black(100+n*35,y);
+    assert.deepEqual(Layout.emptyGrids(image),[],'Isolated vertical strokes are not a grid');
+    for(let x=100;x<=345;x++){black(x,50);black(x,115);}
+    assert.equal(Layout.emptyGrids(image)[0].columns,7,'Count drawn divisions, not expected answers');
     if(process.env.PAPERAI_DOCX_OUT)fs.writeFileSync(process.env.PAPERAI_DOCX_OUT,Buffer.from(await blob.arrayBuffer()));
     console.log('Editable paper: A4 narrow margins, original source pixels, editable grids/shapes/tables, aspect ratio, repeated headers and page-break cleanup pass.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

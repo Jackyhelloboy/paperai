@@ -1,4 +1,4 @@
-import { PAPER_LAYOUT_RULES } from './paper-layout-rules.js';
+import { PAPER_LAYOUT_RULES, normaliseMarkerRows } from './paper-layout-rules.js';
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
 
@@ -1294,6 +1294,8 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
       '; long vertical rules: ' + (Number(imageMeta?.longVerticalRules) || 0) +
       (imageMeta?.branchingLayout ? '; possible branching/diagram layout detected. Preserve arrows and branch relationships.' : '.') + '\n'
     : '';
+  const grids=Array.isArray(imageMeta?.detectedGrids)?imageMeta.detectedGrids.filter(g=>Number.isInteger(g.columns)&&g.columns>=5&&g.columns<=52&&g.rows===1&&[g.x,g.y,g.w,g.h].every(v=>Number.isFinite(v)&&v>=0&&v<=1000)).slice(0,12):[];
+  const gridSection=grids.length ? '\nLOCAL BORDER EVIDENCE (recheck against pixels):\n'+grids.map(g=>`Empty one-row grid at normalized x=${g.x}, y=${g.y}, width=${g.w}, height=${g.h}: ${g.columns} columns, ONE row. Use [[GRID: ${g.columns}x1]] here. Notebook lines passing through it are background. Do not substitute an expected alphabet or number count.`).join('\n')+'\n' : '';
   const learnedConfusions = sanitizeLearningHints(learningHints);
   const learningSection = learnedConfusions.length
     ? '\nVISUAL CONFUSION MEMORY (human-corrected examples from this browser):\n' +
@@ -1325,6 +1327,7 @@ ${languageHint}
 ${learningSection}
 ${layoutSection}
 ${PAPER_LAYOUT_RULES}
+${gridSection}
 SCAN MODE:
 ${scanMode === 'line-by-line'
   ? 'The image has been locally reorganized into horizontal text strips in original top-to-bottom order. Read ONE strip at a time, left-to-right, and output one corresponding text line per strip. Blank vertical gaps were removed only to reduce wasted vision work. Do not invent strip numbers or separators.'
@@ -1453,7 +1456,7 @@ Return only the final transcription plus the allowed [[...]] edit markers when n
 
   if (!response) throw lastError || new Error('AI OCR unavailable');
 
-  let text = extractAiText(response);
+  let text = normaliseMarkerRows(extractAiText(response));
   let usage = mergeAiUsage(response.usage || null, null);
   let rescued = false;
 
@@ -1511,7 +1514,7 @@ VERIFICATION RULES:
         }
       }, { rejectIfBusy: true });
 
-      const rescueText = extractAiText(rescueResponse);
+      const rescueText = normaliseMarkerRows(extractAiText(rescueResponse));
       usage = mergeAiUsage(usage, rescueResponse.usage || null);
 
       if (shouldAcceptVerifiedText(text, rescueText, imageMeta)) {

@@ -56,3 +56,10 @@ repeated headers and page breaks. Render exports and compare each page with the
 source before treating a sample as verified. Approximate AI crop bounds and faint
 handwritten cell borders can still require teacher review; a successful structural
 test does not certify OCR accuracy on every reference.
+
+Live comparisons also uncovered duplicate DrawingML/VML fallback images, missing
+native Word list numbering, malformed OCR marker rows, and repeated detached
+illustrations. The importer/exporter now handles these cases. A conservative
+local border detector supplies observed one-row empty grid dimensions to the OCR
+prompt; it rejects incomplete borders and does not rewrite larger or populated
+grids. Faint notebook ruling still requires visual review.

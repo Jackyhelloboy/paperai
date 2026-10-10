@@ -2378,7 +2378,7 @@ function xmlParagraphText(xmlText, paragraphLocalName = 'p', textLocalName = 't'
     return textNodes.map(n => n.textContent || '').filter(Boolean).join(' ').trim();
 }
 
-function docxStructuredXml(xmlText, media = {}) {
+function docxStructuredXml(xmlText, media = {}, numbering = {}) {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('Invalid Word document XML');
     const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -2387,6 +2387,7 @@ function docxStructuredXml(xmlText, media = {}) {
 
     const children = element => Array.from(element.childNodes || []).filter(node => node.nodeType === 1);
     const tag = element => String(element?.localName || '');
+    const counters={};
     const paragraphText = p => {
         let out = '';
         const visit = node => {
@@ -2398,11 +2399,31 @@ function docxStructuredXml(xmlText, media = {}) {
             else for (const child of children(node)) visit(child);
         };
         visit(p);
-        const refs=[...Array.from(p.getElementsByTagNameNS('*','blip')).map(x=>x.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','embed')),
-            ...Array.from(p.getElementsByTagNameNS('*','imagedata')).map(x=>x.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id'))];
+        const refs=[];
+        const collect=node=>{
+            if(tag(node)==='AlternateContent') {
+                const choice=children(node).find(x=>tag(x)==='Choice')||children(node).find(x=>tag(x)==='Fallback');
+                if(choice)collect(choice);return;
+            }
+            if(tag(node)==='blip')refs.push(node.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','embed'));
+            else if(tag(node)==='imagedata')refs.push(node.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id'));
+            else for(const c of children(node))collect(c);
+        };
+        collect(p);
         for(const ref of refs) {
             const asset=media[ref];
             out+=asset ? (asset.role==='banner' ? ' [[SOURCE_BANNER: '+asset.id+']]' : ' [[SOURCE_FIGURE: '+asset.id+'| |none]]') : ' [[PICTURE: [unreadable]]]';
+        }
+        const numPr=p.getElementsByTagNameNS(ns,'numPr')[0];
+        const numId=numPr?.getElementsByTagNameNS(ns,'numId')[0]?.getAttributeNS(ns,'val');
+        const level=Number(numPr?.getElementsByTagNameNS(ns,'ilvl')[0]?.getAttributeNS(ns,'val')||0);
+        const spec=numbering[numId]?.[level];
+        if(spec&&out.trim()) {
+            const state=counters[numId]||(counters[numId]=[]);
+            state[level]=(state[level]??(spec.start-1))+1;state.length=level+1;
+            const format=(n,fmt)=>fmt==='lowerLetter'?String.fromCharCode(97+(n-1)%26):fmt==='upperLetter'?String.fromCharCode(65+(n-1)%26):String(n);
+            const prefix=spec.text.replace(/%([1-9])/g,(_,n)=>format(state[Number(n)-1]??1,numbering[numId]?.[Number(n)-1]?.format));
+            out=prefix+' '+out;
         }
         return out.trim();
     };
@@ -2485,6 +2506,28 @@ async function extractOfficeZipFile(officeFile) {
     const zip = await JSZip.loadAsync(await officeFile.arrayBuffer());
 
     if (ext === 'docx') {
+        const numbering={};
+        const numberingFile=zip.file('word/numbering.xml');
+        if(numberingFile){
+            const doc=new DOMParser().parseFromString(await numberingFile.async('text'),'application/xml');
+            const ns='http://schemas.openxmlformats.org/wordprocessingml/2006/main',abstract={};
+            for(const node of doc.getElementsByTagNameNS(ns,'abstractNum')){
+                const levels={};
+                for(const lvl of node.getElementsByTagNameNS(ns,'lvl')){
+                    const get=name=>lvl.getElementsByTagNameNS(ns,name)[0]?.getAttributeNS(ns,'val');
+                    levels[Number(lvl.getAttributeNS(ns,'ilvl')||0)]={start:Number(get('start')||1),format:get('numFmt')||'decimal',text:get('lvlText')||'%1.'};
+                }
+                abstract[node.getAttributeNS(ns,'abstractNumId')]=levels;
+            }
+            for(const node of doc.getElementsByTagNameNS(ns,'num')){
+                const id=node.getAttributeNS(ns,'numId'),ref=node.getElementsByTagNameNS(ns,'abstractNumId')[0]?.getAttributeNS(ns,'val');
+                numbering[id]=JSON.parse(JSON.stringify(abstract[ref]||{}));
+                for(const override of node.getElementsByTagNameNS(ns,'lvlOverride')){
+                    const lvl=Number(override.getAttributeNS(ns,'ilvl')||0),start=override.getElementsByTagNameNS(ns,'startOverride')[0]?.getAttributeNS(ns,'val');
+                    if(start&&numbering[id][lvl])numbering[id][lvl].start=Number(start);
+                }
+            }
+        }
         const media={};
         const relFile=zip.file('word/_rels/document.xml.rels');
         if(relFile){
@@ -2509,7 +2552,7 @@ async function extractOfficeZipFile(officeFile) {
         for (const name of parts) {
             const xml = await zip.file(name).async('text');
             const text = name === 'word/document.xml'
-                ? docxStructuredXml(xml,media)
+                ? docxStructuredXml(xml,media,numbering)
                 : xmlParagraphText(xml, 'p', 't');
             if (text) sections.push(text);
         }
@@ -3073,6 +3116,11 @@ async function prepareImageForOCR(source, forceSafe = false) {
         }
     }
 
+    const probe=document.createElement('canvas');
+    probe.width=Math.min(900,originalWidth);probe.height=Math.round(originalHeight*probe.width/originalWidth);
+    const probeCtx=probe.getContext('2d',{willReadFrequently:true});
+    let detectedGrids=[];
+    if(probeCtx&&probe.height<=2000){probeCtx.drawImage(workSource,0,0,probe.width,probe.height);detectedGrids=PaperAILayout.emptyGrids(probeCtx.getImageData(0,0,probe.width,probe.height));}
     const analysis = analyzeCanvasDifficulty(workSource, originalWidth, originalHeight);
     const layout = detectTextLineLayout(workSource, originalWidth, originalHeight);
     const hard = analysis.difficulty === 'hard';
@@ -3174,6 +3222,7 @@ async function prepareImageForOCR(source, forceSafe = false) {
             bytes: blob.size,
             ...analysis,
             safeRetry: forceSafe,
+            detectedGrids,
             scanStrategy: layout.structured ? 'structured-full-page' : 'full-page',
             lineCount: layout.lineCount,
             lineCoverage: layout.coverage,
@@ -4573,7 +4622,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         if (res.ok) {
             if (!body || body.status !== 'completed' || !body.result) throw new Error('OCR returned an incomplete page.');
             body.result.annotated_text = await recoverSourceFigures(
-                body.result.annotated_text || body.result.full_text || '', prepared.blob);
+                PaperAILayout.normalise(body.result.annotated_text || body.result.full_text || ''), prepared.blob);
             return body;
         }
 
@@ -4993,14 +5042,15 @@ function isOutputHeadingLine(line, index, firstNonEmptyIndex) {
 }
 
 function formatOutputLine(line) {
-    const token = /\[\[(DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION):\s*([\s\S]*?)\]\]|\[\[(CHECKBOX)\]\]/g;
+    const token = /\[\[(DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION|SOURCE_FIGURE):\s*([\s\S]*?)\]\]|\[\[(CHECKBOX)\]\]/g;
     let html = '';
     let last = 0;
     let match;
 
     while ((match = token.exec(line)) !== null) {
         html += formatVisibleText(line.slice(last, match.index));
-        if (match[3] === 'CHECKBOX') html += formatOcrAnnotation('CHECKBOX', '');
+        if (match[1] === 'SOURCE_FIGURE') html += sourceFigureHtml(match[2]);
+        else if (match[3] === 'CHECKBOX') html += formatOcrAnnotation('CHECKBOX', '');
         else html += formatOcrAnnotation(match[1], match[2]);
         last = token.lastIndex;
     }
@@ -5068,7 +5118,7 @@ function worksheetRenderTable(rows) {
     const content = rows.map((row, index) => {
         const cells = worksheetCells(row, columns);
         return '<tr>' + Array.from({length: columns}, (_, col) =>
-            '<' + (index === 0 ? 'th' : 'td') + '>' + formatOutputLine(cells[col] || '') +
+            '<' + (index === 0 ? 'th' : 'td') + '>' + String(cells[col]||'').split(/<br>/i).map(formatOutputLine).join('<br>') +
             '</' + (index === 0 ? 'th' : 'td') + '>'
         ).join('') + '</tr>';
     }).join('');
@@ -5634,7 +5684,7 @@ function buildDocxBody(structuredText) {
         let sourceFigure=line.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
         if(sourceFigure){body.push(docxSourceRow(worksheetCells(sourceFigure[1],8)));i++;continue;}
         const sourceBanner=line.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
-        if(sourceBanner){body.push('<w:p><w:pPr><w:jc w:val="center"/><w:keepNext/><w:spacing w:after="100"/></w:pPr>'+docxSourceRun(sourceBanner[1].trim(),DOCX_CONTENT_W,1200)+'</w:p>');i++;continue;}
+        if(sourceBanner){body.push('<w:p><w:pPr><w:jc w:val="center"/><w:keepNext/><w:spacing w:after="100"/></w:pPr>'+docxSourceRun(sourceBanner[1].trim(),DOCX_CONTENT_W,2200)+'</w:p>');i++;continue;}
         if(/^\[\[FOOTER:/i.test(line)){i++;continue;}
         const section = line.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
         if (section) {
@@ -5735,7 +5785,7 @@ function buildDocxBody(structuredText) {
             continue;
         }
         if(!raw.trim()){
-            body.push(docxParagraph('',{after:40}));i++;continue;
+            i++;continue;
         }
         const heading=isOutputHeadingLine(raw,i,firstNonEmptyIndex);
         const split=heading && PaperAILayout.section(raw);
@@ -5770,6 +5820,7 @@ let extractedMedia = [];
 let docxMediaUsed = new Map();
 function sourceAsset(id) { return extractedMedia.find(item => item.id === id); }
 async function recoverSourceFigures(text, blob) {
+    text=PaperAILayout.deduplicateFigures(text);
     if (!/\[\[(?:FIGURE(?:_ROW)?|BANNER):/i.test(text)) return text;
     const source = await decodeImageSource(blob);
     try {
@@ -5795,7 +5846,9 @@ async function recoverSourceFigures(text, blob) {
                 return '[[SOURCE_BANNER: '+asset.id+']]';
             }
             const specs=kind.toUpperCase()==='FIGURE_ROW' ? worksheetCells(body,8) : [body];
-            return '[[SOURCE_FIGURE'+(specs.length>1?'_ROW':'')+': '+specs.map(x=>cell(crop(x))).join(' || ')+']]';
+            const regions=specs.map(x=>crop(x));
+            const rows=PaperAILayout.figureRows(regions);
+            return rows.map(row=>'[[SOURCE_FIGURE'+(row.length>1?'_ROW':'')+': '+row.map(cell).join(' || ')+']]').join('\n');
         });
     } finally { if(source.close) source.close(); }
 }

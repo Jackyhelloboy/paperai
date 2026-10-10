@@ -49,8 +49,104 @@
     function section(value) {
         // A marks equation is moved only geometrically, never calculated or changed.
         const s=String(value||'').trim();
-        const m=s.match(/^(.+?)\s+((?:\(?\d+\s*[x×X*]\s*\d+\s*=\s*\d+\s*(?:[mM]|marks)?\)?|\d+\s*[mM]))\s*$/);
+        const m=s.match(/^(.+?)\s+((?:\(?\d+(?:[./]\d+)?\s*[x×X*]\s*\d+(?:[./]\d+)?\s*=\s*\d+(?:[./]\d+)?\s*(?:[mM]|marks)?\)?|\d+\s*[mM]))\s*$/);
         return m ? {title:m[1],marks:m[2]} : null;
     }
-    return {profile,figure,pixels,source,fit,tableWidths,section};
+    function emptyGrids(image) {
+        // Conservative border check for small, empty, one-row handwriting grids.
+        // Larger tables, populated grids and incomplete boundaries are left to OCR.
+        const {width:w,height:h,data}=image;
+        if(w>1000||h>2000) return [];
+        const dark=new Uint8Array(w*h), expanded=new Uint8Array(w*h);
+        for(let i=0;i<dark.length;i++) dark[i]=Math.max(data[4*i],data[4*i+1],data[4*i+2])<125 ? 1:0;
+        for(let y=0;y<h;y++)for(let x=1;x<w-1;x++) {
+            const i=y*w+x;expanded[i]=dark[i-1]|dark[i]|dark[i+1];
+        }
+        const segments=[];
+        for(let x=15;x<w-15;x++) {
+            let start=-1,last=-1,count=0;
+            const finish=()=>{if(start>=0&&last-start>=48&&count/(last-start+1)>=.7)segments.push({x,y:start,z:last});};
+            for(let y=0;y<h;y++)if(expanded[y*w+x]) {
+                if(start<0||y-last>6){finish();start=y;count=0;}
+                last=y;count++;
+            }
+            finish();
+        }
+        const lines=[];
+        for(const s of segments){
+            const same=lines.find(g=>Math.abs(g.x-s.x)<=4&&Math.min(g.z,s.z)-Math.max(g.y,s.y)>.5*Math.min(g.z-g.y,s.z-s.y));
+            if(same){same.x=(same.x*same.n+s.x)/(same.n+1);same.n++;same.y=Math.min(same.y,s.y);same.z=Math.max(same.z,s.z);}
+            else lines.push({...s,n:1});
+        }
+        const groups=[];
+        for(const line of lines){
+            const same=groups.find(g=>Math.abs(g.y-line.y)<20&&Math.abs(g.z-line.z)<20);
+            if(same){same.lines.push(line);const n=same.lines.length;same.y=(same.y*(n-1)+line.y)/n;same.z=(same.z*(n-1)+line.z)/n;}
+            else groups.push({y:line.y,z:line.z,lines:[line]});
+        }
+        const results=[];
+        for(const g of groups){
+            const ls=g.lines.sort((a,b)=>a.x-b.x), n=ls.length;
+            if(n<6||n>53||g.z-g.y>130)continue;
+            const gaps=ls.slice(1).map((p,i)=>p.x-ls[i].x).sort((a,b)=>a-b),median=gaps[Math.floor(gaps.length/2)];
+            if(median<10||median>100||gaps.some(x=>x<median*.65||x>median*1.55))continue;
+            // A true border connects adjacent vertical divisions near both ends.
+            let closed=0;
+            for(let i=0;i<n-1;i++)for(const end of ['y','z']){
+                let ink=0, total=0;
+                for(let x=Math.round(ls[i].x)+4;x<ls[i+1].x-4;x++){
+                    const t=(x-ls[i].x)/(ls[i+1].x-ls[i].x),yy=Math.round(ls[i][end]*(1-t)+ls[i+1][end]*t);
+                    let hit=0;for(let dy=-8;dy<=8;dy++)if(yy+dy>=0&&yy+dy<h)hit|=dark[(yy+dy)*w+x];
+                    ink+=hit;total++;
+                }
+                if(total&&ink/total>.65)closed++;
+            }
+            if(closed/(2*(n-1))<.8)continue;
+            const x=ls[0].x,z=ls[n-1].x;
+            const y=Math.min(...ls.map(p=>p.y)),bottom=Math.max(...ls.map(p=>p.z));
+            results.push({columns:n-1,rows:1,x:Math.round(x/w*1000),y:Math.round(y/h*1000),w:Math.round((z-x)/w*1000),h:Math.round((bottom-y)/h*1000)});
+        }
+        return results.sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,12);
+    }
+    function normalise(text) {
+        const types='SECTION_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS';
+        const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
+        return String(text||'').split('\n').map(line=>{
+            const m=line.match(bare);
+            return m ? '[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]' : line;
+        }).join('\n');
+    }
+    function overlap(a,b) {
+        const area=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x))*
+            Math.max(0,Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y));
+        return area/Math.max(1,a.w*a.h+b.w*b.h-area);
+    }
+    function deduplicateFigures(text) {
+        const inline=[];
+        for(const line of String(text).split('\n')){
+            if(/^\s*\[\[FIGURE(?:_ROW)?:/.test(line))continue;
+            for(const m of line.matchAll(/\[\[FIGURE:\s*([\s\S]*?)\]\]/gi)){
+                const r=figure(m[1]);if(r)inline.push(r);
+            }
+        }
+        return String(text).replace(/\[\[FIGURE_ROW:\s*([\s\S]*?)\]\]/gi,(_,body)=>{
+            const cells=body.split(/\s*\|\|\s*/).filter(spec=>{
+                const region=figure(spec);
+                return !region||!inline.some(r=>overlap(r,region)>.75);
+            });
+            return cells.length ? '[[FIGURE_ROW: '+cells.join(' || ')+']]' : '';
+        });
+    }
+    function figureRows(regions) {
+        const rows=[];
+        for(const r of regions){
+            const row=rows.find(items=>items.some(p=>Number.isFinite(p.y)&&Number.isFinite(r.y)&&
+                Math.min(p.y+p.h,r.y+r.h)-Math.max(p.y,r.y)>.5*Math.min(p.h,r.h)));
+            if(row)row.push(r);else rows.push([r]);
+        }
+        rows.sort((a,b)=>(a[0].y||0)-(b[0].y||0));
+        for(const row of rows)row.sort((a,b)=>(a.x||0)-(b.x||0));
+        return rows;
+    }
+    return {profile,figure,pixels,source,fit,tableWidths,section,emptyGrids,normalise,deduplicateFigures,figureRows};
 });

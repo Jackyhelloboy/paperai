@@ -10,10 +10,19 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 4):
 - For an ACTUAL drawing, illustration, map, graph or complex diagram, preserve the original pixels using a crop marker. Coordinates are x,y,width,height integers on the exact displayed image, normalized to 0–1000, origin TOP LEFT. Bound ONLY the illustration, including its diagram labels; exclude surrounding question text. Do not replace it with a generic picture.
 - Single illustration: [[FIGURE: 100,250,180,120|visible caption|none]]. Blank caption is valid. Use box instead of none ONLY for a visible answer box belonging to this illustration.
 - Several illustrations across one row: [[FIGURE_ROW: 100,250,180,120|1.|box || 400,250,180,120|2.|box]]. Each cell has its OWN crop. Exactly preserve the visible illustration count and row order. Put separately printed words below pictures in the caption, spelled exactly as visible; never infer object names.
-- For a real school banner at the page top: [[BANNER: 40,10,920,100]]. Crop only the banner. Preserve Name/Class/Subject/exam fields as editable text outside it. A clipped, unreadable school name must not be completed from memory.
+- For a real school banner at the page top: [[BANNER: 40,10,920,100]]. Crop only the banner. Do not repeat the school or address text already included inside that crop as body paragraphs. Preserve Name/Class/Subject/exam fields as editable text outside it. A clipped, unreadable school name must not be completed from memory.
 - Written requests such as 'tiger pic' with NO actual illustration still use PICTURE markers; these are unfulfilled author instructions, not original picture assets. The exporter flags them for review.
 - Basic circle/square/rectangle/triangle/cube outlines are SHAPE_ROW and stay editable shapes. Complex shapes use FIGURE crops instead of guessed geometry.
 - Bordered tables use TABLE_ROW for every row, including empty first/last cells. Preserve multiline cell contents with the explicit <br> separator, NOT extra rows. Use TABLE_WIDTHS: percentages separated by commas on a preceding marker line ONLY if the visible column proportions are clear.
 - Letter grids use GRID or consecutive GRID_ROW markers. Up to 52 columns, 32 rows, 600 cells. Use only observed counts; uncertain borders remain [unclear]. Never turn ordinary notebook lines into ANSWER_LINES.
 - These reference rules govern representation and layout only. Never copy questions, school identities, dates, marks or answers from a different training paper.
 `;
+
+export function normaliseMarkerRows(text) {
+    const names='SECTION_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS';
+    const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');
+    return String(text||'').split('\n').map(line=>{
+        const m=line.match(bare);
+        return m ? '[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]' : line;
+    }).join('\n');
+}
