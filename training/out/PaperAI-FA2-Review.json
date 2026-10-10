@@ -1,0 +1,33 @@
+{
+  "source": "training/fa-2 sci.pdf",
+  "source_sha256": "d954c3ff044af38977a867ce0f9bd35cf60012eeb682e02e993bc87a8cb3bfdc",
+  "uploaded_output": "training/fa-2-sci-1-extracted (2).docx",
+  "uploaded_output_sha256": "acb1fdfd4eac438dbf17a2a7c18aaa684c520fdb29679e6b3323b2d0d93aecb0",
+  "source_pages": 12,
+  "uploaded_output_rendered_pages": 15,
+  "corrected_rendered_pages": 12,
+  "word_sections": 12,
+  "editable_text_boxes": 467,
+  "separately_replaceable_original_pictures": 12,
+  "page_size": "A4 portrait",
+  "margins_inches": 0.5,
+  "implementation_commit": "053749dc19edb1daa509b12466cda89c0ff802f7",
+  "live_test_url": "https://paperai-5up.pages.dev/",
+  "verified": "Uploaded the complete source PDF in the deployed application, downloaded Editable Word, rendered it, and inspected all twelve pages.",
+  "corrected": [
+    "Preserved source page boundaries and measured artwork positions",
+    "Preserved separate matching pictures and full plant diagram",
+    "Placed class text above the original banner image",
+    "Removed duplicate banner metadata and literal none captions"
+  ],
+  "outputs": [
+    "training/out/PaperAI-FA2-Corrected.docx",
+    "training/out/PaperAI-FA2-Corrected.pdf",
+    "training/out/PaperAI-FA2-Verified-Preview.jpg"
+  ],
+  "limits": [
+    "Measured native PDF conversion applies to supported selectable-text PDFs; scanned and handwritten inputs use the OCR path.",
+    "Text is editable in Word text boxes. Original raster illustrations are separately replaceable images; their internal lines are not converted into individual Word shapes.",
+    "Reference layout rules and conversion code were improved; hosted model weights were not fine-tuned."
+  ]
+}
