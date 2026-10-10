@@ -53,6 +53,12 @@
         const m=s.match(/^(.+?)\s+((?:\(?\d+(?:[./]\d+)?\s*[x×X*]\s*\d+(?:[./]\d+)?\s*=\s*\d+(?:[./]\d+)?\s*(?:[mM]|marks)?\)?|\d+\s*[mM]))\s*$/);
         return m ? {title:m[1],marks:m[2]} : null;
     }
+    function questionAnswer(value) {
+        // A terminal empty answer bracket is layout, not part of question prose.
+        // Require a numbered question and a clear gap; keep meaningful parentheses.
+        const m=String(value||'').match(/^\s*(\d+[.)]\s+.+?)\s{2,}\(\s+\)\s*$/);
+        return m ? {question:m[1].replace(/[ \t]{2,}/g,' '),answer:'(        )'} : null;
+    }
     function emptyGrids(image) {
         // Conservative border check for small, empty, one-row handwriting grids.
         // Larger tables, populated grids and incomplete boundaries are left to OCR.
@@ -190,5 +196,5 @@
         }
         return lines.join('\n');
     }
-    return {profile,figure,pixels,source,fit,tableWidths,section,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,figure,pixels,source,fit,tableWidths,section,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

@@ -60,6 +60,12 @@ const fixture=[
     for(const invalid of ['-1,0,20,20','950,0,60,20','0,0,1000,1000','x,1,2,3'])assert.equal(Layout.figure(invalid),null);
     assert.deepEqual(Layout.pixels(Layout.figure('100,200,300,400|1.|box'),2000,3000),{x:200,y:600,w:600,h:1200});
     assert.equal(Layout.section('IV. Map pointing. 4x1/2=2').marks,'4x1/2=2');
+    const answerRow=ctx.buildDocxBody('7.     Labour fought for these?                     (                         )');
+    assert(answerRow.includes('<w:cantSplit/>')&&answerRow.includes('w:w="1520"'),'Answer brackets must stay in a fixed column with their question');
+    assert.equal((answerRow.match(/<w:tc>/g)||[]).length,2);
+    assert.equal(Layout.questionAnswer('1. Explain (or) describe the process.'),null,'Meaningful parentheses are question content');
+    assert(!ctx.docxFooterXml('Name: Formative Assessment - I Class: UKG\nSub: English MARKS').includes('Formative Assessment'),'Body metadata must not be guessed into the footer');
+    assert(ctx.docxFooterXml('[[FOOTER: FA - I || English]]').includes('FA - I'),'Explicit source footer must be retained');
     assert.equal(Layout.normalise('SECTION_ROW: I. Count || 5M'),'[[SECTION_ROW: I. Count || 5M]]');
     const duplicate='[[FIGURE_ROW: 100,200,200,100|1.|none]]\n1. [[FIGURE: 100,200,200,100| |none]] = _____';
     assert(!Layout.deduplicateFigures(duplicate).includes('FIGURE_ROW'),'Duplicated detached illustration should not print twice');

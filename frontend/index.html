@@ -5211,6 +5211,13 @@ function formatOutput(text) {
         }
 
         const line = lines[i];
+        const questionAnswer=PaperAILayout.questionAnswer(line);
+        if(questionAnswer){
+            html+='<div style="display:grid;grid-template-columns:minmax(0,1fr) 5em;gap:1em;align-items:start">'+
+                '<span>'+formatOutputLine(questionAnswer.question)+'</span><span style="white-space:pre;text-align:center">'+
+                esc(questionAnswer.answer)+'</span></div>';
+            i++;continue;
+        }
         const tableRows = [];
         let tableIndex = i;
         while (tableIndex < lines.length) {
@@ -5789,6 +5796,12 @@ function buildDocxBody(structuredText) {
         if(!raw.trim()){
             i++;continue;
         }
+        const questionAnswer=PaperAILayout.questionAnswer(raw);
+        if(questionAnswer){
+            body.push(docxTableCells([[questionAnswer.question,{xml:docxParagraph(questionAnswer.answer,{center:true,size:24,after:0})}]],
+                [DOCX_CONTENT_W-1520,1520],{bordered:false,fontSize:24,minHeight:360}));
+            i++;continue;
+        }
         const heading=isOutputHeadingLine(raw,i,firstNonEmptyIndex);
         const split=heading && PaperAILayout.section(raw);
         if(split) body.push(docxSectionRow(split.title,split.marks));
@@ -5958,11 +5971,6 @@ function docxFooterXml(structuredText) {
     const explicit=source.match(/\[\[FOOTER:\s*([\s\S]*?)\]\]/i);
     let left='',center='';
     if(explicit) [left,center]=worksheetCells(explicit[1],2);
-    else {
-        const lines=source.split('\n').map(x=>docxVisibleText(x).trim());
-        left=lines.find(x=>/FORMATIVE ASSESSMENT|SUMMATIVE ASSESSMENT|ANNUAL EXAMINATION|QUARTERLY EXAMINATION|ENTRANCE EXAMINATION/i.test(x))||'';
-        center=lines.find(x=>/^(?:Class|Sub(?:ject)?)[ :]/i.test(x))||'';
-    }
     const runProps='<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:b/><w:sz w:val="18"/></w:rPr>';
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
         '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr>'+
