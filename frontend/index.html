@@ -15,6 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="vendor/pdf-word-layout.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -1049,11 +1050,9 @@
         }
 
         .output-body {
-            padding: 0;
+            padding: 1.25rem;
             max-height: 400px;
             overflow-y: auto;
-            overflow-x: auto;
-            background: #e9ebef;
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
             font-size: 11px;
             font-weight: 400;
@@ -1064,149 +1063,6 @@
             unicode-bidi: plaintext;
             -webkit-overflow-scrolling: touch;
             overflow-wrap: anywhere;
-        }
-
-        /* A4 question-paper sheet: 210 x 297 mm portrait, 12.7 mm (0.5 in)
-           narrow margins. The same geometry is used by the Word export so the
-           preview and the downloaded file always match. */
-        .paper-sheet {
-            box-sizing: border-box;
-            width: 210mm;
-            min-height: 297mm;
-            margin: 0 auto;
-            padding: 12.7mm;
-            background: #ffffff;
-            color: #111111;
-            font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            text-align: left;
-            overflow-wrap: break-word;
-            word-break: normal;
-            box-shadow: 0 2px 14px rgba(0, 0, 0, .18);
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-        }
-
-        .paper-sheet .output-line {
-            min-height: 1.5em;
-        }
-
-        .paper-title {
-            display: block;
-            text-align: center;
-            font-weight: 700;
-            font-size: 1.3em;
-            line-height: 1.4;
-            margin: 0 0 .55em;
-        }
-
-        .qp-header-banner {
-            display: block;
-            margin: 0 0 14px;
-        }
-
-        .qp-header-banner img {
-            display: block;
-            width: 100%;
-            height: auto;
-            border: 0;
-        }
-
-        .qp-section {
-            display: flex;
-            align-items: baseline;
-            gap: .6rem;
-            margin: .55em 0 .3em;
-        }
-
-        .qp-section-text {
-            font-weight: 700;
-            min-width: 0;
-        }
-
-        .qp-marks {
-            margin-left: auto;
-            font-weight: 700;
-            white-space: nowrap;
-            font-variant-numeric: tabular-nums;
-            flex: 0 0 auto;
-        }
-
-        .qp-page-break {
-            display: block;
-            position: relative;
-            height: 0;
-            margin: .9em 0 .75em;
-            border-top: 1px dashed #b6c0cc;
-        }
-
-        .qp-page-break::after {
-            content: "page break";
-            position: absolute;
-            top: -.85em;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 0 .6em;
-            background: #fff;
-            color: #8a94a3;
-            font-size: .62em;
-            font-weight: 700;
-            letter-spacing: .08em;
-            text-transform: uppercase;
-        }
-
-        .qp-picture-grid {
-            display: grid;
-            grid-template-columns: repeat(var(--qp-cols, 3), minmax(0, 1fr));
-            gap: .6rem;
-            align-items: start;
-            margin: .45em 0 .65em;
-        }
-
-        .qp-picture-cell {
-            display: flex;
-            justify-content: center;
-            min-width: 0;
-        }
-
-        .qp-picture-cell .ocr-picture-placeholder {
-            max-width: 100%;
-        }
-
-        table.qp-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-            margin: .45em 0 .7em;
-        }
-
-        .qp-table th,
-        .qp-table td {
-            border: 1px solid #333;
-            padding: .28em .45em;
-            font-size: .96em;
-            line-height: 1.4;
-            text-align: left;
-            vertical-align: top;
-            overflow-wrap: anywhere;
-        }
-
-        .qp-table th {
-            font-weight: 700;
-            text-align: center;
-            background: #f3f3f3;
-        }
-
-        .qp-table td.qp-cell-center {
-            text-align: center;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .qp-picture-block {
-            display: block;
-            text-align: center;
-            margin: .55em 0 .75em;
         }
 
         .output-line {
@@ -1242,34 +1098,30 @@
             flex-direction:column;
             align-items:center;
             justify-content:center;
-            width:60mm;
-            min-height:45mm;
-            margin:0.3em 0 0.3em;
-            padding:0.4em;
-            border:1.4px solid #444;
-            border-radius:6px;
-            background:#fff;
+            width:92px;
+            min-height:76px;
+            margin:0.28rem 0.3rem 0.28rem 0;
+            padding:0.35rem;
+            border:1.4px solid var(--border2);
+            border-radius:8px;
+            background:var(--surface);
             vertical-align:middle;
             box-sizing:border-box;
-            gap:0.25em;
+            gap:0.22rem;
         }
         .ocr-picture-placeholder img {
-            width:40mm;
-            height:30mm;
+            width:34px;
+            height:34px;
             object-fit:contain;
-            opacity:.75;
+            opacity:.7;
         }
         .ocr-picture-label {
             max-width:100%;
-            font-size:9pt;
+            font-size:.68rem;
             font-weight:600;
             text-align:center;
-            line-height:1.25;
+            line-height:1.2;
             overflow-wrap:anywhere;
-        }
-        .qp-picture-block .ocr-picture-placeholder {
-            display:flex;
-            margin:0 auto;
         }
         .ocr-checkbox {
             display:inline-block;
@@ -1289,19 +1141,46 @@
             margin:.2rem .45rem .35rem 0;
             vertical-align:top;
         }
+        .ocr-section-row { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; font-weight:700; margin:.75rem 0 .3rem; }
+        .ocr-section-marks { flex:0 0 auto; white-space:nowrap; text-align:right; }
         .ocr-option-row {
-            display:grid;
-            grid-template-columns:repeat(auto-fit, minmax(44mm, 1fr));
-            gap:.35em 1em;
+            display:flex;
+            flex-wrap:wrap;
+            gap:.5rem .85rem;
             align-items:center;
-            margin:.3em 0 .55em;
+            margin:.28rem 0 .5rem;
         }
         .ocr-option-item {
             display:inline-flex;
             align-items:center;
             gap:.28rem;
             white-space:nowrap;
-            min-width:0;
+        }
+        /* A4-like compact worksheet preview; rows and Word tables share widths. */
+        .output-body { max-height: min(76vh, 900px); font-size: 11px; }
+        .ocr-figure-row { display:grid; grid-template-columns:repeat(var(--figure-cols),minmax(0,1fr)); gap:.35rem; align-items:start; margin:.5rem 0 .8rem; width:100%; }
+        .ocr-figure-cell { display:flex; flex-direction:column; gap:.28rem; align-items:center; min-width:0; }
+        .ocr-figure-cell .ocr-picture-placeholder { width:100%; max-width:110px; min-width:0; min-height:68px; margin:0; padding:.18rem; }
+        .ocr-figure-cell .ocr-picture-placeholder img { width:min(65%,48px); height:40px; }
+        .ocr-figure-number { align-self:flex-start; font-size:.7rem; }
+        .ocr-figure-answer { display:block; width:90%; max-width:120px; height:20px; border:1px solid var(--text3); box-sizing:border-box; }
+        .ocr-shape-icon { width:min(100%,100px); height:72px; color:var(--text); }
+        .ocr-layout-scroll { width:100%; overflow-x:auto; margin:.42rem 0 .7rem; }
+        .ocr-worksheet-grid { display:grid; grid-template-columns:repeat(var(--grid-cols),minmax(0,1fr)); width:100%; max-width:540px; border-left:1px solid var(--text3); border-top:1px solid var(--text3); box-sizing:border-box; }
+        .ocr-grid-cell { min-height:23px; display:flex; justify-content:center; align-items:center; border-right:1px solid var(--text3); border-bottom:1px solid var(--text3); box-sizing:border-box; font-size:.9em; }
+        .ocr-worksheet-table { border-collapse:collapse; width:100%; table-layout:fixed; font-size:inherit; }
+        .ocr-worksheet-table th,.ocr-worksheet-table td { border:1px solid var(--text3); padding:.35rem .25rem; vertical-align:top; text-align:left; overflow-wrap:anywhere; }
+        .ocr-worksheet-table th { font-weight:600; }
+        .ocr-answer-lines { display:flex; flex-direction:column; gap:.85rem; padding:.6rem .2rem .5rem; }
+        .ocr-answer-rule { border-bottom:1px solid var(--text3); height:.75rem; }
+        .ocr-page-break { border-top:2px dashed var(--border2); margin:1.2rem 0; }
+        @media (max-width:479px) {
+            .output-body { padding:.7rem; font-size:10px; }
+            .ocr-figure-row { gap:.17rem; }
+            .ocr-figure-cell .ocr-picture-placeholder { min-height:56px; }
+            .ocr-figure-cell .ocr-picture-placeholder img { height:28px; }
+            .ocr-figure-answer { height:17px; }
+            .ocr-grid-cell { min-height:19px; }
         }
         .ocr-match-row {
             display:grid;
@@ -1316,18 +1195,11 @@
         }
 
         .output-heading {
-            font-family: inherit;
-            font-size: 1.06em;
+            font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans', Arial, sans-serif;
+            font-size: 12px;
             font-weight: 700;
             font-style: normal;
-            line-height: 1.5;
-        }
-
-        .paper-sheet.output-raw {
-            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-            font-size: 0.8rem;
-            line-height: 1.65;
-            white-space: pre-wrap;
+            line-height: 1.55;
         }
 
         .output-raw {
@@ -1895,7 +1767,7 @@
                 </div>
                 <div class="upload-title">Drop a file here</div>
                 <div class="upload-sub">or tap to browse · <strong>Images, PDF, Word, PPT, Excel, TXT</strong> · 50 MB max</div>
-                <input type="file" multiple id="fileInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
+                <input type="file" id="fileInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
             </div>
 
             <div class="language-row">
@@ -1964,14 +1836,16 @@
                 </button>
                 <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Download Word
+                    Editable Word
                 </button>
+                <button class="action-btn" id="downloadPdfWordBtn" style="display:none" onclick="downloadPdfWord(this)" title="Preserves original PDF pages as images, including pictures, tables and alignment. Text is not individually editable.">Word matching PDF</button>
                 <button class="action-btn" onclick="openTeachPanel()">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
                     Teach
                 </button>
             </div>
 
+            <p id="pdfWordNote" style="display:none;font-size:0.82rem;color:var(--text2)">Word matching PDF preserves the original pages as images. Use Editable Word to edit extracted text and Teach corrections.</p>
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct OCR to teach this browser</div>
                 <div class="teach-sub">Pronunciation-based script typing: keep the same spoken English words and write how they sound in the target script. Example: <strong>jawad</strong> → <strong>जवाद</strong> and <strong>i love you</strong> → <strong>आई लव यू</strong>. Difficult spellings can receive AI phonetic suggestions.</div>
@@ -2071,7 +1945,7 @@ const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSugg
 const teachAiBtn=$('teachAiBtn'),teachAiStatus=$('teachAiStatus');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
-let file=null, fileBatch=[], lastResult=null, showingRaw=false;
+let file=null, lastResult=null, showingRaw=false;
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
@@ -2116,7 +1990,7 @@ function updateQuotaClock() {
 
 async function loadUsage() {
     try {
-        const res = await fetch('./usage.json?t=' + Date.now(), { cache: 'no-store' });
+        const res = await fetch('/usage.json?t=' + Date.now(), { cache: 'no-store' });
         if (!res.ok) throw new Error('status ' + res.status);
         const data = await res.json();
         if (data.source !== 'cloudflare-analytics') throw new Error('untrusted source');
@@ -2215,53 +2089,33 @@ function getFileCategory(ext) {
     return 'txt';
 }
 
-function setFiles(input) {
-    const list = Array.from(input || []).filter(Boolean);
-    if (!list.length) return;
-    for (const f of list) {
-        const ext = f.name.split('.').pop().toLowerCase();
-        if (BLOCKED_EXTS.includes(ext) || f.type.startsWith('video/') || f.type.startsWith('audio/') || f.type === 'image/vnd.adobe.photoshop') {
-            showErr('Video, audio and PSD/design files are intentionally not supported.');
-            return;
-        }
-        if (!ALLOWED_EXTS.includes(ext)) {
-            showErr('File type not supported: .' + ext + '. Use image, PDF, Word, PowerPoint, Excel or text files.');
-            return;
-        }
-        if (f.size > 52428800) { showErr('File too large (max 50 MB)'); return; }
+function setFile(f) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (BLOCKED_EXTS.includes(ext) || f.type.startsWith('video/') || f.type.startsWith('audio/') || f.type === 'image/vnd.adobe.photoshop') {
+        showErr('Video, audio and PSD/design files are intentionally not supported.');
+        return;
     }
-
-    const sorted = list.slice().sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-    fileBatch = sorted;
-    file = sorted[0];
-
-    if (sorted.length === 1) {
-        const f = sorted[0];
-        const ext = f.name.split('.').pop().toLowerCase();
-        fileName.textContent = f.name;
-        fileMeta.textContent = fmtSize(f.size) + ' · ' + ext.toUpperCase();
-        const cat = getFileCategory(ext);
-        if (IMAGE_EXTS.includes(ext)) {
-            const r = new FileReader();
-            r.onload = e => { fileThumb.src = e.target.result; fileThumb.style.display='block'; fileTypeIcon.style.display='none'; };
-            r.readAsDataURL(f);
-        } else {
-            fileThumb.style.display='none';
-            fileTypeIcon.textContent = ext.toUpperCase().length > 4 ? ext.toUpperCase().substring(0,4) : ext.toUpperCase();
-            fileTypeIcon.className = 'file-type-icon ' + cat;
-            fileTypeIcon.style.display='flex';
-        }
+    if (!ALLOWED_EXTS.includes(ext)) {
+        showErr('File type not supported: .' + ext + '. Use image, PDF, Word, PowerPoint, Excel or text files.');
+        return;
+    }
+    if (f.size > 52428800) { showErr('File too large (max 50 MB)'); return; }
+    file = f;
+    fileName.textContent = f.name;
+    const typeLabel = ext.toUpperCase();
+    fileMeta.textContent = fmtSize(f.size) + ' · ' + typeLabel;
+    const cat = getFileCategory(ext);
+    const isImage = IMAGE_EXTS.includes(ext);
+    if (isImage) {
+        const r = new FileReader();
+        r.onload = e => { fileThumb.src = e.target.result; fileThumb.style.display='block'; fileTypeIcon.style.display='none'; };
+        r.readAsDataURL(f);
     } else {
-        const total = sorted.reduce((n, f) => n + f.size, 0);
-        fileName.textContent = sorted.length + ' pages selected';
-        fileMeta.textContent = fmtSize(total) + ' · ' + sorted.slice(0, 3).map(f => f.name).join(', ') + (sorted.length > 3 ? ' …' : '');
         fileThumb.style.display='none';
-        fileTypeIcon.textContent = String(sorted.length);
-        fileTypeIcon.className = 'file-type-icon txt';
+        fileTypeIcon.textContent = typeLabel.length > 4 ? typeLabel.substring(0,4) : typeLabel;
+        fileTypeIcon.className = 'file-type-icon ' + cat;
         fileTypeIcon.style.display='flex';
     }
-
     dropZone.style.display = 'none';
     filePreview.classList.add('show');
     goBtn.classList.add('show');
@@ -2270,13 +2124,8 @@ function setFiles(input) {
     resBox.classList.remove('show');
 }
 
-function setFile(f) {
-    setFiles([f]);
-}
-
 function clearFile() {
     file=null;
-    fileBatch=[];
     dropZone.style.display = '';
     filePreview.classList.remove('show');
     goBtn.classList.remove('show');
@@ -2289,10 +2138,10 @@ function clearFile() {
 }
 
 dropZone.onclick = () => fileInput.click();
-fileInput.onchange = e => { if(e.target.files.length) setFiles([...e.target.files]); };
+fileInput.onchange = e => { if(e.target.files[0]) setFile(e.target.files[0]); };
 dropZone.ondragover = e => { e.preventDefault(); dropZone.classList.add('over'); };
 dropZone.ondragleave = () => dropZone.classList.remove('over');
-dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files.length) setFiles([...e.dataTransfer.files]); };
+dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
 clearBtn.onclick = clearFile;
 
 function median(values) {
@@ -2409,12 +2258,27 @@ async function pdfToPages(pdfFile) {
         const baseViewport = page.getViewport({ scale: 1 });
         const embedded = reconstructPdfText(textContent, baseViewport.width);
 
-        if (embedded.length >= 20 && (textContent.items || []).length >= 3) {
+        // Text-layer extraction drops vector grids, tables and embedded illustrations.
+        // Rasterize pages with real drawn geometry; retain lossless text for plain pages.
+        let visualArtwork = false;
+        try {
+            const ops = await page.getOperatorList();
+            const commands = ops.fnArray || [];
+            const ids = pdfjsLib.OPS || {};
+            let images = 0, paths = 0;
+            for (const cmd of commands) {
+                if ([ids.paintImageXObject, ids.paintInlineImageXObject, ids.paintJpegXObject].includes(cmd)) images++;
+                if ([ids.constructPath, ids.rectangle, ids.stroke, ids.fill, ids.fillStroke].includes(cmd)) paths++;
+            }
+            visualArtwork = images >= 2 || paths >= 6 ||
+                (images >= 1 && (paths >= 2 || (textContent.items || []).length < 90));
+        } catch (_) { /* Text-layer fallback remains available. */ }
+        if (!visualArtwork && embedded.length >= 20 && (textContent.items || []).length >= 3) {
             pages.push({ type: 'text', text: embedded });
             continue;
         }
 
-        const scale = 2.25;
+        const scale = 2.5;
         const viewport = page.getViewport({ scale });
         const canvas = document.createElement('canvas');
         canvas.width = Math.ceil(viewport.width);
@@ -2488,137 +2352,103 @@ function xmlParagraphText(xmlText, paragraphLocalName = 'p', textLocalName = 't'
     return textNodes.map(n => n.textContent || '').filter(Boolean).join(' ').trim();
 }
 
-const DOCX_REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-
-function docxImageMime(path) {
-    const ext = String(path || '').split('.').pop().toLowerCase();
-    if (ext === 'png') return 'image/png';
-    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
-    if (ext === 'gif') return 'image/gif';
-    return '';
-}
-
-async function docxRelationshipMap(zip, partName) {
-    const map = {};
-    try {
-        const dir = partName.replace(/[^/]+$/, '');
-        const relPath = (dir ? dir : '') + '_rels/' + partName.split('/').pop() + '.rels';
-        const entry = zip.file(relPath);
-        if (!entry) return map;
-        const xml = await entry.async('text');
-        const doc = new DOMParser().parseFromString(xml, 'application/xml');
-        if (doc.querySelector('parsererror')) return map;
-        Array.from(doc.getElementsByTagNameNS('*', 'Relationship')).forEach(rel => {
-            const id = rel.getAttribute('Id');
-            const target = rel.getAttribute('Target') || '';
-            const type = rel.getAttribute('Type') || '';
-            if (!id || !target) return;
-            if (type.indexOf('/image') === -1) return;
-            if (/^https?:/i.test(target) || target.indexOf('..') !== -1) return;
-            map[id] = dir + target.replace(/^\//, '');
-        });
-    } catch (e) {}
-    return map;
-}
-
-// Reads a Word part while keeping the two structures question papers need:
-// real tables (cells joined with " | ") and embedded pictures (emitted as
-// [[PICTURE: ...]] markers in reading order so the A4 preview can place them).
-async function docxStructuredText(zip, xmlText, rels, mediaPool) {
+function docxStructuredXml(xmlText) {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
-    if (doc.querySelector('parsererror')) throw new Error('Invalid Office XML');
+    if (doc.querySelector('parsererror')) throw new Error('Invalid Word document XML');
+    const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const main = doc.getElementsByTagNameNS(ns, 'body')[0];
+    if (!main) return xmlParagraphText(xmlText, 'p', 't');
 
-    const root = doc.getElementsByTagNameNS('*', 'body')[0] || doc.documentElement;
-    const items = [];
-    const children = Array.from(root.children || []);
-
-    const paragraphImages = p => {
-        const ids = [];
-        Array.from(p.getElementsByTagNameNS('*', 'blip')).forEach(blip => {
-            const rid = blip.getAttribute('r:embed') ||
-                blip.getAttributeNS(DOCX_REL_NS, 'embed');
-            if (rid) ids.push(rid);
-        });
-        Array.from(p.getElementsByTagNameNS('*', 'imagedata')).forEach(img => {
-            const rid = img.getAttribute('r:id') || img.getAttributeNS(DOCX_REL_NS, 'id');
-            if (rid) ids.push(rid);
-        });
-        return ids;
-    };
-
-    for (const child of children) {
-        const local = child.localName || String(child.nodeName || '').replace(/^.*:/, '');
-
-        if (local === 'p') {
-            const text = Array.from(child.getElementsByTagNameNS('*', 't'))
-                .map(n => n.textContent || '').join('').trim();
-            items.push({ kind: 'p', text, ids: paragraphImages(child) });
-            continue;
+    const children = element => Array.from(element.childNodes || []).filter(node => node.nodeType === 1);
+    const tag = element => String(element?.localName || '');
+    const paragraphText = p => {
+        let out = '';
+        const visit = node => {
+            // Floating text boxes are handled separately in reading order below.
+            if (tag(node) === 'txbxContent') return;
+            if (node.namespaceURI === ns && tag(node) === 't') out += node.textContent || '';
+            else if (node.namespaceURI === ns && tag(node) === 'tab') out += '\t';
+            else if (node.namespaceURI === ns && tag(node) === 'br' && node.getAttributeNS(ns,'type') !== 'page') out += '\n';
+            else for (const child of children(node)) visit(child);
+        };
+        visit(p);
+        if (p.getElementsByTagNameNS('*','drawing').length ||
+            p.getElementsByTagNameNS('*','imagedata').length) {
+            out += ' [[PICTURE: [unreadable]]]';
         }
-
-        if (local === 'tbl') {
-            const rows = [];
-            Array.from(child.children || []).forEach(tr => {
-                const trLocal = tr.localName || '';
-                if (trLocal !== 'tr') return;
-                const cells = [];
-                Array.from(tr.children || []).forEach(tc => {
-                    if ((tc.localName || '') !== 'tc') return;
-                    cells.push(Array.from(tc.getElementsByTagNameNS('*', 't'))
-                        .map(n => n.textContent || '').join('').replace(/\s+/g, ' ').trim());
-                });
-                if (cells.length) rows.push(cells);
-            });
-            items.push({ kind: 'table', rows, ids: paragraphImages(child) });
-        }
-    }
-
-    const wanted = [];
-    items.forEach(item => (item.ids || []).forEach(id => wanted.push(id)));
-    const srcMap = {};
-    for (const rid of Array.from(new Set(wanted))) {
-        const target = rels[rid];
-        if (!target) continue;
-        const mime = docxImageMime(target);
-        if (!mime) continue;
-        try {
-            const entry = zip.file(target);
-            if (!entry) continue;
-            const base64 = await entry.async('base64');
-            srcMap[rid] = 'data:' + mime + ';base64,' + base64;
-        } catch (e) {}
-    }
-
-    const lines = [];
-    // Spacer/decoration images from the source document (a 1x1 PNG, a rule
-    // line) are not real worksheet pictures; they fall back to the default art.
-    const poolSrc = id => {
-        const src = srcMap[id];
-        return (src && src.length > 1024) ? src : null;
+        return out.trim();
     };
-    for (const item of items) {
-        if (item.kind === 'table') {
-            for (const row of item.rows) {
-                if (row.some(cell => cell)) {
-                    lines.push(row.map(cell => cell.replace(/\s*\|\s*/g, ' / ')).join(' | '));
+    const results = [];
+    let emptyRules = 0;
+    const flushRules = () => {
+        while (emptyRules > 0) {
+            const count = Math.min(10,emptyRules);
+            results.push('[[ANSWER_LINES: ' + count + ']]');
+            emptyRules -= count;
+        }
+    };
+    for (const child of children(main)) {
+        if (tag(child) === 'p') {
+            const pageBreakBefore = child.getElementsByTagNameNS(ns,'pageBreakBefore')[0];
+            const breakValue = pageBreakBefore?.getAttributeNS(ns,'val');
+            if (pageBreakBefore && !['0','false','off'].includes(breakValue) && results.length) {
+                flushRules(); results.push('[[PAGE_BREAK]]');
+            }
+            const text = paragraphText(child);
+            const ruled = child.getElementsByTagNameNS(ns,'pBdr').length > 0;
+            if (!text && ruled) { emptyRules++;continue; }
+            flushRules();
+            if (text) results.push(text);
+            else if (results.length && results[results.length-1] !== '') results.push('');
+            const boxes = Array.from(child.getElementsByTagNameNS(ns,'txbxContent'));
+            const position = box => {
+                let shape = box.parentNode;
+                while (shape && tag(shape) !== 'shape') shape = shape.parentNode;
+                const style = shape?.getAttribute('style') || '';
+                return ['margin-top','margin-left'].map(key => Number(style.match(new RegExp(key + ':\\s*(-?[\\d.]+)pt'))?.[1] || 0));
+            };
+            boxes.sort((a,b) => { const x=position(a), y=position(b); return x[0]-y[0] || x[1]-y[1]; });
+            for (const box of boxes) {
+                for (const p of children(box).filter(x=>tag(x)==='p')) {
+                    const boxText = paragraphText(p);
+                    if (boxText) results.push(boxText);
                 }
             }
-            (item.ids || []).forEach(id => {
-                mediaPool.push(poolSrc(id));
-                lines.push('[[PICTURE: Picture]]');
-            });
+            if (child.getElementsByTagNameNS(ns,'br').length) {
+                for (const br of child.getElementsByTagNameNS(ns,'br')) {
+                    if (br.getAttributeNS(ns,'type') === 'page') results.push('[[PAGE_BREAK]]');
+                }
+            }
+            const section = child.getElementsByTagNameNS(ns,'sectPr')[0];
+            const sectionType = section?.getElementsByTagNameNS(ns,'type')[0]?.getAttributeNS(ns,'val') || 'nextPage';
+            if (section && ['nextPage','oddPage','evenPage'].includes(sectionType)) results.push('[[PAGE_BREAK]]');
             continue;
         }
-
-        if (item.text) lines.push(item.text);
-        (item.ids || []).forEach(id => {
-            mediaPool.push(poolSrc(id));
-            const caption = item.text && item.text.length <= 40 ? item.text : 'Picture';
-            lines.push('[[PICTURE: ' + caption + ']]');
-        });
+        if (tag(child) !== 'tbl') continue;
+        flushRules();
+        const rows = children(child).filter(x => tag(x) === 'tr').map(row =>
+            children(row).filter(x => tag(x) === 'tc').map(cell => {
+                const texts = children(cell).filter(x=>tag(x)==='p').map(paragraphText).filter(Boolean);
+                return texts.join('; ').trim();
+            })
+        );
+        if (!rows.length) continue;
+        const cols = Math.max(...rows.map(row=>row.length));
+        const empty = rows.every(row=>row.every(cell=>!cell));
+        const isLetterGrid = cols >= 4 && rows.every(row =>
+            row.every(cell => !cell || Array.from(cell).length <= 2));
+        if (empty && cols <= 24 && rows.length <= 24) {
+            results.push('[[GRID: ' + cols + 'x' + rows.length + ']]');
+        } else if (isLetterGrid && cols <= 24) {
+            rows.forEach(row => results.push('[[GRID_ROW: ' +
+                Array.from({length:cols},(_,index)=>row[index] || '_').join(' || ') + ']]'));
+        } else {
+            rows.forEach(row => results.push('[[TABLE_ROW: ' +
+                Array.from({length:cols},(_,index)=>row[index] || '').join(' || ') + ']]'));
+        }
     }
-
-    return lines.join('\n');
+    flushRules();
+    return results.join('\n').trim();
 }
 
 async function extractOfficeZipFile(officeFile) {
@@ -2631,14 +2461,13 @@ async function extractOfficeZipFile(officeFile) {
             .filter(n => /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i.test(n))
             .sort((a,b) => a.includes('document.xml') ? -1 : b.includes('document.xml') ? 1 : a.localeCompare(b));
         const sections = [];
-        const mediaPool = [];
         for (const name of parts) {
             const xml = await zip.file(name).async('text');
-            const rels = await docxRelationshipMap(zip, name);
-            const text = await docxStructuredText(zip, xml, rels, mediaPool);
+            const text = name === 'word/document.xml'
+                ? docxStructuredXml(xml)
+                : xmlParagraphText(xml, 'p', 't');
             if (text) sections.push(text);
         }
-        extractedMedia = mediaPool;
         const out = sections.join('\n\n').trim();
         if (!out) throw new Error('No readable text found in this Word file.');
         return out;
@@ -4385,10 +4214,9 @@ function renderTeachPreview() {
         textOut.className = 'output-body';
     } else {
         // Plain text tab stays in sync with Teach edits as they happen.
-        textOut.innerHTML = '<div class="paper-sheet">' + esc(currentPlainText()) + '</div>';
+        textOut.textContent = currentPlainText();
         textOut.className = 'output-body output-raw';
     }
-    fitPaperSheets();
 }
 
 function updateTeachButtons() {
@@ -4494,7 +4322,6 @@ function closeTeachPanel() {
     if (lastResult && !showingRaw) {
         textOut.innerHTML = formatOutput(lastResult.text || '');
         textOut.className = 'output-body';
-        fitPaperSheets();
     }
 }
 
@@ -4620,7 +4447,6 @@ function saveLearning() {
     closeTeachPanel();
     textOut.innerHTML = formatOutput(lastResult.text || '');
     textOut.className = 'output-body';
-    fitPaperSheets();
 
     const learned = pairs.length;
     if (learned) $('statsBar').innerHTML += '<span class="badge badge-gray">' + learned + ' learned</span>';
@@ -4788,6 +4614,14 @@ function updateResultActionsForTab() {
     if (!downloadBtn) return;
     downloadBtn.style.display = showingRaw ? 'none' : '';
     downloadBtn.disabled = showingRaw;
+    const pdfBtn = $('downloadPdfWordBtn');
+    if (pdfBtn) {
+        const available = !showingRaw && !!lastResult?.source_file && /\.pdf$/i.test(lastResult.source_file.name);
+        pdfBtn.style.display = available ? '' : 'none';
+        pdfBtn.disabled = !available;
+        const note = $('pdfWordNote');
+        if (note) note.style.display = available ? '' : 'none';
+    }
 }
 
 function showTab(tab) {
@@ -4800,7 +4634,7 @@ function showTab(tab) {
         if(showingRaw) {
             // Public plain-text view only. Never expose internal OCR structure
             // such as [[BRANCH_*]] / [[CIRCLED:*]] to normal users.
-            textOut.innerHTML = '<div class="paper-sheet">' + esc(currentPlainText()) + '</div>';
+            textOut.textContent = currentPlainText();
             textOut.className = 'output-body output-raw';
         } else {
             const teachIsOpen = teachPanel.classList.contains('show');
@@ -4811,7 +4645,6 @@ function showTab(tab) {
             textOut.innerHTML = formatOutput(extractedText);
             textOut.className = 'output-body';
         }
-        fitPaperSheets();
     }
 }
 
@@ -4874,6 +4707,23 @@ function portableText(value) {
     let out = String(value || '');
 
     out = out
+        .replace(/\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
+            (_,title,marks)=>title.trim()+'    '+marks.trim())
+        .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).map(label=>'[' + label + ' picture] ______').join('    '))
+        .replace(/\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).map(label=>'[' + label + ' shape] ______').join('    '))
+        .replace(/\[\[GRID:\s*(\d{1,2})[x×](\d{1,2})\]\]/gi, (_,cols,rows) =>
+            Array.from({length:Math.min(24,+rows)},()=> '□ '.repeat(Math.min(24,+cols)).trim()).join('\n'))
+        .replace(/\[\[GRID_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,24).map(x=>x==='_'?'□':x).join(' | '))
+        .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).join(' | '))
+        .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,12).join('    '))
+        .replace(/\[\[ANSWER_LINES:\s*(\d{1,2})\]\]/gi, (_,n) =>
+            Array.from({length:Math.min(10,+n)},()=> '____________________________').join('\n'))
+        .replace(/\[\[PAGE_BREAK\]\]/gi, '\n\n')
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' [ ]').join('   '))
         .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
@@ -4913,8 +4763,23 @@ function formatOcrAnnotation(type, content) {
     if (type === 'MARGIN') return '<span class="ocr-margin">' + safe + '</span>';
     if (type === 'STAMP') return '<span class="ocr-stamp">' + safe + '</span>';
     if (type === 'SIGNATURE') return '<span class="ocr-signature">Signature: ' + safe + '</span>';
-    if (type === 'PICTURE') return paperPictureMarkup(content, false);
-    if (type === 'PICTURE_OPTION') return paperPictureMarkup(content, true);
+    if (type === 'PICTURE') {
+        const label = String(content || '').trim() || '[unreadable]';
+        return '<span class="ocr-picture-placeholder" title="Picture placeholder">' +
+            '<img src="/default-picture.svg" alt="Picture placeholder">' +
+            '<span class="ocr-picture-label">' + esc(label) + '</span>' +
+        '</span>';
+    }
+    if (type === 'PICTURE_OPTION') {
+        const label = String(content || '').trim() || '[unreadable]';
+        return '<span class="ocr-picture-option">' +
+            '<span class="ocr-picture-placeholder">' +
+                '<img src="/default-picture.svg" alt="Picture placeholder">' +
+                '<span class="ocr-picture-label">' + esc(label) + '</span>' +
+            '</span>' +
+            '<span class="ocr-checkbox" aria-label="empty checkbox"></span>' +
+        '</span>';
+    }
     if (type === 'CHECKBOX') return '<span class="ocr-checkbox" aria-label="empty checkbox"></span>';
 
     if (type === 'REPLACE') {
@@ -5115,91 +4980,140 @@ function isAnswerBlankContinuationLine(line) {
     return /^\s*_{2,}\s*$/.test(String(line || ''));
 }
 
+function worksheetCells(raw, max = 16) {
+    return String(raw || '').split(/\s*\|\|\s*/).map(cell => cell.trim()).slice(0, max);
+}
+function worksheetGridSize(value) {
+    const hit = String(value || '').match(/^(\d{1,2})\s*[x×]\s*(\d{1,2})$/i);
+    if (!hit) return null;
+    const columns = Number(hit[1]), rows = Number(hit[2]);
+    return columns >= 1 && columns <= 24 && rows >= 1 && rows <= 24 && columns * rows <= 300
+        ? { columns, rows } : null;
+}
+function worksheetPictureCell(label, withAnswer = true) {
+    const safe = esc(String(label || '').replace(/^\d+[.)]\s*/, '').trim() || 'Picture');
+    const number = String(label || '').match(/^\d+[.)]/)?.[0] || '';
+    return '<div class="ocr-figure-cell">' +
+        (number ? '<span class="ocr-figure-number">' + esc(number) + '</span>' : '') +
+        '<span class="ocr-picture-placeholder"><img src="/default-picture.svg" alt="Replaceable picture placeholder">' +
+        '<span class="ocr-picture-label">' + safe + '</span></span>' +
+        (withAnswer ? '<span class="ocr-figure-answer" aria-label="blank answer box"></span>' : '') +
+    '</div>';
+}
+function worksheetShapeSvg(value) {
+    const name = String(value || '').toLowerCase().trim();
+    const common = 'fill="none" stroke="currentColor" stroke-width="2"';
+    if (/square|वर्ग/.test(name)) return '<rect x="25" y="12" width="58" height="58" ' + common + '/>';
+    if (/rectangle|आयत/.test(name)) return '<rect x="10" y="25" width="90" height="40" ' + common + '/>';
+    if (/circle|वृत्त/.test(name)) return '<circle cx="55" cy="45" r="32" ' + common + '/>';
+    if (/triangle|त्रिभुज/.test(name)) return '<path d="M55 11 L99 78 H11 Z" ' + common + '/>';
+    if (/cube/.test(name)) return '<path d="M23 30h46v46H23z M23 30l17-17h46v46L69 76 M69 30l17-17 M86 59L69 76" ' + common + '/>';
+    return '<rect x="22" y="18" width="66" height="55" stroke="currentColor" stroke-dasharray="5 4" fill="none"/>';
+}
+function worksheetRenderTable(rows) {
+    const columns = Math.min(8, Math.max(1, ...rows.map(row => worksheetCells(row, 8).length)));
+    const content = rows.map((row, index) => {
+        const cells = worksheetCells(row, columns);
+        return '<tr>' + Array.from({length: columns}, (_, col) =>
+            '<' + (index === 0 ? 'th' : 'td') + '>' + formatOutputLine(cells[col] || '') +
+            '</' + (index === 0 ? 'th' : 'td') + '>'
+        ).join('') + '</tr>';
+    }).join('');
+    return '<div class="ocr-layout-scroll"><table class="ocr-worksheet-table"><tbody>' + content + '</tbody></table></div>';
+}
 function formatStructuredWorksheetLine(line) {
     const source = String(line || '').trim();
-
-    const option = source.match(/^\[\[OPTION_ROW:\s*([\s\S]*?)\]\]$/i);
-    if (option) {
-        const items = option[1].split(/\s*\|\|\s*/).map(x => x.trim()).filter(Boolean);
+    const section = source.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+    if (section) return '<div class="ocr-section-row"><span>' +
+        formatOutputLine(section[1].trim()) + '</span><span class="ocr-section-marks">' +
+        formatOutputLine(section[2].trim()) + '</span></div>';
+    let found = source.match(/^\[\[(OPTION_ROW|CHOICE_ROW):\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const hasCheckboxes = found[1].toUpperCase() === 'OPTION_ROW';
+        const items = worksheetCells(found[2], 12).filter(Boolean);
         return '<div class="ocr-option-row">' + items.map(item =>
-            '<span class="ocr-option-item"><span>' + formatOutputLine(item) + '</span><span class="ocr-checkbox" aria-label="empty checkbox"></span></span>'
+            '<span class="ocr-option-item"><span>' + formatOutputLine(item) + '</span>' +
+            (hasCheckboxes ? '<span class="ocr-checkbox" aria-label="empty checkbox"></span>' : '') +
+            '</span>'
         ).join('') + '</div>';
     }
-
-    const matchRow = source.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
-    if (matchRow) {
-        return '<div class="ocr-match-row">' +
-            '<div class="ocr-match-cell">' + formatOutputLine(matchRow[1].trim()) + '</div>' +
-            '<div class="ocr-match-cell">' + formatOutputLine(matchRow[2].trim()) + '</div>' +
-        '</div>';
+    found = source.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        return '<div class="ocr-match-row"><div class="ocr-match-cell">' +
+            formatOutputLine(found[1].trim()) + '</div><div class="ocr-match-cell">' +
+            formatOutputLine(found[2].trim()) + '</div></div>';
     }
-
+    found = source.match(/^\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const cells = worksheetCells(found[1], 8).filter(Boolean);
+        return '<div class="ocr-figure-row" style="--figure-cols:' + cells.length + '">' +
+            cells.map(cell => worksheetPictureCell(cell)).join('') + '</div>';
+    }
+    found = source.match(/^\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const cells = worksheetCells(found[1], 8).filter(Boolean);
+        return '<div class="ocr-figure-row" style="--figure-cols:' + cells.length + '">' +
+            cells.map(cell => '<div class="ocr-figure-cell"><svg class="ocr-shape-icon" viewBox="0 0 110 90" aria-label="' +
+                esc(cell) + '">' + worksheetShapeSvg(cell) + '</svg><span class="ocr-figure-answer"></span></div>'
+            ).join('') + '</div>';
+    }
+    found = source.match(/^\[\[GRID:\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const dim = worksheetGridSize(found[1]);
+        if (!dim) return null;
+        return '<div class="ocr-layout-scroll"><div class="ocr-worksheet-grid" style="--grid-cols:' +
+            dim.columns + '">' + '<span class="ocr-grid-cell"></span>'.repeat(dim.columns * dim.rows) +
+            '</div></div>';
+    }
+    found = source.match(/^\[\[GRID_ROW:\s*([\s\S]*?)\]\]$/i);
+    if (found) {
+        const cells = worksheetCells(found[1], 24);
+        return '<div class="ocr-layout-scroll"><div class="ocr-worksheet-grid" style="--grid-cols:' +
+            cells.length + '">' + cells.map(cell => '<span class="ocr-grid-cell">' +
+            formatOutputLine(cell === '_' ? '' : cell) + '</span>').join('') + '</div></div>';
+    }
+    found = source.match(/^\[\[ANSWER_LINES:\s*(\d{1,2})\]\]$/i);
+    if (found) {
+        return '<div class="ocr-answer-lines">' +
+            '<div class="ocr-answer-rule"></div>'.repeat(Math.max(1, Math.min(10, Number(found[1])))) + '</div>';
+    }
+    if (/^\[\[PAGE_BREAK\]\]$/i.test(source)) return '<div class="ocr-page-break"></div>';
     return null;
 }
 
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
 
-    const lines = normalizeQuestionPaperLines(repairLegacyBranchDiagram(String(text)).split('\n'));
+    const lines = repairLegacyBranchDiagram(String(text)).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
-    resetPictureQueue();
     let html = '';
     let i = 0;
-    let contentSinceBreak = false;
 
     while (i < lines.length) {
         const branch = parseBranchBlock(lines, i);
         if (branch) {
             html += branch.html;
-            contentSinceBreak = true;
             i = branch.nextIndex;
             continue;
         }
 
         const line = lines[i];
-
-        if (/^\s*\[\[PAGEBREAK\]\]\s*$/i.test(line)) {
-            html += '<span class="qp-page-break" aria-hidden="true"></span>';
-            contentSinceBreak = false;
-            i++;
+        const tableRows = [];
+        let tableIndex = i;
+        while (tableIndex < lines.length) {
+            const m = String(lines[tableIndex]).trim().match(/^\[\[TABLE_ROW:\s*([\s\S]*?)\]\]$/i);
+            if (!m) break;
+            tableRows.push(m[1]);
+            tableIndex++;
+        }
+        if (tableRows.length) {
+            html += worksheetRenderTable(tableRows);
+            i = tableIndex;
             continue;
         }
-
-        const breakHere = docxShouldPageBreak(line, i, firstNonEmptyIndex);
-        const hadContent = contentSinceBreak;
-        if (line.trim()) contentSinceBreak = true;
-
         const structuredLine = formatStructuredWorksheetLine(line);
         if (structuredLine) {
             html += structuredLine;
-            i++;
-            continue;
-        }
-
-        const tableBlock = parsePaperTableBlock(lines, i);
-        if (tableBlock) {
-            html += tableBlock.html;
-            i = tableBlock.nextIndex;
-            continue;
-        }
-
-        const pictureGrid = parsePictureGridBlock(lines, i);
-        if (pictureGrid) {
-            html += renderPictureGrid(pictureGrid.pics);
-            i = pictureGrid.nextIndex;
-            continue;
-        }
-
-        const pictureOnly = line.match(/^\s*\[\[PICTURE:\s*([\s\S]*?)\]\]\s*$/i);
-        if (pictureOnly) {
-            html += '<span class="output-line qp-picture-block">' + paperPictureMarkup(pictureOnly[1], false) + '</span>';
-            i++;
-            continue;
-        }
-
-        const pictureOptionOnly = line.match(/^\s*\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]\s*$/i);
-        if (pictureOptionOnly) {
-            html += '<span class="output-line qp-picture-block">' + paperPictureMarkup(pictureOptionOnly[1], true) + '</span>';
             i++;
             continue;
         }
@@ -5220,366 +5134,95 @@ function formatOutput(text) {
             continue;
         }
 
-        const optionCells = optionLikeCells(line);
-        if (optionCells) {
-            html += renderOptionGrid(optionCells);
-            i++;
-            continue;
-        }
-
-        if (i === firstNonEmptyIndex) {
-            html += '<span class="output-line paper-title">' + formatOutputLine(line) + '</span>';
-            i++;
-            continue;
-        }
-
         const heading = isOutputHeadingLine(line, i, firstNonEmptyIndex);
-        if (heading) {
-            if (breakHere && hadContent) {
-                html += '<span class="qp-page-break" aria-hidden="true"></span>';
-            }
-            const section = splitSectionMarks(line);
-            if (section) {
-                html += '<span class="output-line qp-section">' +
-                    '<span class="qp-section-text">' + formatOutputLine(section.title) + '</span>' +
-                    '<span class="qp-marks">' + formatOutputLine(section.marks) + '</span>' +
-                    '</span>';
-            } else {
-                html += '<span class="output-line output-heading">' + formatOutputLine(line) + '</span>';
-            }
-        } else {
-            html += '<span class="output-line">' + formatOutputLine(line) + '</span>';
-        }
+        const cls = heading ? 'output-line output-heading' : 'output-line';
+        html += '<span class="' + cls + '">' + formatOutputLine(line) + '</span>';
         i++;
     }
 
-    return '<div class="paper-sheet">' +
-        '<span class="qp-header-banner"><img src="./default-banner.svg" alt="Question paper banner"></span>' +
-        html + '</div>';
-}
-
-const DEFAULT_PICTURE_URL = './default-picture.svg';
-const DEFAULT_BANNER_URL = './default-banner.svg';
-let defaultBannerPngPromise = null;
-const MARKS_ONLY_RE = /^\s*[\(\[]?\s*\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\s*\/\s*\d+)?\s*=\s*\d+(?:\.\d+)?\s*[\)\]]?\s*$/i;
-const ROMAN_ONLY_RE = /^\s*[IVXivx]{1,6}[.)]?\s*$/;
-const SECTION_MARKS_RE = /^(.*\S)\s*([\(\[]\s*\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\s*\/\s*\d+)?\s*=\s*\d+(?:\.\d+)?\s*[\)\]]|\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\s*\/\s*\d+)?\s*=\s*\d+(?:\.\d+)?)\s*$/i;
-
-const BUILTIN_PICTURE_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">' +
-    '<rect x="1" y="1" width="118" height="88" rx="8" fill="#f2f3f6" stroke="#9aa1ad" stroke-width="2"/>' +
-    '<circle cx="38" cy="30" r="9" fill="#c3c9d4"/>' +
-    '<path d="M12 74 L44 44 L64 62 L80 50 L108 74 Z" fill="#b6bdcb"/></svg>');
-
-let extractedMedia = [];
-let pictureQueue = [];
-let pictureMissingNotified = false;
-
-function resetPictureQueue() {
-    pictureQueue = (extractedMedia || []).slice();
-}
-
-function notifyPictureMissing() {
-    if (pictureMissingNotified) return;
-    pictureMissingNotified = true;
-    if (typeof showErr === 'function') {
-        showErr('Default picture asset not found. Add frontend/default-picture.svg to the project folder to use your own default picture; the built-in placeholder is used until then.');
-    }
-}
-
-function pictureSrcForNext() {
-    while (pictureQueue && pictureQueue.length) {
-        const next = pictureQueue.shift();
-        if (next) return next;
-    }
-    return DEFAULT_PICTURE_URL;
-}
-
-window.paperaiPictureFallback = function (img) {
-    if (!img) return;
-    const src = img.getAttribute('src') || '';
-    img.onerror = null;
-    if (src.indexOf('default-picture.svg') === -1 && img.getAttribute('data-pic-fb') !== '1') {
-        img.setAttribute('data-pic-fb', '1');
-        img.src = DEFAULT_PICTURE_URL;
-        return;
-    }
-    notifyPictureMissing();
-    img.setAttribute('data-pic-fb', '2');
-    img.src = BUILTIN_PICTURE_SVG;
-};
-
-function paperPictureMarkup(label, withCheckbox) {
-    const src = pictureSrcForNext();
-    const safeLabel = String(label || '').trim() || 'Picture';
-    const box = '<span class="ocr-picture-placeholder" title="Picture placeholder">' +
-        '<img src="' + esc(src) + '" alt="Picture placeholder" onerror="paperaiPictureFallback(this)">' +
-        '<span class="ocr-picture-label">' + esc(safeLabel) + '</span>' +
-        '</span>';
-    if (!withCheckbox) return box;
-    return '<span class="ocr-picture-option">' + box +
-        '<span class="ocr-checkbox" aria-label="empty checkbox"></span></span>';
-}
-
-// References place diagrams side by side (3 to a row) instead of stacking them
-// one per line. Group consecutive picture lines into a grid so the paper stays
-// compact and matches the printed layout.
-function pictureGridColumns(count) {
-    if (count <= 1) return 1;
-    if (count === 2) return 2;
-    if (count === 4) return 2;
-    return 3;
-}
-
-function parsePictureGridBlock(lines, startIndex) {
-    const only = /^\s*\[\[PICTURE:\s*([\s\S]*?)\]\]\s*$/i;
-    const option = /^\s*\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]\s*$/i;
-    const pics = [];
-    let i = startIndex;
-    let lastPicEnd = startIndex;
-    while (i < lines.length) {
-        const raw = String(lines[i] || '');
-        const m1 = raw.match(only);
-        const m2 = m1 ? null : raw.match(option);
-        if (m1) { pics.push({ label: m1[1], option: false }); i++; lastPicEnd = i; continue; }
-        if (m2) { pics.push({ label: m2[1], option: true }); i++; lastPicEnd = i; continue; }
-        if (!raw.trim()) { i++; continue; }
-        break;
-    }
-    if (pics.length < 2) return null;
-    return { pics, nextIndex: lastPicEnd };
-}
-
-function renderPictureGrid(pics) {
-    const cols = pictureGridColumns(pics.length);
-    return '<div class="qp-picture-grid" style="--qp-cols:' + cols + '">' +
-        pics.map(p => '<div class="qp-picture-cell">' + paperPictureMarkup(p.label, p.option) + '</div>').join('') +
-        '</div>';
-}
-
-// Keep question-paper structure readable: a marks-only line such as "10x3=30"
-// belongs to the section line above it, and a bare roman numeral such as "I"
-// belongs to the heading text that follows it.
-function normalizeQuestionPaperLines(lines) {
-    const out = [];
-    for (const raw of lines) {
-        const line = String(raw ?? '');
-        const prev = out.length ? out[out.length - 1] : '';
-
-        if (prev.trim()) {
-            if (MARKS_ONLY_RE.test(line)) {
-                out[out.length - 1] = prev.replace(/\s+$/, '') + '  ' + line.trim();
-                continue;
-            }
-            if (ROMAN_ONLY_RE.test(prev.trim()) && !MARKS_ONLY_RE.test(line)) {
-                const sep = /[.)]$/.test(prev.trim()) ? ' ' : '. ';
-                out[out.length - 1] = prev.trim() + sep + line.trim();
-                continue;
-            }
-        }
-        out.push(line);
-    }
-    return out;
-}
-
-function splitSectionMarks(text) {
-    const t = String(text || '').trim();
-    const m = t.match(SECTION_MARKS_RE);
-    if (!m || !m[1] || !m[2]) return null;
-    return { title: m[1].trim(), marks: m[2].trim() };
-}
-
-function paperTableCells(line) {
-    return String(line ?? '').split('|').map(c => c.trim());
-}
-
-function parsePaperTableBlock(lines, start) {
-    const firstRaw = String(lines[start] ?? '');
-    if (!firstRaw.includes('|') || firstRaw.includes('[[')) return null;
-
-    const first = paperTableCells(firstRaw);
-    if (first.length < 2) return null;
-
-    const rows = [first];
-    let j = start + 1;
-    while (j < lines.length) {
-        const raw = String(lines[j] ?? '');
-        if (!raw.includes('|') || raw.includes('[[')) break;
-        const cells = paperTableCells(raw);
-        if (cells.length !== first.length) break;
-        rows.push(cells);
-        j++;
-    }
-
-    if (rows.length < 2) return null;
-    if (rows.every(r => r.every(c => !c))) return null;
-
-    return { html: renderPaperTable(rows), rows, nextIndex: j };
-}
-
-function renderPaperTable(rows) {
-    const header = rows.length >= 2 &&
-        rows[0].every(c => c.length <= 20) &&
-        !rows[0].every(c => c.length <= 1);
-
-    const body = rows.map((cells, rowIndex) => {
-        const isHead = header && rowIndex === 0;
-        const cellsHtml = cells.map(cell => {
-            const centered = !isHead && cell.length > 0 && cell.length <= 3 && !/\s/.test(cell);
-            const cls = centered ? ' class="qp-cell-center"' : '';
-            const content = formatOutputLine(cell) || '&nbsp;';
-            return isHead ? '<th' + cls + '>' + content + '</th>' : '<td' + cls + '>' + content + '</td>';
-        }).join('');
-        return '<tr>' + cellsHtml + '</tr>';
-    }).join('');
-
-    return '<table class="qp-table"><tbody>' + body + '</tbody></table>';
-}
-
-function optionLikeCells(line) {
-    const t = String(line || '').trim();
-    if (!t || t.length > 320) return null;
-    if (t.includes('[[')) return null;
-    if ((t.match(/\s{2,}/g) || []).length < 2) return null;
-
-    const parts = t.split(/\s{2,}/).map(p => p.trim()).filter(Boolean);
-    if (parts.length < 3 || parts.length > 6) return null;
-
-    const labelled = parts.filter(p => /^(?:[a-dA-D]|[1-9]\d?)[.)]\s*\S/.test(p));
-    if (labelled.length < 2) return null;
-    return parts;
-}
-
-function renderOptionGrid(parts) {
-    return '<span class="output-line"><span class="ocr-option-row">' +
-        parts.map(part => '<span class="ocr-option-item"><span>' + formatOutputLine(part) + '</span></span>').join('') +
-        '</span></span>';
-}
-
-// Scale the A4 sheet so the whole page width always fits the preview pane.
-function fitPaperSheets() {
-    const A4_WIDTH_PX = 210 * 96 / 25.4;
-    document.querySelectorAll('.output-body').forEach(host => {
-        const sheet = host.querySelector('.paper-sheet');
-        if (!sheet) return;
-        sheet.style.zoom = '';
-        const avail = host.clientWidth;
-        if (!avail) return;
-        const zoom = Math.min(1, Math.max(0.2, avail / A4_WIDTH_PX));
-        sheet.style.zoom = String(Math.round(zoom * 1000) / 1000);
-    });
-}
-
-if (typeof MutationObserver !== 'undefined' && typeof textOut !== 'undefined' && textOut) {
-    new MutationObserver(() => fitPaperSheets()).observe(textOut, { childList: true });
-}
-if (typeof window !== 'undefined') {
-    window.addEventListener('resize', () => fitPaperSheets());
-}
-
-async function extractOneFile(f, onProgress, label) {
-    const ext = f.name.split('.').pop().toLowerCase();
-    const report = typeof onProgress === 'function' ? onProgress : () => {};
-    let allText = '', allPlain = '', allRaw = '';
-
-    if (ext === 'pdf') {
-        report('Loading PDF...', 8);
-        const pages = await pdfToPages(f);
-        for (let i = 0; i < pages.length; i++) {
-            const prefix = allText ? '\n\n' : '';
-            if (pages[i].type === 'text') {
-                report('Reading text page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
-                allText += prefix + pages[i].text;
-                allPlain += prefix + pages[i].text;
-                allRaw += prefix + pages[i].text;
-                continue;
-            }
-            report('OCR scanned page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
-            const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 240000);
-            const result = await sendToOCR(pages[i].blob, ctrl.signal, label + 'Preparing page ' + (i+1) + '/' + pages.length);
-            clearTimeout(tid);
-            if (result.status === 'completed' && result.result) {
-                const annotated = result.result.annotated_text || result.result.full_text || '';
-                const plain = result.result.full_text || annotated;
-                allText += prefix + annotated;
-                allPlain += prefix + plain;
-                allRaw += prefix + (result.result.raw_text || annotated);
-            }
-        }
-    } else if (XLS_EXTS.includes(ext)) {
-        report('Reading spreadsheet...', 20);
-        allText = await extractSpreadsheetFile(f);
-        allPlain = allText;
-        allRaw = allText;
-        report('Formatting cells...', 90);
-    } else if (IMAGE_EXTS.includes(ext)) {
-        report('Analyzing image...', 12);
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 240000);
-        const result = await sendToOCR(f, ctrl.signal, label + 'Preparing image');
-        clearTimeout(tid);
-        if (result.status !== 'completed' || !result.result) throw new Error('No results');
-        allText = result.result.annotated_text || result.result.full_text || '';
-        allPlain = result.result.full_text || allText;
-        allRaw = result.result.raw_text || allText;
-    } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
-        report('Reading text...', 25);
-        allText = await extractPlainTextFile(f);
-        allPlain = allText;
-        allRaw = allText;
-    } else if (['docx','odt','pptx','odp'].includes(ext)) {
-        report('Reading Office document...', 25);
-        allText = await extractOfficeZipFile(f);
-        allPlain = allText;
-        allRaw = allText;
-    } else {
-        report('Reading legacy document...', 20);
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 120000);
-        const result = await sendFileToWorker(f, ctrl.signal);
-        clearTimeout(tid);
-        if (result.status !== 'completed' || !result.result) throw new Error('No results');
-        allText = result.result.annotated_text || result.result.full_text || '';
-        allPlain = result.result.full_text || allText;
-        allRaw = result.result.raw_text || allText;
-    }
-
-    if (!allPlain) allPlain = allText;
-    return { text: allText, plain: allPlain, raw: allRaw };
+    return html;
 }
 
 goBtn.onclick = async () => {
-    const batch = fileBatch.length ? fileBatch.slice() : (file ? [file] : []);
-    if (!batch.length) return;
+    if(!file) return;
+    const sourceFile = file;
     goBtn.disabled=true;
     hideErr();
     resBox.classList.remove('show');
     prog.classList.add('show');
-    setProg(5, batch.length > 1 ? 'Reading ' + batch.length + ' pages...' : 'Reading file...');
+    setProg(5,'Reading file...');
+
+    const ext = sourceFile.name.split('.').pop().toLowerCase();
 
     try {
         let allText = '';
         let allPlain = '';
         let allRaw = '';
-        let allMedia = [];
 
-        for (let idx = 0; idx < batch.length; idx++) {
-            const f = batch[idx];
-            const label = batch.length > 1 ? 'Page ' + (idx+1) + '/' + batch.length + ': ' : '';
-            extractedMedia = [];
-            const part = await extractOneFile(f, (msg, pct) => {
-                const overall = Math.min(95, 5 + Math.round(((idx + (pct / 100)) / batch.length) * 90));
-                setProg(overall, label + msg);
-            }, label);
-            if (!String(part.plain || part.text || '').trim()) continue;
-            const prefix = allText ? '\n\n[[PAGEBREAK]]\n\n' : '';
-            allText += prefix + part.text;
-            allPlain += prefix + part.plain;
-            allRaw += prefix + part.raw;
-            allMedia = allMedia.concat(extractedMedia);
+        if (ext === 'pdf') {
+            setProg(8, 'Loading PDF...');
+            const pages = await pdfToPages(sourceFile);
+            for (let i = 0; i < pages.length; i++) {
+                const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
+                const plainPrefix = allText ? '\n\n' : '';
+                if (pages[i].type === 'text') {
+                    setProg(48 + Math.round((i / pages.length) * 45), 'Reading text page ' + (i+1) + '/' + pages.length + '...');
+                    allText += prefix + pages[i].text;
+                    allPlain += plainPrefix + pages[i].text;
+                    allRaw += plainPrefix + pages[i].text;
+                    continue;
+                }
+
+                setProg(48 + Math.round((i / pages.length) * 45), 'OCR scanned page ' + (i+1) + '/' + pages.length + '...');
+                const ctrl = new AbortController();
+                const tid = setTimeout(() => ctrl.abort(), 240000);
+                const result = await sendToOCR(pages[i].blob, ctrl.signal, 'Preparing page ' + (i+1) + '/' + pages.length);
+                clearTimeout(tid);
+                if (result.status === 'completed' && result.result) {
+                    const annotated = result.result.annotated_text || result.result.full_text || '';
+                    const plain = result.result.full_text || annotated;
+                    allText += prefix + annotated;
+                    allPlain += plainPrefix + plain;
+                    allRaw += plainPrefix + (result.result.raw_text || annotated);
+                }
+            }
+        } else if (XLS_EXTS.includes(ext)) {
+            setProg(20, 'Reading spreadsheet...');
+            allText = await extractSpreadsheetFile(sourceFile);
+            allPlain = allText;
+            allRaw = allText;
+            setProg(90, 'Formatting cells...');
+        } else if (IMAGE_EXTS.includes(ext)) {
+            setProg(12, 'Analyzing image...');
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 240000);
+            const result = await sendToOCR(sourceFile, ctrl.signal, 'Preparing image');
+            clearTimeout(tid);
+            if (result.status !== 'completed' || !result.result) throw new Error('No results');
+            allText = result.result.annotated_text || result.result.full_text || '';
+            allPlain = result.result.full_text || allText;
+            allRaw = result.result.raw_text || allText;
+        } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
+            setProg(25, 'Reading text...');
+            allText = await extractPlainTextFile(sourceFile);
+            allPlain = allText;
+            allRaw = allText;
+        } else if (['docx','odt','pptx','odp'].includes(ext)) {
+            setProg(25, 'Reading Office document...');
+            allText = await extractOfficeZipFile(sourceFile);
+            allPlain = allText;
+            allRaw = allText;
+        } else {
+            setProg(20, 'Reading legacy document...');
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 120000);
+            const result = await sendFileToWorker(file, ctrl.signal);
+            clearTimeout(tid);
+            if (result.status !== 'completed' || !result.result) throw new Error('No results');
+            allText = result.result.annotated_text || result.result.full_text || '';
+            allPlain = result.result.full_text || allText;
+            allRaw = result.result.raw_text || allText;
         }
-        extractedMedia = allMedia;
 
         if (!allPlain) allPlain = allText;
         if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in file');
@@ -5593,7 +5236,8 @@ goBtn.onclick = async () => {
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         $('statsBar').innerHTML = badges;
 
-        lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw };
+        if (file !== sourceFile) return;
+        lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw, source_file: sourceFile };
         teachPanel.classList.remove('show');
         showingRaw = false;
         $('tabVerified').classList.add('active');
@@ -5603,7 +5247,6 @@ goBtn.onclick = async () => {
         textOut.className = 'output-body';
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
-        fitPaperSheets();
         setProg(100, 'Done');
         setTimeout(() => prog.classList.remove('show'), 800);
         loadUsage();
@@ -5643,6 +5286,23 @@ function docxVisibleText(value) {
     let out = String(value || '');
 
     out = out
+        .replace(/\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
+            (_,title,marks)=>title.trim()+'    '+marks.trim())
+        .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).map(x=>'['+x+' picture]  ☐').join('    '))
+        .replace(/\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).map(x=>'['+x+' shape]  ☐').join('    '))
+        .replace(/\[\[GRID:\s*(\d{1,2})[x×](\d{1,2})\]\]/gi, (_,cols,rows) =>
+            Array.from({length:Math.min(24,+rows)},()=> '□ '.repeat(Math.min(24,+cols)).trim()).join('\n'))
+        .replace(/\[\[GRID_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,24).map(x=>x==='_'?'□':x).join(' | '))
+        .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,8).join(' | '))
+        .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
+            worksheetCells(body,12).join('    '))
+        .replace(/\[\[ANSWER_LINES:\s*(\d{1,2})\]\]/gi, (_,n) =>
+            Array.from({length:Math.min(10,+n)},()=> '____________________________').join('\n'))
+        .replace(/\[\[PAGE_BREAK\]\]/gi, '\n\n')
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' ☐').join('    '))
         .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
@@ -5679,196 +5339,6 @@ function docxRun(text, options = {}) {
         '</w:rPr><w:t' + preserve + '>' + xmlEscape(text) + '</w:t></w:r>';
 }
 
-// A4 portrait with 0.5 in (720 twip) narrow margins: the printable width
-// shared by the on-screen A4 sheet and the exported Word page.
-const DOCX_CONTENT_W = 11906 - 720 - 720;
-const DOCX_PICTURE_CX = 60 * 36000;
-const DOCX_PICTURE_CY = 45 * 36000;
-
-let docxMediaUsed = [];
-let docxMediaIndex = {};
-let defaultPicturePng = null;
-let defaultPicturePngPromise = null;
-
-function blobToDataURL(blob) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('Could not read picture data.'));
-        reader.readAsDataURL(blob);
-    });
-}
-
-function rasterizeSvgToPng(svg, width, height) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            try {
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG conversion failed.')), 'image/png');
-            } catch (e) {
-                reject(e);
-            }
-        };
-        img.onerror = () => reject(new Error('Picture file could not be loaded.'));
-        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    });
-}
-
-function builtinPicturePng() {
-    return new Promise((resolve, reject) => {
-        try {
-            const canvas = document.createElement('canvas');
-            canvas.width = 480;
-            canvas.height = 360;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#f2f3f6';
-            ctx.strokeStyle = '#9aa1ad';
-            ctx.lineWidth = 6;
-            ctx.beginPath();
-            ctx.roundRect(4, 4, 472, 352, 24);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#c3c9d4';
-            ctx.beginPath();
-            ctx.arc(152, 120, 36, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#b6bdcb';
-            ctx.beginPath();
-            ctx.moveTo(48, 296);
-            ctx.lineTo(176, 176);
-            ctx.lineTo(256, 248);
-            ctx.lineTo(320, 200);
-            ctx.lineTo(432, 296);
-            ctx.closePath();
-            ctx.fill();
-            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG conversion failed.')), 'image/png');
-        } catch (e) {
-            reject(e);
-        }
-    });
-}
-
-// The Word export needs raster pixels, so the default picture asset is turned
-// into a PNG once. If the asset is missing the user is told exactly once.
-function prepareDefaultPicturePng() {
-    if (defaultPicturePngPromise) return defaultPicturePngPromise;
-    defaultPicturePngPromise = (async () => {
-        try {
-            const res = await fetch(DEFAULT_PICTURE_URL, { cache: 'no-store' });
-            if (!res.ok) throw new Error('missing');
-            const svg = await res.text();
-            if (!/<svg[\s>]/i.test(svg)) throw new Error('not svg');
-            const blob = await rasterizeSvgToPng(svg, 480, 360);
-            defaultPicturePng = await blobToDataURL(blob);
-        } catch (e) {
-            notifyPictureMissing();
-            try {
-                const blob = await builtinPicturePng();
-                defaultPicturePng = await blobToDataURL(blob);
-            } catch (e2) {
-                defaultPicturePng = null;
-            }
-        }
-        return defaultPicturePng;
-    })();
-    return defaultPicturePngPromise;
-}
-
-function parseDataUrl(dataUrl) {
-    const m = /^data:([^;,]+);base64,([\s\S]*)$/.exec(String(dataUrl || ''));
-    if (!m) return null;
-    return { mime: m[1], base64: m[2] };
-}
-
-function registerDocxPicture(dataUrl) {
-    const parsed = parseDataUrl(dataUrl);
-    if (!parsed) return null;
-    const key = parsed.mime + ':' + parsed.base64.length + ':' + parsed.base64.slice(0, 48);
-    if (docxMediaIndex[key]) return docxMediaIndex[key];
-    const ext = parsed.mime === 'image/jpeg' ? 'jpeg' : (parsed.mime.split('/')[1] || 'png');
-    const rid = 'rIdPic' + (docxMediaUsed.length + 1);
-    docxMediaUsed.push({ rid, mime: parsed.mime, ext, base64: parsed.base64 });
-    docxMediaIndex[key] = rid;
-    return rid;
-}
-
-function docxPictureRun(label, withCheckbox) {
-    const src = pictureSrcForNext();
-    const resolved = src === DEFAULT_PICTURE_URL ? defaultPicturePng : src;
-    const rid = resolved ? registerDocxPicture(resolved) : null;
-    const caption = String(label || '').trim() || 'Picture';
-
-    if (rid) {
-        const id = docxMediaUsed.length + 1000;
-        return '<w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:drawing>' +
-            '<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0">' +
-            '<wp:extent cx="' + DOCX_PICTURE_CX + '" cy="' + DOCX_PICTURE_CY + '"/>' +
-            '<wp:effectExtent l="0" t="0" r="0" b="0"/>' +
-            '<wp:docPr id="' + id + '" name="Picture ' + id + '" descr="' + xmlEscape(caption) + '"/>' +
-            '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
-            '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
-            '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-            '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-            '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="Picture ' + id + '"/><pic:cNvPicPr/></pic:nvPicPr>' +
-            '<pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="' + rid + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
-            '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + DOCX_PICTURE_CX + '" cy="' + DOCX_PICTURE_CY + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
-            '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
-    }
-
-    return docxRun('[' + caption + ' picture]' + (withCheckbox ? ' ☐' : ''), { size: 20 });
-}
-
-function parseDocxPictureGridBlock(lines, startIndex) {
-    const only = /^\s*\[\[PICTURE:\s*([\s\S]*?)\]\]\s*$/i;
-    const option = /^\s*\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]\s*$/i;
-    const pics = [];
-    let i = startIndex;
-    let lastPicEnd = startIndex;
-    while (i < lines.length) {
-        const raw = String(lines[i] || '');
-        const m1 = raw.match(only);
-        const m2 = m1 ? null : raw.match(option);
-        if (m1) { pics.push({ label: m1[1], option: false }); i++; lastPicEnd = i; continue; }
-        if (m2) { pics.push({ label: m2[1], option: true }); i++; lastPicEnd = i; continue; }
-        if (!raw.trim()) { i++; continue; }
-        break;
-    }
-    if (pics.length < 2) return null;
-    return { pics, nextIndex: lastPicEnd };
-}
-
-// Side-by-side diagram grid so images do not consume one full line each.
-function docxPictureGridXml(pics) {
-    const cols = pictureGridColumns(pics.length);
-    const cellW = Math.floor(DOCX_CONTENT_W / cols);
-    const nil = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
-        .map(b => '<w:' + b + ' w:val="nil"/>').join('');
-    const rows = [];
-    for (let r = 0; r < Math.ceil(pics.length / cols); r++) {
-        const cells = [];
-        for (let c = 0; c < cols; c++) {
-            const pic = pics[r * cols + c];
-            const runs = pic
-                ? (docxPictureRun(pic.label) + (pic.option ? docxRun(' ☐', { size: 20 }) : ''))
-                : docxRun('');
-            cells.push('<w:tc><w:tcPr><w:tcW w:w="' + cellW + '" w:type="dxa"/></w:tcPr>' +
-                docxParagraph('', { center: true, after: 0, runs }) + '</w:tc>');
-        }
-        rows.push('<w:tr>' + cells.join('') + '</w:tr>');
-    }
-    const widths = Array.from({ length: cols }, () => '<w:gridCol w:w="' + cellW + '"/>').join('');
-    return '<w:tbl><w:tblPr>' +
-        '<w:tblW w:w="' + DOCX_CONTENT_W + '" w:type="dxa"/>' +
-        '<w:tblLayout w:type="fixed"/>' +
-        '<w:tblBorders>' + nil + '</w:tblBorders>' +
-        '</w:tblPr><w:tblGrid>' + widths + '</w:tblGrid>' + rows.join('') + '</w:tbl>';
-}
-
 function docxParagraph(text, options = {}) {
     const bold = !!options.bold;
     const size = Number(options.size || 22);
@@ -5876,23 +5346,17 @@ function docxParagraph(text, options = {}) {
     const after = Number(options.after ?? 40);
     const left = Number(options.left || 0);
     const keep = options.keepNext ? '<w:keepNext/>' : '';
-    const breakBefore = options.pageBreakBefore ? '<w:pageBreakBefore/>' : '';
     const jc = options.center ? '<w:jc w:val="center"/>' : '';
     const indent = left ? '<w:ind w:left="' + left + '"/>' : '';
     const tabs = options.answerLeader
-        ? '<w:tabs><w:tab w:val="right" w:leader="underscore" w:pos="' + DOCX_CONTENT_W + '"/></w:tabs>'
-        : (options.marks || options.rightTab
-            ? '<w:tabs><w:tab w:val="right" w:pos="' + DOCX_CONTENT_W + '"/></w:tabs>'
-            : '');
+        ? '<w:tabs><w:tab w:val="right" w:leader="underscore" w:pos="9000"/></w:tabs>'
+        : '';
 
-    const content = (options.runs || docxRun(text, { bold, size })) +
-        (options.answerLeader ? '<w:r><w:tab/></w:r>' : '') +
-        (options.marks ? '<w:r><w:tab/></w:r>' + docxRun(options.marks, { bold: true, size }) : '');
-
-    return '<w:p><w:pPr>' + keep + breakBefore + jc + indent + tabs +
+    return '<w:p><w:pPr>' + keep + jc + indent + tabs +
         '<w:spacing w:before="' + before + '" w:after="' + after + '" w:line="300" w:lineRule="auto"/>' +
         '</w:pPr>' +
-        content +
+        docxRun(text, { bold, size }) +
+        (options.answerLeader ? '<w:r><w:tab/></w:r>' : '') +
         '</w:p>';
 }
 
@@ -5918,7 +5382,6 @@ function parseDocxBranchBlock(lines, startIndex) {
 function docxBranchTable(root, items) {
     if (!items.length) return docxParagraph(root);
     const center = Math.floor(items.length / 2);
-    const widths = [1987, 861, 1921, 5697];
     const rows = items.map((item, index) => {
         const relation = index < center ? '↗' : index > center ? '↘' : '→';
         const rootText = index === center ? '○ ' + root : '';
@@ -5929,160 +5392,146 @@ function docxBranchTable(root, items) {
             docxParagraph(text, { size: 21, bold, after: 0 }) + '</w:tc>';
 
         return '<w:tr>' +
-            cell(rootText, widths[0], index === center) +
-            cell(relation, widths[1], false) +
-            cell(item.left, widths[2], false) +
-            cell(rightText, widths[3], false) +
+            cell(rootText, 1500, index === center) +
+            cell(relation, 650, false) +
+            cell(item.left, 1450, false) +
+            cell(rightText, 4300, false) +
             '</w:tr>';
     }).join('');
 
     return '<w:tbl><w:tblPr>' +
-        '<w:tblW w:w="' + DOCX_CONTENT_W + '" w:type="dxa"/>' +
+        '<w:tblW w:w="7900" w:type="dxa"/>' +
         '<w:tblLayout w:type="fixed"/>' +
         '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>' +
         '</w:tblPr><w:tblGrid>' +
-        widths.map(w => '<w:gridCol w:w="' + w + '"/>').join('') +
+        '<w:gridCol w:w="1500"/><w:gridCol w:w="650"/><w:gridCol w:w="1450"/><w:gridCol w:w="4300"/>' +
         '</w:tblGrid>' + rows + '</w:tbl>';
 }
 
-function docxEqualColumnWidths(count) {
-    const n = Math.max(1, Number(count) || 1);
-    const base = Math.floor(DOCX_CONTENT_W / n);
-    const widths = [];
-    for (let c = 0; c < n; c++) widths.push(c === n - 1 ? DOCX_CONTENT_W - base * (n - 1) : base);
-    return widths;
-}
-
-function docxTableXml(rows) {
-    const nCol = Math.max.apply(null, rows.map(r => r.length));
-    const widths = docxEqualColumnWidths(nCol);
-    const header = rows.length >= 2 &&
-        rows[0].every(c => c.length <= 20) &&
-        !rows[0].every(c => c.length <= 1);
-
-    const body = rows.map((cells, rowIndex) => {
-        const isHead = header && rowIndex === 0;
-        const tcs = [];
-        for (let c = 0; c < nCol; c++) {
-            const cell = String(cells[c] ?? '');
-            const centered = isHead || (cell.length > 0 && cell.length <= 3 && !/\s/.test(cell));
-            const shd = isHead ? '<w:shd w:val="clear" w:color="auto" w:fill="F3F3F3"/>' : '';
-            tcs.push('<w:tc><w:tcPr><w:tcW w:w="' + widths[c] + '" w:type="dxa"/>' + shd + '</w:tcPr>' +
-                docxParagraph('', {
-                    size: 21,
-                    after: 0,
-                    bold: isHead,
-                    center: centered,
-                    runs: docxContentRuns(cell, { size: 21, bold: isHead })
-                }) + '</w:tc>');
-        }
-        return '<w:tr>' + tcs.join('') + '</w:tr>';
+// The same worksheet markers are used by the on-screen preview and Word.
+function docxTableCells(rows, widths, options = {}) {
+    const bordered = options.bordered !== false;
+    const total = widths.reduce((a, b) => a + b, 0);
+    const border = bordered ? 'single' : 'nil';
+    const borders = '<w:tblBorders>' + ['top','bottom','left','right','insideH','insideV'].map(side =>
+        '<w:' + side + ' w:val="' + border + '"' + (bordered ? ' w:sz="5" w:color="555555"' : '') + '/>'
+    ).join('') + '</w:tblBorders>';
+    const tableGrid = widths.map(w => '<w:gridCol w:w="' + w + '"/>').join('');
+    const tableRows = rows.map(row => {
+        const cells = widths.map((width, index) => {
+            const content = row[index] ?? '';
+            const inner = (typeof content === 'string') ? docxRichParagraph(content, {
+                size: options.fontSize || 19, after: 0
+            }) : String(content.xml || docxParagraph('', {after:0}));
+            return '<w:tc><w:tcPr><w:tcW w:w="' + width + '" w:type="dxa"/>' +
+                '<w:tcMar><w:top w:w="45" w:type="dxa"/><w:bottom w:w="45" w:type="dxa"/>' +
+                '<w:left w:w="55" w:type="dxa"/><w:right w:w="55" w:type="dxa"/></w:tcMar>' +
+                '</w:tcPr>' + inner + '</w:tc>';
+        }).join('');
+        return '<w:tr><w:trPr><w:cantSplit/>' +
+            (options.minHeight ? '<w:trHeight w:val="' + options.minHeight + '" w:hRule="atLeast"/>' : '') +
+            '</w:trPr>' + cells + '</w:tr>';
     }).join('');
-
-    const borders = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
-        .map(b => '<w:' + b + ' w:val="single" w:sz="4" w:space="0" w:color="333333"/>').join('');
-
-    return '<w:tbl><w:tblPr>' +
-        '<w:tblW w:w="' + DOCX_CONTENT_W + '" w:type="dxa"/>' +
-        '<w:tblLayout w:type="fixed"/>' +
-        '<w:tblBorders>' + borders + '</w:tblBorders>' +
-        '</w:tblPr><w:tblGrid>' +
-        widths.map(w => '<w:gridCol w:w="' + w + '"/>').join('') +
-        '</w:tblGrid>' + body + '</w:tbl>';
+    return '<w:tbl><w:tblPr><w:tblW w:w="' + total + '" w:type="dxa"/>' +
+        '<w:tblLayout w:type="fixed"/>' + borders + '</w:tblPr>' +
+        '<w:tblGrid>' + tableGrid + '</w:tblGrid>' + tableRows + '</w:tbl>';
 }
-
-function docxGridTableXml(parts) {
-    const widths = docxEqualColumnWidths(parts.length);
-    const nil = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
-        .map(b => '<w:' + b + ' w:val="nil"/>').join('');
-    const tcs = parts.map((part, i) =>
-        '<w:tc><w:tcPr><w:tcW w:w="' + widths[i] + '" w:type="dxa"/></w:tcPr>' +
-        docxParagraph('', { size: 22, after: 0, runs: docxContentRuns(part, { size: 22 }) }) +
-        '</w:tc>').join('');
-
-    return '<w:tbl><w:tblPr>' +
-        '<w:tblW w:w="' + DOCX_CONTENT_W + '" w:type="dxa"/>' +
-        '<w:tblLayout w:type="fixed"/>' +
-        '<w:tblBorders>' + nil + '</w:tblBorders>' +
-        '</w:tblPr><w:tblGrid>' +
-        widths.map(w => '<w:gridCol w:w="' + w + '"/>').join('') +
-        '</w:tblGrid><w:tr>' + tcs + '</w:tr></w:tbl>';
+function docxEqualWidths(count, total = 9900) {
+    const cell = Math.floor(total / count);
+    return Array.from({length:count}, (_,index) => index === count - 1 ? total - cell * (count - 1) : cell);
 }
-
-function docxMatchTableXml(left, right) {
-    const widths = docxEqualColumnWidths(2);
-    const nil = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
-        .map(b => '<w:' + b + ' w:val="nil"/>').join('');
-    const cell = (text, i) =>
-        '<w:tc><w:tcPr><w:tcW w:w="' + widths[i] + '" w:type="dxa"/></w:tcPr>' +
-        docxParagraph('', { size: 22, after: 0, runs: docxContentRuns(text, { size: 22 }) }) + '</w:tc>';
-
-    return '<w:tbl><w:tblPr>' +
-        '<w:tblW w:w="' + DOCX_CONTENT_W + '" w:type="dxa"/>' +
-        '<w:tblLayout w:type="fixed"/>' +
-        '<w:tblBorders>' + nil + '</w:tblBorders>' +
-        '</w:tblPr><w:tblGrid>' +
-        widths.map(w => '<w:gridCol w:w="' + w + '"/>').join('') +
-        '</w:tblGrid><w:tr>' + cell(left, 0) + cell(right, 1) + '</w:tr></w:tbl>';
+let docxPictureCounter = 0;
+function docxPictureRun(width = 850000, height = 610000) {
+    const id = ++docxPictureCounter;
+    return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">' +
+        '<wp:extent cx="' + width + '" cy="' + height + '"/>' +
+        '<wp:docPr id="' + id + '" name="Replaceable worksheet picture ' + id +
+        '" descr="Default picture placeholder; replace with the original illustration"/>' +
+        '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+        '<pic:pic><pic:nvPicPr><pic:cNvPr id="' + id + '" name="Worksheet placeholder"/>' +
+        '<pic:cNvPicPr/></pic:nvPicPr><pic:blipFill>' +
+        '<a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
+        '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + width + '" cy="' + height +
+        '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
+        '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
 }
-
-const DOCX_INLINE_PICTURE_RE = /\[\[(PICTURE|PICTURE_OPTION):\s*([\s\S]*?)\]\]/gi;
-
-// Mirrors the on-screen renderer: text markers become plain runs and picture
-// markers become real embedded images, so the export matches the preview.
-function docxContentRuns(raw, options = {}) {
-    const source = String(raw || '');
-    let out = '';
-    let last = 0;
-    let match;
-
-    DOCX_INLINE_PICTURE_RE.lastIndex = 0;
-    while ((match = DOCX_INLINE_PICTURE_RE.exec(source)) !== null) {
-        const before = docxVisibleText(source.slice(last, match.index));
-        if (before) out += docxRun(before, options);
-        out += docxPictureRun(match[2]);
-        if (match[1] === 'PICTURE_OPTION') out += docxRun(' ☐', options);
-        last = match.index + match[0].length;
+function docxDrawingParagraph(label, width = 800000, height = 575000) {
+    return '<w:p><w:pPr><w:spacing w:after="35"/></w:pPr>' + docxPictureRun(width,height) + '</w:p>' +
+        docxParagraph(label, {size:16,after:45});
+}
+function docxAnswerBoxParagraph() {
+    return '<w:p><w:pPr><w:spacing w:before="70" w:after="40"/>' +
+        '<w:pBdr><w:top w:val="single" w:sz="5"/><w:left w:val="single" w:sz="5"/>' +
+        '<w:right w:val="single" w:sz="5"/><w:bottom w:val="single" w:sz="5"/></w:pBdr>' +
+        '</w:pPr><w:r><w:t> </w:t></w:r></w:p>';
+}
+function docxAnswerRule() {
+    return '<w:p><w:pPr><w:spacing w:before="170" w:after="110"/>' +
+        '<w:pBdr><w:bottom w:val="single" w:sz="5" w:color="777777"/></w:pBdr></w:pPr>' +
+        '<w:r><w:t> </w:t></w:r></w:p>';
+}
+function docxPictureRow(labels) {
+    const widths = docxEqualWidths(labels.length);
+    const maxDrawingWidth = Math.min(810000, Math.floor((widths[0]-150) * 635));
+    const rows = [labels.map(raw => {
+        const number = String(raw).match(/^\d+[.)]/)?.[0] || '';
+        const label = String(raw).replace(/^\d+[.)]\s*/, '').trim() || 'Picture';
+        return {xml:(number ? docxParagraph(number,{size:17,after:0}) : '') +
+            docxDrawingParagraph(label, maxDrawingWidth,Math.round(maxDrawingWidth * .72)) +
+            docxAnswerBoxParagraph()};
+    })];
+    return docxTableCells(rows,widths,{bordered:false});
+}
+function docxShapeParagraph(shape) {
+    const value = String(shape || '').toLowerCase();
+    const style = 'position:relative;width:68pt;height:51pt';
+    const common = ' stroked="t" strokecolor="#333333" fillcolor="#ffffff"';
+    let element;
+    if (/circle/.test(value)) {
+        element = '<v:oval style="' + style + '"' + common + '/>';
+    } else if (/triangle/.test(value)) {
+        element = '<v:shape style="' + style + '" coordsize="100,100"' + common +
+            ' path="m 50,8 l 94,90 6,90 x e"/>';
+    } else if (/cube/.test(value)) {
+        element = '<v:shape style="' + style + '" coordsize="100,100"' + common +
+            ' path="m 18,28 l 70,28 70,88 18,88 x m 18,28 l 38,8 90,8 70,28 e m 70,28 l 90,8 90,68 70,88 e"/>';
+    } else if (/square/.test(value)) {
+        element = '<v:rect style="position:relative;width:51pt;height:51pt"' + common + '/>';
+    } else {
+        element = '<v:rect style="' + style + '"' + common + '/>';
     }
-
-    const rest = docxVisibleText(source.slice(last));
-    if (rest) out += docxRun(rest, options);
-    return out || docxRun('', options);
+    return '<w:p><w:pPr><w:spacing w:after="75"/></w:pPr><w:r><w:pict>' +
+        element + '</w:pict></w:r></w:p>';
 }
-
-function docxShouldPageBreak(line, index, firstNonEmptyIndex) {
-    const t = String(line || '').trim();
-    if (!t) return false;
-    if (/^\[\[PAGEBREAK\]\]$/i.test(t)) return true;
-    if (index <= firstNonEmptyIndex + 1) return false;
-
-    // Explicit part / section boundaries.
-    if (/^(?:PART|SECTION|UNIT)\b/i.test(t)) return true;
-
-    // A new exam paper / class / school heading implies a fresh page.
-    if (/^\s*(?:CLASS|GRADE|STD|STANDARD)\b/i.test(t)) return true;
-    if (/^(?:SUMMATIVE|HALF[- ]?YEARLY|ANNUAL|FA|SA)\s*[-–]?\s*[IVX\d]+\b/i.test(t)) return true;
-
-    // A repeated all-caps school/paper banner (e.g. "SUMMATIVE ASSESSMENT - II").
-    // Only break for banner-like lines, not every all-caps content line.
-    if (/^[A-Z][A-Z0-9 .\-/&]{5,}$/.test(t) && t.length <= 60 &&
-        /\b(?:EXAM|EXAMINATION|PAPER|TEST|SUMMATIVE|ANNUAL|HALF|TERM|SESSION|SCHOOL|ASSESSMENT|STD|STANDARD)\b/i.test(t)) {
-        return true;
-    }
-
-    return false;
+function docxShapeRow(shapes) {
+    return docxTableCells([shapes.map(shape=>({xml:docxShapeParagraph(shape) + docxAnswerBoxParagraph()}))],
+        docxEqualWidths(shapes.length),{bordered:false});
 }
-
+function docxGrid(columns, rows, cells = []) {
+    const widths = docxEqualWidths(columns);
+    const content = Array.from({length:rows},(_,r)=>
+        Array.from({length:columns},(_,c)=>cells[r*columns+c] || ''));
+    return docxTableCells(content,widths,{bordered:true,minHeight:360,fontSize:18});
+}
+function docxRichParagraph(raw, options = {}) {
+    // Embedded pictures stay real replaceable Word drawings even when inline.
+    const tokens = String(raw || '').split(/(\[\[PICTURE(?:_OPTION)?:\s*[\s\S]*?\]\])/gi);
+    if (tokens.length === 1) return docxParagraph(docxVisibleText(raw),options);
+    const runs = tokens.map(token => {
+        const picture = token.match(/^\[\[(PICTURE|PICTURE_OPTION):\s*([\s\S]*?)\]\]$/i);
+        if (!picture) return docxRun(docxVisibleText(token),{size:options.size || 22,bold:!!options.bold});
+        return docxPictureRun(600000,430000) + docxRun(' ' + picture[2].trim() +
+            (picture[1].toUpperCase() === 'PICTURE_OPTION' ? '  ☐' : ''),{size:18});
+    }).join('');
+    return '<w:p><w:pPr><w:spacing w:after="' + (options.after ?? 45) +
+        '" w:line="300" w:lineRule="auto"/></w:pPr>' + runs + '</w:p>';
+}
 function buildDocxBody(structuredText) {
-    docxMediaUsed = [];
-    docxMediaIndex = {};
-    resetPictureQueue();
-
-    const lines = normalizeQuestionPaperLines(repairLegacyBranchDiagram(String(structuredText || '')).split('\n'));
+    docxPictureCounter = 0;
+    const lines = repairLegacyBranchDiagram(String(structuredText || '')).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     const body = [];
     let i = 0;
-    let pendingBreak = false;
 
     while (i < lines.length) {
         const branch = parseDocxBranchBlock(lines, i);
@@ -6092,133 +5541,94 @@ function buildDocxBody(structuredText) {
             i = branch.nextIndex;
             continue;
         }
-
-        const line = lines[i];
-
-        if (/^\s*\[\[PAGEBREAK\]\]\s*$/i.test(line)) {
-            pendingBreak = true;
-            i++;
-            continue;
+        const line = String(lines[i] || '').trim();
+        const section = line.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+        if (section) {
+            body.push(docxTableCells([[section[1].trim(),section[2].trim()]], [7950,1950],
+                {bordered:false,fontSize:21,minHeight:320}));
+            i++; continue;
         }
-
-        const breakBefore = pendingBreak || docxShouldPageBreak(line, i, firstNonEmptyIndex);
-        pendingBreak = false;
-
-        const optionRow = line.match(/^\s*\[\[OPTION_ROW:\s*([\s\S]*?)\]\]\s*$/i);
-        if (optionRow) {
-            const items = optionRow[1].split(/\s*\|\|\s*/).map(x => x.trim()).filter(Boolean);
-            if (items.length > 1) {
-                body.push(docxGridTableXml(items.map(item => item + ' ☐')));
+        let m = line.match(/^\[\[GRID:\s*([\s\S]*?)\]\]$/i);
+        if (m) {
+            const dims = worksheetGridSize(m[1]);
+            if (dims) body.push(docxGrid(dims.columns, dims.rows));
+            i++; continue;
+        }
+        m = line.match(/^\[\[GRID_ROW:\s*([\s\S]*?)\]\]$/i);
+        if (m) {
+            const cells = worksheetCells(m[1], 24).map(x=> x === '_' ? '' : x);
+            body.push(docxGrid(cells.length,1,cells));
+            i++; continue;
+        }
+        m = line.match(/^\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]$/i);
+        if (m) {
+            const cells = worksheetCells(m[1],8).filter(Boolean);
+            if (cells.length) body.push(docxPictureRow(cells));
+            i++;continue;
+        }
+        m = line.match(/^\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]$/i);
+        if (m) {
+            const cells = worksheetCells(m[1],8).filter(Boolean);
+            if (cells.length) body.push(docxShapeRow(cells));
+            i++;continue;
+        }
+        m = line.match(/^\[\[(OPTION_ROW|CHOICE_ROW):\s*([\s\S]*?)\]\]$/i);
+        if (m) {
+            const withBox=m[1].toUpperCase()==='OPTION_ROW';
+            const cells=worksheetCells(m[2],12).map(x=>x+(withBox?'  ☐':''));
+            body.push(docxTableCells([cells],docxEqualWidths(cells.length),{bordered:false,fontSize:18,minHeight:360}));
+            i++;continue;
+        }
+        m = line.match(/^\[\[ANSWER_LINES:\s*(\d{1,2})\]\]$/i);
+        if (m) {
+            for(let n=0;n<Math.min(10,Math.max(1,Number(m[1])));n++) body.push(docxAnswerRule());
+            i++;continue;
+        }
+        if (/^\[\[PAGE_BREAK\]\]$/i.test(line)) {
+            body.push('<w:p><w:r><w:br w:type="page"/></w:r></w:p>');
+            i++;continue;
+        }
+        const tableMatch=line.match(/^\[\[TABLE_ROW:\s*([\s\S]*?)\]\]$/i);
+        if(tableMatch) {
+            const rows=[];
+            while(i<lines.length) {
+                const row=String(lines[i]).trim().match(/^\[\[TABLE_ROW:\s*([\s\S]*?)\]\]$/i);
+                if(!row) break;
+                rows.push(worksheetCells(row[1],8));
                 i++;
-                continue;
             }
+            const n=Math.max(...rows.map(x=>x.length));
+            body.push(docxTableCells(rows,docxEqualWidths(n),{bordered:true,fontSize:18,minHeight:450}));
+            continue;
         }
-
-        const matchRow = line.match(/^\s*\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i);
-        if (matchRow) {
-            body.push(docxMatchTableXml(matchRow[1].trim(), matchRow[2].trim()));
+        const matchRows=[];
+        while(i<lines.length){
+            const row=String(lines[i]).trim().match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+            if(!row)break;
+            matchRows.push([row[1].trim(),row[2].trim()]);
             i++;
+        }
+        if(matchRows.length){
+            body.push(docxTableCells(matchRows,docxEqualWidths(2),{bordered:false,fontSize:20,minHeight:400}));
             continue;
         }
-
-        const tableBlock = parsePaperTableBlock(lines, i);
-        if (tableBlock) {
-            body.push(docxTableXml(tableBlock.rows));
-            body.push(docxParagraph('', { after: 30 }));
-            i = tableBlock.nextIndex;
-            continue;
-        }
-
-        const pictureGrid = parseDocxPictureGridBlock(lines, i);
-        if (pictureGrid) {
-            body.push(docxPictureGridXml(pictureGrid.pics));
-            body.push(docxParagraph('', { after: 30 }));
-            i = pictureGrid.nextIndex;
-            continue;
-        }
-
-        const pictureOnly = line.match(/^\s*\[\[PICTURE:\s*([\s\S]*?)\]\]\s*$/i);
-        if (pictureOnly) {
-            body.push(docxParagraph('', { center: true, after: 30, runs: docxPictureRun(pictureOnly[1]) }));
+        const raw=lines[i];
+        const numberedBlank=raw.match(/^\s*(?:\[\[CIRCLED:\s*(\d+)\s*\]\]|([⓪①-⑳❶-❿])|(\d+)[.)]?)\s*_{8,}\s*$/);
+        if(numberedBlank){
+            let number=numberedBlank[1]||numberedBlank[3]||'';
+            if(!number && numberedBlank[2]) number=circledNumberValue(numberedBlank[2]);
+            body.push(docxParagraph(circledWordNumber(number),{size:22,after:40,answerLeader:true}));
             i++;
+            while(i<lines.length && /^\s*_{2,}\s*$/.test(lines[i]))i++;
             continue;
         }
-
-        const pictureOptionOnly = line.match(/^\s*\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]\s*$/i);
-        if (pictureOptionOnly) {
-            body.push(docxParagraph('', { center: true, after: 0, runs: docxPictureRun(pictureOptionOnly[1]) }));
-            body.push(docxParagraph('☐', { center: true, after: 30, size: 22 }));
-            i++;
-            continue;
+        if(!raw.trim()){
+            body.push(docxParagraph('',{after:40}));i++;continue;
         }
-
-        const numberedBlank = line.match(
-            /^\s*(?:\[\[CIRCLED:\s*(\d+)\s*\]\]|([⓪①-⑳❶-❿])|(\d+)[.)]?)\s*_{8,}\s*$/
-        );
-
-        if (numberedBlank) {
-            let number = numberedBlank[1] || numberedBlank[3] || '';
-            if (!number && numberedBlank[2]) number = circledNumberValue(numberedBlank[2]);
-            body.push(docxParagraph(circledWordNumber(number), {
-                size: 22,
-                after: 40,
-                answerLeader: true
-            }));
-            i++;
-            while (i < lines.length && /^\s*_{2,}\s*$/.test(lines[i])) i++;
-            continue;
-        }
-
-        if (!line.trim()) {
-            body.push(docxParagraph('', { after: 40 }));
-            i++;
-            continue;
-        }
-
-        const optionCells = optionLikeCells(line);
-        if (optionCells) {
-            body.push(docxGridTableXml(optionCells));
-            i++;
-            continue;
-        }
-
-        if (i === firstNonEmptyIndex) {
-            body.push(docxParagraph('', {
-                bold: true,
-                size: 28,
-                center: true,
-                before: 0,
-                after: 80,
-                keepNext: true,
-                pageBreakBefore: breakBefore,
-                runs: docxContentRuns(line, { bold: true, size: 28 })
-            }));
-            i++;
-            continue;
-        }
-
-        const heading = isOutputHeadingLine(line, i, firstNonEmptyIndex);
-        if (heading) {
-            const section = splitSectionMarks(line);
-            const runs = docxContentRuns(section ? section.title : line, { bold: true, size: 24 });
-            body.push(docxParagraph('', {
-                bold: true,
-                size: 24,
-                before: 80,
-                after: 50,
-                keepNext: !!section,
-                pageBreakBefore: breakBefore,
-                marks: section ? section.marks : '',
-                runs
-            }));
-            i++;
-            continue;
-        }
-
-        body.push(docxParagraph('', { after: 35, pageBreakBefore: breakBefore, runs: docxContentRuns(line, { size: 22 }) }));
+        const heading=isOutputHeadingLine(raw,i,firstNonEmptyIndex);
+        body.push(docxRichParagraph(raw,{bold:heading,size:heading?24:22,after:heading?60:35}));
         i++;
     }
-
     return body.join('');
 }
 
@@ -6235,175 +5645,35 @@ function docxStylesXml() {
     '</w:styles>';
 }
 
-function docxFooterXml(title) {
-    const centerPos = Math.round(DOCX_CONTENT_W / 2);
-    const label = xmlEscape(String(title || '').trim().slice(0, 80));
-    const runProps = '<w:rPr><w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>';
-    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-    '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-      '<w:p><w:pPr>' +
-        '<w:pBdr><w:top w:val="single" w:sz="6" w:space="4" w:color="333333"/></w:pBdr>' +
-        '<w:tabs><w:tab w:val="center" w:pos="' + centerPos + '"/><w:tab w:val="right" w:pos="' + DOCX_CONTENT_W + '"/></w:tabs>' +
-        '<w:spacing w:before="0" w:after="0"/>' +
-        runProps +
-      '</w:pPr>' +
-      '<w:r>' + runProps + '<w:t xml:space="preserve">' + label + '</w:t></w:r>' +
-      '<w:r><w:tab/></w:r>' +
-      '<w:r>' + runProps + '<w:t xml:space="preserve">PAGE NO: </w:t></w:r>' +
-      '<w:fldSimple w:instr=" PAGE "><w:r>' + runProps + '<w:t>1</w:t></w:r></w:fldSimple>' +
-    '</w:p></w:ftr>';
-}
-
-function docxHeaderXml(cx, cy) {
-    const id = 9000;
-    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-    '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
-      ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-      '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0"/></w:pPr>' +
-        '<w:r><w:drawing>' +
-          '<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0">' +
-            '<wp:extent cx="' + cx + '" cy="' + cy + '"/>' +
-            '<wp:effectExtent l="0" t="0" r="0" b="0"/>' +
-            '<wp:docPr id="' + id + '" name="Banner" descr="Paper header banner"/>' +
-            '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
-            '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
-              '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-                '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-                  '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="Banner"/><pic:cNvPicPr/></pic:nvPicPr>' +
-                  '<pic:blipFill><a:blip r:embed="rIdHeaderImg"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
-                  '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
-                '</pic:pic>' +
-              '</a:graphicData>' +
-            '</a:graphic>' +
-          '</wp:inline>' +
-        '</w:drawing></w:r>' +
-      '</w:p>' +
-    '</w:hdr>';
-}
-
-function imageDataUrlSize(dataUrl) {
-    return new Promise(resolve => {
-        const img = new Image();
-        img.onload = () => resolve({ w: img.naturalWidth || 0, h: img.naturalHeight || 0 });
-        img.onerror = () => resolve({ w: 0, h: 0 });
-        img.src = dataUrl;
-    });
-}
-
-function builtinBannerPng(title) {
-    return new Promise((resolve, reject) => {
-        try {
-            const canvas = document.createElement('canvas');
-            canvas.width = 1200;
-            canvas.height = 150;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, 1200, 150);
-            ctx.strokeStyle = '#1f2a44';
-            ctx.lineWidth = 8;
-            ctx.strokeRect(4, 4, 1192, 142);
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#9aa4b8';
-            ctx.strokeRect(18, 18, 1164, 114);
-            ctx.fillStyle = '#1f2a44';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.font = 'bold 52px Tahoma, sans-serif';
-            ctx.fillText('QUESTION PAPER', 600, 66);
-            ctx.font = '22px Tahoma, sans-serif';
-            ctx.fillStyle = '#55617a';
-            ctx.fillText('PAPER AI  ·  AUTO-FORMATTED', 600, 108);
-            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG conversion failed.')), 'image/png');
-        } catch (e) {
-            reject(e);
-        }
-    });
-}
-
-// Prefer a wide image the teacher uploaded (scanned header/banner); otherwise
-// fall back to a generated identification banner so every paper has a header.
-async function resolveHeaderBanner(structuredText) {
-    const title = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
-    for (const item of (extractedMedia || [])) {
-        const src = item && typeof item === 'object' ? (item.dataUrl || item.src || item.url) : item;
-        if (typeof src !== 'string' || !/^data:image\//.test(src)) continue;
-        const dim = await imageDataUrlSize(src);
-        if (dim.w && dim.h && dim.w / dim.h >= 3.5) return { dataUrl: src, w: dim.w, h: dim.h };
-    }
-    try {
-        if (!defaultBannerPngPromise) {
-            defaultBannerPngPromise = (async () => {
-                const res = await fetch(DEFAULT_BANNER_URL, { cache: 'no-store' });
-                if (!res.ok) throw new Error('missing');
-                const svg = await res.text();
-                if (!/<svg[\s>]/i.test(svg)) throw new Error('not svg');
-                const blob = await rasterizeSvgToPng(svg, 1200, 150);
-                return await blobToDataURL(blob);
-            })().catch(() => null);
-        }
-        const fromAsset = await defaultBannerPngPromise;
-        if (fromAsset) return { dataUrl: fromAsset, w: 1200, h: 150 };
-    } catch (e) {}
-    try {
-        const blob = await builtinBannerPng(title);
-        return { dataUrl: await blobToDataURL(blob), w: 1200, h: 150 };
-    } catch (e) {
-        return null;
-    }
-}
-
 function docxDocumentXml(structuredText) {
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
-      ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-'<w:body>' + buildDocxBody(structuredText) +
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml">' +
+      '<w:body>' + buildDocxBody(structuredText) +
         '<w:sectPr>' +
-          '<w:headerReference w:type="default" r:id="rIdHeader"/>' +
-          '<w:footerReference w:type="default" r:id="rIdFooter"/>' +
           '<w:pgSz w:w="11906" w:h="16838"/>' +
-          '<w:pgMar w:top="1008" w:right="720" w:bottom="720" w:left="720" w:header="288" w:footer="360" w:gutter="0"/>' +
+          '<w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/>' +
         '</w:sectPr>' +
       '</w:body>' +
     '</w:document>';
 }
 
+function createWordPlaceholderPngBase64() {
+    const canvas=document.createElement('canvas');
+    canvas.width=180; canvas.height=130;
+    const ctx=canvas.getContext('2d');
+    if(!ctx) throw new Error('Canvas is required to export picture placeholders.');
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,180,130);
+    ctx.strokeStyle='#667085';ctx.lineWidth=3;ctx.strokeRect(5,5,170,120);
+    ctx.fillStyle='#dbe4ee';ctx.beginPath();ctx.arc(55,40,14,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(20,102);ctx.lineTo(70,55);ctx.lineTo(96,78);
+    ctx.lineTo(115,58);ctx.lineTo(158,102);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#475467';ctx.font='bold 14px sans-serif';
+    ctx.textAlign='center';ctx.fillText('Picture',90,119);
+    return canvas.toDataURL('image/png').split(',')[1];
+}
+
 async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
-
-    await prepareDefaultPicturePng();
-
-    const documentXml = docxDocumentXml(structuredText);
-    const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
-    const footerXml = docxFooterXml(footerTitle);
-    const media = docxMediaUsed.slice();
-
-    const banner = await resolveHeaderBanner(structuredText);
-    let headerXml = '';
-    let headerRelsXml = '';
-    let headerRelEntry = '';
-    let headerBannerFile = null;
-    if (banner) {
-        const parsed = parseDataUrl(banner.dataUrl);
-        if (parsed) {
-            const headerExt = parsed.mime === 'image/jpeg' ? 'jpeg' : (parsed.mime.split('/')[1] || 'png');
-            const cx = DOCX_CONTENT_W * 635;
-            const cy = Math.max(1, Math.round(cx * (banner.h || 200) / (banner.w || 1200)));
-            headerXml = docxHeaderXml(cx, cy);
-            headerRelsXml =
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-                  '<Relationship Id="rIdHeaderImg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header_banner.' + headerExt + '"/>' +
-                '</Relationships>';
-            headerRelEntry = '<Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>';
-            headerBannerFile = { ext: headerExt, base64: parsed.base64 };
-        }
-    }
-
-    const imageDefaults = [
-        ['png', 'image/png'],
-        ['jpeg', 'image/jpeg'],
-        ['gif', 'image/gif']
-    ].map(([ext, type]) => '<Default Extension="' + ext + '" ContentType="' + type + '"/>').join('');
 
     const zip = new JSZip();
     zip.file('[Content_Types].xml',
@@ -6411,11 +5681,9 @@ async function makeExtractedDocx(structuredText) {
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
           '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
           '<Default Extension="xml" ContentType="application/xml"/>' +
-          imageDefaults +
+          '<Default Extension="png" ContentType="image/png"/>' +
           '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
           '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
-          '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' +
-          (headerXml ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '') +
         '</Types>');
 
     zip.folder('_rels').file('.rels',
@@ -6424,37 +5692,15 @@ async function makeExtractedDocx(structuredText) {
           '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
         '</Relationships>');
 
-    zip.folder('word').file('document.xml', documentXml);
+    zip.folder('word').file('document.xml', docxDocumentXml(structuredText));
     zip.folder('word').file('styles.xml', docxStylesXml());
-    zip.folder('word').file('footer1.xml', footerXml);
-    if (headerXml) {
-        zip.folder('word').file('header1.xml', headerXml);
-        zip.folder('word').folder('_rels').file('header1.xml.rels', headerRelsXml);
-    }
-
-    const mediaRels = media.map(item =>
-        '<Relationship Id="' + item.rid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image_' + xmlEscape(item.rid) + '.' + item.ext + '"/>'
-    ).join('');
-
+    zip.folder('word').folder('media').file('default-picture.png', createWordPlaceholderPngBase64(), { base64:true });
     zip.folder('word').folder('_rels').file('document.xml.rels',
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
           '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
-          '<Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' +
-          headerRelEntry +
-          mediaRels +
+          '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/default-picture.png"/>' +
         '</Relationships>');
-
-    if (media.length) {
-        const mediaFolder = zip.folder('word').folder('media');
-        media.forEach(item => {
-            mediaFolder.file('image_' + item.rid + '.' + item.ext, item.base64, { base64: true });
-        });
-    }
-
-    if (headerBannerFile) {
-        zip.folder('word').folder('media').file('header_banner.' + headerBannerFile.ext, headerBannerFile.base64, { base64: true });
-    }
 
     return zip.generateAsync({
         type: 'blob',
@@ -6492,6 +5738,26 @@ async function downloadWord(btn) {
             btn.disabled = false;
             btn.innerHTML = original;
         }
+    }
+}
+
+async function downloadPdfWord(btn) {
+    const source = lastResult?.source_file;
+    if (showingRaw || !source || !/\.pdf$/i.test(source.name)) return;
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const blob = await PaperAIPdfWord.makePdfWord(source, {
+            onProgress: (page, total) => { btn.textContent = 'Creating page ' + page + '/' + total + '…'; }
+        });
+        const base = source.name.replace(/\.pdf$/i, '').replace(/[^\p{L}\p{N}_-]+/gu, '-') || 'paperai';
+        dlBlob(blob, base + '-pdf-layout.docx');
+    } catch (error) {
+        showErr(error?.message || 'Could not create the PDF layout Word file.');
+    } finally {
+        btn.innerHTML = original;
+        updateResultActionsForTab();
     }
 }
 

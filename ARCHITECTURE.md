@@ -1,5 +1,14 @@
 # PaperAI Production Architecture v9
 
+## Word export modes
+
+- **Editable Word** exports OCR text and recognized tables in normal document flow. Unknown illustrations use labeled placeholders; this mode does not guarantee the source layout.
+- **Word matching PDF** renders the original PDF locally and embeds one inline image per Word page, retaining illustrations, tables, rules, alignment, rotation and page dimensions. Each page has a native Word section, so floating elements cannot stack across pages. The questions in this mode are page images and are not individually editable. Teach corrections apply only to Editable Word.
+- DOCX import respects paragraph page breaks, section breaks and individual text boxes. Text boxes are read once in vertical and horizontal order rather than concatenating all descendants of the anchor paragraph.
+- The layout export processes one bounded canvas at a time and releases PDF resources on success or failure. No document upload or additional AI call is required for this export.
+
+Run `npm ci --prefix frontend`, then `node tests/worksheet-layout.cjs`, `node tests/pdf-word-layout.cjs` and `node tests/docx-import.cjs` for import and export regression checks.
+
 ## Goals
 
 PaperAI is a literal document transcription system. The primary invariant is **printer, not editor**: source spelling, dates, calculations, punctuation, handwriting, marks, symbols, blanks and visible corrections must not be silently rewritten.

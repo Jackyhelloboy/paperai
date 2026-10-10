@@ -1,0 +1,28 @@
+name: Verify worksheet preview and Word export
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/index.html'
+      - 'worker/src/index.js'
+      - 'tests/worksheet-layout.cjs'
+      - '.github/workflows/verify-worksheet.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-worksheet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate preview and Word XML
+        run: node tests/worksheet-layout.cjs
+      - name: Check Worker JavaScript
+        run: |
+          node --input-type=module --check < worker/src/index.js
