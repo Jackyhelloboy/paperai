@@ -70,7 +70,10 @@
         const s=String(value||'').trim();
         const number='(?:[0-9०-९]+(?:[./][0-9०-९]+)?[¼½¾]?|[¼½¾])';
         const equation='\\(?'+number+'\\s*[x×X*]\\s*'+number+'\\s*=\\s*'+number+'\\s*(?:[mM]|[Mm]arks)?\\)?';
-        const m=s.match(new RegExp('^(.+?)\\s+('+equation+'|'+number+'\\s*(?:[mM]|[Mm]arks))\\s*$'));
+        // A bare parenthesized score is a mark only after an instruction's
+        // closing punctuation. Do not reinterpret operands such as f(5).
+        const m=s.match(new RegExp('^(.+?)\\s+('+equation+'|'+number+'\\s*(?:[mM]|[Mm]arks))\\s*$')) ||
+            s.match(new RegExp('^(.+[.?:])\\s+(\\(\\s*'+number+'\\s*\\))\\s*$'));
         return m ? {title:m[1],marks:m[2]} : null;
     }
     function shape(value) {

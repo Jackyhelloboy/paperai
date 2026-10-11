@@ -1,0 +1,34 @@
+{
+  "checked_commit": "c76e0991485b00b0c80d4ea3d4bd7f6f841d2773",
+  "production_workflow": "https://github.com/Jackyhelloboy/paperai/actions/runs/38146775726",
+  "scope": "Pages, status API and synthetic literal-text uploads; not concurrent image inference",
+  "load_requests": 180,
+  "failures": 0,
+  "maximum_concurrency": 20,
+  "worst_group_p95_ms": 964,
+  "regression_suites_passed": 13,
+  "training_files_audited": 42,
+  "training_records_requiring_OCR_or_source_review": 12,
+  "browser_checks": {
+    "automatic_synthetic_text_upload": "passed",
+    "same_origin_presence": "passed",
+    "public_dashboard": "provider-free PaperAI branding",
+    "word_download": "passed",
+    "word_page_size_twips": [
+      11906,
+      16838
+    ],
+    "word_margins_twips": {
+      "top": 720,
+      "right": 720,
+      "bottom": 720,
+      "left": 720
+    },
+    "visual_word_review": "One clean page; found bare (5) marks remaining inline, then added a formatting fix and preview/Word regression coverage."
+  },
+  "remaining_limits": [
+    "Fallback handwriting and Hindi recognition can be inaccurate.",
+    "Some source artwork and table borders are raster-preserved.",
+    "Client-side code, weights and public repository history remain inspectable."
+  ]
+}

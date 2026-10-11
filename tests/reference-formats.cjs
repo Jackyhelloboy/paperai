@@ -56,5 +56,15 @@ const fixtures={
     vm.runInContext(slice('function formatOutput(text)','// Successful scanned pages'),ctx);
     const preview=ctx.formatOutput('I. Answer the questions. 4×½=2\n1. Read the question.');
     assert(preview.includes('class="ocr-section-marks">4×½=2'),'Plain section marks must also be on the right in the teacher preview');
+    const shortMarks='II. Match the following. (5)\nSun                 Water\nRain                Light\nIII. Fill in the blanks. (5)\n1. There are ______ days in a week.';
+    const shortPreview=ctx.formatOutput(shortMarks);
+    assert.equal((shortPreview.match(/class="ocr-section-marks">\(5\)/g)||[]).length,2,'Bare parenthesized section marks must align right in preview');
+    const shortZip=await JSZip.loadAsync(await (await ctx.makeExtractedDocx(shortMarks)).arrayBuffer());
+    const shortDoc=new DOMParser().parseFromString(await shortZip.file('word/document.xml').async('text'),'application/xml');
+    const markParagraphs=Array.from(shortDoc.getElementsByTagName('w:p')).filter(p=>p.textContent==='(5)');
+    assert.equal(markParagraphs.length,2);
+    for(const p of markParagraphs)assert.equal(p.getElementsByTagName('w:jc')[0]?.getAttribute('w:val'),'right');
+    assert.equal(Layout.section('I. Evaluate f(5)'),null);
+    assert.equal(Layout.section('I. Explain atomic number (6)'),null);
     console.log('Reference formats: measured fonts, body and heading sizes, spacing, question indents, right marks, native emphasis, unsolved matching, editable grid height and table edits pass.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
