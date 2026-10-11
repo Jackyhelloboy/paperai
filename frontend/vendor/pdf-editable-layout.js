@@ -71,8 +71,19 @@
             else if(fn===O.constructPath){
                 path=[];pathSupported=true;const matrix=multiply(viewport.transform,state.matrix),commands=args[0],coords=args[1];let n=0;
                 for(const command of commands){
-                    if(command===O.rectangle){const x=coords[n++],y=coords[n++],w=coords[n++],h=coords[n++];path.push({kind:'rect',...bounds([point(matrix,x,y),point(matrix,x+w,y+h)])});}
+                    if(command===O.rectangle){const x=coords[n++],y=coords[n++],w=coords[n++],h=coords[n++];
+                        const vertices=[[x,y],[x+w,y],[x+w,y+h],[x,y+h]].map(([a,b])=>point(matrix,a,b));
+                        if(Math.abs(matrix[1])<.01&&Math.abs(matrix[2])<.01)path.push({kind:'rect',...bounds(vertices)});
+                        else path.push(...vertices.map((p,i)=>({kind:i?'line':'move',...p})),{kind:'close'});
+                    }
                     else if(command===O.moveTo||command===O.lineTo){path.push({kind:command===O.moveTo?'move':'line',...point(matrix,coords[n++],coords[n++])});}
+                    else if(command===O.curveTo){path.push({kind:'curve',points:[0,1,2].map(()=>point(matrix,coords[n++],coords[n++]))});}
+                    else if(command===O.curveTo2||command===O.curveTo3){
+                        const previous=path[path.length-1],current=previous?.kind==='curve'?previous.points[2]:previous;
+                        if(!current||!Number.isFinite(current.x)){pathSupported=false;break;}
+                        const first=point(matrix,coords[n++],coords[n++]),last=point(matrix,coords[n++],coords[n++]);
+                        path.push({kind:'curve',points:command===O.curveTo2?[{x:current.x,y:current.y},first,last]:[first,last,last]});
+                    }
                     else if(command===O.closePath)path.push({kind:'close'});
                     else {pathSupported=false;break;}
                 }
@@ -81,8 +92,13 @@
                 if(pathSupported&&points.length===4&&path.every(p=>['move','line','close'].includes(p.kind))&&
                     points.every((p,n)=>{const next=points[(n+1)%4];return Math.abs(p.x-next.x)<.01||Math.abs(p.y-next.y)<.01;}))
                     path=[{kind:'rect',...bounds(points)}];
-                if(!pathSupported||path.some(p=>p.kind!=='rect'))supported=false;
-                else for(const p of path){
+                if(!pathSupported)supported=false;
+                else if(path.some(p=>p.kind!=='rect')){
+                    // Copy the observed vector path. Do not infer a geometric label.
+                    const all=path.flatMap(p=>p.kind==='curve'?p.points:Number.isFinite(p.x)?[p]:[]);
+                    if(all.length){const box=bounds(all);box.w=Math.max(.1,box.w);box.h=Math.max(.1,box.h);
+                        shapes.push({...box,kind:'path',path:path.slice(),fill:fn===O.stroke?null:state.fill,stroke:fn===O.fill||fn===O.eoFill?null:state.stroke,line:state.line});}
+                }else for(const p of path){
                     if(p.kind==='rect'&&p.w>0&&p.h>0&&!(state.fill==='ffffff'&&p.w>viewport.width*.9&&p.h>viewport.height*.9&&fn!==O.stroke))shapes.push({...p,fill:fn===O.stroke?null:state.fill,stroke:fn===O.fill||fn===O.eoFill?null:state.stroke,line:state.line});
                 }
                 path=[];
@@ -133,7 +149,10 @@
     }
     function rectangleShape(s,id,g){
         const box={x:g.dx+s.x*g.scale,y:g.dy+s.y*g.scale,w:s.w*g.scale,h:s.h*g.scale};
-        return anchor(id,box,{behind:true,uri:shapeUri,xml:'<wps:wsp><wps:cNvSpPr/><wps:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'+ 
+        const pt=p=>'<a:pt x="'+Math.round((p.x-s.x)/s.w*100000)+'" y="'+Math.round((p.y-s.y)/s.h*100000)+'"/>';
+        const geometry=s.kind==='path'?'<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="100000" h="100000">'+
+            s.path.map(p=>p.kind==='close'?'<a:close/>':p.kind==='curve'?'<a:cubicBezTo>'+p.points.map(pt).join('')+'</a:cubicBezTo>':'<a:'+(p.kind==='move'?'moveTo':'lnTo')+'>'+pt(p)+'</a:'+(p.kind==='move'?'moveTo':'lnTo')+'>').join('')+'</a:path></a:pathLst></a:custGeom>':'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>';
+        return anchor(id,box,{behind:true,uri:shapeUri,xml:'<wps:wsp><wps:cNvSpPr/><wps:spPr>'+geometry+
             (s.fill?'<a:solidFill><a:srgbClr val="'+s.fill+'"/></a:solidFill>':'<a:noFill/>')+
             (s.stroke?'<a:ln w="'+Math.round((s.line||.5)*g.scale*12700)+'"><a:solidFill><a:srgbClr val="'+s.stroke+'"/></a:solidFill></a:ln>':'<a:ln><a:noFill/></a:ln>')+
             '</wps:spPr><wps:bodyPr/></wps:wsp>'});
@@ -161,7 +180,11 @@
         const g=geometry(pages);return pages.map(p=>'<div style="container-type:inline-size;position:relative;aspect-ratio:595.3/841.9;background:white;color:black;overflow:hidden;margin:12px 0;border:1px solid #ccc">'+ 
             p.images.map(im=>'<img alt="Original PDF illustration" src="'+im.dataUrl+'" style="position:absolute;z-index:0;left:'+100*(g.dx+im.x*g.scale)/595.3+'%;top:'+100*(g.dy+im.y*g.scale)/841.9+'%;width:'+100*im.w*g.scale/595.3+'%;height:'+100*im.h*g.scale/841.9+'%">').join('')+
             p.texts.map(t=>'<span style="position:absolute;z-index:2;white-space:pre;left:'+100*(g.dx+t.x*g.scale)/595.3+'%;top:'+100*(g.dy+t.y*g.scale)/841.9+'%;font-family:'+t.family+';font-size:'+t.size*g.scale/595.3*100+'cqw;font-weight:'+(t.bold?'bold':'normal')+'">'+esc(t.text)+'</span>').join('')+
-            p.shapes.map(s=>'<span style="position:absolute;z-index:1;left:'+100*(g.dx+s.x*g.scale)/595.3+'%;top:'+100*(g.dy+s.y*g.scale)/841.9+'%;width:'+100*s.w*g.scale/595.3+'%;height:'+Math.max(.05,100*s.h*g.scale/841.9)+'%;background:'+(s.fill?'#'+s.fill:'transparent')+'"></span>').join('')+'</div>').join('');
+            p.shapes.map(s=>{
+                const local=p=>(p.x-s.x)+','+(p.y-s.y);
+                const drawing=s.kind==='path'?'<path d="'+s.path.map(p=>p.kind==='close'?'Z':p.kind==='curve'?'C'+p.points.map(local).join(' '):(p.kind==='move'?'M':'L')+local(p)).join(' ')+'"/>':'<rect width="'+s.w+'" height="'+s.h+'"/>';
+                return '<svg viewBox="0 0 '+s.w+' '+s.h+'" preserveAspectRatio="none" style="position:absolute;overflow:visible;z-index:1;left:'+100*(g.dx+s.x*g.scale)/595.3+'%;top:'+100*(g.dy+s.y*g.scale)/841.9+'%;width:'+100*s.w*g.scale/595.3+'%;height:'+Math.max(.01,100*s.h*g.scale/841.9)+'%"><g fill="'+(s.fill?'#'+s.fill:'none')+'" stroke="'+(s.stroke?'#'+s.stroke:'none')+'" stroke-width="'+(s.line||.5)+'">'+drawing+'</g></svg>';
+            }).join('')+'</div>').join('');
     }
     return {scene,geometry,documentXml,makeWord,preview,fontStyle,multiply};
 });

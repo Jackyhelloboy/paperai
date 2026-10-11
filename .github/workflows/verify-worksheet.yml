@@ -7,6 +7,9 @@ on:
       - 'frontend/index.html'
       - 'worker/src/index.js'
       - 'tests/worksheet-layout.cjs'
+      - 'tests/question-paper-model.cjs'
+      - 'frontend/vendor/paper-layout.js'
+      - 'worker/src/paper-layout-rules.js'
       - '.github/workflows/verify-worksheet.yml'
   workflow_dispatch:
 

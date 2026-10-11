@@ -31,8 +31,8 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v20',
-        layout_rules_version: 4,
+        architecture: 'production-literal-ocr-v21',
+        layout_rules_version: 5,
       }, { headers: corsHeaders });
     }
 
@@ -40,8 +40,8 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v20',
-        layout_rules_version: 4,
+        architecture: 'production-literal-ocr-v21',
+        layout_rules_version: 5,
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
     }
@@ -992,8 +992,8 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v20',
-        layout_rules_version: 4,
+        architecture: 'production-literal-ocr-v21',
+        layout_rules_version: 5,
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1372,11 +1372,11 @@ Use only text actually visible in the image. If there is no right-side label, le
 17B. ACTUAL ILLUSTRATIONS: always use the FIGURE crop syntax in the reference layout rules above, even when the object name is not written. A blank caption is correct. Never replace actual pixels with an [unreadable] picture placeholder or guess an object name.
 17C. An actual picture with a separate answer box uses FIGURE with the box flag. A written picture request with no illustration and a visible checkbox uses PICTURE_OPTION.
 17D. EMPTY CHECKBOXES/SQUARE ANSWER BOXES: output [[CHECKBOX]] for each clearly visible empty square/rectangular selection box. Do not convert several boxes into one.
-17E. MULTIPLE-CHOICE ROWS: when one question has several horizontal text choices, output ONE line exactly as [[OPTION_ROW: choice one || choice two || choice three]]. Preserve the visible choice order. The frontend will render a checkbox beside every choice.
+17E. MULTIPLE-CHOICE ROWS: preserve all visible choices in their original order. Use CHOICE_ROW when there are no selection boxes. Use OPTION_ROW only when every choice has a visible box. Never add new checkboxes.
 17F. MATCH-THE-FOLLOWING: for a clear left/right pair on the same visual row, output [[MATCH_ROW: left text || right text]]. Do not solve or rearrange the matching exercise. If the columns are not aligned enough to establish a row, keep the two columns as literal text instead of guessing a pair.
 17G. Picture rows, option rows, matching rows, tables, blanks and boxes are CONTENT. Never omit them just because they contain little text.
 17H. ACTUAL PICTURE ROWS: use FIGURE_ROW with a distinct normalized bounding box for EACH illustration. Preserve the exact visible count, left-to-right order, and any printed captions; use the box flag only where a blank answer box is visible. No object labels may be guessed. Keep surrounding questions outside the crop.
-17I. GEOMETRIC SHAPE IDENTIFICATION: if a row contains visually obvious geometric outlines without visible labels, output [[SHAPE_ROW: square || cube || rectangle || circle]] using the observed basic shape type; do not include invented answers.
+17I. GEOMETRIC SHAPE IDENTIFICATION: use the SHAPE_ROW syntax above with explicit none, box or line answer-space flags based only on what is visible. Preserve shaded or labelled diagrams as original FIGURE crops.
 17J. LETTER/VOWEL BOX GRIDS: a simple straight row with N uniformly bordered squares is [[GRID: Nx1]], and a visible R-row C-column grid is [[GRID: CxR]] (for example [[GRID: 5x8]]). Only output these dimensions if the cell borders clearly show the counts. If individual cells contain visible characters, use [[GRID_ROW: अ || _ || आ || _]] for each row, using _ for a visibly empty cell. Do not make up letters in empty cells.
 17K. PRINTED TABLES: when a clearly bordered table has multiple column headers and data rows, output one [[TABLE_ROW: cell one || cell two || cell three]] for EACH visible row, keeping empty cells as empty values. Never use these markers for ordinary body paragraphs.
 17L. LONG EMPTY ANSWER LINES: when one or more horizontal blank answer rules are visible without text, output [[ANSWER_LINES: N]] for N consecutive visible blank rules (maximum 10). A question's spoken answer must NEVER be supplied.
@@ -1406,12 +1406,12 @@ Use only text actually visible in the image. If there is no right-side label, le
 35. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
 
 QUESTION PAPER FORMAT (the page is usually a school exam/question paper; reproduce its structure so it can be reprinted as an A4 paper):
-36. Typical top block, in this order: school/institution name (often bold, centered), address line, exam title ("ANNUAL EXAMINATION", "SUMMATIVE ASSESSMENT - 1", "FORMATIVE ASSESSMENT - 2", "ENTRANCE EXAMINATION"), then a fields line/row such as "Name : _____   Class : ....   Roll No. : ...   Subject : ...   Date : ...   Time : ...", then a marks line such as "Max. Marks : 100" / "Time : 3 Hrs". Keep every field on its own visible line.
+36. Preserve the actual visible school, exam and student fields in source order. No default banner, school name, exam heading or student field may be invented. Do not impose a typical heading order on a differently arranged paper.
 37. Questions are grouped under numbered section headings such as "I.", "II.", "III.", "IV.", "V.", "A.", "B." with heading text like "Answer the following questions.", "Fill in the blanks.", "Choose the correct answer.", "Match the following.", "Answer any ten of the following."
 38. A section heading and its marks equation belong on the SAME line exactly as visible, for example "IV Fill in the blanks.   (10 x 1 = 10)" or "Answer the following questions.   10 x 4 = 40". Never move the marks equation to its own line and never drop it.
 39. Keep question numbering exactly as visible: "1.", "2)", "11.", roman numerals "I", "II", and sub-questions "a)", "b)", "(i)", "ii)". Never merge two questions onto one line.
 40. Answer blanks (______, "(", ")", "[   ]", empty brackets) stay blank on their own line as visible answer space; do not collapse consecutive blank lines into one if the image shows a long answer gap.
-41. Preserve option letters (A), B), C), D)) with their choices. When several choices of one question sit in one horizontal row, output them as ONE [[OPTION_ROW: ...]] line (rule 17E) or, if no markers are used, keep them on one line separated by wide visible spaces.
+41. Preserve option letters (A), B), C), D)) with their choices. When several choices of one question sit in one horizontal row, output them as ONE CHOICE_ROW line, or OPTION_ROW only when visible boxes exist (rules 17E and 17M) or, if no markers are used, keep them on one line separated by wide visible spaces.
 42. Keep a blank line between sections, questions with long answer space, and the end of the paper, so the blocks stay separated when the text is reprinted.
 43. Never drop trailing section headings, marks equations, page-foot lines (e.g. "Page 1 of 2"), or the last questions at the bottom of the page.
 

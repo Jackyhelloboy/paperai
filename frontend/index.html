@@ -1843,14 +1843,41 @@
                 <button class="action-btn" id="downloadPdfWordBtn" style="display:none" onclick="downloadPdfWord(this)" title="Preserves original PDF pages as images, including pictures, tables and alignment. Text is not individually editable.">Word matching PDF</button>
                 <button class="action-btn" onclick="openTeachPanel()">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
-                    Teach
+                    Correct text
                 </button>
             </div>
 
             <p id="pdfWordNote" style="display:none;font-size:0.82rem;color:var(--text2)">Word matching PDF preserves the original pages as images. Use Editable Word to edit extracted text and Teach corrections.</p>
+            <button class="action-btn" onclick="openPaperLayout()" style="margin-bottom:.75rem">Paper layout</button>
+            <div class="teach-panel" id="paperLayoutPanel">
+              <div class="teach-title">A4 question paper</div>
+              <p class="teach-sub">Narrow margins, editable text, tables and shapes. Review pictures and blanks before exporting.</p>
+              <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+                <label>Page flow <select id="paperFlow" class="teach-lang-select" onchange="refreshPaperLayout()"><option value="compact">Compact A4</option><option value="source">Keep source pages</option></select></label>
+                <label>Text size <select id="paperFont" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="11">11 pt</option><option value="12" selected>12 pt</option><option value="13">13 pt</option></select></label>
+                <label><input type="checkbox" id="paperPageNumbers" onchange="refreshPaperLayout(true)"> Page numbers</label>
+              </div>
+              <div id="paperBlocks"></div>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0">
+                <label>Rows <input id="paperInsertRows" type="number" min="1" max="32" value="3" style="width:60px"></label>
+                <label>Columns <input id="paperInsertCols" type="number" min="1" max="32" value="3" style="width:60px"></label>
+                <label>Shape <select id="paperInsertShape"><option>square</option><option>rectangle</option><option>circle</option><option>triangle</option><option>cube</option></select></label>
+                <label>Answer space <select id="paperInsertAnswer"><option value="none">None</option><option value="box">Box</option><option value="line">Line</option></select></label>
+                <label>Question <input id="paperInsertQuestion" placeholder="Question text"></label>
+                <label>Marks <input id="paperInsertMarks" placeholder="e.g. 2M" style="width:100px"></label>
+                <label>Insert after <select id="paperInsertAfter" class="teach-lang-select"></select></label>
+                <button class="action-btn" onclick="insertPaperBlock('table')">Add table</button>
+                <button class="action-btn" onclick="insertPaperBlock('grid')">Add grid</button>
+                <button class="action-btn" onclick="insertPaperBlock('shape')">Add shapes</button>
+                <button class="action-btn" onclick="insertPaperBlock('marks')">Add question with marks</button>
+                <button class="action-btn" onclick="insertPaperBlock('break')">New paper</button>
+              </div>
+              <div id="paperPictures"></div>
+              <button class="action-btn" onclick="document.getElementById('paperLayoutPanel').classList.remove('show')">Done</button>
+            </div>
             <div class="teach-panel" id="teachPanel">
-                <div class="teach-title">Correct OCR to teach this browser</div>
-                <div class="teach-sub">Pronunciation-based script typing: keep the same spoken English words and write how they sound in the target script. Example: <strong>jawad</strong> → <strong>जवाद</strong> and <strong>i love you</strong> → <strong>आई लव यू</strong>. Difficult spellings can receive AI phonetic suggestions.</div>
+                <div class="teach-title">Correct your question paper</div>
+                <div class="teach-sub">Edit the questions before exporting. Suggestions apply only when you select them. Save &amp; apply keeps your chosen wording.</div>
                 <div class="teach-language-bar">
                     <label class="teach-lang-field">
                         <span class="teach-lang-label">From</span>
@@ -1900,7 +1927,7 @@
                     <button class="teach-tool teach-ai-btn" id="teachAiBtn" type="button" onclick="requestAdvancedAiSuggestions()">✦ AI Suggestions</button>
                 </div>
                 <div class="teach-ai-row">
-                    <span class="teach-ai-status" id="teachAiStatus">Select any word or sentence — suggestions appear automatically.</span>
+                    <span class="teach-ai-status" id="teachAiStatus">Select any word or sentence — select a suggestion to apply it.</span>
                 </div>
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
@@ -2513,13 +2540,18 @@ function docxStructuredXml(xmlText, media = {}, numbering = {}) {
         const cols = Math.max(...rows.map(row=>row.length));
         const empty = rows.every(row=>row.every(cell=>!cell));
         const isLetterGrid = cols >= 4 && rows.every(row =>
-            row.every(cell => !cell || Array.from(cell).length <= 2));
-        if (empty && cols <= 24 && rows.length <= 24) {
+            row.every(cell => !cell || Array.from(new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(cell)).length <= 2));
+        if (empty && cols <= 52 && rows.length <= 32 && cols*rows.length<=600) {
             results.push('[[GRID: ' + cols + 'x' + rows.length + ']]');
-        } else if (isLetterGrid && cols <= 24) {
+        } else if (isLetterGrid && cols <= 52 && cols*rows.length<=600) {
             rows.forEach(row => results.push('[[GRID_ROW: ' +
                 Array.from({length:cols},(_,index)=>row[index] || '_').join(' || ') + ']]'));
         } else {
+            const grid=children(child).find(x=>tag(x)==='tblGrid');
+            const widths=grid?children(grid).filter(x=>tag(x)==='gridCol').map(x=>Number(x.getAttributeNS(ns,'w'))):[];
+            if(widths.length===cols&&widths.every(x=>x>0))results.push('[[TABLE_WIDTHS: '+widths.join(',')+']]');
+            const firstRow=children(child).find(x=>tag(x)==='tr');
+            if(firstRow?.getElementsByTagNameNS(ns,'tblHeader').length)results.push('[[TABLE_HEADER: 1]]');
             rows.forEach(row => results.push('[[TABLE_ROW: ' +
                 Array.from({length:cols},(_,index)=>row[index] || '').join(' || ') + ']]'));
         }
@@ -4253,21 +4285,6 @@ function showSmartSuggestions() {
     renderSuggestionChips(localChoices, [], localChoices.length === 0);
 
     const sequence = ++aiSuggestionSequence;
-    const highConfidenceChoice =
-        learnedChoices[0] ||
-        (isPhrase
-            ? getCanonicalPhraseOverride(sourceText, targetScript)
-            : getCanonicalPhoneticOverride(sourceText, targetScript));
-
-    // Auto-apply only user-learned or canonical forms. Generic local guesses
-    // stay visible as selectable candidates and can still be improved by AI.
-    if (isRomanSource && targetScript !== 'latin' && highConfidenceChoice) {
-        aiSuggestionTimer = setTimeout(() => {
-            autoApplySmartSuggestion(sourceText, highConfidenceChoice, sequence);
-        }, 450);
-        return;
-    }
-
     // For unknown English phrases, AI is preferred because English spelling
     // does not map reliably to pronunciation (love -> लव, you -> यू, I -> आई).
     // The AI returns phonetic script, never a semantic translation.
@@ -4284,9 +4301,7 @@ function showSmartSuggestions() {
         if (sequence !== aiSuggestionSequence || !smartComposition) return;
         renderSuggestionChips(localChoices, aiChoices, false);
 
-        if (isRomanSource && targetScript !== 'latin' && isPhrase && aiChoices[0]) {
-            autoApplySmartSuggestion(sourceText, aiChoices[0], sequence);
-        }
+
     }, isPhrase ? 650 : 900);
 }
 
@@ -4425,7 +4440,7 @@ function openTeachPanel() {
     showSmartSuggestions();
     updateTeachButtons();
     renderTeachPreview();
-    if (teachAiStatus) teachAiStatus.textContent = 'Select any word or sentence — suggestions appear automatically.';
+    if (teachAiStatus) teachAiStatus.textContent = 'Select any word or sentence — select a suggestion to apply it.';
     if (teachAiBtn) teachAiBtn.disabled = false;
     teachEditor.focus();
 }
@@ -4837,8 +4852,8 @@ function portableText(value) {
 
     out = out
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,8).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
-        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|FOOTER):[\s\S]*?\]\]/gi,'')
-        .replace(/\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
+        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|FOOTER):[\s\S]*?\]\]/gi,'')
+        .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
             (_,title,marks)=>title.trim()+'    '+marks.trim())
         .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,8).map(label=>'[' + label + ' picture] ______').join('    '))
@@ -4849,12 +4864,12 @@ function portableText(value) {
         .replace(/\[\[GRID_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,52).map(x=>x==='_'?'□':x).join(' | '))
         .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
-            worksheetCells(body,8).join(' | '))
+            worksheetCells(body,32).join(' | '))
         .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,12).join('    '))
         .replace(/\[\[ANSWER_LINES:\s*(\d{1,2})\]\]/gi, (_,n) =>
             Array.from({length:Math.min(10,+n)},()=> '____________________________').join('\n'))
-        .replace(/\[\[PAGE_BREAK\]\]/gi, '\n\n')
+        .replace(/\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\]/gi, '\n\n')
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' [ ]').join('   '))
         .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
@@ -5142,16 +5157,16 @@ function worksheetShapeSvg(value) {
     if (/cube/.test(name)) return '<path d="M23 30h46v46H23z M23 30l17-17h46v46L69 76 M69 30l17-17 M86 59L69 76" ' + common + '/>';
     return '<rect x="22" y="18" width="66" height="55" stroke="currentColor" stroke-dasharray="5 4" fill="none"/>';
 }
-function worksheetRenderTable(rows) {
-    const columns = Math.min(8, Math.max(1, ...rows.map(row => worksheetCells(row, 8).length)));
+function worksheetRenderTable(rows, widths=null, header=false) {
+    const columns = Math.min(32, Math.max(1, ...rows.map(row => worksheetCells(row, 32).length)));
     const content = rows.map((row, index) => {
         const cells = worksheetCells(row, columns);
         return '<tr>' + Array.from({length: columns}, (_, col) =>
-            '<' + (index === 0 ? 'th' : 'td') + '>' + String(cells[col]||'').split(/<br>/i).map(formatOutputLine).join('<br>') +
-            '</' + (index === 0 ? 'th' : 'td') + '>'
+            '<' + (header && index === 0 ? 'th' : 'td') + '>' + String(cells[col]||'').split(/<br>/i).map(formatOutputLine).join('<br>') +
+            '</' + (header && index === 0 ? 'th' : 'td') + '>'
         ).join('') + '</tr>';
     }).join('');
-    return '<div class="ocr-layout-scroll"><table class="ocr-worksheet-table"><tbody>' + content + '</tbody></table></div>';
+    return '<div class="ocr-layout-scroll"><table class="ocr-worksheet-table">'+(widths?.length===columns?'<colgroup>'+widths.map(w=>'<col style="width:'+w/widths.reduce((a,b)=>a+b,0)*100+'%">').join('')+'</colgroup>':'')+'<tbody>' + content + '</tbody></table></div>';
 }
 function formatStructuredWorksheetLine(line) {
     const source = String(line || '').trim();
@@ -5163,10 +5178,14 @@ function formatStructuredWorksheetLine(line) {
     const banner=source.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
     if(banner) return sourceFigureHtml(banner[1]);
     if(/^\[\[(?:FOOTER|TABLE_WIDTHS):/i.test(source)) return '<span></span>';
-    const section = source.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
-    if (section) return '<div class="ocr-section-row"><span>' +
+    const section = source.match(/^\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+    if (section) return '<div class="ocr-section-row"'+(/^\[\[QUESTION_ROW:/i.test(source)?' style="font-weight:normal"':'')+'><span>' +
         formatOutputLine(section[1].trim()) + '</span><span class="ocr-section-marks">' +
         formatOutputLine(section[2].trim()) + '</span></div>';
+    const arithmetic=source.match(/^\[\[ARITHMETIC_ROW:\s*([\s\S]*?)\]\]$/i);
+    if(arithmetic)return '<div style="display:grid;grid-template-columns:repeat('+worksheetCells(arithmetic[1],12).length+',1fr);gap:1em">'+worksheetCells(arithmetic[1],12).map(cell=>'<div style="font-family:monospace;white-space:pre;text-align:right">'+cell.split(/<br>/i).map(x=>/^[_─-]{3,}$/.test(x.trim())?'<div style="border-bottom:1px solid"></div>':esc(x)).join('<br>')+'</div>').join('')+'</div>';
+    const questionMarks=source.match(/^\[\[QUESTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+    if(questionMarks)return '<div class="ocr-section-row" style="font-weight:normal"><span>'+formatOutputLine(questionMarks[1])+'</span><span class="ocr-section-marks">'+formatOutputLine(questionMarks[2])+'</span></div>';
     let found = source.match(/^\[\[(OPTION_ROW|CHOICE_ROW):\s*([\s\S]*?)\]\]$/i);
     if (found) {
         const hasCheckboxes = found[1].toUpperCase() === 'OPTION_ROW';
@@ -5177,11 +5196,11 @@ function formatStructuredWorksheetLine(line) {
             '</span>'
         ).join('') + '</div>';
     }
-    found = source.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+    found = source.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\]\]$/i);
     if (found) {
-        return '<div class="ocr-match-row"><div class="ocr-match-cell">' +
-            formatOutputLine(found[1].trim()) + '</div><div class="ocr-match-cell">' +
-            formatOutputLine(found[2].trim()) + '</div></div>';
+        const cells=worksheetCells(found[1],32), widths=PaperAILayout.tableWidths([cells]);
+        return '<div class="ocr-match-row" style="grid-template-columns:'+widths.map(w=>w+'fr').join(' ')+'">'+
+            cells.map(cell=>'<div class="ocr-match-cell">'+String(cell).split(/<br>/i).map(formatOutputLine).join('<br>')+'</div>').join('')+'</div>';
     }
     found = source.match(/^\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]$/i);
     if (found) {
@@ -5194,7 +5213,7 @@ function formatStructuredWorksheetLine(line) {
         const cells = worksheetCells(found[1], 8).filter(Boolean);
         return '<div class="ocr-figure-row" style="--figure-cols:' + cells.length + '">' +
             cells.map(cell => '<div class="ocr-figure-cell"><svg class="ocr-shape-icon" viewBox="0 0 110 90" aria-label="' +
-                esc(cell) + '">' + worksheetShapeSvg(cell) + '</svg><span class="ocr-figure-answer"></span></div>'
+                esc(PaperAILayout.shape(cell).name) + '">' + worksheetShapeSvg(PaperAILayout.shape(cell).name) + '</svg>'+ (PaperAILayout.shape(cell).answer?'<span class="ocr-figure-answer"></span>':PaperAILayout.shape(cell).line?'<div class="ocr-answer-rule"></div>':'')+'</div>'
             ).join('') + '</div>';
     }
     found = source.match(/^\[\[GRID:\s*([\s\S]*?)\]\]$/i);
@@ -5217,18 +5236,19 @@ function formatStructuredWorksheetLine(line) {
         return '<div class="ocr-answer-lines">' +
             '<div class="ocr-answer-rule"></div>'.repeat(Math.max(1, Math.min(10, Number(found[1])))) + '</div>';
     }
-    if (/^\[\[PAGE_BREAK\]\]$/i.test(source)) return '<div class="ocr-page-break"></div>';
+    if (/^\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\]$/i.test(source)) return '<div class="ocr-page-break"></div>';
     return null;
 }
 
 function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
-    if(lastResult?.native_pdf_preview&&text===lastResult.native_pdf_text)return lastResult.native_pdf_preview;
+    if(lastResult?.native_pdf_preview&&text===lastResult.native_pdf_text&&paperLayoutOptions().keepSourcePages)return lastResult.native_pdf_preview;
 
-    const lines = repairLegacyBranchDiagram(String(text)).split('\n');
+    const lines = PaperAILayout.compactPages(repairLegacyBranchDiagram(String(text)),paperLayoutOptions().keepSourcePages).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     let html = '';
     let i = 0;
+    let pendingTableWidths=null, pendingTableHeader=false;
 
     while (i < lines.length) {
         const branch = parseBranchBlock(lines, i);
@@ -5239,6 +5259,10 @@ function formatOutput(text) {
         }
 
         const line = lines[i];
+        const widthMarker=String(line).match(/^\[\[TABLE_WIDTHS:\s*([\d., ]+)\]\]$/i);
+        if(widthMarker){const widths=widthMarker[1].split(',').map(Number);pendingTableWidths=widths.every(x=>Number.isFinite(x)&&x>0)?widths:null;i++;continue;}
+        const headerMarker=String(line).match(/^\[\[TABLE_HEADER:\s*([01])\]\]$/i);
+        if(headerMarker){pendingTableHeader=headerMarker[1]==='1';i++;continue;}
         const questionAnswer=PaperAILayout.questionAnswer(line);
         if(questionAnswer){
             html+='<div style="display:grid;grid-template-columns:minmax(0,1fr) 5em;gap:1em;align-items:start">'+
@@ -5255,7 +5279,8 @@ function formatOutput(text) {
             tableIndex++;
         }
         if (tableRows.length) {
-            html += worksheetRenderTable(tableRows);
+            html += worksheetRenderTable(tableRows,pendingTableWidths,pendingTableHeader);
+            pendingTableWidths=null; pendingTableHeader=false;
             i = tableIndex;
             continue;
         }
@@ -5396,7 +5421,7 @@ goBtn.onclick = async () => {
             }, batch.length > 1 ? 'File ' + (idx+1) + '/' + batch.length + ': ' : '');
             if(batch.length===1)nativePdfPages=part.nativePdfPages;
             if (!String(part.plain || part.text || '').trim()) continue;
-            allText += allText ? '\n[[PAGE_BREAK]]\n' + part.text : part.text;
+            allText += allText ? '\n[[PAPER_BREAK]]\n' + part.text : part.text;
             allPlain += allPlain ? '\n\n' + part.plain : part.plain;
             allRaw += allRaw ? '\n\n' + part.raw : part.raw;
         }
@@ -5407,6 +5432,8 @@ goBtn.onclick = async () => {
         allText = repairLegacyBranchDiagram(allText);
         allPlain = repairLegacyBranchDiagram(allPlain);
 
+        $('paperFlow').value=nativePdfPages ? 'source' : 'compact';
+        $('paperLayoutPanel').classList.remove('show');
         const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
@@ -5465,8 +5492,8 @@ function docxVisibleText(value) {
 
     out = out
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,8).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
-        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|FOOTER):[\s\S]*?\]\]/gi,'')
-        .replace(/\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
+        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|FOOTER):[\s\S]*?\]\]/gi,'')
+        .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
             (_,title,marks)=>title.trim()+'    '+marks.trim())
         .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,8).map(x=>'['+x+' picture]  ☐').join('    '))
@@ -5477,12 +5504,12 @@ function docxVisibleText(value) {
         .replace(/\[\[GRID_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,52).map(x=>x==='_'?'□':x).join(' | '))
         .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
-            worksheetCells(body,8).join(' | '))
+            worksheetCells(body,32).join(' | '))
         .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,12).join('    '))
         .replace(/\[\[ANSWER_LINES:\s*(\d{1,2})\]\]/gi, (_,n) =>
             Array.from({length:Math.min(10,+n)},()=> '____________________________').join('\n'))
-        .replace(/\[\[PAGE_BREAK\]\]/gi, '\n\n')
+        .replace(/\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\]/gi, '\n\n')
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' ☐').join('    '))
         .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
@@ -5507,12 +5534,114 @@ function docxVisibleText(value) {
     });
 }
 
+function paperLayoutOptions() {
+    const element=id=>typeof document==='undefined'?null:document.getElementById(id);
+    const compact=element('paperFlow')?.value==='compact';
+    return {compact,keepSourcePages:!compact,fontSize:Number(element('paperFont')?.value||12),pageNumbers:!!element('paperPageNumbers')?.checked};
+}
+function paperEdited(text) {
+    if(!lastResult)return;
+    lastResult.text=text;
+    lastResult.plain_text=portableText(text);
+    delete lastResult.preview_layout_text;
+    lastResult.native_pdf_pages=null;lastResult.native_pdf_preview=null;
+    $('textOut').innerHTML=formatOutput(text);
+}
+function refreshPaperLayout(changeGeometry=false) {
+    if(!lastResult)return;
+    if(changeGeometry){lastResult.native_pdf_pages=null;lastResult.native_pdf_preview=null;}
+    $('textOut').style.fontSize=paperLayoutOptions().fontSize+'pt';
+    $('textOut').style.lineHeight=paperLayoutOptions().compact?'1.2':'1.4';
+    $('textOut').innerHTML=formatOutput(lastResult.text);
+}
+function updatePaperCell(lineIndex,cellIndex,value) {
+    const lines=lastResult.text.split('\n'), marker=lines[lineIndex].match(/^\[\[([A-Z_]+):\s*([\s\S]*?)\]\]$/);
+    if(!marker)return;
+    const cells=worksheetCells(marker[2],52);
+    cells[cellIndex]=String(value).replace(/\r?\n/g,'<br>').replace(/\|\|/g,'|').replace(/\]\]/g,']');
+    lines[lineIndex]='[['+marker[1]+': '+cells.join(' || ')+']]';
+    paperEdited(lines.join('\n'));
+}
+function updatePaperGrid(lineIndex,value) {
+    if(!worksheetGridSize(value)){showErr('Use columns × rows, up to 52 columns, 32 rows and 600 cells.');return;}
+    const lines=lastResult.text.split('\n');lines[lineIndex]='[[GRID: '+value+']]';paperEdited(lines.join('\n'));
+}
+function openPaperLayout() {
+    if(!lastResult)return;
+    const lines=lastResult.text.split('\n');
+    $('paperLayoutPanel').classList.add('show');
+    $('paperBlocks').innerHTML=lines.map((line,index)=>{
+        const m=line.match(/^\[\[(TABLE_ROW|MATCH_ROW|GRID_ROW|SECTION_ROW|QUESTION_ROW|CHOICE_ROW|OPTION_ROW|ARITHMETIC_ROW):\s*([\s\S]*?)\]\]$/i);
+        if(m){const labels={TABLE_ROW:'Table row',MATCH_ROW:'Matching row',GRID_ROW:'Grid row',SECTION_ROW:'Section and marks',QUESTION_ROW:'Question and marks',CHOICE_ROW:'Choices',OPTION_ROW:'Choices with boxes',ARITHMETIC_ROW:'Vertical arithmetic'};
+            return '<fieldset style="margin:.5rem 0;border:1px solid var(--border);border-radius:6px"><legend>'+labels[m[1]]+'</legend><div style="display:flex;gap:.4rem;flex-wrap:wrap">'+worksheetCells(m[2],52).map((cell,c)=>'<textarea aria-label="'+labels[m[1]]+' cell '+(c+1)+'" style="flex:1;min-width:65px;max-width:100%;padding:.4rem" rows="2" onchange="updatePaperCell('+index+','+c+',this.value)">'+esc(cell.replace(/<br>/gi,'\n'))+'</textarea>').join('')+'</div></fieldset>';}
+        const grid=line.match(/^\[\[GRID:\s*(.*?)\]\]$/i);
+        return grid?'<label style="display:block;margin:.5rem 0">Grid columns × rows <input aria-label="Grid dimensions" value="'+esc(grid[1])+'" onchange="updatePaperGrid('+index+',this.value)"></label>':'';
+    }).join('')||'<p class="teach-sub">Use Correct text to edit the questions. Insert a table, grid, shape or marks below.</p>';
+    $('paperInsertAfter').innerHTML=lines.map((line,i)=>'<option value="'+i+'" '+(i===lines.length-1?'selected':'')+'>'+esc((i+1)+'. '+portableText(line).slice(0,70))+'</option>').join('');
+    $('paperPictures').innerHTML=extractedMedia.map((asset,i)=>asset.role==='banner'?'':
+        '<fieldset style="margin:1rem 0;border:1px solid var(--border);padding:.7rem"><legend>Picture '+(i+1)+'</legend><img src="'+esc(asset.dataUrl)+'" style="max-width:180px;max-height:180px;object-fit:contain" alt="Original picture"><div style="display:flex;gap:.7rem;flex-wrap:wrap">'+
+        '<label>Width in cm <input type="number" min=".5" max="18.46" step=".1" value="'+((asset.widthTwips||2260)/567).toFixed(1)+'" onchange="setPaperPicture('+i+',\'width\',this.value)"></label>'+
+        '<label>Alignment <select onchange="setPaperPicture('+i+',\'align\',this.value)">'+['left','center','right'].map(a=>'<option '+((asset.align||'center')===a?'selected':'')+'>'+a+'</option>').join('')+'</select></label>'+
+        '<label>Replace picture <input type="file" accept="image/png,image/jpeg,image/webp" onchange="replacePaperPicture('+i+',this.files[0])"></label></div>'+
+        (asset.sourceDataUrl?'<div style="margin-top:.7rem">Crop on source page (0–1000): '+['x','y','w','h'].map(key=>'<label>'+({x:'Left',y:'Top',w:'Width',h:'Height'}[key])+' <input style="width:65px" type="number" id="crop-'+i+'-'+key+'" min="0" max="1000" value="'+asset.region[key]+'"></label>').join(' ')+' <button class="action-btn" onclick="cropPaperPicture('+i+')">Apply crop</button></div>':'')+'</fieldset>').join('');
+    const missing=[...lastResult.text.matchAll(/\[\[(PICTURE(?:_OPTION|_ROW)?):\s*([\s\S]*?)\]\]/gi)];
+    $('paperPictures').innerHTML+=missing.map((m,i)=>'<label style="display:block;margin:.6rem 0">Add requested picture: '+esc(m[2])+' <input type="file" accept="image/png,image/jpeg,image/webp" onchange="fillPaperPicture('+i+',this.files[0])"></label>').join('');
+}
+function insertPaperBlock(kind) {
+    const rows=Math.max(1,Math.min(32,Number($('paperInsertRows').value)||3));
+    const cols=Math.max(1,Math.min(32,Number($('paperInsertCols').value)||3));
+    let block=kind==='table'?Array.from({length:rows},()=> '[[TABLE_ROW: '+Array(cols).fill(' ').join(' || ')+']]').join('\n'):
+        kind==='grid'&&rows*cols<=600?'[[GRID: '+cols+'x'+rows+']]':
+        kind==='shape'?'[[SHAPE_ROW: '+$('paperInsertShape').value+'|'+$('paperInsertAnswer').value+']]':
+        kind==='marks'?'[[QUESTION_ROW: '+$('paperInsertQuestion').value.replace(/\]\]|\|\|/g,'')+' || '+$('paperInsertMarks').value.replace(/\]\]|\|\|/g,'')+']]':
+        kind==='break'?'[[PAPER_BREAK]]':'';
+    if(!block){showErr('Reduce the grid to 600 cells.');return;}
+    const lines=lastResult.text.split('\n');lines.splice(Number($('paperInsertAfter').value)+1,0,block);
+    paperEdited(lines.join('\n'));openPaperLayout();
+}
+function setPaperPicture(index,kind,value) {
+    const asset=extractedMedia[index];if(!asset)return;
+    if(kind==='width')asset.widthTwips=Math.round(Math.max(.5,Math.min(18.46,Number(value)||4))*567);
+    else asset.align=['left','center','right'].includes(value)?value:'center';
+    paperEdited(lastResult.text);
+}
+async function replacePaperPicture(index,file) {
+    if(!file)return;
+    try {const dataUrl=await blobToDataURL(file),dim=await imageDataUrlSize(dataUrl);
+        Object.assign(extractedMedia[index],{dataUrl,w:dim.w,h:dim.h,sourceDataUrl:null});
+        paperEdited(lastResult.text);openPaperLayout();
+    } catch(error){showErr(error.message);}
+}
+async function cropPaperPicture(index) {
+    const asset=extractedMedia[index],values=['x','y','w','h'].map(key=>Number($('crop-'+index+'-'+key).value));
+    const region=PaperAILayout.figure(values.join(','));
+    if(!region){showErr('The crop must fit inside the source page.');return;}
+    try {const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('Could not load the source picture.'));img.src=asset.sourceDataUrl;});
+        const rect=PaperAILayout.pixels(region,img.naturalWidth,img.naturalHeight),canvas=document.createElement('canvas');canvas.width=rect.w;canvas.height=rect.h;
+        canvas.getContext('2d').drawImage(img,rect.x,rect.y,rect.w,rect.h,0,0,rect.w,rect.h);
+        Object.assign(asset,{dataUrl:canvas.toDataURL('image/png'),w:rect.w,h:rect.h,region});
+        paperEdited(lastResult.text);openPaperLayout();
+    } catch(error){showErr(error.message);}
+}
+async function fillPaperPicture(index,file) {
+    if(!file)return;
+    const matches=[...lastResult.text.matchAll(/\[\[(PICTURE(?:_OPTION|_ROW)?):\s*([\s\S]*?)\]\]/gi)],m=matches[index];if(!m)return;
+    try {const dataUrl=await blobToDataURL(file),dim=await imageDataUrlSize(dataUrl),id='teacher-picture-'+(extractedMedia.length+1);
+        extractedMedia.push({id,dataUrl,w:dim.w,h:dim.h,widthTwips:2260});
+        let replacement='[[SOURCE_FIGURE: '+id+'| |'+(m[1]==='PICTURE_OPTION'?'box':'none')+']]';
+        if(m[1]==='PICTURE_ROW'){
+            const cells=worksheetCells(m[2],8),first=cells.shift();
+            replacement='[[SOURCE_FIGURE: '+id+'|'+(first.match(/^\d+[.)]/)?.[0]||' ')+'|none]]'+(cells.length?'\n[[PICTURE_ROW: '+cells.join(' || ')+']]':'');
+        }
+        paperEdited(lastResult.text.slice(0,m.index)+replacement+lastResult.text.slice(m.index+m[0].length));openPaperLayout();
+    } catch(error){showErr(error.message);}
+}
 function docxRun(text, options = {}) {
     const bold = options.bold ? '<w:b/><w:bCs/>' : '';
-    const size = Number(options.size || PaperAILayout.profile.bodySize);
+    const size = Math.round(Number(options.size || PaperAILayout.profile.bodySize)*paperLayoutOptions().fontSize/12);
     const preserve = /^\s|\s$|\s{2,}/.test(String(text || '')) ? ' xml:space="preserve"' : '';
     return '<w:r><w:rPr>' +
-        '<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
+        '<w:rFonts w:ascii="'+(options.monospace?'Courier New':'Arial')+'" w:hAnsi="'+(options.monospace?'Courier New':'Arial')+'" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
         bold +
         '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>' +
         '<w:lang w:val="en-US" w:eastAsia="hi-IN"/>' +
@@ -5521,7 +5650,7 @@ function docxRun(text, options = {}) {
 
 function docxParagraph(text, options = {}) {
     const bold = !!options.bold;
-    const size = Number(options.size || PaperAILayout.profile.bodySize);
+    const size = Math.round(Number(options.size || PaperAILayout.profile.bodySize)*paperLayoutOptions().fontSize/12);
     const before = Number(options.before || 0);
     const after = Number(options.after ?? 40);
     const left = Number(options.left || 0);
@@ -5533,9 +5662,9 @@ function docxParagraph(text, options = {}) {
         : '';
 
     return '<w:p><w:pPr>' + keep + jc + indent + tabs +
-        '<w:spacing w:before="' + before + '" w:after="' + after + '" w:line="270" w:lineRule="auto"/>' +
+        '<w:spacing w:before="' + before + '" w:after="' + after + '" w:line="'+(paperLayoutOptions().compact?240:270)+'" w:lineRule="auto"/>' +
         '</w:pPr>' +
-        docxRun(text, { bold, size }) +
+        docxRun(text, { bold, size:options.size || PaperAILayout.profile.bodySize, monospace:options.monospace }) +
         (options.answerLeader ? '<w:r><w:tab/></w:r>' : '') +
         '</w:p>';
 }
@@ -5593,12 +5722,12 @@ function docxTableCells(rows, widths, options = {}) {
     const bordered=options.bordered!==false, total=widths.reduce((a,b)=>a+b,0);
     const borders='<w:tblBorders>'+['top','bottom','left','right','insideH','insideV'].map(side=>
         '<w:'+side+' w:val="'+(bordered?'single':'nil')+'"'+(bordered?' w:sz="6" w:color="333333"':'')+'/>').join('')+'</w:tblBorders>';
-    const pad=options.grid ? 25 : 90;
+    const pad=options.grid ? 25 : paperLayoutOptions().compact ? 50 : 90;
     const tableRows=rows.map((row,rowIndex)=>{
         const cells=widths.map((width,index)=>{
             const content=row[index]??'';
             const inner=typeof content==='string' ? String(content).split(/<br>/i).map(value=>docxRichParagraph(value,{
-                size:options.fontSize||24, after:0, center:options.center,
+                size:options.fontSize||24, after:0, center:options.center, right:options.right,
                 bold:options.repeatHeader&&rowIndex===0,
                 keepNext:options.keepNext
             })).join('') : String(content.xml||docxParagraph('',{after:0}));
@@ -5613,10 +5742,11 @@ function docxTableCells(rows, widths, options = {}) {
         '</w:tblGrid>'+tableRows+'</w:tbl><w:p><w:pPr>'+(options.keepNext?'<w:keepNext/>':'')+
         '<w:spacing w:before="0" w:after="40" w:line="20" w:lineRule="exact"/></w:pPr></w:p>';
 }
-function docxSectionRow(title,marks) {
-    return '<w:p><w:pPr><w:keepNext/><w:keepLines/><w:tabs><w:tab w:val="right" w:pos="10466"/></w:tabs>'+
-        '<w:spacing w:before="140" w:after="100" w:line="270" w:lineRule="auto"/></w:pPr>'+
-        docxRun(title,{bold:true,size:26})+'<w:r><w:tab/></w:r>'+docxRun(marks,{bold:true,size:26})+'</w:p>';
+function docxSectionRow(title,marks,bold=true) {
+    const markWidth=Math.min(2500,Math.max(1300,String(marks).length*100));
+    return docxTableCells([[{xml:docxRichParagraph(title,{bold,size:bold?26:24,after:0,keepNext:true})},
+        {xml:docxParagraph(marks,{bold,size:bold?26:24,right:true,after:0,keepNext:true})}]],
+        [10466-markWidth,markWidth],{bordered:false,keepNext:true});
 }
 function docxEqualWidths(count, total = 10466) {
     const cell = Math.floor(total / count);
@@ -5682,7 +5812,7 @@ function docxShapeParagraph(shape) {
         '<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
 }
 function docxShapeRow(shapes) {
-    return docxTableCells([shapes.map(shape=>({xml:docxShapeParagraph(shape) + docxAnswerBoxParagraph()}))],
+    return docxTableCells([shapes.map(value=>{const shape=PaperAILayout.shape(value);return {xml:docxShapeParagraph(shape.name)+(shape.answer?docxAnswerBoxParagraph():shape.line?docxAnswerRule():'')};})],
         docxEqualWidths(shapes.length),{bordered:false});
 }
 function docxGrid(columns, rows, cells = []) {
@@ -5704,16 +5834,16 @@ function docxRichParagraph(raw, options = {}) {
             (picture[1].toUpperCase() === 'PICTURE_OPTION' ? '  ☐' : ''),{size:18});
     }).join('');
     return '<w:p><w:pPr><w:keepLines/>'+(options.keepNext?'<w:keepNext/>':'')+
-        (options.center?'<w:jc w:val="center"/>':'')+'<w:spacing w:after="'+(options.after??70)+'" w:line="270" w:lineRule="auto"/></w:pPr>'+runs+'</w:p>';
+        (options.center?'<w:jc w:val="center"/>':options.right?'<w:jc w:val="right"/>':'')+'<w:spacing w:after="'+(options.after??70)+'" w:line="'+(paperLayoutOptions().compact?240:270)+'" w:lineRule="auto"/></w:pPr>'+runs+'</w:p>';
 }
 function buildDocxBody(structuredText) {
     docxPictureCounter = 0;
     docxMediaUsed = new Map();
-    const lines = repairLegacyBranchDiagram(String(structuredText || '')).split('\n');
+    const lines = PaperAILayout.compactPages(repairLegacyBranchDiagram(String(structuredText || '')),paperLayoutOptions().keepSourcePages).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     const body = [];
     let i = 0;
-    let pendingWidths=null;
+    let pendingWidths=null, pendingHeader=false;
 
     while (i < lines.length) {
         const branch = parseDocxBranchBlock(lines, i);
@@ -5729,15 +5859,19 @@ function buildDocxBody(structuredText) {
         const sourceBanner=line.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
         if(sourceBanner){body.push('<w:p><w:pPr><w:jc w:val="center"/><w:keepNext/><w:spacing w:after="100"/></w:pPr>'+docxSourceRun(sourceBanner[1].trim(),DOCX_CONTENT_W,2200)+'</w:p>');i++;continue;}
         if(/^\[\[FOOTER:/i.test(line)){i++;continue;}
-        const section = line.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+        const section = line.match(/^\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
         if (section) {
-            body.push(docxSectionRow(section[1].trim(),section[2].trim()));
+            body.push(docxSectionRow(section[1].trim(),section[2].trim(),!/^\[\[QUESTION_ROW:/i.test(line)));
             i++; continue;
         }
+        const arithmetic=line.match(/^\[\[ARITHMETIC_ROW:\s*([\s\S]*?)\]\]$/i);
+        if(arithmetic){body.push(docxTableCells([worksheetCells(arithmetic[1],12).map(cell=>({xml:cell.split(/<br>/i).map(part=>/^[_─-]{3,}$/.test(part.trim())?'<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="5"/></w:pBdr><w:spacing w:after="180"/></w:pPr></w:p>':docxParagraph(part,{right:true,after:0,monospace:true})).join('')}))],docxEqualWidths(worksheetCells(arithmetic[1],12).length),{bordered:false}));i++;continue;}
+        const tableHeader=line.match(/^\[\[TABLE_HEADER:\s*([01])\]\]$/i);
+        if(tableHeader){pendingHeader=tableHeader[1]==='1';i++;continue;}
         const proportions=line.match(/^\[\[TABLE_WIDTHS:\s*([\d., ]+)\]\]$/i);
         if(proportions) {
             const values=proportions[1].split(',').map(Number), total=values.reduce((a,b)=>a+b,0);
-            if(values.length<=8 && values.every(x=>x>0) && total>0) {
+            if(values.length<=32 && values.every(x=>x>0) && total>0) {
                 pendingWidths=values.map(x=>Math.round(x/total*DOCX_CONTENT_W));
                 pendingWidths[pendingWidths.length-1]+=DOCX_CONTENT_W-pendingWidths.reduce((a,b)=>a+b,0);
             }
@@ -5785,10 +5919,10 @@ function buildDocxBody(structuredText) {
             for(let n=0;n<Math.min(10,Math.max(1,Number(m[1])));n++) body.push(docxAnswerRule());
             i++;continue;
         }
-        if (/^\[\[PAGE_BREAK\]\]$/i.test(line)) {
-            if (body.length && lines.slice(i+1).some(x=>x.trim() && !/^\[\[PAGE_BREAK\]\]$/i.test(x.trim()))) {
+        if (/^\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\]$/i.test(line)) {
+            if (body.length && lines.slice(i+1).some(x=>x.trim() && !/^\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\]$/i.test(x.trim()))) {
                 const next=String(lines[i+1]||'').trim();
-                if (!/^\[\[PAGE_BREAK\]\]$/i.test(next)) body.push('<w:p><w:pPr><w:pageBreakBefore/><w:spacing w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>');
+                if (!/^\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\]$/i.test(next)) body.push('<w:p><w:pPr><w:pageBreakBefore/><w:spacing w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>');
             }
             i++;continue;
         }
@@ -5798,23 +5932,23 @@ function buildDocxBody(structuredText) {
             while(i<lines.length) {
                 const row=String(lines[i]).trim().match(/^\[\[TABLE_ROW:\s*([\s\S]*?)\]\]$/i);
                 if(!row) break;
-                rows.push(worksheetCells(row[1],8));
+                rows.push(worksheetCells(row[1],32));
                 i++;
             }
             const n=Math.max(...rows.map(x=>x.length));
-            body.push(docxTableCells(rows, pendingWidths?.length===n ? pendingWidths : PaperAILayout.tableWidths(rows),{bordered:true,fontSize:24,minHeight:450,repeatHeader:true}));
-            pendingWidths=null;
+            body.push(docxTableCells(rows, pendingWidths?.length===n ? pendingWidths : PaperAILayout.tableWidths(rows),{bordered:true,fontSize:24,minHeight:paperLayoutOptions().compact?320:450,repeatHeader:pendingHeader}));
+            pendingWidths=null; pendingHeader=false;
             continue;
         }
         const matchRows=[];
         while(i<lines.length){
-            const row=String(lines[i]).trim().match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
+            const row=String(lines[i]).trim().match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\]\]$/i);
             if(!row)break;
-            matchRows.push([row[1].trim(),row[2].trim()]);
+            matchRows.push(worksheetCells(row[1],32));
             i++;
         }
         if(matchRows.length){
-            body.push(docxTableCells(matchRows,docxEqualWidths(2),{bordered:false,fontSize:20,minHeight:400}));
+            body.push(docxTableCells(matchRows,PaperAILayout.tableWidths(matchRows),{bordered:false,fontSize:24,minHeight:paperLayoutOptions().compact?300:400}));
             continue;
         }
         const raw=lines[i];
@@ -5832,14 +5966,14 @@ function buildDocxBody(structuredText) {
         }
         const questionAnswer=PaperAILayout.questionAnswer(raw);
         if(questionAnswer){
-            body.push(docxTableCells([[questionAnswer.question,{xml:docxParagraph(questionAnswer.answer,{center:true,size:24,after:0,keepNext:true})}]],
-                [DOCX_CONTENT_W-1520,1520],{bordered:false,fontSize:24,minHeight:360,keepNext:true}));
+            body.push(docxTableCells([[questionAnswer.question,{xml:docxParagraph(questionAnswer.answer,{center:true,size:24,after:0})}]],
+                [DOCX_CONTENT_W-1520,1520],{bordered:false,fontSize:24,minHeight:360}));
             i++;continue;
         }
         const heading=isOutputHeadingLine(raw,i,firstNonEmptyIndex);
         const split=heading && PaperAILayout.section(raw);
         if(split) body.push(docxSectionRow(split.title,split.marks));
-        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,after:heading?100:70,keepNext:heading,center:i===firstNonEmptyIndex}));
+        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,after:paperLayoutOptions().compact?(heading?55:25):(heading?100:70),keepNext:heading,center:i===firstNonEmptyIndex}));
         i++;
     }
     return body.join('');
@@ -5852,7 +5986,7 @@ function docxStylesXml() {
         '<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
         '<w:sz w:val="22"/><w:szCs w:val="22"/>' +
       '</w:rPr></w:rPrDefault><w:pPrDefault><w:pPr>' +
-        '<w:spacing w:after="40" w:line="270" w:lineRule="auto"/>' +
+        '<w:spacing w:after="40" w:line="'+(paperLayoutOptions().compact?240:270)+'" w:lineRule="auto"/>' +
       '</w:pPr></w:pPrDefault></w:docDefaults>' +
       '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>' +
     '</w:styles>';
@@ -5874,6 +6008,7 @@ async function recoverSourceFigures(text, blob) {
     const source = await decodeImageSource(blob);
     try {
         const sw = source.width || source.naturalWidth, sh = source.height || source.naturalHeight;
+        const sourceDataUrl=await blobToDataURL(blob);
         const crop = spec => {
             const region = PaperAILayout.figure(spec);
             if (!region) return {id:'missing',caption:'[source image needs review]',answer:false};
@@ -5884,7 +6019,7 @@ async function recoverSourceFigures(text, blob) {
             ctx.drawImage(source,rect.x,rect.y,rect.w,rect.h,0,0,rect.w,rect.h);
             const id='source-'+(extractedMedia.length+1);
             extractedMedia.push({id,dataUrl:canvas.toDataURL('image/png'),w:rect.w,h:rect.h,
-                widthTwips:Math.round(region.w*11906/1000)});
+                widthTwips:Math.round(region.w*10466/1000),region,sourceDataUrl:sourceDataUrl});
             return {...region,id};
         };
         const cell = r => r.id+'|'+(r.caption||' ')+'|'+(r.answer?'box':'none');
@@ -5903,8 +6038,8 @@ async function recoverSourceFigures(text, blob) {
 }
 function sourceFigureHtml(value) {
     const info=PaperAILayout.source(value), asset=sourceAsset(info.id);
-    return '<div class="ocr-figure-cell">'+(asset
-        ? '<img style="max-width:100%;max-height:170px;object-fit:contain" src="'+esc(asset.dataUrl)+'" alt="Original source illustration">'
+    return '<div class="ocr-figure-cell" style="align-items:'+(asset?.align==='left'?'flex-start':asset?.align==='right'?'flex-end':'center')+'">'+(asset
+        ? '<img style="max-width:100%;width:'+Math.round(PaperAILayout.fit(asset,10466,7000).w/15)+'px;object-fit:contain" src="'+esc(asset.dataUrl)+'" alt="Original source illustration">'
         : '<span class="ocr-picture-label">[source image needs review]</span>')+
         (info.caption ? '<span class="ocr-picture-label">'+formatOutputLine(info.caption)+'</span>' : '')+
         (info.answer ? '<span class="ocr-figure-answer"></span>' : '')+'</div>';
@@ -5920,7 +6055,7 @@ function docxSourceRow(values) {
     const widths=docxEqualWidths(values.length);
     return docxTableCells([values.map((value,i)=>{
         const item=PaperAILayout.source(value);
-        return {xml:'<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="60"/></w:pPr>'+docxSourceRun(item.id,widths[i]-180)+'</w:p>'+
+        return {xml:'<w:p><w:pPr><w:jc w:val="'+(sourceAsset(item.id)?.align||'center')+'"/><w:spacing w:after="60"/></w:pPr>'+docxSourceRun(item.id,widths[i]-180)+'</w:p>'+
             (item.caption ? docxRichParagraph(item.caption,{center:true,size:22,after:40}) : '')+
             (item.answer ? docxAnswerBoxParagraph() : '')};
     })],widths,{bordered:false});
@@ -6063,26 +6198,8 @@ async function resolveHeaderBanner(structuredText) {
         const dim = await imageDataUrlSize(src);
         if (item.role === 'banner' && dim.w && dim.h && dim.w / dim.h >= 3.5) return { dataUrl: src, w: dim.w, h: dim.h };
     }
-    try {
-        if (!defaultBannerPngPromise) {
-            defaultBannerPngPromise = (async () => {
-                const res = await fetch(DEFAULT_BANNER_URL, { cache: 'no-store' });
-                if (!res.ok) throw new Error('missing');
-                const svg = await res.text();
-                if (!/<svg[\s>]/i.test(svg)) throw new Error('not svg');
-                const blob = await rasterizeSvgToPng(svg, 1200, 150);
-                return await blobToDataURL(blob);
-            })().catch(() => null);
-        }
-        const fromAsset = await defaultBannerPngPromise;
-        if (fromAsset) return { dataUrl: fromAsset, w: 1200, h: 150 };
-    } catch (e) {}
-    try {
-        const blob = await builtinBannerPng(title);
-        return { dataUrl: await blobToDataURL(blob), w: 1200, h: 150 };
-    } catch (e) {
-        return null;
-    }
+    return null; // A school identity must come from this source or the teacher.
+
 }
 
 function docxDocumentXml(structuredText) {
@@ -6118,7 +6235,7 @@ async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
 
     const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
-    const footerXml = docxFooterXml(structuredText);
+    const footerXml = paperLayoutOptions().pageNumbers||/\[\[FOOTER:/i.test(structuredText)?docxFooterXml(structuredText):'<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>';
 
     const banner = await resolveHeaderBanner(structuredText);
     let headerXml = docxHeaderTextXml(footerTitle);
@@ -6216,6 +6333,7 @@ async function downloadWord(btn) {
 
     if (!structuredText.trim()) return;
 
+    if(/\[\[PICTURE(?:_OPTION|_ROW)?:/i.test(structuredText)){showErr('A picture was requested in the notes but was not drawn. Add that picture in Paper layout before exporting.');openPaperLayout();return;}
     const original = btn?.innerHTML || '';
     if (btn) {
         btn.disabled = true;
@@ -6223,7 +6341,7 @@ async function downloadWord(btn) {
     }
 
     try {
-        const blob = lastResult.native_pdf_pages&&structuredText===lastResult.native_pdf_text
+        const blob = lastResult.native_pdf_pages&&structuredText===lastResult.native_pdf_text&&paperLayoutOptions().keepSourcePages
             ? await PaperAIPdfEditable.makeWord(lastResult.native_pdf_pages)
             : await makeExtractedDocx(structuredText);
         const base = String(file?.name || 'paperai')

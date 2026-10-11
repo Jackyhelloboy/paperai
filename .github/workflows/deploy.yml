@@ -33,6 +33,7 @@ jobs:
           node tests/pdf-editable-layout.cjs
           node tests/docx-import.cjs
           node tests/editable-paper.cjs
+          node tests/question-paper-model.cjs
 
       - name: Build Cloudflare usage snapshot
         env:

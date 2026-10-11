@@ -17,7 +17,7 @@ fine-tuning job that changes the hosted model's weights**. A4 portrait and 0.5-i
 margins override the Letter page sizes in some of the supplied Word references.
 
 Questions remain editable paragraphs. Tables and letter grids are native Word
-tables; headings use a right-aligned marks tab and keep with the following block.
+tables; headings use a fixed right-aligned marks column and keep with the following block.
 Basic shapes use inline editable DrawingML preset geometry. Answer rectangles
 are native one-cell tables. Complex drawings, maps, graphs and illustrations
 retain the original source pixels in separate, replaceable inline image objects.
@@ -35,7 +35,7 @@ flagged for review; a generic illustration is never substituted.
 
 TABLE_WIDTHS optionally provides visible column percentages; otherwise long text
 gets more width. TABLE_ROW cells may contain `<br>` to preserve multiple lines.
-Empty cells are retained. Table headers repeat and rows have minimum (not fixed)
+Empty cells are retained. Explicitly identified table headers repeat and rows have minimum (not fixed)
 heights so text can expand. Consecutive GRID_ROW markers form one table. Repeated
 and trailing page breaks are removed. An incomplete OCR page fails explicitly
 rather than being silently omitted from a multipage paper.

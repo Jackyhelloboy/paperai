@@ -5,7 +5,7 @@
     else root.PaperAILayout = api;
 })(typeof globalThis === 'object' ? globalThis : this, function() {
     const profile = Object.freeze({
-        version: 4, pageWidth: 11906, pageHeight: 16838, margin: 720,
+        version: 5, pageWidth: 11906, pageHeight: 16838, margin: 720,
         font: 'Arial', scriptFont: 'Noto Sans Devanagari',
         bodySize: 24, sectionSize: 26, titleSize: 28, line: 270,
         gridHeight: 460, borderSize: 6, cellPadding: 90,
@@ -50,8 +50,26 @@
     function section(value) {
         // A marks equation is moved only geometrically, never calculated or changed.
         const s=String(value||'').trim();
-        const m=s.match(/^(.+?)\s+((?:\(?\d+(?:[./]\d+)?\s*[x×X*]\s*\d+(?:[./]\d+)?\s*=\s*\d+(?:[./]\d+)?\s*(?:[mM]|marks)?\)?|\d+\s*[mM]))\s*$/);
+        const number='(?:[0-9०-९]+(?:[./][0-9०-९]+)?[¼½¾]?|[¼½¾])';
+        const equation='\\(?'+number+'\\s*[x×X*]\\s*'+number+'\\s*=\\s*'+number+'\\s*(?:[mM]|[Mm]arks)?\\)?';
+        const m=s.match(new RegExp('^(.+?)\\s+('+equation+'|'+number+'\\s*(?:[mM]|[Mm]arks))\\s*$'));
         return m ? {title:m[1],marks:m[2]} : null;
+    }
+    function shape(value) {
+        const [name, flag='box']=String(value||'').split('|').map(x=>x.trim());
+        return {name, answer:flag==='box', line:flag==='line'};
+    }
+    function compactPages(text, keepSourcePages=false) {
+        const lines=String(text||'').split('\n');
+        return lines.filter((line,i)=>{
+            if(!/^\s*\[\[PAGE_BREAK\]\]\s*$/i.test(line))return true;
+            if(keepSourcePages)return true;
+            // New papers remain separate; a scan boundary within one paper reflows.
+            const following=lines.slice(i+1).filter(x=>x.trim()).slice(0,5);
+            const boundary=following.findIndex(x=>/^\s*(?:\[\[(?:PAPER_BREAK|PAGE_BREAK|SECTION_ROW|QUESTION_ROW)\b|\d+[.)]\s|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)]\s)/i.test(x));
+            const next=(boundary<0?following:following.slice(0,boundary)).join('\n');
+            return /(?:class\s*[:.\-]?\s*(?:[IVX]+|[1-9]|UKG|LKG)\b|(?:annual|entrance)\s+examination|summative\s+assessment|formative\s+assessment|कक्षा\s*[:.\-]?\s*\S)/i.test(next);
+        }).join('\n');
     }
     function questionAnswer(value) {
         // A terminal empty answer bracket is layout, not part of question prose.
@@ -116,7 +134,7 @@
         return results.sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,12);
     }
     function normalise(text) {
-        const types='SECTION_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS';
+        const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
         const lines=String(text||'').split('\n').map(line=>{
             const m=line.match(bare);
@@ -196,5 +214,5 @@
         }
         return lines.join('\n');
     }
-    return {profile,figure,pixels,source,fit,tableWidths,section,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,figure,pixels,source,fit,tableWidths,section,shape,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

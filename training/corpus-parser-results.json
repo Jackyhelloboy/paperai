@@ -1,0 +1,1537 @@
+{
+  "scope": "Every audited Word and PDF, including exact duplicates and prior outputs. Parser results are not a certificate of OCR or visual export accuracy.",
+  "records": [
+    {
+      "file": "1Class_1_Science_Annual.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 4111,
+      "visible_runs": 127,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "1Class_2_Science_Annual.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 3910,
+      "visible_runs": 122,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 2,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "Class_3_Science_Annual.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 4683,
+      "visible_runs": 142,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "Class_4_Science_Annual.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 4320,
+      "visible_runs": 139,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "Class_5_Science_Annual.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 4904,
+      "visible_runs": 142,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "English 6.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 3369,
+      "visible_runs": 128,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "HINDI SA-1 (1).pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 64,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 447
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 70,
+          "pictures": 5,
+          "editable_paths": 0,
+          "shapes": 231
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 64,
+          "pictures": 5,
+          "editable_paths": 0,
+          "shapes": 11
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 66,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 519
+        },
+        {
+          "page": 5,
+          "measured_layout_supported": true,
+          "text_objects": 183,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 149
+        },
+        {
+          "page": 6,
+          "measured_layout_supported": true,
+          "text_objects": 22,
+          "pictures": 11,
+          "editable_paths": 0,
+          "shapes": 10
+        },
+        {
+          "page": 7,
+          "measured_layout_supported": true,
+          "text_objects": 134,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 27
+        },
+        {
+          "page": 8,
+          "measured_layout_supported": true,
+          "text_objects": 123,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 378
+        },
+        {
+          "page": 9,
+          "measured_layout_supported": true,
+          "text_objects": 79,
+          "pictures": 4,
+          "editable_paths": 0,
+          "shapes": 8
+        },
+        {
+          "page": 10,
+          "measured_layout_supported": true,
+          "text_objects": 61,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 4
+        },
+        {
+          "page": 11,
+          "measured_layout_supported": true,
+          "text_objects": 65,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 26
+        },
+        {
+          "page": 12,
+          "measured_layout_supported": true,
+          "text_objects": 127,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 30
+        },
+        {
+          "page": 13,
+          "measured_layout_supported": true,
+          "text_objects": 164,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 16
+        },
+        {
+          "page": 14,
+          "measured_layout_supported": true,
+          "text_objects": 81,
+          "pictures": 0,
+          "editable_paths": 6,
+          "shapes": 10
+        },
+        {
+          "page": 15,
+          "measured_layout_supported": true,
+          "text_objects": 103,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 22
+        },
+        {
+          "page": 16,
+          "measured_layout_supported": true,
+          "text_objects": 76,
+          "pictures": 0,
+          "editable_paths": 6,
+          "shapes": 51
+        },
+        {
+          "page": 17,
+          "measured_layout_supported": true,
+          "text_objects": 103,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 152
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "HINDI SA-1.pdf",
+      "kind": "reference",
+      "visual_review": "identical-by-sha256-to-reviewed-source",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 64,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 447
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 70,
+          "pictures": 5,
+          "editable_paths": 0,
+          "shapes": 231
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 64,
+          "pictures": 5,
+          "editable_paths": 0,
+          "shapes": 11
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 66,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 519
+        },
+        {
+          "page": 5,
+          "measured_layout_supported": true,
+          "text_objects": 183,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 149
+        },
+        {
+          "page": 6,
+          "measured_layout_supported": true,
+          "text_objects": 22,
+          "pictures": 11,
+          "editable_paths": 0,
+          "shapes": 10
+        },
+        {
+          "page": 7,
+          "measured_layout_supported": true,
+          "text_objects": 134,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 27
+        },
+        {
+          "page": 8,
+          "measured_layout_supported": true,
+          "text_objects": 123,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 378
+        },
+        {
+          "page": 9,
+          "measured_layout_supported": true,
+          "text_objects": 79,
+          "pictures": 4,
+          "editable_paths": 0,
+          "shapes": 8
+        },
+        {
+          "page": 10,
+          "measured_layout_supported": true,
+          "text_objects": 61,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 4
+        },
+        {
+          "page": 11,
+          "measured_layout_supported": true,
+          "text_objects": 65,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 26
+        },
+        {
+          "page": 12,
+          "measured_layout_supported": true,
+          "text_objects": 127,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 30
+        },
+        {
+          "page": 13,
+          "measured_layout_supported": true,
+          "text_objects": 164,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 16
+        },
+        {
+          "page": 14,
+          "measured_layout_supported": true,
+          "text_objects": 81,
+          "pictures": 0,
+          "editable_paths": 6,
+          "shapes": 10
+        },
+        {
+          "page": 15,
+          "measured_layout_supported": true,
+          "text_objects": 103,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 22
+        },
+        {
+          "page": 16,
+          "measured_layout_supported": true,
+          "text_objects": 76,
+          "pictures": 0,
+          "editable_paths": 6,
+          "shapes": 51
+        },
+        {
+          "page": 17,
+          "measured_layout_supported": true,
+          "text_objects": 103,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 152
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "I - SA-1 SCIENCE.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 29,
+          "pictures": 1,
+          "editable_paths": 1,
+          "shapes": 15
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 41,
+          "pictures": 0,
+          "editable_paths": 11,
+          "shapes": 18
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 88,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 2
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 35,
+          "pictures": 25,
+          "editable_paths": 3,
+          "shapes": 6
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "II-SA-1 SCIENCE.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 24,
+          "pictures": 1,
+          "editable_paths": 1,
+          "shapes": 15
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 20,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 14
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 72,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 8
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 79,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 7
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "III-SA-1 SCIENCE.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 18,
+          "pictures": 1,
+          "editable_paths": 1,
+          "shapes": 15
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 15,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 16
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 35,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 14
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 82,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 2
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "IV SA-1 SCIENCE.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 22,
+          "pictures": 1,
+          "editable_paths": 1,
+          "shapes": 17
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 28,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 18
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 30,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 22
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 78,
+          "pictures": 1,
+          "editable_paths": 6,
+          "shapes": 7
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "New Microsoft Office Word Document (3).docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 8512,
+      "visible_runs": 445,
+      "runs_not_contiguous": 0,
+      "native_tables": 7,
+      "illustrations_needing_asset_resolution": 8,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "Social 10.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 3470,
+      "visible_runs": 131,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "Social 6.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 3048,
+      "visible_runs": 107,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "Social 7.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 3332,
+      "visible_runs": 165,
+      "runs_not_contiguous": 0,
+      "native_tables": 3,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "Social 8.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 3795,
+      "visible_runs": 177,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "Social 9.docx",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 3340,
+      "visible_runs": 139,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "UKG FA-1.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 27,
+          "pictures": 1,
+          "editable_paths": 1,
+          "shapes": 17
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 24,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 18
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 93,
+          "pictures": 5,
+          "editable_paths": 3,
+          "shapes": 6
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 31,
+          "pictures": 11,
+          "editable_paths": 6,
+          "shapes": 9
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "V-SA-1 SCIENCE.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 20,
+          "pictures": 1,
+          "editable_paths": 1,
+          "shapes": 23
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 16,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 26
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 28,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 22
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 72,
+          "pictures": 1,
+          "editable_paths": 4,
+          "shapes": 5
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "class 2 hindi.pdf",
+      "kind": "scan-input",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "requires-live-OCR"
+    },
+    {
+      "file": "class 3 hindi (1).pdf",
+      "kind": "scan-input",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "requires-live-OCR"
+    },
+    {
+      "file": "class 3 hindi.pdf",
+      "kind": "scan-input",
+      "visual_review": "identical-by-sha256-to-reviewed-source",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "requires-live-OCR"
+    },
+    {
+      "file": "english.pdf",
+      "kind": "scan-input",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 5,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 6,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 7,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 8,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 9,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 10,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 11,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 12,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 13,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "requires-live-OCR"
+    },
+    {
+      "file": "entrance class 2.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 552,
+          "pictures": 0,
+          "editable_paths": 65,
+          "shapes": 92
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 243,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 9
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 110,
+          "pictures": 0,
+          "editable_paths": 11,
+          "shapes": 31
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 72,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 1
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "entrance class 3.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 635,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 37
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 316,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 230
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 92,
+          "pictures": 1,
+          "editable_paths": 4,
+          "shapes": 13
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 67,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 19
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "entrance class 4.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 796,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 15
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 278,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 8
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 67,
+          "pictures": 2,
+          "editable_paths": 4,
+          "shapes": 13
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 57,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 1
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "entrance class 5.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 910,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 18
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 367,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 6
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 66,
+          "pictures": 1,
+          "editable_paths": 1,
+          "shapes": 3
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 39,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 1
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "entrance class UKG.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 59,
+          "pictures": 0,
+          "editable_paths": 1,
+          "shapes": 128
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 43,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 186
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 32,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 2
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "fa-2 sci.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 17,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 12
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 28,
+          "pictures": 5,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 45,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 7
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 29,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 5,
+          "measured_layout_supported": true,
+          "text_objects": 21,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 11
+        },
+        {
+          "page": 6,
+          "measured_layout_supported": true,
+          "text_objects": 50,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 7,
+          "measured_layout_supported": true,
+          "text_objects": 35,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 16
+        },
+        {
+          "page": 8,
+          "measured_layout_supported": true,
+          "text_objects": 58,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 9,
+          "measured_layout_supported": true,
+          "text_objects": 34,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 11
+        },
+        {
+          "page": 10,
+          "measured_layout_supported": true,
+          "text_objects": 63,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 11,
+          "measured_layout_supported": true,
+          "text_objects": 9,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 16
+        },
+        {
+          "page": 12,
+          "measured_layout_supported": true,
+          "text_objects": 78,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "fa-2-sci-1-extracted (2).docx",
+      "kind": "export-under-review",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 9432,
+      "visible_runs": 240,
+      "runs_not_contiguous": 0,
+      "native_tables": 6,
+      "illustrations_needing_asset_resolution": 12,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "final PT_Form_VIII_Declaration_Updated (1).docx",
+      "kind": "non-question-document",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 2292,
+      "visible_runs": 65,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 0,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "hindi class 1.pdf",
+      "kind": "scan-input",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "requires-live-OCR"
+    },
+    {
+      "file": "maths.pdf",
+      "kind": "scan-input",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 5,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 6,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 7,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 8,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 9,
+          "measured_layout_supported": false,
+          "text_objects": 0,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "requires-live-OCR"
+    },
+    {
+      "file": "out/Class_4_Science_Annual.docx",
+      "kind": "export-under-review",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 4904,
+      "visible_runs": 91,
+      "runs_not_contiguous": 0,
+      "native_tables": 2,
+      "illustrations_needing_asset_resolution": 11,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/PaperAI-FA2-Corrected.docx",
+      "kind": "export-under-review",
+      "visual_review": "all-12-pages-reviewed-individually-in-live-FA2-verification",
+      "imported_characters": 7546,
+      "visible_runs": 467,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 12,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/PaperAI-FA2-Corrected.pdf",
+      "kind": "export-under-review",
+      "visual_review": "all-12-pages-reviewed-individually-in-live-FA2-verification",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 17,
+          "pictures": 1,
+          "editable_paths": 12,
+          "shapes": 12
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 28,
+          "pictures": 5,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 45,
+          "pictures": 1,
+          "editable_paths": 7,
+          "shapes": 7
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 29,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 5,
+          "measured_layout_supported": true,
+          "text_objects": 21,
+          "pictures": 1,
+          "editable_paths": 11,
+          "shapes": 11
+        },
+        {
+          "page": 6,
+          "measured_layout_supported": true,
+          "text_objects": 50,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 7,
+          "measured_layout_supported": true,
+          "text_objects": 35,
+          "pictures": 1,
+          "editable_paths": 16,
+          "shapes": 16
+        },
+        {
+          "page": 8,
+          "measured_layout_supported": true,
+          "text_objects": 58,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 9,
+          "measured_layout_supported": true,
+          "text_objects": 34,
+          "pictures": 1,
+          "editable_paths": 11,
+          "shapes": 11
+        },
+        {
+          "page": 10,
+          "measured_layout_supported": true,
+          "text_objects": 63,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 11,
+          "measured_layout_supported": true,
+          "text_objects": 9,
+          "pictures": 1,
+          "editable_paths": 16,
+          "shapes": 16
+        },
+        {
+          "page": 12,
+          "measured_layout_supported": true,
+          "text_objects": 78,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/Social 7.docx",
+      "kind": "export-under-review",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 3696,
+      "visible_runs": 63,
+      "runs_not_contiguous": 0,
+      "native_tables": 9,
+      "illustrations_needing_asset_resolution": 19,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/grid_sample.docx",
+      "kind": "export-under-review",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 257,
+      "visible_runs": 2,
+      "runs_not_contiguous": 0,
+      "native_tables": 2,
+      "illustrations_needing_asset_resolution": 5,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/multi_sample.docx",
+      "kind": "export-under-review",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 228,
+      "visible_runs": 9,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 0,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/paper.docx",
+      "kind": "export-under-review",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "imported_characters": 1235,
+      "visible_runs": 46,
+      "runs_not_contiguous": 0,
+      "native_tables": 10,
+      "illustrations_needing_asset_resolution": 4,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "sci fa-2.pdf",
+      "kind": "reference",
+      "visual_review": "reviewed-all-rendered-page-overviews",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_objects": 17,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 11
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_objects": 28,
+          "pictures": 5,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_objects": 45,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 7
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_objects": 29,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 5,
+          "measured_layout_supported": true,
+          "text_objects": 21,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 9
+        },
+        {
+          "page": 6,
+          "measured_layout_supported": true,
+          "text_objects": 50,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 7,
+          "measured_layout_supported": true,
+          "text_objects": 21,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 9
+        },
+        {
+          "page": 8,
+          "measured_layout_supported": true,
+          "text_objects": 50,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 9,
+          "measured_layout_supported": true,
+          "text_objects": 34,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 11
+        },
+        {
+          "page": 10,
+          "measured_layout_supported": true,
+          "text_objects": 63,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 11,
+          "measured_layout_supported": true,
+          "text_objects": 9,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 16
+        },
+        {
+          "page": 12,
+          "measured_layout_supported": true,
+          "text_objects": 78,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    }
+  ]
+}

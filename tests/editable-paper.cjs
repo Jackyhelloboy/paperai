@@ -21,6 +21,7 @@ const fixture=[
     'I. Look at the drawing. 2x1=2M',
     '[[SOURCE_FIGURE_ROW: source-1|1.|box || source-1| |none]]',
     '[[TABLE_WIDTHS: 20,50,30]]',
+    '[[TABLE_HEADER: 1]]',
     '[[TABLE_ROW:  || Raw Materials || Tools]]',
     '[[TABLE_ROW: Basket making || 1. Leaves<br>2. Bamboo || Knife]]',
     '[[GRID_ROW: अ || _ || इ || _]]',
@@ -50,7 +51,7 @@ const fixture=[
     assert(xml.includes('<w:tblHeader/>'),'Table headers must repeat across pages');
     assert(xml.includes('Raw Materials')&&xml.includes('2. Bamboo'));
     assert(!xml.includes('&lt;br&gt;'),'Multiline cells were flattened');
-    assert.equal((xml.match(/<w:tbl>/g)||[]).length,10,'Consecutive grid rows should form one native table');
+    assert.equal((xml.match(/<w:tbl>/g)||[]).length,12,'Consecutive grid rows should form one native table');
     assert(!Object.keys(zip.files).some(x=>x.includes('default-picture')),'Generic images must not replace source drawings');
     assert.equal((await zip.file('word/media/rIdSource1.png').async('base64')),png,'Source pixels must remain unchanged');
     const rels=await zip.file('word/_rels/document.xml.rels').async('text');
