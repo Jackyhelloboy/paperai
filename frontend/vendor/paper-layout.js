@@ -201,7 +201,16 @@
         const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
         text=String(text||'').replace(/\[\[TABLE_ROW:\s*(\[\[(?:FIGURE|SOURCE_FIGURE)_ROW:[\s\S]*?\]\])\s*((?:\|\|\s*_?\s*)*)\]\]/gi,'$1');
-        const lines=text.split('\n').flatMap(line=>{
+        text=text.replace(/\[\[REPLACE:\s*([^\[\]]*?)\s*\|\|\s*([^\[\]]*?)\]\]/gi,(_,oldText,newText)=>'[[REPLACE: '+oldText.trim()+' -> '+newText.trim()+']]');
+        // Recognition may wrap a marker across lines, including a nested correction.
+        // Rejoin only while double-bracket depth is open; ordinary question lines stay separate.
+        const joined=[];let depth=0;
+        for(const line of text.split('\n')){
+            if(depth>0&&joined.length)joined[joined.length-1]+=' '+line.trim();
+            else joined.push(line);
+            depth=Math.max(0,depth+(line.match(/\[\[/g)||[]).length-(line.match(/\]\]/g)||[]).length);
+        }
+        const lines=joined.flatMap(line=>{
             const m=line.match(bare);
             if(m)line='[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]';
             // A grid following its label is a native block, not printable marker text.

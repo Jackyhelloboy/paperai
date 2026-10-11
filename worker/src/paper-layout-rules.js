@@ -29,7 +29,13 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 6, reviewed across the complete t
 export function normaliseMarkerRows(text) {
     const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION';
     const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');
-    return String(text||'').split('\n').map(line=>{
+    text=String(text||'').replace(/\[\[REPLACE:\s*([^\[\]]*?)\s*\|\|\s*([^\[\]]*?)\]\]/gi,(_,oldText,newText)=>'[[REPLACE: '+oldText.trim()+' -> '+newText.trim()+']]');
+    const joined=[];let depth=0;
+    for(const line of text.split('\n')){
+        if(depth>0&&joined.length)joined[joined.length-1]+=' '+line.trim();else joined.push(line);
+        depth=Math.max(0,depth+(line.match(/\[\[/g)||[]).length-(line.match(/\]\]/g)||[]).length);
+    }
+    return joined.map(line=>{
         const m=line.match(bare);
         return m ? '[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]' : line;
     }).join('\n');

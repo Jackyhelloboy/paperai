@@ -66,6 +66,12 @@ const fixtures={
     for(const p of markParagraphs)assert.equal(p.getElementsByTagName('w:jc')[0]?.getAttribute('w:val'),'right');
     assert.equal(Layout.section('I. Evaluate f(5)'),null);
     assert.equal(Layout.section('I. Explain atomic number (6)'),null);
+    const wrapped='[[SECTION_ROW: VIII. हिन्दी शब्द [[REPLACE: ज\n|| य]] || 6x1=6M]]';
+    const wrappedPreview=ctx.formatOutput(wrapped);
+    assert(wrappedPreview.includes('ocr-section-marks'),'Wrapped nested correction broke section layout');
+    const wrappedZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx(wrapped)).arrayBuffer());
+    const wrappedXml=await wrappedZip.file('word/document.xml').async('text');
+    assert(!wrappedXml.includes('[['),'A multiline correction marker reached exported Word');
     const hindi='कक्षा २ हिन्दी प्रश्न पत्र\n१. नीचे दिए गए प्रश्नों के उत्तर लिखिए। (5)\n२. गाय हमें क्या देती है? (2)\n३. अपना नाम लिखिए।';
     const hindiPreview=ctx.formatOutput(hindi);
     assert.equal((hindiPreview.match(/ocr-section-marks/g)||[]).length,2,'Plain Hindi PDF marks lost right alignment');
