@@ -2471,10 +2471,11 @@ function docxStructuredXml(xmlText, media = {}, numbering = {}) {
             let drawing=ref.node;
             while(drawing&& !['drawing','pict'].includes(tag(drawing)))drawing=drawing.parentNode;
             const extent=drawing?.getElementsByTagNameNS('*','extent')[0];
+            const description=drawing?.getElementsByTagNameNS('*','docPr')[0]?.getAttribute('descr')||'';
             const width=Number(extent?.getAttribute('cx'))/635;
             if(asset&&width>0){
                 const align=p.getElementsByTagNameNS(ns,'jc')[0]?.getAttributeNS(ns,'val');
-                asset={...asset,id:asset.id+'-placement-'+(++pictureOccurrence),widthTwips:Math.min(DOCX_CONTENT_W,Math.round(width)),align:['left','center','right'].includes(align)?align:'center'};
+                asset={...asset,id:asset.id+'-placement-'+(++pictureOccurrence),widthTwips:Math.min(DOCX_CONTENT_W,Math.round(width)),align:['left','center','right'].includes(align)?align:'center',role:/original source banner/i.test(description)?'banner':asset.role};
                 extractedMedia.push(asset);
             }
             out+=asset ? (asset.role==='banner' ? ' [[SOURCE_BANNER: '+asset.id+']]' : ' [[SOURCE_FIGURE: '+asset.id+'| |none]]') : ' [[PICTURE: [unreadable]]]';
@@ -2619,7 +2620,6 @@ async function extractOfficeZipFile(officeFile) {
                 const dataUrl='data:'+mime+';base64,'+await entry.async('base64');
                 const dim=await imageDataUrlSize(dataUrl); if(!dim.w||!dim.h)continue;
                 const asset={id:'source-'+(extractedMedia.length+1),dataUrl,w:dim.w,h:dim.h};
-                if(dim.w/dim.h>=4){asset.role='banner';asset.widthTwips=DOCX_CONTENT_W;}
                 media[rel.getAttribute('Id')]=asset;extractedMedia.push(asset);
             }
         }
@@ -5669,8 +5669,8 @@ function openPaperLayout() {
         return grid?'<label style="display:block;margin:.5rem 0">Grid columns × rows <input aria-label="Grid dimensions" value="'+esc(grid[1])+'" onchange="updatePaperGrid('+index+',this.value)"></label>':'';
     }).join('')||'<p class="teach-sub">Use Correct text to edit the questions. Insert a table, grid, shape or marks below.</p>';
     $('paperInsertAfter').innerHTML=lines.map((line,i)=>'<option value="'+i+'" '+(i===lines.length-1?'selected':'')+'>'+esc((i+1)+'. '+portableText(line).slice(0,70))+'</option>').join('');
-    $('paperPictures').innerHTML=extractedMedia.map((asset,i)=>asset.role==='banner'?'':
-        '<fieldset style="margin:1rem 0;border:1px solid var(--border);padding:.7rem"><legend>Picture '+(i+1)+'</legend><img src="'+esc(asset.dataUrl)+'" style="max-width:180px;max-height:180px;object-fit:contain" alt="Original picture"><div style="display:flex;gap:.7rem;flex-wrap:wrap">'+
+    $('paperPictures').innerHTML=extractedMedia.map((asset,i)=>
+        '<fieldset style="margin:1rem 0;border:1px solid var(--border);padding:.7rem"><legend>'+ (asset.role==='banner'?'Source banner':'Picture '+(i+1))+'</legend><img src="'+esc(asset.dataUrl)+'" style="max-width:180px;max-height:180px;object-fit:contain" alt="Original picture"><div style="display:flex;gap:.7rem;flex-wrap:wrap">'+
         '<label>Width in cm <input type="number" min=".5" max="18.46" step=".1" value="'+((asset.widthTwips||2260)/567).toFixed(1)+'" onchange="setPaperPicture('+i+',\'width\',this.value)"></label>'+
         '<label>Alignment <select onchange="setPaperPicture('+i+',\'align\',this.value)">'+['left','center','right'].map(a=>'<option '+((asset.align||'center')===a?'selected':'')+'>'+a+'</option>').join('')+'</select></label>'+
         '<label>Replace picture <input type="file" accept="image/png,image/jpeg,image/webp" onchange="replacePaperPicture('+i+',this.files[0])"></label></div>'+
@@ -5967,7 +5967,7 @@ function buildDocxBody(structuredText) {
         let sourceFigure=line.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
         if(sourceFigure){body.push(docxSourceRow(worksheetCells(sourceFigure[1],32)));i++;continue;}
         const sourceBanner=line.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
-        if(sourceBanner){body.push('<w:p><w:pPr><w:jc w:val="center"/><w:keepNext/><w:spacing w:after="100"/></w:pPr>'+docxSourceRun(sourceBanner[1].trim(),DOCX_CONTENT_W,2200)+'</w:p>');i++;continue;}
+        if(sourceBanner){body.push('<w:p><w:pPr><w:jc w:val="'+(sourceAsset(sourceBanner[1].trim())?.align||'center')+'"/><w:keepNext/><w:spacing w:after="100"/></w:pPr>'+docxSourceRun(sourceBanner[1].trim(),DOCX_CONTENT_W,2200,'Original source banner')+'</w:p>');i++;continue;}
         if(/^\[\[FOOTER:/i.test(line)){i++;continue;}
         const section = line.match(/^\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
         if (section) {
@@ -6154,12 +6154,12 @@ function sourceFigureHtml(value) {
         (info.caption ? '<span class="ocr-picture-label">'+formatOutputLine(info.caption)+'</span>' : '')+
         (info.answer ? '<span class="ocr-figure-answer"></span>' : '')+'</div>';
 }
-function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400) {
+function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400, description='Original source illustration') {
     const asset=sourceAsset(id);
     if(!asset) return docxRun('[source image needs review]',{size:18});
     if(!docxMediaUsed.has(id)) docxMediaUsed.set(id,{asset,rid:'rIdSource'+(docxMediaUsed.size+1)});
     const dim=PaperAILayout.fit(asset,available,maxHeight);
-    return docxPictureRun(dim.w*635,dim.h*635,docxMediaUsed.get(id).rid,'Original source illustration');
+    return docxPictureRun(dim.w*635,dim.h*635,docxMediaUsed.get(id).rid,description);
 }
 function docxSourceRow(values) {
     const widths=docxEqualWidths(values.length);
