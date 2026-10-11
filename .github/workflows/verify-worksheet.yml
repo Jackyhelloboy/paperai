@@ -8,6 +8,7 @@ on:
       - 'worker/src/index.js'
       - 'tests/worksheet-layout.cjs'
       - 'tests/question-paper-model.cjs'
+      - 'tests/scan-resume.cjs'
       - 'frontend/vendor/paper-layout.js'
       - 'worker/src/paper-layout-rules.js'
       - '.github/workflows/verify-worksheet.yml'

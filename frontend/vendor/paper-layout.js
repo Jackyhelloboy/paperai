@@ -167,11 +167,12 @@
     function normalise(text) {
         const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
-        const lines=String(text||'').split('\n').flatMap(line=>{
+        text=String(text||'').replace(/\[\[TABLE_ROW:\s*(\[\[(?:FIGURE|SOURCE_FIGURE)_ROW:[\s\S]*?\]\])\s*((?:\|\|\s*_?\s*)*)\]\]/gi,'$1');
+        const lines=text.split('\n').flatMap(line=>{
             const m=line.match(bare);
             if(m)line='[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]';
             // A grid following its label is a native block, not printable marker text.
-            if(!/^\s*\[\[(?:TABLE_ROW|MATCH_ROW):/i.test(line))
+            if(!/^\s*\[\[(?:TABLE_ROW|MATCH_ROW):/i.test(line)&&!/^\s*\[\[GRID(?:_ROW)?:[^\n]*\]\]\s*$/i.test(line))
                 line=line.replace(/\[\[GRID(?:_ROW)?:\s*[\s\S]*?\]\]/gi,marker=>'\n'+marker+'\n');
             return line.split('\n');
         });
@@ -179,6 +180,9 @@
             const marker=lines[i].match(/^\s*\[\[SECTION_ROW:\s*([^|]*?)\]\]\s*$/i);
             const split=marker&&section(marker[1]);
             if(split)lines[i]='[[SECTION_ROW: '+split.title+' || '+split.marks+']]';
+            else if(marker)lines[i]=marker[1].trim();
+            const question=lines[i].match(/^\s*\[\[QUESTION_ROW:\s*([^|]*?)\]\]\s*$/i);
+            if(question)lines[i]=question[1].trim();
         }
         for(let i=0;i<lines.length;i++)if(/^\s*\(?Note:.*FIGURE_ROW.*conceptual representation/i.test(lines[i])){
             lines[i]='';
@@ -189,7 +193,7 @@
             if(/^\s*(?:\[\[SECTION_ROW:\s*)?(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[. )\s]+\S/.test(lines[i]))
                 matching=/match(?:ing| the following)|जोड़ी|मिलान|शब्द.*शब्द.*जोड़ो/i.test(lines[i]);
             if(!matching||/^\s*\[\[/.test(lines[i]))continue;
-            const pipeCells=lines[i].split(/\s+\|\s+/);
+            const pipeCells=lines[i].split(/\s*\|\|\s*|\s+\|\s+/);
             if(pipeCells.length>1&&pipeCells.length<=32&&pipeCells.every(x=>x.trim())){
                 lines[i]='[[MATCH_ROW: '+pipeCells.map(x=>x.trim()).join(' || ')+']]';continue;
             }

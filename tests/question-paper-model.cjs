@@ -14,6 +14,8 @@ assert(guardCtx.invalidLayoutMarkers('[[FIGURE: 100,900,100,200| |none]]'));
 assert(guardCtx.invalidLayoutMarkers('[[FIGURE: .1,.2,.3,.4| |none]]'));
 assert(!guardCtx.invalidLayoutMarkers('[[FIGURE_ROW: 100,200,300,100| |none || 450,200,300,100| |box]]'));
 assert(guardCtx.invalidLayoutMarkers('1. क + क = [[कक]] = ______'),'Unknown annotation syntax must not leak into a question paper');
+assert(guardCtx.invalidLayoutMarkers('[[TABLE_ROW: [[FIGURE_ROW: 100,200,100,100| |none]] || _]]'));
+assert(guardCtx.invalidLayoutMarkers('[[QUESTION_ROW: 2. The numeral for Eight is ( )]]'));
 const html=fs.readFileSync('frontend/index.html','utf8');
 const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m=>m[1].includes('function buildDocxBody'))[1];
 const slice=(a,b)=>code.slice(code.indexOf(a),code.indexOf(b,code.indexOf(a)+1));
@@ -41,6 +43,7 @@ const fixture=[
     '[[PAPER_BREAK]]','Class: IV','1. Next paper.'
 ].join('\n');
 (async()=>{
+    await assert.rejects(()=>ctx.makeExtractedDocx('1. क + क = [[कक]]'),/layout annotation needs review/);
     const blob=await ctx.makeExtractedDocx(fixture),zip=await ctx.JSZip.loadAsync(await blob.arrayBuffer());
     const xml=await zip.file('word/document.xml').async('text');
     assert(xml.includes('4×½=2')&&xml.includes('<w:jc w:val="right"/>'),'Literal fractional marks must occupy the right column');
@@ -64,6 +67,9 @@ const fixture=[
     assert.equal((recovered.match(/\[\[GRID: 13x1\]\]/g)||[]).length,2,'Continuation grids before a section heading must retain all observed cells');
     assert(!recovered.includes('न :- [[GRID:'),'An inline grid must become a native block below its label');
     assert(Layout.normalise('VIII हिन्दी शब्द से अंग्रेजी शब्द जोड़ो। 6x1=6M\n1. नयन | Ginger').includes('[[MATCH_ROW: 1. नयन || Ginger]]'),'Visible matching columns must remain unsolved native cells');
+    assert.equal(Layout.normalise('[[QUESTION_ROW: 2. The numeral for Eight is ( )]]'),'2. The numeral for Eight is ( )');
+    assert.equal(Layout.normalise('[[TABLE_ROW: [[SOURCE_FIGURE_ROW: source-1|1.|box || source-2|2.|box]] || _ || _]]'),'[[SOURCE_FIGURE_ROW: source-1|1.|box || source-2|2.|box]]');
+    assert.equal(Layout.normalise('[[GRID_ROW: अ || आ]]\n[[GRID_ROW: _ || _]]'),'[[GRID_ROW: अ || आ]]\n[[GRID_ROW: _ || _]]','Consecutive grid rows must stay contiguous');
     const suggestions=code.slice(code.indexOf('function showSmartSuggestions'),code.indexOf('function chooseSmartSuggestion'));
     assert(!suggestions.includes('autoApplySmartSuggestion('),'Suggestions must require a teacher selection');
     if(process.env.PAPERAI_QA_OUTPUT)fs.writeFileSync(process.env.PAPERAI_QA_OUTPUT,Buffer.from(await blob.arrayBuffer()));

@@ -5324,6 +5324,18 @@ function formatOutput(text) {
     return html;
 }
 
+// Successful scanned pages survive a failed request while this file stays open.
+// Key by the actual File and language, never by a potentially duplicate filename.
+const scannedPageCache=new WeakMap();
+function restoreScannedPage(page) {
+    let text=page.text;
+    for(const asset of page.media){
+        const id='resume-'+crypto.randomUUID();
+        extractedMedia.push({...asset,id});
+        text=text.replaceAll(asset.id,id);
+    }
+    return {...page,text};
+}
 async function extractOneFile(f, onProgress, label) {
     const ext = f.name.split('.').pop().toLowerCase();
     const report = typeof onProgress === 'function' ? onProgress : () => {};
@@ -5334,7 +5346,12 @@ async function extractOneFile(f, onProgress, label) {
 
     if (ext === 'pdf') {
         report('Loading PDF...', 8);
-        const pages = await pdfToPages(f);
+        const language=languageSelect.value||'auto';
+        let languages=scannedPageCache.get(f);
+        if(!languages){languages=new Map();scannedPageCache.set(f,languages);}
+        let cached=languages.get(language);
+        if(!cached){cached={pages:await pdfToPages(f),results:[]};if(cached.pages.some(p=>p.type==='image'))languages.set(language,cached);}
+        const pages=cached.pages;
         if(pages.every(p=>p.nativeScene))nativePdfPages=pages.map(p=>p.nativeScene);
         for (let i = 0; i < pages.length; i++) {
             const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
@@ -5346,17 +5363,29 @@ async function extractOneFile(f, onProgress, label) {
                 allRaw += plainPrefix + pages[i].text;
                 continue;
             }
+            if(cached.results[i]){
+                const saved=restoreScannedPage(cached.results[i]);
+                allText+=prefix+saved.text;allPlain+=plainPrefix+saved.plain;allRaw+=plainPrefix+saved.raw;
+                report('Restored completed page '+(i+1)+'/'+pages.length+'...',48+Math.round((i/pages.length)*45));
+                continue;
+            }
 
             report('OCR scanned page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
             const ctrl = new AbortController();
             const tid = setTimeout(() => ctrl.abort(), 240000);
             let result;
+            const firstMedia=extractedMedia.length;
             try { result = await sendToOCR(pages[i].blob, ctrl.signal, label + 'Preparing page ' + (i+1) + '/' + pages.length); }
+            catch(error){
+                const message=error.name==='AbortError'?'The page request timed out.':error.message;
+                throw new Error(message+' Completed '+i+'/'+pages.length+' pages are kept while this file stays open. Press Extract Text to resume the remaining pages when the service is available.');
+            }
             finally { clearTimeout(tid); }
             if (result.status !== 'completed' || !result.result) throw new Error('OCR failed on page ' + (i+1) + '.');
             if (result.status === 'completed' && result.result) {
                 const annotated = result.result.annotated_text || result.result.full_text || '';
                 const plain = result.result.full_text || annotated;
+                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia)};
                 allText += prefix + annotated;
                 allPlain += plainPrefix + plain;
                 allRaw += plainPrefix + (result.result.raw_text || annotated);
@@ -5410,6 +5439,7 @@ goBtn.onclick = async () => {
     if (!batch.length) return;
     const sourceFile = file;
     goBtn.disabled=true;
+    languageSelect.disabled=true;
     hideErr();
     resBox.classList.remove('show');
     prog.classList.add('show');
@@ -5470,6 +5500,7 @@ goBtn.onclick = async () => {
         showErr(e.name==='AbortError' ? 'The network request took too long. PaperAI now retries AI timeouts automatically; please check your connection and try again.' : e.message);
     } finally {
         goBtn.disabled=false;
+        languageSelect.disabled=false;
     }
 };
 
@@ -6261,6 +6292,7 @@ function createWordPlaceholderPngBase64() {
 
 async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
+    structuredText=PaperAILayout.normalise(structuredText);
 
     const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
     const footerXml = paperLayoutOptions().pageNumbers||/\[\[FOOTER:/i.test(structuredText)?docxFooterXml(structuredText):'<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>';
@@ -6303,6 +6335,7 @@ async function makeExtractedDocx(structuredText) {
         exportText='[[SOURCE_BANNER: '+id+']]\n'+exportText;
     }
     const documentXml=docxDocumentXml(exportText);
+    if(/<w:t\b[^>]*>[^<]*\[\[/.test(documentXml))throw new Error('A layout annotation needs review. Use Correct text or Paper layout before exporting.');
     const zip = new JSZip();
     zip.file('[Content_Types].xml',
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
