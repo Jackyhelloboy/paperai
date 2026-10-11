@@ -5583,7 +5583,10 @@ goBtn.onclick = async () => {
             }, batch.length > 1 ? 'File ' + (idx+1) + '/' + batch.length + ': ' : '');
             if(batch.length===1)nativePdfPages=part.nativePdfPages;
             if (!String(part.plain || part.text || '').trim()) continue;
-            allText += allText ? '\n[[PAPER_BREAK]]\n' + part.text : part.text;
+            const isPhoto=f=>IMAGE_EXTS.includes(f?.name.split('.').pop().toLowerCase());
+            // Consecutive photos are scan pages. Visible new-paper headers still separate papers.
+            const boundary=isPhoto(batch[idx])&&isPhoto(batch[idx-1])?'[[PAGE_BREAK]]':'[[PAPER_BREAK]]';
+            allText += allText ? '\n'+boundary+'\n' + part.text : part.text;
             allPlain += allPlain ? '\n\n' + part.plain : part.plain;
             allRaw += allRaw ? '\n\n' + part.raw : part.raw;
         }

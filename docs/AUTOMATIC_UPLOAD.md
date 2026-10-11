@@ -4,6 +4,8 @@ Selecting or dropping supported files starts processing immediately. Image and s
 
 Visible header labels choose the measured science, humanities or worksheet reference family. Other scans use the compact reference. The selector resets font, spacing, indent, grid height and page-number defaults for every document. Question topics do not select a subject format, and the original text, numbering, marks, blanks, matching order and structure markers remain unchanged. Original Word formatting and measured native PDF geometry take precedence over inferred defaults. Review and corrections remain optional.
 
+Consecutive uploaded photos are treated as scan pages of the same paper and compact automatically, while visibly repeated new-paper headers can keep a new paper separate. Distinct non-photo documents retain their file boundaries.
+
 Only one upload processes at a time. File selection, removal and language changes are disabled during the active job, and repeated requests are ignored. A failed scan displays Retry / resume processing. Completed scanned PDF pages remain cached for the same open File and language. Results from another document are never presented as the failed scan. Clearing a file also clears its result and media.
 
 Processing duration is unknown, so the indicator displays actual stages and an indeterminate animation, then 100% after the preview is ready. It respects reduced-motion preferences. A prior completion timer cannot hide a new upload's progress.
