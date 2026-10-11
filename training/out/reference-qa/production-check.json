@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-11",
+  "app_url": "https://paperai-5up.pages.dev/",
+  "code_commit": "2aaa244d1a3afaee9cc0b4a01d4570b21218bbae",
+  "deployment_and_regression_workflows": "passed",
+  "source": "Typed controlled excerpts of existing references plus UI-created table/grid/shape; no website file imports or OCR requests.",
+  "selected_format": "Annual science reference",
+  "render_pages": 1,
+  "page_size_points": [
+    595.3,
+    841.89
+  ],
+  "margins_twips": 720,
+  "body_font": "Arial 10 pt",
+  "heading_font": "Arial 12 pt",
+  "marks_alignment": "right; literal values retained",
+  "content_exactly_matches_typed_text": true,
+  "table_widths_twips": [
+    2093,
+    5233,
+    3140
+  ],
+  "grid_rows": 5,
+  "grid_columns": 10,
+  "grid_cells": 50,
+  "grid_row_height_twips": 454,
+  "native_shape": "square: a:prstGeom rect, equal 647700 EMU extents",
+  "native_answer_box_width_twips": 1440,
+  "visual_review": "Browser preview and all one rendered Word/PDF page inspected: no clipping, overlap, accidental answers or extraneous text in this fixture.",
+  "limitations": [
+    "Controlled layout check is an excerpt, not a complete exam; literal section marks were retained.",
+    "No fresh handwriting OCR, image uploads or automatic illustration cropping tested in this production check.",
+    "Exact browser-to-Word pixel equality is not asserted; Word and browser have different text and pagination renderers.",
+    "No hosted model weights fine-tuned."
+  ],
+  "files": {
+    "PaperAI-Production-Layout-Check.docx": {
+      "bytes": 4555,
+      "sha256": "fd701f768eb584cdfc66b9240dc98a4d761c8a81b6655170e431a79b806b6c40"
+    },
+    "PaperAI-Production-Layout-Check.pdf": {
+      "bytes": 55835,
+      "sha256": "58cabe466674b05b1228c87c4a3ffc074ead06e18595caf98e84e550c51ed0f5"
+    },
+    "PaperAI-Production-Layout.jpg": {
+      "bytes": 51018,
+      "sha256": "46089aa086610853daef25a44339e1f32ce25e6d67dcc6c62166a5b980ccdf2d"
+    }
+  }
+}

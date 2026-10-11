@@ -56,3 +56,11 @@ PAPERAI_FORMAT_OUT=training/out/reference-qa node tests/reference-formats.cjs
 ```
 
 Render each DOCX with the bundled documents/render_docx.py using --emit_pdf, then inspect every page. A rendering pass and an XML pass are separate checks.
+
+## Final production verification
+
+The live site at https://paperai-5up.pages.dev/ was tested after deployment of code commit `2aaa244d1a3afaee9cc0b4a01d4570b21218bbae`. Both deployment and regression workflows passed. The test used **Create question paper**, the annual science preset, **Correct text**, and the table, grid and shape controls. No file was imported or uploaded to the website and no OCR request was made.
+
+The downloaded [production Word check](out/reference-qa/PaperAI-Production-Layout-Check.docx) was rendered to [PDF](out/reference-qa/PaperAI-Production-Layout-Check.pdf), and its single page was inspected. It retains exactly the typed wording, right-aligned literal marks, Arial 10 pt body and 12 pt headings, A4 with 0.5-inch margins, a 20/50/30 table with multiline cells, a native 5 × 10 grid with 0.8 cm rows, and a native editable square and answer box. Immediate cell edits were confirmed in the visible production preview. The [browser screenshot](out/reference-qa/PaperAI-Production-Layout.jpg) and [package checks](out/reference-qa/production-check.json) record the result.
+
+This is a controlled layout excerpt, not a complete exam; its section instructions and marks intentionally retain the source wording. The 32 offline output pages and this one production export page were visually checked. Picture integrity and placements were checked against the existing Word references offline; the production check does not add a new live image-import or handwriting-accuracy result. Browser preview and Word rendering are visually consistent in structure, not guaranteed pixel-identical.
