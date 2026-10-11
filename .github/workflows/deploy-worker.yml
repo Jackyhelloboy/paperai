@@ -58,7 +58,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
           wranglerVersion: "4"
-          command: deploy
+          command: deploy --var PAPERAI_RELEASE_SHA:${{ github.sha }}
 
       - name: Verify backup generation after deployment
         env:

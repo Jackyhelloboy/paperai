@@ -11,10 +11,21 @@ function objects(text){
   }return found;
 }
 (async()=>{
-  const tail=spawn('npx',['--yes','wrangler@4','tail','paperai-ocr','--format=json','--search=[Scan transport]'],
+  const expected=process.env.GITHUB_SHA;
+  if(expected){
+    let active=false;
+    for(let attempt=0;attempt<20;attempt++){
+      try{const response=await fetch('https://paperai-ocr.mdjawaadkhan57.workers.dev/health',{redirect:'error',signal:AbortSignal.timeout(5000)});
+        active=(await response.json()).revision===expected;}catch(_){}
+      if(active)break;await sleep(3000);
+    }
+    if(!active)throw new Error('Production backend revision did not become active.');
+    console.log('Production backend revision matches the deployment commit.');
+  }
+  const tail=spawn('npx',['--yes','wrangler@4','tail','paperai-ocr','--format=json'],
     {cwd:'worker',detached:true,stdio:['ignore','pipe','pipe']});
-  let logs='';tail.stdout.on('data',chunk=>{if(logs.length<1024*1024)logs+=chunk.toString();});
-  tail.stderr.on('data',()=>{});tail.on('error',()=>{});
+  let logs='',stderrBytes=0,tailExit=null;tail.stdout.on('data',chunk=>{if(logs.length<1024*1024)logs+=chunk.toString();});
+  tail.stderr.on('data',chunk=>{stderrBytes+=chunk.length;});tail.on('error',()=>{});tail.on('exit',code=>{tailExit=code;});
   try{
     await sleep(6000);
     const image=fs.readFileSync('tests/fixtures/scanning-smoke.png').toString('base64');
@@ -32,6 +43,10 @@ function objects(text){
   finally{
     try{process.kill(-tail.pid,'SIGTERM');}catch(_){}
     tail.stdout.destroy();tail.stderr.destroy();
+    console.log(JSON.stringify({tail_stdout_bytes:logs.length,tail_stderr_bytes:stderrBytes,tail_exit:tailExit}));
+    for(const match of logs.matchAll(/\[Scan transport\] (gemini-(?:flash-latest|3\.5-flash-lite)) (http ([1-5]\d\d)|exception (TypeError|AbortError|TimeoutError|Error))/g))
+      console.log(JSON.stringify({transport:match[1],http:match[3]?Number(match[3]):null,exception:match[4]||null}));
+    for(const match of logs.matchAll(/\[Scan routing\] credential (present|absent)/g))console.log('Production backup credential: '+match[1]);
     // Fixed marker + known endpoint + HTTP code/error class only. Never dump the tail.
     for(const event of objects(logs))for(const entry of event.logs||[]){
       const m=entry.message||[];

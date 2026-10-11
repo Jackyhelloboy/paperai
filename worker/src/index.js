@@ -26,7 +26,7 @@ export default {
       return Response.json({service: 'PaperAI', status: 'running'}, {headers: corsHeaders});
     }
     if (url.pathname === '/health') {
-      return Response.json({status: 'healthy'}, {headers: corsHeaders});
+      return Response.json({status: 'healthy', revision: String(env.PAPERAI_RELEASE_SHA || '')}, {headers: {...corsHeaders, 'Cache-Control':'no-store'}});
     }
 
     if (url.pathname === '/api/live') {
@@ -590,10 +590,11 @@ async function runGemini(env, requestBody, signal, state = {}) {
       headers: {'Content-Type': 'application/json', 'X-goog-api-key': apiKey},
       body: JSON.stringify(body), signal: controller.signal,
     });
+    console.log('[Scan transport] '+model+' http '+response.status);
     // Do not parse or expose upstream failure bodies.
     if (response.ok) result = await response.json();
   } catch (error) {
-    console.log('[Scan transport]', model, 'exception', ['TypeError','AbortError','TimeoutError'].includes(error?.name) ? error.name : 'Error');
+    console.log('[Scan transport] '+model+' exception '+(['TypeError','AbortError','TimeoutError'].includes(error?.name) ? error.name : 'Error'));
     if (!signal?.aborted && canContinue) continue;
     throw scanServiceError(timedOut || signal?.aborted ? 'AI_TIMEOUT' : 'AI_BUSY',
       'Scanning is temporarily unavailable. Please retry.');
@@ -602,7 +603,6 @@ async function runGemini(env, requestBody, signal, state = {}) {
     signal?.removeEventListener('abort', cancel);
   }
   if (!response.ok) {
-    console.log('[Scan transport]', model, 'http', response.status);
     // Only transient capacity/rate/timeout failures advance to the next endpoint.
     // Authentication, malformed requests, redirects and incomplete output do not.
     if (canContinue && (response.status === 408 || response.status === 429 || response.status >= 500)) continue;
@@ -622,6 +622,7 @@ async function runGemini(env, requestBody, signal, state = {}) {
 
 async function runInference(env, body, state = {}, signal) {
   const hasBackup = Boolean(String(env.GEMINI_API_KEY || '').trim());
+  console.log('[Scan routing] credential '+(hasBackup?'present':'absent'));
   if (state.provider === 'gemini') return runGemini(env, body, signal, state);
   if (await confirmedFreeLimit(env)) {
     if (!hasBackup) throw new Error('3036: daily free allocation reached');
