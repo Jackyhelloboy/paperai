@@ -5709,6 +5709,7 @@ function updatePaperWidths(lineIndex,value) {
     const row=lines[lineIndex].match(/^\[\[(?:TABLE_ROW|MATCH_ROW):\s*([\s\S]*?)\]\]$/i);
     if(!row||values.length!==worksheetCells(row[1],32).length||values.some(x=>!Number.isFinite(x)||x<=0)){showErr('Enter one positive column proportion per column, separated by commas.');return;}
     const marker='[[TABLE_WIDTHS: '+values.join(',')+']]';
+    hideErr();
     let first=lineIndex;
     while(/^\[\[TABLE_(?:WIDTHS|HEADER):/i.test(lines[first-1]||''))first--;
     const existing=lines.slice(first,lineIndex).findIndex(x=>/^\[\[TABLE_WIDTHS:/i.test(x));
@@ -5766,7 +5767,7 @@ function openPaperLayout() {
         const m=line.match(/^\[\[(TABLE_ROW|MATCH_ROW|GRID_ROW|SECTION_ROW|QUESTION_ROW|CHOICE_ROW|OPTION_ROW|ARITHMETIC_ROW):\s*([\s\S]*?)\]\]$/i);
         if(m){const labels={TABLE_ROW:'Table row',MATCH_ROW:'Matching row',GRID_ROW:'Grid row',SECTION_ROW:'Section and marks',QUESTION_ROW:'Question and marks',CHOICE_ROW:'Choices',OPTION_ROW:'Choices with boxes',ARITHMETIC_ROW:'Vertical arithmetic'};
             const widths=['TABLE_ROW','MATCH_ROW'].includes(m[1])&&!new RegExp('^\\[\\['+m[1]+':','i').test(lines[index-1]||'')?'<label style="display:block;margin:.5rem 0">Column proportions <input aria-label="Column proportions" value="'+esc((lines[index-1]||'').match(/^\[\[TABLE_WIDTHS:\s*([\s\S]*?)\]\]$/i)?.[1]||Array(worksheetCells(m[2],32).length).fill(1).join(','))+'" onchange="updatePaperWidths('+index+',this.value)"></label>':'';
-            return '<fieldset style="margin:.5rem 0;border:1px solid var(--border);border-radius:6px"><legend>'+labels[m[1]]+'</legend><div style="display:flex;gap:.4rem;flex-wrap:wrap">'+worksheetCells(m[2],52).map((cell,c)=>'<textarea aria-label="'+labels[m[1]]+' cell '+(c+1)+'" style="flex:1;min-width:65px;max-width:100%;padding:.4rem" rows="2" onchange="updatePaperCell('+index+','+c+',this.value)">'+esc(cell.replace(/<br>/gi,'\n'))+'</textarea>').join('')+'</div>'+widths+'<button class="action-btn" onclick="removePaperRow('+index+')">Remove row</button></fieldset>';}
+            return '<fieldset style="margin:.5rem 0;border:1px solid var(--border);border-radius:6px"><legend>'+labels[m[1]]+'</legend><div style="display:flex;gap:.4rem;flex-wrap:wrap">'+worksheetCells(m[2],52).map((cell,c)=>'<textarea aria-label="'+labels[m[1]]+' cell '+(c+1)+'" style="flex:1;min-width:65px;max-width:100%;padding:.4rem" rows="2" oninput="updatePaperCell('+index+','+c+',this.value)">'+esc(cell.replace(/<br>/gi,'\n'))+'</textarea>').join('')+'</div>'+widths+'<button class="action-btn" onclick="removePaperRow('+index+')">Remove row</button></fieldset>';}
         const grid=line.match(/^\[\[GRID:\s*(.*?)\]\]$/i);
         return grid?'<label style="display:block;margin:.5rem 0">Grid columns × rows <input aria-label="Grid dimensions" value="'+esc(grid[1])+'" onchange="updatePaperGrid('+index+',this.value)"></label>':'';
     }).join('')||'<p class="teach-sub">Use Correct text to edit the questions. Insert a table, grid, shape or marks below.</p>';

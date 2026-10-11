@@ -10,7 +10,7 @@ const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,document:{getElement
     worksheetCells:(s,n=32)=>String(s).split(/\s*\|\|\s*/).map(x=>x.trim()).slice(0,n),
     worksheetGridSize:s=>{const m=s.match(/^(\d+)x(\d+)$/);return m?{columns:+m[1],rows:+m[2]}:null;},
     repairLegacyBranchDiagram:s=>s,isOutputHeadingLine:s=>/^(?:I|II|III|IV)[. ]/.test(s),circledNumberValue:()=>null,
-    refreshPaperLayout:()=>{},openPaperLayout:()=>{},showErr:message=>{ctx.error=message;},fetch:async()=>({ok:false}),setTimeout,clearTimeout});
+    refreshPaperLayout:()=>{},openPaperLayout:()=>{},hideErr:()=>{ctx.error=null;},showErr:message=>{ctx.error=message;},fetch:async()=>({ok:false}),setTimeout,clearTimeout});
 vm.runInContext(slice('function xmlEscape','async function downloadWord'),ctx);
 ctx.refreshPaperLayout=()=>{};ctx.openPaperLayout=()=>{};
 const fixtures={
@@ -49,6 +49,7 @@ const fixtures={
     ctx.updatePaperWidths(2,'20,80');assert.equal((ctx.lastResult.text.match(/TABLE_WIDTHS/g)||[]).length,1,'Editing a header table added stale widths');
     ctx.removePaperRow(2);assert(!ctx.lastResult.text.includes('TABLE_WIDTHS')&&!ctx.lastResult.text.includes('TABLE_HEADER'),'Removed table left layout settings on the next table');
     ctx.updatePaperWidths(1,'-10,110');assert(ctx.error.includes('positive'));assert(!ctx.lastResult.text.includes('-10'));
+    ctx.updatePaperWidths(1,'20,80');assert.equal(ctx.error,null,'Correcting column widths must clear the previous validation error');
     ctx.lastResult=null;ctx.esc=String;ctx.formatOutputLine=String;ctx.parseBranchBlock=()=>null;ctx.formatSingleAnswerBlankLine=()=>null;ctx.isAnswerBlankContinuationLine=()=>false;
     vm.runInContext(slice('function worksheetCells','function formatOutput(text)'),ctx);
     vm.runInContext(slice('function formatOutput(text)','// Successful scanned pages'),ctx);
