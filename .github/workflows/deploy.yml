@@ -51,7 +51,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node .github/scripts/ensure-pages-config.cjs
 
-      - name: Stage frontend and on-device runtime
+      - name: Stage frontend document assets
         run: node .github/scripts/build-pages.cjs
 
       - name: Deploy to Cloudflare Pages
