@@ -13,7 +13,7 @@ const ctx=vm.createContext({Date:Clock,URL,Request,Response,Headers,TextDecoder,
   fetch:async(url,options)=>{
     assert(['gemini-flash-latest','gemini-3.5-flash-lite'].some(model=>url==='https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent'));
     endpoints.push(url);
-    assert.equal(options.redirect,'error');assert.equal(options.headers['X-goog-api-key'],'fixture-credential');
+    assert.equal(options.redirect,'manual');assert.equal(options.headers['X-goog-api-key'],'fixture-credential');
     assert(options.signal instanceof AbortSignal);requests.push(JSON.parse(options.body));
     const next=queue.shift();assert(next,'Unexpected upstream submission');return next;
   }});
@@ -64,6 +64,9 @@ const limit=()=>{throw new Error('3036: daily free allocation reached');};
   queue.push(new Response('PRIVATE PROVIDER MESSAGE fixture-credential',{status:403}));
   response=await ctx.handler.fetch(image(),structured.env);body=await response.json();assert.equal(response.status,503);
   assert.equal(body.code,'SCAN_SERVICE_UNAVAILABLE');assert(!/PRIVATE|credential|Gemini|Google/i.test(JSON.stringify(body)));
+  const beforeRedirect=endpoints.length;queue.push(new Response('PRIVATE REDIRECT',{status:302,headers:{Location:'https://untrusted.test/'}}));
+  response=await ctx.handler.fetch(image(),structured.env);assert.equal((await response.json()).code,'SCAN_SERVICE_UNAVAILABLE');
+  assert.equal(endpoints.length,beforeRedirect+1,'Redirects never forward credentials or start another submission');
   queue.push(new Response('PRIVATE QUOTA MESSAGE',{status:429}),new Response('PRIVATE BUSY MESSAGE',{status:503}));response=await ctx.handler.fetch(image(),structured.env);
   assert.equal(response.status,503);assert.equal((await response.json()).code,'AI_BUSY');
   const capacity=environment(limit);

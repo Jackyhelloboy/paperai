@@ -542,7 +542,6 @@ async function confirmedFreeLimit(env) {
 const PRIMARY_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 const GEMINI_MODEL = 'gemini-flash-latest';
 const GEMINI_CAPACITY_MODEL = 'gemini-3.5-flash-lite';
-const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
 
 function scanServiceError(code, message) {
   const error = new Error(message);
@@ -576,47 +575,51 @@ async function runGemini(env, requestBody, signal, state = {}) {
   };
   const models = state.geminiModel ? [state.geminiModel] : [GEMINI_MODEL, GEMINI_CAPACITY_MODEL];
   for (let attempt = 0; attempt < models.length; attempt++) {
-  const model = models[attempt], canContinue = attempt + 1 < models.length;
-  const controller = new AbortController();
-  let timedOut = false;
-  const cancel = () => controller.abort();
-  if (signal?.aborted) cancel();
-  else signal?.addEventListener('abort', cancel, {once: true});
-  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, canContinue ? 25000 : 90000);
-  let response, result;
-  try {
-    response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
-      method: 'POST', redirect: 'error',
-      headers: {'Content-Type': 'application/json', 'X-goog-api-key': apiKey},
-      body: JSON.stringify(body), signal: controller.signal,
-    });
-    console.log('[Scan transport] '+model+' http '+response.status);
-    // Do not parse or expose upstream failure bodies.
-    if (response.ok) result = await response.json();
-  } catch (error) {
-    console.log('[Scan transport] '+model+' exception '+(['TypeError','AbortError','TimeoutError'].includes(error?.name) ? error.name : 'Error'));
-    if (!signal?.aborted && canContinue) continue;
-    throw scanServiceError(timedOut || signal?.aborted ? 'AI_TIMEOUT' : 'AI_BUSY',
-      'Scanning is temporarily unavailable. Please retry.');
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', cancel);
-  }
-  if (!response.ok) {
-    // Only transient capacity/rate/timeout failures advance to the next endpoint.
-    // Authentication, malformed requests, redirects and incomplete output do not.
-    if (canContinue && (response.status === 408 || response.status === 429 || response.status >= 500)) continue;
-    throw scanServiceError(response.status === 429 || response.status >= 500 ? 'AI_BUSY' : 'SCAN_SERVICE_UNAVAILABLE',
-      'Scanning is temporarily unavailable. Please retry.');
-  }
-  const candidate = result?.candidates?.[0];
-  if (result?.promptFeedback?.blockReason || (candidate?.finishReason && candidate.finishReason !== 'STOP'))
-    throw scanServiceError('OCR_OUTPUT_INVALID', 'This page could not be read completely.');
-  const text = (candidate?.content?.parts || []).filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('');
-  if (!text.trim()) throw scanServiceError('OCR_OUTPUT_INVALID', 'This page could not be read completely.');
-  // Gemini token usage must never be counted as primary-provider neurons.
-  state.geminiModel = model;
-  return {response: text, usage: null, model};
+    const model = models[attempt], canContinue = attempt + 1 < models.length;
+    const controller = new AbortController();
+    let timedOut = false;
+    const cancel = () => controller.abort();
+    if (signal?.aborted) cancel();
+    else signal?.addEventListener('abort', cancel, {once: true});
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, canContinue ? 25000 : 90000);
+    let response, result;
+    try {
+      response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
+        // Manual mode is supported across deployed Worker compatibility versions.
+        // A redirect is rejected below; credentials are never forwarded elsewhere.
+        method: 'POST', redirect: 'manual',
+        headers: {'Content-Type': 'application/json', 'X-goog-api-key': apiKey},
+        body: JSON.stringify(body), signal: controller.signal,
+      });
+      console.log('[Scan transport] '+model+' http '+response.status);
+      // Do not parse or expose upstream failure bodies.
+      if (response.ok) result = await response.json();
+    } catch (error) {
+      const detail=String(error?.message||'').toLowerCase();
+      const reason=detail.includes('redirect')?'redirect-mode':detail.includes('signal')?'signal':detail.includes('header')?'header':detail.includes('network')?'network':'runtime';
+      console.log('[Scan transport] '+model+' exception '+(['TypeError','AbortError','TimeoutError'].includes(error?.name) ? error.name : 'Error')+' reason '+reason);
+      if (!signal?.aborted && canContinue) continue;
+      throw scanServiceError(timedOut || signal?.aborted ? 'AI_TIMEOUT' : 'AI_BUSY',
+        'Scanning is temporarily unavailable. Please retry.');
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', cancel);
+    }
+    if (!response.ok) {
+      // Only transient capacity/rate/timeout failures advance to the next endpoint.
+      // Authentication, malformed requests, redirects and incomplete output do not.
+      if (canContinue && (response.status === 408 || response.status === 429 || response.status >= 500)) continue;
+      throw scanServiceError(response.status === 429 || response.status >= 500 ? 'AI_BUSY' : 'SCAN_SERVICE_UNAVAILABLE',
+        'Scanning is temporarily unavailable. Please retry.');
+    }
+    const candidate = result?.candidates?.[0];
+    if (result?.promptFeedback?.blockReason || (candidate?.finishReason && candidate.finishReason !== 'STOP'))
+      throw scanServiceError('OCR_OUTPUT_INVALID', 'This page could not be read completely.');
+    const text = (candidate?.content?.parts || []).filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('');
+    if (!text.trim()) throw scanServiceError('OCR_OUTPUT_INVALID', 'This page could not be read completely.');
+    // Gemini token usage must never be counted as primary-provider neurons.
+    state.geminiModel = model;
+    return {response: text, usage: null, model};
   }
 }
 

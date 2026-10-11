@@ -47,6 +47,7 @@ function objects(text){
     for(const match of logs.matchAll(/\[Scan transport\] (gemini-(?:flash-latest|3\.5-flash-lite)) (http ([1-5]\d\d)|exception (TypeError|AbortError|TimeoutError|Error))/g))
       console.log(JSON.stringify({transport:match[1],http:match[3]?Number(match[3]):null,exception:match[4]||null}));
     for(const match of logs.matchAll(/\[Scan routing\] credential (present|absent)/g))console.log('Production backup credential: '+match[1]);
+    for(const match of logs.matchAll(/exception (?:TypeError|AbortError|TimeoutError|Error) reason (redirect-mode|signal|header|network|runtime)/g))console.log('Transport reason: '+match[1]);
     // Fixed marker + known endpoint + HTTP code/error class only. Never dump the tail.
     for(const event of objects(logs))for(const entry of event.logs||[]){
       const m=entry.message||[];
