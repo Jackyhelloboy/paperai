@@ -577,22 +577,32 @@ async function runGemini(env, requestBody, signal, state = {}) {
   const models = state.geminiModel ? [state.geminiModel] : [GEMINI_MODEL, GEMINI_CAPACITY_MODEL];
   for (let attempt = 0; attempt < models.length; attempt++) {
   const model = models[attempt], canContinue = attempt + 1 < models.length;
-  const timeout = AbortSignal.timeout(canContinue ? 25000 : 90000);
+  const controller = new AbortController();
+  let timedOut = false;
+  const cancel = () => controller.abort();
+  if (signal?.aborted) cancel();
+  else signal?.addEventListener('abort', cancel, {once: true});
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, canContinue ? 25000 : 90000);
   let response, result;
   try {
     response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
       method: 'POST', redirect: 'error',
       headers: {'Content-Type': 'application/json', 'X-goog-api-key': apiKey},
-      body: JSON.stringify(body), signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      body: JSON.stringify(body), signal: controller.signal,
     });
     // Do not parse or expose upstream failure bodies.
     if (response.ok) result = await response.json();
-  } catch (_) {
+  } catch (error) {
+    console.log('[Scan transport]', model, 'exception', ['TypeError','AbortError','TimeoutError'].includes(error?.name) ? error.name : 'Error');
     if (!signal?.aborted && canContinue) continue;
-    throw scanServiceError(timeout.aborted || signal?.aborted ? 'AI_TIMEOUT' : 'AI_BUSY',
+    throw scanServiceError(timedOut || signal?.aborted ? 'AI_TIMEOUT' : 'AI_BUSY',
       'Scanning is temporarily unavailable. Please retry.');
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
   }
   if (!response.ok) {
+    console.log('[Scan transport]', model, 'http', response.status);
     // Only transient capacity/rate/timeout failures advance to the next endpoint.
     // Authentication, malformed requests, redirects and incomplete output do not.
     if (canContinue && (response.status === 408 || response.status === 429 || response.status >= 500)) continue;
