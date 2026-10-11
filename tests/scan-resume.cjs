@@ -23,6 +23,8 @@ vm.runInContext(code.slice(code.indexOf('const scannedPageCache='),code.indexOf(
  assert.equal(ctx.extractedMedia.length,3);
  assert.equal(new Set(ctx.extractedMedia.map(a=>a.id)).size,3);
  assert(output.text.includes('resume-1'));
+ const restored=ctx.restoreScannedPage({text:'[[SOURCE_FIGURE_ROW: source-1| |none || source-10| |none]]',media:[{id:'source-1'},{id:'source-10'}]});
+ assert(restored.text.includes('resume-2|')&&restored.text.includes('resume-3|'),'An image ID must not replace the prefix of another ID');
  ctx.extractedMedia=[];ctx.languageSelect.value='hi';
  await ctx.extractOneFile(f,()=>{},'');
  assert.equal(renders,2,'A language change starts a separate extraction');

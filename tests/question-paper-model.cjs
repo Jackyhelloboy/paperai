@@ -21,6 +21,14 @@ const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(
 const slice=(a,b)=>code.slice(code.indexOf(a),code.indexOf(b,code.indexOf(a)+1));
 const ui=vm.createContext({PaperAILayout:Layout,esc:s=>String(s),formatOutputLine:s=>String(s)});
 vm.runInContext(slice('function worksheetCells','function formatOutput(text)'),ui);
+const cropInputs={};for(const key of ['x','y','w','h'])cropInputs['crop-2-'+key]={value:0};cropInputs['crop-frame-2']={style:{}};
+ui.$=id=>cropInputs[id];
+vm.runInContext(slice('function paperCropEditor','function openPaperLayout'),ui);
+const cropEvent=(x,y)=>({button:0,pointerId:7,clientX:x,clientY:y,preventDefault(){},currentTarget:{getBoundingClientRect:()=>({left:20,top:30,width:400,height:600}),setPointerCapture(){},hasPointerCapture:()=>true,releasePointerCapture(){}}});
+ui.beginPaperCrop(2,cropEvent(60,150));ui.movePaperCrop(2,cropEvent(180,390));ui.endPaperCrop(cropEvent(180,390));
+assert.equal(cropInputs['crop-2-x'].value,100);assert.equal(cropInputs['crop-2-y'].value,200);
+assert.equal(cropInputs['crop-2-w'].value,300);assert.equal(cropInputs['crop-2-h'].value,400);
+assert.equal(cropInputs['crop-frame-2'].style.width,'30%');
 const matching=ui.formatStructuredWorksheetLine('[[MATCH_ROW: 1. Leaf || (   ) || b. Root]]');
 assert.equal((matching.match(/class="ocr-match-cell"/g)||[]).length,3);
 assert(matching.indexOf('Leaf')<matching.indexOf('Root'),'Matching choices must not be solved or reordered');

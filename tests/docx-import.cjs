@@ -37,4 +37,14 @@ assert.equal((ctx.docxStructuredXml(nested,{rIdPicture:{id:'original-banner',rol
 const numbered=body=>'<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>'+body+'</w:t></w:r></w:p>';
 const lists=ctx.docxStructuredXml(wrap(numbered('Leaves')+numbered('Bamboo')),{}, {'7':{0:{start:1,format:'decimal',text:'%1.'}}});
 assert.equal(lists,'1. Leaves\n2. Bamboo','Native Word list numbers must remain visible');
+const cell=text=>'<w:tc><w:p><w:r><w:t>'+text+'</w:t></w:r></w:p></w:tc>';
+const invisible='<w:tblPr><w:tblBorders><w:top w:val="nil"/><w:bottom w:val="nil"/><w:left w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders></w:tblPr>';
+assert.equal(ctx.docxStructuredXml(wrap('<w:tbl>'+invisible+'<w:tr>'+cell('IV. Write the words.')+cell('5 × 2 = 10M')+'</w:tr></w:tbl>')),'[[SECTION_ROW: IV. Write the words. || 5 × 2 = 10M]]');
+assert.equal(ctx.docxStructuredXml(wrap('<w:tbl>'+invisible+'<w:tr>'+cell('1. Leaf')+cell('(   )')+cell('b. Root')+'</w:tr></w:tbl>')),'[[MATCH_ROW: 1. Leaf || (   ) || b. Root]]');
+ctx.extractedMedia=[];ctx.DOCX_CONTENT_W=10466;
+const drawing=width=>'<w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:drawing xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><wp:inline><wp:extent cx="'+width*635+'" cy="635000"/><a:blip r:embed="rIdImage"/></wp:inline></w:drawing></w:r></w:p>';
+ctx.docxStructuredXml(wrap(drawing(1800)+drawing(3200)),{rIdImage:{id:'original',dataUrl:'same-source-pixels',w:100,h:80}});
+assert.deepEqual(Array.from(ctx.extractedMedia,a=>a.widthTwips),[1800,3200],'Each placement of a reused image must preserve its own size');
+assert(ctx.extractedMedia.every(a=>a.align==='right'));
+assert.notEqual(ctx.extractedMedia[0].id,ctx.extractedMedia[1].id);
 console.log('DOCX import regression: text boxes occur once in reading order; paragraph/section page breaks, tabs and line breaks survive.');

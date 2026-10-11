@@ -2442,6 +2442,7 @@ function docxStructuredXml(xmlText, media = {}, numbering = {}) {
     const children = element => Array.from(element.childNodes || []).filter(node => node.nodeType === 1);
     const tag = element => String(element?.localName || '');
     const counters={};
+    let pictureOccurrence=0;
     const paragraphText = p => {
         let out = '';
         const visit = node => {
@@ -2460,13 +2461,22 @@ function docxStructuredXml(xmlText, media = {}, numbering = {}) {
                 const choice=children(node).find(x=>tag(x)==='Choice')||children(node).find(x=>tag(x)==='Fallback');
                 if(choice)collect(choice);return;
             }
-            if(tag(node)==='blip')refs.push(node.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','embed'));
-            else if(tag(node)==='imagedata')refs.push(node.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id'));
+            if(tag(node)==='blip')refs.push({id:node.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','embed'),node});
+            else if(tag(node)==='imagedata')refs.push({id:node.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id'),node});
             else for(const c of children(node))collect(c);
         };
         collect(p);
         for(const ref of refs) {
-            const asset=media[ref];
+            let asset=media[ref.id];
+            let drawing=ref.node;
+            while(drawing&& !['drawing','pict'].includes(tag(drawing)))drawing=drawing.parentNode;
+            const extent=drawing?.getElementsByTagNameNS('*','extent')[0];
+            const width=Number(extent?.getAttribute('cx'))/635;
+            if(asset&&width>0){
+                const align=p.getElementsByTagNameNS(ns,'jc')[0]?.getAttributeNS(ns,'val');
+                asset={...asset,id:asset.id+'-placement-'+(++pictureOccurrence),widthTwips:Math.min(DOCX_CONTENT_W,Math.round(width)),align:['left','center','right'].includes(align)?align:'center'};
+                extractedMedia.push(asset);
+            }
             out+=asset ? (asset.role==='banner' ? ' [[SOURCE_BANNER: '+asset.id+']]' : ' [[SOURCE_FIGURE: '+asset.id+'| |none]]') : ' [[PICTURE: [unreadable]]]';
         }
         const numPr=p.getElementsByTagNameNS(ns,'numPr')[0];
@@ -2538,6 +2548,14 @@ function docxStructuredXml(xmlText, media = {}, numbering = {}) {
         );
         if (!rows.length) continue;
         const cols = Math.max(...rows.map(row=>row.length));
+        const borders=children(child).find(x=>tag(x)==='tblPr')?.getElementsByTagNameNS(ns,'tblBorders')[0];
+        const borderless=!!borders&&children(borders).every(x=>['nil','none','0'].includes(x.getAttributeNS(ns,'val')));
+        if(borderless&&rows.length===1&&cols===2&&/^\s*(?:[IVXLCDM]+[. )]|\d+[.)])/.test(rows[0][0])&&/^[\d०-९.,×xX*+÷/=()½¼¾\s]+(?:M|Marks?)?\.?$/i.test(rows[0][1])){
+            results.push('[['+(/^[IVXLCDM]/.test(rows[0][0])?'SECTION_ROW':'QUESTION_ROW')+': '+rows[0].join(' || ')+']]');continue;
+        }
+        if(borderless&&cols>=2&&cols<=3&&rows.every(row=>row.length===cols&&(/\(\s*\)/.test(row[1])||cols===2))){
+            rows.forEach(row=>results.push('[[MATCH_ROW: '+row.join(' || ')+']]'));continue;
+        }
         const empty = rows.every(row=>row.every(cell=>!cell));
         const isLetterGrid = cols >= 4 && rows.every(row =>
             row.every(cell => !cell || Array.from(new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(cell)).length <= 2));
@@ -2618,6 +2636,7 @@ async function extractOfficeZipFile(officeFile) {
         }
         const out = sections.join('\n\n').trim();
         if (!out) throw new Error('No readable text found in this Word file.');
+        extractedMedia=extractedMedia.filter(asset=>!Object.values(media).includes(asset)||out.includes(asset.id+'|')||out.includes(asset.id+']]'));
         return out;
     }
 
@@ -5332,7 +5351,7 @@ function restoreScannedPage(page) {
     for(const asset of page.media){
         const id='resume-'+crypto.randomUUID();
         extractedMedia.push({...asset,id});
-        text=text.replaceAll(asset.id,id);
+        text=text.replaceAll(asset.id+'|',id+'|').replaceAll(asset.id+']]',id+']]');
     }
     return {...page,text};
 }
@@ -5606,6 +5625,38 @@ function updatePaperGrid(lineIndex,value) {
     if(!worksheetGridSize(value)){showErr('Use columns × rows, up to 52 columns, 32 rows and 600 cells.');return;}
     const lines=lastResult.text.split('\n');lines[lineIndex]='[[GRID: '+value+']]';paperEdited(lines.join('\n'));
 }
+function paperCropEditor(asset,index) {
+    return '<p>Drag around the illustration on its source page, then apply the crop. Include all of the drawing and its labels.</p>'+
+        '<div aria-label="Source page for picture '+(index+1)+'" style="position:relative;width:100%;max-width:420px;touch-action:none;cursor:crosshair" onpointerdown="beginPaperCrop('+index+',event)" onpointermove="movePaperCrop('+index+',event)" onpointerup="endPaperCrop(event)" onpointercancel="endPaperCrop(event)">'+
+        '<img src="'+esc(asset.sourceDataUrl)+'" alt="Full source page" draggable="false" style="display:block;width:100%;pointer-events:none">'+
+        '<div id="crop-frame-'+index+'" style="pointer-events:none;position:absolute;border:2px solid #2463eb;background:rgba(36,99,235,.12);left:'+asset.region.x/10+'%;top:'+asset.region.y/10+'%;width:'+asset.region.w/10+'%;height:'+asset.region.h/10+'%"></div></div>'+
+        '<div style="margin-top:.7rem">Crop (0–1000): '+['x','y','w','h'].map(key=>'<label>'+({x:'Left',y:'Top',w:'Width',h:'Height'}[key])+' <input style="width:65px" type="number" id="crop-'+index+'-'+key+'" min="0" max="1000" value="'+asset.region[key]+'" oninput="updatePaperCropFrame('+index+')"></label>').join(' ')+' <button class="action-btn" onclick="cropPaperPicture('+index+')">Apply crop</button></div>';
+}
+let paperCropDrag=null;
+function paperCropPoint(event) {
+    const rect=event.currentTarget.getBoundingClientRect();
+    return [Math.round(Math.max(0,Math.min(1000,(event.clientX-rect.left)/rect.width*1000))),Math.round(Math.max(0,Math.min(1000,(event.clientY-rect.top)/rect.height*1000)))];
+}
+function beginPaperCrop(index,event) {
+    if(event.button!==0)return;
+    event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);
+    paperCropDrag={index,start:paperCropPoint(event)};
+}
+function movePaperCrop(index,event) {
+    if(!paperCropDrag||paperCropDrag.index!==index)return;
+    const a=paperCropDrag.start,b=paperCropPoint(event),values={x:Math.min(a[0],b[0]),y:Math.min(a[1],b[1]),w:Math.abs(b[0]-a[0]),h:Math.abs(b[1]-a[1])};
+    for(const key of ['x','y','w','h'])$('crop-'+index+'-'+key).value=values[key];
+    updatePaperCropFrame(index);
+}
+function endPaperCrop(event) {
+    paperCropDrag=null;
+    if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
+}
+function updatePaperCropFrame(index) {
+    const frame=$('crop-frame-'+index);if(!frame)return;
+    const keys={x:'left',y:'top',w:'width',h:'height'};
+    for(const key of Object.keys(keys))frame.style[keys[key]]=Number($('crop-'+index+'-'+key).value)/10+'%';
+}
 function openPaperLayout() {
     if(!lastResult)return;
     const lines=lastResult.text.split('\n');
@@ -5623,7 +5674,7 @@ function openPaperLayout() {
         '<label>Width in cm <input type="number" min=".5" max="18.46" step=".1" value="'+((asset.widthTwips||2260)/567).toFixed(1)+'" onchange="setPaperPicture('+i+',\'width\',this.value)"></label>'+
         '<label>Alignment <select onchange="setPaperPicture('+i+',\'align\',this.value)">'+['left','center','right'].map(a=>'<option '+((asset.align||'center')===a?'selected':'')+'>'+a+'</option>').join('')+'</select></label>'+
         '<label>Replace picture <input type="file" accept="image/png,image/jpeg,image/webp" onchange="replacePaperPicture('+i+',this.files[0])"></label></div>'+
-        (asset.sourceDataUrl?'<div style="margin-top:.7rem">Crop on source page (0–1000): '+['x','y','w','h'].map(key=>'<label>'+({x:'Left',y:'Top',w:'Width',h:'Height'}[key])+' <input style="width:65px" type="number" id="crop-'+i+'-'+key+'" min="0" max="1000" value="'+asset.region[key]+'"></label>').join(' ')+' <button class="action-btn" onclick="cropPaperPicture('+i+')">Apply crop</button></div>':'')+'</fieldset>').join('');
+        (asset.sourceDataUrl?paperCropEditor(asset,i):'')+'</fieldset>').join('');
     const missing=[...lastResult.text.matchAll(/\[\[(PICTURE(?:_OPTION|_ROW)?):\s*([\s\S]*?)\]\]/gi)];
     $('paperPictures').innerHTML+=missing.map((m,i)=>'<label style="display:block;margin:.6rem 0">Add requested picture: '+esc(m[2])+' <input type="file" accept="image/png,image/jpeg,image/webp" onchange="fillPaperPicture('+i+',this.files[0])"></label>').join('');
     const unresolved=[...lastResult.text.matchAll(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi)];
@@ -6032,7 +6083,7 @@ function buildDocxBody(structuredText) {
         const heading=isOutputHeadingLine(raw,i,firstNonEmptyIndex);
         const split=heading && PaperAILayout.section(raw);
         if(split) body.push(docxSectionRow(split.title,split.marks));
-        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,after:paperLayoutOptions().compact?(heading?55:25):(heading?100:70),keepNext:heading,center:i===firstNonEmptyIndex}));
+        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,after:paperLayoutOptions().compact?(heading?55:25):(heading?100:70),keepNext:heading||/^\[\[(?:GRID|GRID_ROW):/i.test(String(lines.slice(i+1).find(x=>x.trim())||'').trim()),center:i===firstNonEmptyIndex}));
         i++;
     }
     return body.join('');
