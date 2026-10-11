@@ -17,6 +17,18 @@
         humanities:{label:'Social and English reference',font:'Tahoma',headingFont:'Times New Roman',body:11,heading:13,line:1.5,after:0,indent:0},
         worksheet:{label:'Science worksheet reference',font:'Tahoma',headingFont:'Tahoma',body:12,heading:12,line:1,after:0,indent:0}
     });
+    function automaticFormat(text, nativeSource=false) {
+        // Detect only labels in the paper header, never a subject mentioned in a question.
+        const lines=String(text||'').split('\n').map(s=>s.trim()).filter(Boolean);
+        const firstQuestion=lines.findIndex(s=>/^(?:\d+[.)]\s|\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)]\s)/i.test(s));
+        const header=lines.slice(0,firstQuestion<0?12:Math.min(12,firstQuestion)).join('\n');
+        const subject='(?:subject\\s*[:=\\-]\\s*|(?:class\\s*)?(?:[IVX]+|[1-9]|10)\\s*[-:]\\s*)';
+        let name='compact';
+        if(/\b(?:work\s*sheet|activity\s*sheet)\b/i.test(header))name='worksheet';
+        else if(new RegExp('(?:^|\\n)\\s*'+subject+'(?:social(?:\\s+(?:studies|science))?|english)\\b','i').test(header)||/^(?:social studies|social science|english)\s*$/im.test(header))name='humanities';
+        else if(new RegExp('(?:^|\\n)\\s*'+subject+'science\\b','i').test(header)||/^science\s*$/im.test(header))name='science';
+        return {name,format:referenceFormats[name],preserveSource:Boolean(nativeSource)};
+    }
     function figure(value) {
         const parts = String(value || '').split('|');
         const nums = parts[0].trim().split(',').map(Number);
@@ -267,5 +279,5 @@
         }
         return lines.join('\n');
     }
-    return {profile,referenceFormats,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

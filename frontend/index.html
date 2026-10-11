@@ -666,6 +666,20 @@
         }
 
 
+        .progress-fill.indeterminate {
+            animation: scan-working 1.4s ease-in-out infinite;
+        }
+        @keyframes scan-working {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(290%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .progress-fill.indeterminate { animation: none; opacity: .7; }
+        }
+        .language-row summary { cursor: pointer; font-size: .8rem; color: var(--text2); }
+        details.language-row { display: block; }
+        .file-remove:disabled { opacity: .4; cursor: wait; }
+
         .error-toast {
             display: none;
             padding: 0.75rem 1rem;
@@ -1725,8 +1739,8 @@
 
     <main class="main">
         <div class="hero">
-            <h1>Extract text from anything</h1>
-            <p>Images, handwriting, PDFs, Word, PowerPoint, Excel and text — with free-only AI OCR</p>
+            <h1>Upload. PaperAI does the formatting.</h1>
+            <p>Upload an image or PDF. PaperAI reads the content and builds an editable A4 paper automatically.</p>
         </div>
 
         <section class="quota-card" id="quotaCard" aria-live="polite">
@@ -1752,11 +1766,11 @@
                 </div>
             </div>
 
-            <div class="quota-track" title="Daily AI quota used">
+            <div class="quota-track" id="quotaTrack" role="progressbar" aria-label="Daily AI usage" aria-valuemin="0" aria-valuemax="100">
                 <div class="quota-fill" id="quotaFill"></div>
             </div>
             <div class="quota-scale">
-                <span id="quotaPercent">0% used</span>
+                <span id="quotaPercent">Checking AI availability…</span>
                 <span>10,000 Neurons/day reference</span>
             </div>
 
@@ -1779,12 +1793,12 @@
                 <div class="upload-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 </div>
-                <div class="upload-title">Drop a file here</div>
-                <div class="upload-sub">or tap to browse · <strong>Images, PDF, Word, PPT, Excel, TXT</strong> · 50 MB max</div>
-                <input type="file" id="fileInput" class="file-input-hidden" accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
+                <div class="upload-title">Upload an image or PDF</div>
+                <div class="upload-sub">Processing starts automatically · <strong>Images &amp; PDFs</strong><br>Also accepts Word, PPT, Excel and text · 50 MB per file</div>
+                <input type="file" id="fileInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
             </div>
 
-            <div class="language-row">
+            <details class="language-row"><summary>Language is detected automatically · optional override</summary>
                 <label class="language-label" for="languageSelect">Document language</label>
                 <select id="languageSelect" class="language-select">
                     <option value="auto" selected>Auto detect (recommended)</option>
@@ -1802,7 +1816,7 @@
                     <option value="ur">Urdu</option>
                     <option value="ks">Kashmiri</option>
                 </select>
-            </div>
+            </details>
 
             <div class="file-preview" id="filePreview">
                 <img class="file-thumb" id="fileThumb" src="" alt="" style="display:none">
@@ -1818,16 +1832,15 @@
 
             <button class="btn-extract" id="goBtn" disabled>
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                Extract Text
+                Retry / resume processing
             </button>
-            <button class="action-btn" style="margin-top:.7rem;width:100%" onclick="startBlankPaper()">Create question paper</button>
 
             <div class="progress-wrap" id="prog">
                 <div class="progress-info">
                     <span class="progress-label" id="pMsg">Processing...</span>
-                    <span class="progress-pct" id="pPct">0%</span>
+                    <span class="progress-pct" id="pPct">Working…</span>
                 </div>
-                <div class="progress-bar">
+                <div class="progress-bar" id="scanProgress" role="progressbar" aria-label="Formatting uploaded paper" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-fill" id="pFill"></div>
                 </div>
             </div>
@@ -1840,7 +1853,7 @@
 
         <div class="results" id="resBox">
             <div class="results-header">
-                <span class="results-title">Extracted Text</span>
+                <span class="results-title">Your formatted paper</span>
                 <div class="results-badges" id="statsBar"></div>
             </div>
 
@@ -1861,10 +1874,10 @@
             </div>
 
             <p id="pdfWordNote" style="display:none;font-size:0.82rem;color:var(--text2)">Word matching PDF preserves the original pages as images. Use Editable Word to edit extracted text and Teach corrections.</p>
-            <button class="action-btn" onclick="openPaperLayout()" style="margin-bottom:.75rem">Paper layout</button>
+            <button class="action-btn" onclick="openPaperLayout()" style="margin-bottom:.75rem">Review layout (optional)</button>
             <div class="teach-panel" id="paperLayoutPanel">
-              <div class="teach-title">A4 question paper</div>
-              <p class="teach-sub">Narrow margins, editable text, tables and shapes. Review pictures and blanks before exporting.</p>
+              <div class="teach-title">Detected A4 layout</div>
+              <p class="teach-sub">PaperAI formats detected questions, marks, tables, shapes and pictures automatically. Corrections here are optional.</p>
               <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
                 <label>Page flow <select id="paperFlow" class="teach-lang-select" onchange="refreshPaperLayout()"><option value="compact">Compact A4</option><option value="source">Keep source pages</option></select></label>
                 <label>Reference format <select id="paperFormat" class="teach-lang-select" onchange="applyPaperFormat(this.value)"><option value="custom">Custom</option><option value="compact">Compact question paper</option><option value="science">Annual science reference</option><option value="humanities">Social and English reference</option><option value="worksheet">Science worksheet reference</option></select></label>
@@ -1881,20 +1894,6 @@
               <label id="paperWordFormatOption" style="display:none;margin-bottom:.7rem"><input type="checkbox" id="paperWordFormat" checked> Keep original Word formatting on A4</label>
               <p id="paperWordFormatNote" class="teach-sub" style="display:none">Keep the original fonts and editable objects, with tables in page flow. A4 can change page breaks. The preview shows extracted content; editing uses the selected paper format.</p>
               <div id="paperBlocks"></div>
-              <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0">
-                <label>Rows <input id="paperInsertRows" type="number" min="1" max="32" value="3" style="width:60px"></label>
-                <label>Columns <input id="paperInsertCols" type="number" min="1" max="32" value="3" style="width:60px"></label>
-                <label>Shape <select id="paperInsertShape"><option>square</option><option>rectangle</option><option>circle</option><option>triangle</option><option>cube</option></select></label>
-                <label>Answer space <select id="paperInsertAnswer"><option value="none">None</option><option value="box">Box</option><option value="line">Line</option></select></label>
-                <label>Question <input id="paperInsertQuestion" placeholder="Question text"></label>
-                <label>Marks <input id="paperInsertMarks" placeholder="e.g. 2M" style="width:100px"></label>
-                <label>Insert after <select id="paperInsertAfter" class="teach-lang-select"></select></label>
-                <button class="action-btn" onclick="insertPaperBlock('table')">Add table</button>
-                <button class="action-btn" onclick="insertPaperBlock('grid')">Add grid</button>
-                <button class="action-btn" onclick="insertPaperBlock('shape')">Add shapes</button>
-                <button class="action-btn" onclick="insertPaperBlock('marks')">Add question with marks</button>
-                <button class="action-btn" onclick="insertPaperBlock('break')">New paper</button>
-              </div>
               <div id="paperPictures"></div>
               <button class="action-btn" onclick="document.getElementById('paperLayoutPanel').classList.remove('show')">Done</button>
             </div>
@@ -1998,6 +1997,7 @@ const teachAiBtn=$('teachAiBtn'),teachAiStatus=$('teachAiStatus');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let file=null, fileBatch=[], lastResult=null, showingRaw=false;
+let processingUpload=false, uploadRun=0;
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
@@ -2007,7 +2007,16 @@ const MAX_AI_SUGGESTIONS_PER_TEACH = 8;
 const fmtSize = b => b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
 const showErr = m => { errText.textContent=m; errBox.classList.add('show'); };
 const hideErr = () => errBox.classList.remove('show');
-const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'%'; if(msg)pMsg.textContent=msg; };
+const setProg = (pct,msg) => {
+    // OCR duration is unknown. Report the actual stage instead of a guessed percentage.
+    const done=pct===100, track=$('scanProgress');
+    pFill.classList.toggle('indeterminate',!done);
+    pFill.style.width=done?'100%':'35%';
+    pPct.textContent=done?'100%':'Working…';
+    if(msg)pMsg.textContent=msg;
+    if(done)track.setAttribute('aria-valuenow','100');else track.removeAttribute('aria-valuenow');
+    track.setAttribute('aria-valuetext',msg||'Processing uploaded paper');
+};
 
 let quotaResetAt = null;
 let quotaReport = null, quotaLiveStatus = null, usageRequestId = 0;
@@ -2060,9 +2069,13 @@ function renderUsage() {
     quotaRemaining.textContent = view.remaining === null ? '—' : fmtNeuron(view.remaining);
     quotaUsed.textContent = view.used === null ? '—' : fmtNeuron(view.used);
     $('quotaRemainingLabel').textContent = view.blocked ? 'Free AI available' : 'Reported remaining';
-    quotaFill.style.width = (view.percent ?? 0).toFixed(2) + '%';
-    quotaPercent.textContent = view.percent === null ? 'Today’s analytics unavailable' :
-        Math.round(view.percent) + '% reported used';
+    quotaFill.style.width = (view.barPercent ?? 0).toFixed(2) + '%';
+    quotaPercent.textContent = view.barLabel;
+    const track=$('quotaTrack');
+    track.title=view.barDescription;
+    track.setAttribute('aria-valuetext',view.barLabel);
+    if(view.blocked || view.barPercent===null)track.removeAttribute('aria-valuenow');
+    else track.setAttribute('aria-valuenow',String(view.barPercent));
     quotaNow.textContent = formatLocalDateTime(view.updatedAt);
     quotaResetAt = view.resetAt;
     updateQuotaClock();
@@ -2170,6 +2183,7 @@ function getFileCategory(ext) {
 }
 
 function setFiles(input) {
+    if(processingUpload)return;
     const list = Array.from(input || []).filter(Boolean);
     if (!list.length) return;
     for (const f of list) {
@@ -2198,7 +2212,7 @@ function setFiles(input) {
         const cat = getFileCategory(ext);
         if (IMAGE_EXTS.includes(ext)) {
             const r = new FileReader();
-            r.onload = e => { fileThumb.src = e.target.result; fileThumb.style.display='block'; fileTypeIcon.style.display='none'; };
+            r.onload = e => { if(file!==f)return; fileThumb.src = e.target.result; fileThumb.style.display='block'; fileTypeIcon.style.display='none'; };
             r.readAsDataURL(f);
         } else {
             fileThumb.style.display='none';
@@ -2218,10 +2232,11 @@ function setFiles(input) {
 
     dropZone.style.display = 'none';
     filePreview.classList.add('show');
-    goBtn.classList.add('show');
+    goBtn.classList.remove('show');
     goBtn.disabled = false;
     hideErr();
     resBox.classList.remove('show');
+    void goBtn.onclick();
 }
 
 function setFile(f) {
@@ -2229,6 +2244,8 @@ function setFile(f) {
 }
 
 function clearFile() {
+    if(processingUpload)return;
+    lastResult=null;extractedMedia=[];
     file=null;
     fileBatch=[];
     dropZone.style.display = '';
@@ -5478,7 +5495,7 @@ async function extractOneFile(f, onProgress, label) {
             try { result = await sendToOCR(pages[i].blob, ctrl.signal, label + 'Preparing page ' + (i+1) + '/' + pages.length); }
             catch(error){
                 const message=error.name==='AbortError'?'The page request timed out.':error.message;
-                const stopped = new Error(message+' Completed '+i+'/'+pages.length+' pages are kept while this file stays open. Press Extract Text to resume the remaining pages when the service is available.');
+                const stopped = new Error(message+' Completed '+i+'/'+pages.length+' pages are kept while this file stays open. Use Retry / resume processing when the service is available. Do not upload the completed pages again.');
                 stopped.code = error.code;
                 throw stopped;
             }
@@ -5537,10 +5554,14 @@ async function extractOneFile(f, onProgress, label) {
 }
 
 goBtn.onclick = async () => {
+    if(processingUpload)return;
     const batch = fileBatch.length ? fileBatch.slice() : (file ? [file] : []);
     if (!batch.length) return;
-    const sourceFile = file;
-    const previousResult = lastResult, previousMedia = extractedMedia.slice();
+    const sourceFile = file, run=++uploadRun;
+    processingUpload=true;
+    const previousResult = lastResult?.source_file===sourceFile?lastResult:null, previousMedia = extractedMedia.slice();
+    goBtn.classList.remove('show');
+    fileInput.disabled=true;clearBtn.disabled=true;
     goBtn.disabled=true;
     languageSelect.disabled=true;
     hideErr();
@@ -5573,11 +5594,14 @@ goBtn.onclick = async () => {
         allText = repairLegacyBranchDiagram(allText);
         allPlain = repairLegacyBranchDiagram(allPlain);
 
+        if (file !== sourceFile) return;
+        const nativeWord=batch.length===1&&/\.docx$/i.test(sourceFile.name);
+        configureAutomaticPaper(allText,!!nativePdfPages||nativeWord);
         $('paperFlow').value=nativePdfPages ? 'source' : 'compact';
         $('paperLayoutPanel').classList.remove('show');
         const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
-        let badges = '<span class="badge badge-green">' + charCount + ' chars</span>';
+        let badges = '<span class="badge badge-green">A4 · narrow margins · auto formatted</span><span class="badge badge-gray">' + charCount + ' chars</span>';
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         $('statsBar').innerHTML = badges;
 
@@ -5598,13 +5622,14 @@ goBtn.onclick = async () => {
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
         setProg(100, 'Done');
-        setTimeout(() => prog.classList.remove('show'), 800);
+        setTimeout(() => { if(uploadRun===run)prog.classList.remove('show'); }, 800);
         loadUsage();
         if (window.matchMedia('(max-width: 479px)').matches) {
-            setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+            setTimeout(() => { if(uploadRun===run)resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 120);
         }
     } catch(e) {
         prog.classList.remove('show');
+        goBtn.classList.add('show');
         if (previousResult && file === sourceFile) {
             lastResult = previousResult;
             extractedMedia = previousMedia;
@@ -5613,8 +5638,10 @@ goBtn.onclick = async () => {
         showErr(e.name==='AbortError' ? 'The network request took too long. PaperAI now retries AI timeouts automatically; please check your connection and try again.' : e.message);
         loadUsage();
     } finally {
+        processingUpload=false;
         goBtn.disabled=false;
         languageSelect.disabled=false;
+        fileInput.disabled=false;clearBtn.disabled=false;
     }
 };
 
@@ -5702,15 +5729,11 @@ function paperLayoutOptions() {
         indent:Number(element('paperIndent')?.value||0),
         gridHeight:element('paperGridHeight')?Math.round(Math.max(.4,Math.min(2,Number(element('paperGridHeight').value)||.8))*567):460};
 }
-function startBlankPaper() {
-    file=null;fileBatch=[];extractedMedia=[];
-    lastResult={text:'',plain_text:'',raw_text:''};showingRaw=false;
-    $('filePreview').classList.remove('show');$('dropZone').style.display='';$('goBtn').disabled=true;
-    $('resBox').classList.add('show');$('prog').classList.remove('show');hideErr();
-    $('teachPanel').classList.remove('show');$('tabVerified').classList.add('active');$('tabRaw').classList.remove('active');
-    $('statsBar').textContent='';invalidateOriginalWord();updateResultActionsForTab();
-    applyPaperFormat('compact');$('paperFormat').value='compact';
-    openPaperLayout();
+function configureAutomaticPaper(text,nativeSource=false) {
+    const detected=PaperAILayout.automaticFormat(text,nativeSource),p=detected.format;
+    for(const [id,value] of Object.entries({paperFamily:p.font,paperHeadingFamily:p.headingFont,paperFont:p.body,paperHeading:p.heading,paperLine:p.line,paperAfter:p.after,paperIndent:p.indent,paperGridHeight:.8,paperFormat:detected.preserveSource?'custom':detected.name}))$(id).value=String(value);
+    $('paperPageNumbers').checked=false;
+    // Do not invalidate the original Word/PDF geometry while choosing defaults.
 }
 function applyPaperFormat(name) {
     const p=PaperAILayout.referenceFormats[name];if(!p)return;
@@ -5819,8 +5842,8 @@ function openPaperLayout() {
             return '<fieldset style="margin:.5rem 0;border:1px solid var(--border);border-radius:6px"><legend>'+labels[m[1]]+'</legend><div style="display:flex;gap:.4rem;flex-wrap:wrap">'+worksheetCells(m[2],52).map((cell,c)=>'<textarea aria-label="'+labels[m[1]]+' cell '+(c+1)+'" style="flex:1;min-width:65px;max-width:100%;padding:.4rem" rows="2" oninput="updatePaperCell('+index+','+c+',this.value)">'+esc(cell.replace(/<br>/gi,'\n'))+'</textarea>').join('')+'</div>'+widths+'<button class="action-btn" onclick="removePaperRow('+index+')">Remove row</button></fieldset>';}
         const grid=line.match(/^\[\[GRID:\s*(.*?)\]\]$/i);
         return grid?'<label style="display:block;margin:.5rem 0">Grid columns × rows <input aria-label="Grid dimensions" value="'+esc(grid[1])+'" onchange="updatePaperGrid('+index+',this.value)"></label>':'';
-    }).join('')||'<p class="teach-sub">Use Correct text to edit the questions. Insert a table, grid, shape or marks below.</p>';
-    $('paperInsertAfter').innerHTML=lines.map((line,i)=>'<option value="'+i+'" '+(i===lines.length-1?'selected':'')+'>'+esc((i+1)+'. '+portableText(line).slice(0,70))+'</option>').join('');
+    }).join('')||'<p class="teach-sub">Layout is detected from the uploaded source. Use Correct text only if you want to make a correction.</p>';
+
     $('paperPictures').innerHTML=extractedMedia.map((asset,i)=>
         '<fieldset style="margin:1rem 0;border:1px solid var(--border);padding:.7rem"><legend>'+ (asset.role==='banner'?'Source banner':'Picture '+(i+1))+'</legend><img src="'+esc(asset.dataUrl)+'" style="max-width:180px;max-height:180px;object-fit:contain" alt="Original picture"><div style="display:flex;gap:.7rem;flex-wrap:wrap">'+
         '<label>Width in cm <input type="number" min=".5" max="18.46" step=".1" value="'+((asset.widthTwips||2260)/567).toFixed(1)+'" oninput="setPaperPicture('+i+',\'width\',this.value)"></label>'+
@@ -5841,18 +5864,6 @@ async function fillMissingSource(index,cellIndex,file) {
         const replacement='[[SOURCE_FIGURE'+(cells.length>1?'_ROW':'')+': '+cells.join(' || ')+']]';
         paperEdited(lastResult.text.slice(0,m.index)+replacement+lastResult.text.slice(m.index+m[0].length));openPaperLayout();
     }catch(error){showErr(error.message);}
-}
-function insertPaperBlock(kind) {
-    const rows=Math.max(1,Math.min(32,Number($('paperInsertRows').value)||3));
-    const cols=Math.max(1,Math.min(32,Number($('paperInsertCols').value)||3));
-    let block=kind==='table'?Array.from({length:rows},()=> '[[TABLE_ROW: '+Array(cols).fill(' ').join(' || ')+']]').join('\n'):
-        kind==='grid'&&rows*cols<=600?'[[GRID: '+cols+'x'+rows+']]':
-        kind==='shape'?'[[SHAPE_ROW: '+$('paperInsertShape').value+'|'+$('paperInsertAnswer').value+']]':
-        kind==='marks'?'[[QUESTION_ROW: '+$('paperInsertQuestion').value.replace(/\]\]|\|\|/g,'')+' || '+$('paperInsertMarks').value.replace(/\]\]|\|\|/g,'')+']]':
-        kind==='break'?'[[PAPER_BREAK]]':'';
-    if(!block){showErr('Reduce the grid to 600 cells.');return;}
-    const lines=lastResult.text.split('\n');lines.splice(Number($('paperInsertAfter').value)+1,0,block);
-    paperEdited(lines.join('\n'));openPaperLayout();
 }
 function setPaperPicture(index,kind,value) {
     const asset=extractedMedia[index];if(!asset)return;

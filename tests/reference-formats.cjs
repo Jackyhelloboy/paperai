@@ -5,7 +5,7 @@ const {DOMParser}=require('../frontend/node_modules/@xmldom/xmldom');
 const html=fs.readFileSync('frontend/index.html','utf8');
 const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(x=>x[1].includes('function buildDocxBody'))[1];
 const slice=(a,b)=>code.slice(code.indexOf(a),code.indexOf(b,code.indexOf(a)+1));
-const fields={};for(const id of ['paperFamily','paperHeadingFamily','paperFont','paperHeading','paperLine','paperAfter','paperIndent','paperGridHeight','paperFlow'])fields[id]={value:''};
+const fields={};for(const id of ['paperFamily','paperHeadingFamily','paperFont','paperHeading','paperLine','paperAfter','paperIndent','paperGridHeight','paperFlow','paperFormat','paperPageNumbers'])fields[id]={value:''};
 const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,document:{getElementById:id=>fields[id]},$:id=>fields[id],
     worksheetCells:(s,n=32)=>String(s).split(/\s*\|\|\s*/).map(x=>x.trim()).slice(0,n),
     worksheetGridSize:s=>{const m=s.match(/^(\d+)x(\d+)$/);return m?{columns:+m[1],rows:+m[2]}:null;},
@@ -14,13 +14,14 @@ const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,document:{getElement
 vm.runInContext(slice('function xmlEscape','async function downloadWord'),ctx);
 ctx.refreshPaperLayout=()=>{};ctx.openPaperLayout=()=>{};
 const fixtures={
-    science:'I. Answer Any Ten of the Following. (10 x 4 = 40)\n1) Name two things we can see in the sky at night.\n2) What kind of clothes do we wear in the summer season?\nII. Give two examples for each of the following. (5x2=10)\n1) Cereals ______________________           ______________________\n[[TABLE_WIDTHS: 20,50,30]]\n[[TABLE_ROW: Basket making || 1. Leaves<br>2. Bamboo || Knife]]',
-    humanities:'I. Answer the questions. 4×½=2\n1. Read the [[UNDERLINE: passage]] and answer the questions.\n[[TABLE_WIDTHS: 15,45,40]]\n[[MATCH_ROW: 1. Leaf || (   ) || b. Root]]\n[[MATCH_ROW: 2. Stem || (   ) || a. Flower]]\nII. Rewrite the words. 2M\n1. [[DOUBLE-UNDERLINE: word]] [[STRIKE: old]] [[INSERT: new]] [[BOXED: cue]]',
-    worksheet:'I. Write the answers. 5M\n1. Name the shapes.\n[[SHAPE_ROW: circle|none || square|box || triangle|line]]\n[[GRID: 10x5]]\n[[TABLE_WIDTHS: 10,60,30]]\n[[TABLE_ROW: 1. || Name || ______]]\n[[TABLE_ROW: 2. || Class || ______]]'
+    science:'Subject: Science\nI. Answer Any Ten of the Following. (10 x 4 = 40)\n1) Name two things we can see in the sky at night.\n2) What kind of clothes do we wear in the summer season?\nII. Give two examples for each of the following. (5x2=10)\n1) Cereals ______________________           ______________________\n[[TABLE_WIDTHS: 20,50,30]]\n[[TABLE_ROW: Basket making || 1. Leaves<br>2. Bamboo || Knife]]',
+    humanities:'Subject: English\nI. Answer the questions. 4×½=2\n1. Read the [[UNDERLINE: passage]] and answer the questions.\n[[TABLE_WIDTHS: 15,45,40]]\n[[MATCH_ROW: 1. Leaf || (   ) || b. Root]]\n[[MATCH_ROW: 2. Stem || (   ) || a. Flower]]\nII. Rewrite the words. 2M\n1. [[DOUBLE-UNDERLINE: word]] [[STRIKE: old]] [[INSERT: new]] [[BOXED: cue]]',
+    worksheet:'Science Worksheet\nI. Write the answers. 5M\n1. Name the shapes.\n[[SHAPE_ROW: circle|none || square|box || triangle|line]]\n[[GRID: 10x5]]\n[[TABLE_WIDTHS: 10,60,30]]\n[[TABLE_ROW: 1. || Name || ______]]\n[[TABLE_ROW: 2. || Class || ______]]'
 };
 (async()=>{
     for(const [name,text] of Object.entries(fixtures)){
-        fields.paperFlow.value='compact';fields.paperGridHeight.value='.8';ctx.applyPaperFormat(name);
+        fields.paperFlow.value='compact';fields.paperGridHeight.value='.8';ctx.configureAutomaticPaper(text);
+        assert.equal(fields.paperFormat.value,name,'The source header must select its reference format automatically');
         const preset=Layout.referenceFormats[name],blob=await ctx.makeExtractedDocx(text),zip=await JSZip.loadAsync(await blob.arrayBuffer());
         const xml=await zip.file('word/document.xml').async('text'),doc=new DOMParser().parseFromString(xml,'application/xml');
         assert.equal(doc.getElementsByTagName('parsererror').length,0);

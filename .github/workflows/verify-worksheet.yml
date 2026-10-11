@@ -10,6 +10,7 @@ on:
       - 'tests/question-paper-model.cjs'
       - 'tests/scan-resume.cjs'
       - 'tests/ai-quota.cjs'
+      - 'tests/automatic-upload.cjs'
       - 'frontend/vendor/ai-quota.js'
       - 'frontend/vendor/paper-layout.js'
       - 'worker/src/paper-layout-rules.js'
@@ -35,4 +36,5 @@ jobs:
       - name: Check quota and scan recovery
         run: |
           node tests/ai-quota.cjs
+          node tests/automatic-upload.cjs
           node tests/scan-resume.cjs

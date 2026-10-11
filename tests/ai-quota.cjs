@@ -9,6 +9,11 @@ const blocked = { date_utc: '2026-10-11', provider_limit_reached: true, reset_at
 let view = Quota.model(report, blocked, null, now);
 assert.equal(view.remaining, 0); assert.equal(view.used, 8009.37);
 assert.equal(view.badge, 'Free AI limit reached');
+assert.equal(view.barPercent,100);assert.equal(view.percent,80.0937);
+assert.equal(view.barLabel,'Free AI paused until reset');
+const inconsistent=Quota.model({...report,percent_used:17,reported_remaining:9999},null,null,now);
+assert.equal(inconsistent.percent,80.0937);assert.equal(inconsistent.remaining,1990.63);
+assert.equal(Quota.model({...report,daily_reference:0},null,null,now).percent,null);
 assert(Quota.model(null, blocked, null, now).blocked, 'Analytics outages must not hide a confirmed block');
 assert(Quota.model(report, null, blocked, now).blocked, 'A known rejection survives live-status outages');
 assert(!Quota.model(report, { ...blocked, provider_limit_reached: false, exhausted: true }, null, now).blocked,
@@ -114,7 +119,7 @@ async function frontend() {
     assert.equal((await proxy.fetchOcrEndpoint('/api/ocr', {})).status, 200); assert.equal(urls.length, 2);
 
     const fields = {};
-    const field = id => fields[id] ||= { textContent: '', style: {}, classList: { toggle() {} } };
+    const field = id => fields[id] ||= { textContent: '', style: {}, setAttribute() {}, removeAttribute() {}, classList: { toggle() {} } };
     const timedQuota = { ...Quota, model: (r, s, l) => Quota.model(r, s, l, clock),
         activeBlock: s => Quota.activeBlock(s, clock), nextReset: (n = clock) => Quota.nextReset(n) };
     const dashboard = vm.createContext({ PaperAIQuota: timedQuota, Date: Clock, AbortSignal, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -124,6 +129,7 @@ async function frontend() {
     await dashboard.loadUsage();
     assert.equal(fields.quotaRemaining.textContent, '0'); assert.equal(fields.quotaUsed.textContent, '8,009.37');
     assert.equal(fields.quotaRemainingLabel.textContent, 'Free AI available');
+    assert.equal(fields.quotaFill.style.width,'100.00%');assert.equal(fields.quotaPercent.textContent,'Free AI paused until reset');
     assert(fields.quotaReset.textContent.includes('05:30')); assert(fields.quotaDescription.textContent.includes('Word export'));
     dashboard.fetch = async () => { throw new Error('offline'); };
     await dashboard.loadUsage(); assert.equal(fields.quotaRemaining.textContent, '0');
@@ -134,7 +140,7 @@ async function frontend() {
     const classes = () => { const set = new Set(); return { add: v => set.add(v), remove: v => set.delete(v), has: v => set.has(v) }; };
     const f = { name: 'same-open-file.pdf' }, saved = { text: 'Completed questions', source_file: f }, media = { id: 'reviewed-picture' };
     const flow = vm.createContext({ file: f, fileBatch: [f], lastResult: saved, extractedMedia: [media],
-        goBtn: {}, languageSelect: {}, prog: { classList: classes() }, resBox: { classList: classes() },
+        processingUpload:false,uploadRun:0,fileInput:{},clearBtn:{},goBtn: {classList:classes()}, languageSelect: {}, prog: { classList: classes() }, resBox: { classList: classes() },
         hideErr() {}, setProg() {}, loadUsage: async () => {},
         extractOneFile: async () => { throw new Error('free AI stopped'); }, showErr: message => { flow.message = message; } });
     vm.runInContext(slice('goBtn.onclick = async', 'function dlBlob'), flow);

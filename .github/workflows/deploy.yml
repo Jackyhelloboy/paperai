@@ -38,6 +38,7 @@ jobs:
           node tests/docx-reference-layout.cjs
           node tests/reference-formats.cjs
           node tests/ai-quota.cjs
+          node tests/automatic-upload.cjs
 
       - name: Build Cloudflare usage snapshot
         env:

@@ -16,24 +16,30 @@
         return confirmed && Date.parse(status.reset_at) > now;
     }
     function model(report, status, localBlock, now = Date.now()) {
-        const values = [report?.reported_used, report?.reported_remaining, report?.percent_used];
+        const values = [report?.reported_used, report?.daily_reference ?? 10000];
         const currentReport = report?.source === 'cloudflare-analytics' &&
             currentDay(report.report_date_utc, now) &&
             Date.parse(report.reset_at) > now &&
-            values.every(v => typeof v === 'number' && Number.isFinite(v) && v >= 0);
+            values.every(v => typeof v === 'number' && Number.isFinite(v) && v >= 0) && values[1] > 0;
         const blocked = activeBlock(status, now) || activeBlock(localBlock, now);
         const live = status && typeof status.provider_limit_reached === 'boolean' &&
             currentDay(status.date_utc, now) && Date.parse(status.reset_at) > now;
+        const percent = currentReport ? Math.min(100, values[0] / values[1] * 100) : null;
         return {
             blocked, currentReport: Boolean(currentReport), live: Boolean(live),
-            remaining: blocked ? 0 : currentReport ? report.reported_remaining : null,
+            remaining: blocked ? 0 : currentReport ? Math.max(0, values[1] - values[0]) : null,
             used: currentReport ? report.reported_used : null,
-            percent: currentReport ? Math.min(100, report.percent_used) : null,
+            percent,
+            // A full red bar means a confirmed pause, not a fabricated analytics total.
+            barPercent: blocked ? 100 : percent,
+            barLabel: blocked ? 'Free AI paused until reset' : percent === null
+                ? 'Today’s analytics unavailable' : percent.toFixed(2) + '% reported used',
+            barDescription: blocked ? 'Cloudflare has confirmed the free AI limit; usage totals may still be delayed.' : 'Reported account usage against the daily reference; analytics may be delayed.',
             updatedAt: currentReport ? report.last_updated : null,
             resetAt: nextReset(now),
             badge: blocked ? 'Free AI limit reached' : live ? 'No quota block reported' : 'Live status unavailable',
             description: blocked
-                ? 'Cloudflare has stopped free AI requests. Analytics totals may lag. Editing, tables, shapes and Word export still work.'
+                ? 'Cloudflare has paused free AI scanning until the reset below. Analytics totals may lag. Existing results and Word export still work.'
                 : 'Account-wide analytics may be delayed. Reported remaining is not a guarantee that Cloudflare will accept the next AI request.',
         };
     }
