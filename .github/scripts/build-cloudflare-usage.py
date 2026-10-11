@@ -60,20 +60,15 @@ if any(not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0 for v in
 
 used = float(sum(values))
 snapshot = {
-    "source": "cloudflare-analytics",
+    "source": "paperai-usage",
     "report_date_utc": midnight.date().isoformat(),
-    "reported_used": used,
-    "daily_reference": DAILY_REFERENCE,
-    "reported_remaining": max(0.0, DAILY_REFERENCE - used),
     "percent_used": max(0.0, min(100.0, used / DAILY_REFERENCE * 100.0)),
     "last_updated": iso(now),
     "reset_at": iso(tomorrow),
-    "scope": "Cloudflare account-wide Workers AI usage for the current UTC day",
-    "accuracy": "Cloudflare-reported analytics; may be delayed or sampled and is not the enforcement ledger",
 }
 
 with open(OUT, "w", encoding="utf-8") as f:
     json.dump(snapshot, f, ensure_ascii=False, separators=(",", ":"))
     f.write("\n")
 
-print(json.dumps({k: snapshot[k] for k in ("source","reported_used","reported_remaining","last_updated","reset_at")}))
+print(json.dumps({k: snapshot[k] for k in ("source","percent_used","last_updated","reset_at")}))

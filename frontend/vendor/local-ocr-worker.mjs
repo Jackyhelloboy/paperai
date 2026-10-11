@@ -39,7 +39,7 @@ async function readTile(image,tile,model,processor,depth=0){
         decoded=processor.batch_decode(ids,{skip_special_tokens:false})[0];
     }finally{for(const v of Object.values(inputs))v?.dispose?.();ids?.dispose?.();}
     if(!decoded.includes('</s>')){
-        if(depth>=2)throw new Error('A dense region exceeded the local reading limit. The default AI will be used again after its reset.');
+        if(depth>=2)throw Object.assign(new Error('This page is too dense to read reliably. Please try a smaller or clearer page.'),{code:'READING_LIMIT'});
         const middle=Math.round(tile.h/2),overlap=Math.min(middle-1,Math.round(tile.w*.03));
         const top={...tile,h:middle+overlap},bottom={...tile,y:tile.y+middle-overlap,h:tile.h-middle+overlap};
         return [...await readTile(image,top,model,processor,depth+1),...await readTile(image,bottom,model,processor,depth+1)];
@@ -61,8 +61,8 @@ self.onmessage=async event=>{
             all.push(...await readTile(image,tile,model,processor));
         }
         const regions=PaperAILocalLayout.merge(all);
-        if(!regions.length)throw new Error('The on-device model could not read this page. Keep the source and retry the default AI after its reset.');
-        postMessage({id,type:'result',regions,width:image.width,height:image.height,model:MODEL,revision:REVISION});
-    }catch(error){postMessage({id,type:'error',message:error?.message||String(error)});}
+        if(!regions.length)throw Object.assign(new Error('No readable text was found. Please try a clearer page.'),{code:'NO_TEXT'});
+        postMessage({id,type:'result',regions,width:image.width,height:image.height});
+    }catch(error){postMessage({id,type:'error',code:['READING_LIMIT','NO_TEXT'].includes(error?.code)?error.code:'SCANNER_FAILED',message:['READING_LIMIT','NO_TEXT'].includes(error?.code)?error.message:'The scanner could not read this page. Check your connection, update your browser, and try again.'});}
     finally{if(url)URL.revokeObjectURL(url);busy=false;}
 };

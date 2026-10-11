@@ -14,6 +14,9 @@ on:
       - 'frontend/vendor/ai-quota.js'
       - 'frontend/vendor/local-ocr*'
       - 'tests/local-ocr.cjs'
+      - 'tests/public-gateway.cjs'
+      - 'functions/**'
+      - '.github/scripts/build-pages.cjs'
       - 'frontend/vendor/paper-layout.js'
       - 'worker/src/paper-layout-rules.js'
       - '.github/workflows/verify-worksheet.yml'
@@ -41,3 +44,4 @@ jobs:
           node tests/automatic-upload.cjs
           node tests/scan-resume.cjs
           node tests/local-ocr.cjs
+          node tests/public-gateway.cjs

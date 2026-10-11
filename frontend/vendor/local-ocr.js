@@ -6,7 +6,7 @@
     function recognize(blob,{signal,onProgress=()=>{}}={}){
         if(signal?.aborted)return Promise.reject(new DOMException('Scan cancelled.','AbortError'));
         if(pending)return Promise.reject(new Error('A scan is already running on this device.'));
-        if(!root.Worker||!root.WebAssembly)return Promise.reject(new Error('This browser cannot run the quota-free OCR model. Use an up-to-date Chrome, Edge or Firefox browser.'));
+        if(!root.Worker||!root.WebAssembly)return Promise.reject(new Error('This browser cannot run the PaperAI scanner. Use an up-to-date Chrome, Edge or Firefox browser.'));
         return new Promise((resolve,reject)=>{
             const id=++sequence;
             const finish=(error,result)=>{
@@ -22,9 +22,9 @@
                     if(data.id!==id||pending?.id!==id)return;
                     if(data.type==='progress')onProgress(data);
                     else if(data.type==='result')finish(null,data);
-                    else if(data.type==='error')finish(new Error('On-device OCR: '+data.message));
+                    else if(data.type==='error')finish(new Error(data.message || 'This page could not be read. Please try again.'));
                 };
-                worker.onerror=()=>finish(new Error('The on-device model could not start. Its first use needs an internet connection and enough device memory. Please retry or use the default AI after its reset.'));
+                worker.onerror=()=>finish(new Error('The PaperAI scanner could not start. Its first use needs an internet connection and enough device memory. Please retry or use the scanner after the daily reset.'));
                 worker.postMessage({id,blob});
             }catch(error){finish(error);}
         });

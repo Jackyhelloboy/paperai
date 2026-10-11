@@ -23,29 +23,10 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/') {
-      return Response.json({
-        message: 'PaperAI OCR Worker',
-        status: 'running',
-        endpoints: [
-          'POST /api/ocr',
-          'POST /api/suggest-word',
-          'GET /api/usage',
-          'WS /api/live',
-          'GET /health',
-        ],
-        architecture: 'production-literal-ocr-v22',
-        layout_rules_version: 5,
-      }, { headers: corsHeaders });
+      return Response.json({service: 'PaperAI', status: 'running'}, {headers: corsHeaders});
     }
-
     if (url.pathname === '/health') {
-      return Response.json({
-        status: 'healthy',
-        platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v22',
-        layout_rules_version: 5,
-        model: '@cf/google/gemma-4-26b-a4b-it',
-      }, { headers: corsHeaders });
+      return Response.json({status: 'healthy'}, {headers: corsHeaders});
     }
 
     if (url.pathname === '/api/live') {
@@ -60,7 +41,7 @@ export default {
     if (url.pathname === '/api/usage' && request.method === 'GET') {
       try {
         const usage = await getUsageStatus(env);
-        return Response.json(usage, {
+        return Response.json({date_utc: usage.date_utc, provider_limit_reached: usage.provider_limit_reached, reset_at: usage.reset_at}, {
           headers: {
             ...corsHeaders,
             'Cache-Control': 'no-store, max-age=0',
@@ -69,8 +50,6 @@ export default {
       } catch (e) {
         return Response.json({
           error: 'Usage tracker unavailable',
-          detail: e.message,
-          free_limit: DAILY_FREE_NEURONS,
         }, { status: 503, headers: corsHeaders });
       }
     }
@@ -79,7 +58,7 @@ export default {
       try {
         return await handleOCR(request, env, corsHeaders);
       } catch (e) {
-        return Response.json({ error: e.message || 'OCR request failed' }, { status: 500, headers: corsHeaders });
+        return Response.json({ error: 'This file could not be read. Please try again.', code: 'OCR_FAILED' }, { status: 500, headers: corsHeaders });
       }
     }
 
@@ -95,7 +74,7 @@ export default {
           return Response.json({ suggestions: [], code: 'FREE_MODEL_UNAVAILABLE' }, { status: 503, headers: corsHeaders });
         }
         if (isTransientAiError(e)) {
-          return Response.json({ suggestions: [], code: 'AI_BUSY', error: 'Cloudflare AI is temporarily busy. Try again shortly; local suggestions still work.' },
+          return Response.json({ suggestions: [], code: 'AI_BUSY', error: 'PaperAI is temporarily busy. Please try again shortly; editing still works.' },
             { status: 503, headers: { ...corsHeaders, 'Retry-After': '5' } });
         }
         return Response.json({ suggestions: [], error: 'Suggestion service unavailable' }, { status: 503, headers: corsHeaders });
@@ -542,11 +521,10 @@ function freeLimitResponse(corsHeaders, extra = {}) {
   const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
   return Response.json({
     ...extra,
-    error: 'Cloudflare has reached the shared daily free AI limit. Editing and Word export still work. AI scanning resumes after the daily reset.',
+    error: 'Scanning continues automatically. Editing and Word export still work.',
     code: 'FREE_AI_LIMIT_REACHED',
     reset_at: reset.toISOString(),
     server_time: now.toISOString(),
-    scope: 'Cloudflare account-wide daily free AI allocation',
   }, { status: 429, headers: {
     ...corsHeaders, 'Cache-Control': 'no-store',
     'Retry-After': String(Math.max(1, Math.ceil((reset - now) / 1000))),
@@ -949,7 +927,7 @@ async function handleOCR(request, env, corsHeaders) {
     }
     if (isPaidModelRequiredError(e)) {
       return Response.json({
-        error: 'This OCR model is not available on the Cloudflare Free plan. PaperAI will not switch to a paid model.',
+        error: 'Scanning is temporarily unavailable. Editing and Word export still work.',
         code: 'FREE_MODEL_UNAVAILABLE',
       }, { status: 503, headers: corsHeaders });
     }
@@ -960,11 +938,11 @@ async function handleOCR(request, env, corsHeaders) {
       }, { status: 408, headers: corsHeaders });
     }
     if (isTransientAiError(e)) {
-      return Response.json({ error: 'Cloudflare AI is temporarily busy. Try again shortly; this is not a daily quota failure.', code: 'AI_BUSY' },
+      return Response.json({ error: 'PaperAI is temporarily busy. Please try again shortly.', code: 'AI_BUSY' },
         { status: 503, headers: { ...corsHeaders, 'Retry-After': '5' } });
     }
     return Response.json({
-      error: 'AI OCR failed: ' + (e?.message || 'unknown error'),
+      error: 'This page could not be scanned. Please try again.',
       code: 'AI_OCR_FAILED',
     }, { status: 502, headers: corsHeaders });
   }
@@ -1019,16 +997,10 @@ async function handleOCR(request, env, corsHeaders) {
         filename: filename,
         total_pages: 1,
         total_characters: plainText.length,
-        engine: aiResult.error ? 'error' : 'cloudflare-ai',
-        error: aiResult.error || null,
         language: effectiveLanguage,
         requested_language: language,
         detected_language: detectedLanguage,
         mode: 'free_only_literal_transcription',
-        billing_safety: 'free_only_conditional_verification_no_paid_fallback',
-        model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v22',
-        layout_rules_version: 5,
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,

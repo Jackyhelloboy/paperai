@@ -1,7 +1,9 @@
 {
   "dependencies": {
     "@huggingface/transformers": "3.8.1",
-    "docx": "^9.7.1"
+    "docx": "^9.7.1",
+    "jszip": "3.10.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@xmldom/xmldom": "^0.9.12",

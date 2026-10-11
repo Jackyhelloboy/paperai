@@ -12,9 +12,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
     <script src="vendor/indic-transliterate.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="vendor/document-reader.js"></script>
+    <script src="vendor/sheet-reader.js"></script>
+    <script src="vendor/archive-reader.js"></script>
     <script src="vendor/pdf-word-layout.js"></script>
 <script src="./vendor/paper-layout.js"></script>
 <script src="./vendor/pdf-editable-layout.js"></script>
@@ -1748,8 +1748,8 @@
         <section class="quota-card" id="quotaCard" aria-live="polite">
             <div class="quota-head">
                 <div>
-                    <div class="quota-title">Cloudflare AI · daily usage</div>
-                    <div class="quota-subtitle" id="quotaDescription">Checking the live AI limit. Analytics totals may be delayed.</div>
+                    <div class="quota-title">PaperAI · daily usage</div>
+                    <div class="quota-subtitle" id="quotaDescription">Checking scanning availability. Usage totals may be delayed.</div>
                 </div>
                 <div class="quota-live" id="quotaBadge">
                     <span class="quota-live-dot"></span>
@@ -1768,12 +1768,12 @@
                 </div>
             </div>
 
-            <div class="quota-track" id="quotaTrack" role="progressbar" aria-label="Daily AI usage" aria-valuemin="0" aria-valuemax="100">
+            <div class="quota-track" id="quotaTrack" role="progressbar" aria-label="Daily processing usage" aria-valuemin="0" aria-valuemax="100">
                 <div class="quota-fill" id="quotaFill"></div>
             </div>
             <div class="quota-scale">
-                <span id="quotaPercent">Checking AI availability…</span>
-                <span>10,000 Neurons/day reference</span>
+                <span id="quotaPercent">Checking scanning availability…</span>
+                <span>Daily usage · percentage</span>
             </div>
 
 
@@ -1783,7 +1783,7 @@
                     <span class="quota-time-value" id="quotaNow">—</span>
                 </div>
                 <div>
-                    <span class="quota-time-label">Cloudflare daily reset</span>
+                    <span class="quota-time-label">Daily reset</span>
                     <span class="quota-time-value" id="quotaReset">—</span>
                 </div>
             </div>
@@ -1983,7 +1983,6 @@
     </footer>
 
 <script>
-const API_DIRECT = 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
 const API_LOCAL = location.origin;
 const $ = id => document.getElementById(id);
 const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageSelect=$('languageSelect');
@@ -2021,12 +2020,12 @@ const setProg = (pct,msg) => {
 };
 
 let quotaResetAt = null;
-let quotaReport = null, quotaLiveStatus = null, usageRequestId = 0;
+let quotaReport = null, quotaLiveStatus = null, usageRequestId = 0, usagePending = null;
 const QUOTA_BLOCK_KEY = 'paperai_confirmed_ai_block_v1';
 let quotaLocalBlock = null;
 try { quotaLocalBlock = JSON.parse(localStorage.getItem(QUOTA_BLOCK_KEY) || 'null'); } catch (_) {}
 
-const fmtNeuron = n => {
+const fmtUsage = n => {
     const value = Number(n);
     if (!Number.isFinite(value)) return '—';
     return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -2068,8 +2067,8 @@ function rememberQuotaBlock(body) {
 
 function renderUsage() {
     const view = PaperAIQuota.model(quotaReport, quotaLiveStatus, quotaLocalBlock);
-    quotaRemaining.textContent = view.remaining === null ? '—' : fmtNeuron(view.remaining);
-    quotaUsed.textContent = view.used === null ? '—' : fmtNeuron(view.used);
+    quotaRemaining.textContent = view.remaining === null ? '—' : fmtUsage(view.remaining) + '%';
+    quotaUsed.textContent = view.used === null ? '—' : fmtUsage(view.used) + '%';
     $('quotaRemainingLabel').textContent = 'Reported remaining';
     quotaFill.style.width = (view.barPercent ?? 0).toFixed(2) + '%';
     quotaPercent.textContent = view.barLabel;
@@ -2090,6 +2089,12 @@ function renderUsage() {
 }
 
 async function loadUsage() {
+    if (usagePending) return usagePending;
+    usagePending = refreshUsage();
+    try { return await usagePending; } finally { usagePending = null; }
+}
+
+async function refreshUsage() {
     const requestId = ++usageRequestId;
     const read = async url => {
         const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
@@ -2098,7 +2103,7 @@ async function loadUsage() {
     };
     const results = await Promise.allSettled([
         read('/usage.json?t=' + Date.now()),
-        read(API_DIRECT + '/api/usage'),
+        read(API_LOCAL + '/api/usage'),
     ]);
     if (requestId !== usageRequestId) return renderUsage();
     if (results[0].status === 'fulfilled') quotaReport = results[0].value;
@@ -2113,7 +2118,7 @@ async function loadUsage() {
 
 function quotaFailure(body) {
     rememberQuotaBlock(body);
-    const error = new Error('Cloudflare’s shared daily free AI limit has been reached. AI scanning resumes at ' +
+    const error = new Error('Scanning continues automatically. Daily usage resets at ' +
         formatLocalDateTime(quotaResetAt) + '. Editing and Word export still work.');
     error.code = 'FREE_AI_LIMIT_REACHED';
     return error;
@@ -2123,46 +2128,36 @@ renderUsage();
 loadUsage();
 setInterval(loadUsage, 60000);
 
-let presenceSocket = null;
-let presenceRetry = null;
-
+let presenceSocket = null, presenceRetry = null, presenceFailures = 0;
+let presenceStopped = false;
+function retryPresence() {
+    if (presenceStopped || presenceRetry) return;
+    const delay = Math.min(30000, 1000 * 2 ** Math.min(presenceFailures++, 5)) + Math.random() * 1000;
+    presenceRetry = setTimeout(() => { presenceRetry = null; connectPresence(); }, delay);
+}
 function connectPresence() {
-    if (presenceRetry) {
-        clearTimeout(presenceRetry);
-        presenceRetry = null;
-    }
-
+    if (presenceStopped || presenceSocket && presenceSocket.readyState < 2) return;
     try {
-        const wsUrl = API_DIRECT.replace(/^https:/, 'wss:') + '/api/live';
-        presenceSocket = new WebSocket(wsUrl);
-
-        presenceSocket.onmessage = event => {
+        const url = new URL('/api/live', location.origin);
+        url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = presenceSocket = new WebSocket(url);
+        socket.onmessage = event => {
             try {
                 const data = JSON.parse(event.data);
-                if (data.type === 'presence' && Number.isFinite(Number(data.active))) {
+                if (data.type === 'presence' && Number.isFinite(Number(data.active)))
                     onlineCount.textContent = Number(data.active) + ' online';
-                }
             } catch (_) {}
         };
-
-        presenceSocket.onopen = () => {
-            try { presenceSocket.send('count'); } catch (_) {}
-        };
-
-        presenceSocket.onclose = () => {
-            onlineCount.textContent = 'Online';
-            presenceRetry = setTimeout(connectPresence, 5000);
-        };
-
-        presenceSocket.onerror = () => {
-            try { presenceSocket.close(); } catch (_) {}
-        };
-    } catch (_) {
-        onlineCount.textContent = 'Online';
-        presenceRetry = setTimeout(connectPresence, 8000);
-    }
+        socket.onopen = () => { presenceFailures = 0; try { socket.send('count'); } catch (_) {} };
+        socket.onclose = () => { if (presenceSocket !== socket) return; presenceSocket = null; onlineCount.textContent = 'Online'; retryPresence(); };
+        socket.onerror = () => { try { socket.close(); } catch (_) {} };
+    } catch (_) { presenceSocket = null; onlineCount.textContent = 'Online'; retryPresence(); }
 }
-
+window.addEventListener('pagehide', () => {
+    presenceStopped = true; clearTimeout(presenceRetry); presenceRetry = null;
+    presenceSocket?.close();
+});
+window.addEventListener('pageshow', () => { presenceStopped = false; connectPresence(); });
 connectPresence();
 
 const IMAGE_EXTS = ['jpg','jpeg','png','bmp','webp','gif','tiff','tif'];
@@ -2370,7 +2365,7 @@ function reconstructPdfText(textContent, pageWidth) {
 
 async function pdfToPages(pdfFile) {
     const arrayBuffer = await pdfFile.arrayBuffer();
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/document-worker.js';
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false, fontExtraProperties: true }).promise;
     const pages = [];
     const nativeScenes=[];
@@ -3391,26 +3386,9 @@ async function prepareImageForOCR(source, forceSafe = false) {
 }
 
 async function fetchOcrEndpoint(path, options) {
-    const targets = [API_LOCAL + path, API_DIRECT + path];
-    let lastError = null;
-
-    for (let i = 0; i < targets.length; i++) {
-        try {
-            const res = await fetch(targets[i], options);
-            if (i === 0 && ([404,405,502,503,504].includes(res.status) || res.headers.get('X-PaperAI-Proxy-Error') === '1')) {
-                // A structured application error already reached the Worker.
-                // Sending it to the direct URL would duplicate AI work.
-                const body = await res.clone().json().catch(() => null);
-                if (!body?.code || res.headers.get('X-PaperAI-Proxy-Error') === '1') continue;
-            }
-            return res;
-        } catch (e) {
-            lastError = e;
-            if (options.signal?.aborted) throw e;
-        }
-    }
-
-    throw lastError || new Error('OCR service is unreachable.');
+    // A failed upload can already have reached the scanner. Never send it twice
+    // to another address after an ambiguous network failure.
+    return fetch(API_LOCAL + path, options);
 }
 
 const LEARNING_KEY = 'paperai_visual_confusions_v1';
@@ -4721,19 +4699,19 @@ async function sendFileToWorker(inputFile, signal) {
 
 async function scanOnDevice(prepared, signal, progressText='') {
     const downloads=new Map();
-    setProg(18,'Default AI quota paused · starting on-device OCR…');
+    setProg(18,'Preparing scanner…');
     const local=await PaperAILocalOCR.recognize(prepared.blob,{signal,onProgress:p=>{
         if(p.stage==='download'){
             if(p.file&&Number.isFinite(p.loaded))downloads.set(p.file,p.loaded);
             const bytes=Array.from(downloads.values()).reduce((a,b)=>a+b,0);
-            setProg(18,'Preparing on-device OCR · '+(bytes/1048576).toFixed(1)+' MB downloaded · first use needs about 228 MB');
-        }else if(p.stage==='scan')setProg(18,(progressText?progressText+' · ':'')+'On-device OCR · region '+p.current+'/'+p.total);
-        else setProg(18,'Loading on-device OCR · the first download can take a few minutes');
+            setProg(18,'Preparing scanner · '+(bytes/1048576).toFixed(1)+' MB downloaded · first use needs about 228 MB');
+        }else if(p.stage==='scan')setProg(18,(progressText?progressText+' · ':'')+'Reading region '+p.current+'/'+p.total);
+        else setProg(18,'Loading scanner · the first download can take a few minutes');
     }});
     const plain=PaperAILocalLayout.plainText(local.regions);
     const nativeScene=await PaperAILocalOCR.page(prepared.blob,local);
     const annotated=await recoverSourceFigures(PaperAILayout.reconcileEmptyGrids(PaperAILayout.normalise(plain),prepared.meta?.detectedGrids||[]),prepared.blob);
-    return {status:'completed',result:{annotated_text:annotated,full_text:plain,raw_text:plain,native_scene:nativeScene,engine:'on-device-florence-2'}};
+    return {status:'completed',result:{annotated_text:annotated,full_text:plain,raw_text:plain,native_scene:nativeScene,engine:'backup-reader'}};
 }
 
 async function sendToOCR(sourceBlob, signal, progressText = '') {
@@ -4754,7 +4732,6 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         formData.append('file', prepared.blob, 'page.jpg');
         formData.append('language', languageSelect.value || 'auto');
         formData.append('preprocessing', 'smart');
-        formData.append('engine', 'free-only');
         formData.append('difficulty', prepared.difficulty);
         formData.append('image_meta', JSON.stringify(prepared.meta || {}));
         appendLearningHints(formData);
@@ -4768,11 +4745,6 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
             });
         } catch (e) {
             if (signal?.aborted) throw e;
-            if (attempt === 0) {
-                await wait(600);
-                prepared = await prepareImageForOCR(sourceBlob, true);
-                continue;
-            }
             throw new Error('Could not reach PaperAI OCR. Check your internet and try again.');
         }
 
@@ -4792,11 +4764,11 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
             return scanOnDevice(prepared, signal, progressText);
         }
         if (res.status === 429 || body?.code === 'AI_BUSY') {
-            throw new Error('Cloudflare AI is temporarily busy. Try again shortly. This does not mean your daily free quota is exhausted.');
+            throw new Error('PaperAI is temporarily busy. Please try again shortly.');
         }
 
         if ((res.status === 408 || body?.code === 'AI_TIMEOUT') && attempt === 0) {
-            setProg(22, 'AI was slow · retrying a lighter line scan...');
+            setProg(22, 'Scan was slow · retrying a lighter page...');
             await wait(250);
             prepared = await prepareImageForOCR(sourceBlob, true);
             continue;
@@ -5528,8 +5500,8 @@ async function extractOneFile(f, onProgress, label) {
                 const annotated = result.result.annotated_text || result.result.full_text || '';
                 const plain = result.result.full_text || annotated;
                 pages[i].ocrScene=result.result.native_scene||null;
-                localOCR ||= result.result.engine==='on-device-florence-2';
-                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia),nativeScene:pages[i].ocrScene,localOCR:result.result.engine==='on-device-florence-2'};
+                localOCR ||= result.result.engine==='backup-reader';
+                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia),nativeScene:pages[i].ocrScene,localOCR:result.result.engine==='backup-reader'};
                 allText += prefix + annotated;
                 allPlain += plainPrefix + plain;
                 allRaw += plainPrefix + (result.result.raw_text || annotated);
@@ -5554,7 +5526,7 @@ async function extractOneFile(f, onProgress, label) {
         allPlain = result.result.full_text || allText;
         allRaw = result.result.raw_text || allText;
         if(result.result.native_scene)nativePdfPages=[result.result.native_scene];
-        localOCR=result.result.engine==='on-device-florence-2';
+        localOCR=result.result.engine==='backup-reader';
     } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
         report('Reading text...', 25);
         allText = await extractPlainTextFile(f);
@@ -5638,7 +5610,7 @@ goBtn.onclick = async () => {
         const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">A4 · narrow margins · auto formatted</span><span class="badge badge-gray">' + charCount + ' chars</span>';
-        if(usedLocalOCR)badges+='<span class="badge badge-gray">On-device OCR · review handwriting and language accuracy</span>';
+        if(usedLocalOCR)badges+='<span class="badge badge-gray">Review handwriting and language accuracy</span>';
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         $('statsBar').innerHTML = badges;
 
@@ -6706,7 +6678,7 @@ async function downloadPdfWord(btn) {
     const original = btn.innerHTML;
     btn.disabled = true;
     try {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/document-worker.js';
         const blob = await PaperAIPdfWord.makePdfWord(source, {
             onProgress: (page, total) => { btn.textContent = 'Creating page ' + page + '/' + total + '…'; }
         });

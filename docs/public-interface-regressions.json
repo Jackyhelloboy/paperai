@@ -1,0 +1,70 @@
+{
+  "checked_at": "2026-10-11",
+  "results": [
+    {
+      "suite": "ai-quota.cjs",
+      "exit_code": 0,
+      "seconds": 0.147
+    },
+    {
+      "suite": "automatic-upload.cjs",
+      "exit_code": 0,
+      "seconds": 0.097
+    },
+    {
+      "suite": "docx-import.cjs",
+      "exit_code": 0,
+      "seconds": 0.122
+    },
+    {
+      "suite": "docx-reference-layout.cjs",
+      "exit_code": 0,
+      "seconds": 1.89
+    },
+    {
+      "suite": "editable-paper.cjs",
+      "exit_code": 0,
+      "seconds": 0.297
+    },
+    {
+      "suite": "local-ocr.cjs",
+      "exit_code": 0,
+      "seconds": 0.105
+    },
+    {
+      "suite": "pdf-editable-layout.cjs",
+      "exit_code": 0,
+      "seconds": 1.38
+    },
+    {
+      "suite": "pdf-word-layout.cjs",
+      "exit_code": 0,
+      "seconds": 0.083
+    },
+    {
+      "suite": "public-gateway.cjs",
+      "exit_code": 0,
+      "seconds": 0.09
+    },
+    {
+      "suite": "question-paper-model.cjs",
+      "exit_code": 0,
+      "seconds": 0.197
+    },
+    {
+      "suite": "reference-formats.cjs",
+      "exit_code": 0,
+      "seconds": 0.328
+    },
+    {
+      "suite": "scan-resume.cjs",
+      "exit_code": 0,
+      "seconds": 0.145
+    },
+    {
+      "suite": "worksheet-layout.cjs",
+      "exit_code": 0,
+      "seconds": 0.158
+    }
+  ]
+}

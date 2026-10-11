@@ -10,6 +10,7 @@ on:
 permissions:
   contents: read
   deployments: write
+  statuses: write
 
 jobs:
   deploy:
@@ -40,6 +41,7 @@ jobs:
           node tests/ai-quota.cjs
           node tests/automatic-upload.cjs
           node tests/local-ocr.cjs
+          node tests/public-gateway.cjs
 
       - name: Build Cloudflare usage snapshot
         env:
@@ -56,3 +58,16 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy build/cloudflare-pages --project-name=paperai
+
+      - name: Verify public routes and bounded production load
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/check-production.cjs
+
+      - name: Save production verification report
+        if: always() && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: paperai-production-verification
+          path: build/production-verification.json

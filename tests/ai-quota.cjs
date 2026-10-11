@@ -3,17 +3,15 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const Quota = require('../frontend/vendor/ai-quota.js');
 const now = Date.parse('2026-10-11T10:30:00Z');
-const report = { source: 'cloudflare-analytics', report_date_utc: '2026-10-11', reported_used: 8009.37,
-    reported_remaining: 1990.63, percent_used: 80.09, last_updated: '2026-10-11T09:00:00Z', reset_at: '2026-10-12T00:00:00Z' };
+const report = { source: 'paperai-usage', report_date_utc: '2026-10-11', percent_used: 80.0937, last_updated: '2026-10-11T09:00:00Z', reset_at: '2026-10-12T00:00:00Z' };
 const blocked = { date_utc: '2026-10-11', provider_limit_reached: true, reset_at: report.reset_at };
 let view = Quota.model(report, blocked, null, now);
-assert.equal(view.remaining, 1990.63); assert.equal(view.used, 8009.37);
-assert.equal(view.badge, 'On-device backup');
+assert.equal(Number(view.remaining.toFixed(4)), 19.9063); assert.equal(view.used, 80.0937);
+assert.equal(view.badge, 'Scanning available');
 assert.equal(view.barPercent,80.0937);assert.equal(view.percent,80.0937);
 assert.equal(view.barLabel,'80.09% reported used');
-const inconsistent=Quota.model({...report,percent_used:17,reported_remaining:9999},null,null,now);
-assert.equal(inconsistent.percent,80.0937);assert.equal(inconsistent.remaining,1990.63);
-assert.equal(Quota.model({...report,daily_reference:0},null,null,now).percent,null);
+for (const percent_used of [-1,101,NaN,Infinity,'80'])
+    assert.equal(Quota.model({...report,percent_used},null,null,now).percent,null);
 assert(Quota.model(null, blocked, null, now).blocked, 'Analytics outages must not hide a confirmed block');
 assert(Quota.model(report, null, blocked, now).blocked, 'A known rejection survives live-status outages');
 assert(!Quota.model(report, { ...blocked, provider_limit_reached: false, exhausted: true }, null, now).blocked,
@@ -115,28 +113,37 @@ async function frontend() {
     assert.equal((await ui.sendToOCR(new Blob(['page']))).result.engine,'default-cloud-model');
     assert.equal(localCalls,2,'An unblocked upload returns to the default model without using the local worker');
     let urls = [];
-    const proxy = vm.createContext({ API_LOCAL: 'https://paperai.test', API_DIRECT: 'https://worker.test',
+    const proxy = vm.createContext({ API_LOCAL: 'https://paperai.test',
         fetch: async url => { urls.push(url); return Response.json({ code: 'AI_BUSY' }, { status: 503 }); } });
     vm.runInContext(slice('async function fetchOcrEndpoint', 'const LEARNING_KEY'), proxy);
     assert.equal((await proxy.fetchOcrEndpoint('/api/ocr', {})).status, 503); assert.equal(urls.length, 1);
     urls = []; proxy.fetch = async url => { urls.push(url); return urls.length === 1 ? new Response('No route', { status: 404 }) : Response.json({ status: 'completed' }); };
-    assert.equal((await proxy.fetchOcrEndpoint('/api/ocr', {})).status, 200); assert.equal(urls.length, 2);
+    assert.equal((await proxy.fetchOcrEndpoint('/api/ocr', {})).status, 404); assert.equal(urls.length, 1);
+    urls=[]; proxy.fetch=async url=>{urls.push(url);throw new Error('network interrupted');};
+    await assert.rejects(()=>proxy.fetchOcrEndpoint('/api/ocr',{}),/network interrupted/);
+    assert.equal(urls.length,1,'Ambiguous network failures must never resubmit an upload');
+    let networkCalls=0;ui.fetchOcrEndpoint=async()=>{networkCalls++;throw new Error('offline');};
+    await assert.rejects(()=>ui.sendToOCR(new Blob(['page'])),/Could not reach/);
+    assert.equal(networkCalls,1);
 
     const fields = {};
     const field = id => fields[id] ||= { textContent: '', style: {}, setAttribute() {}, removeAttribute() {}, classList: { toggle() {} } };
     const timedQuota = { ...Quota, model: (r, s, l) => Quota.model(r, s, l, clock),
         activeBlock: s => Quota.activeBlock(s, clock), nextReset: (n = clock) => Quota.nextReset(n) };
     const dashboard = vm.createContext({ PaperAIQuota: timedQuota, Date: Clock, AbortSignal, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-        $: field, API_DIRECT: 'https://worker.test', fetch: async url => Response.json(url.includes('usage.json') ? report : blocked),
+        $: field, API_LOCAL: 'https://paperai.test', fetch: async url => Response.json(url.includes('usage.json') ? report : blocked),
         ...Object.fromEntries(['quotaCard','quotaRemaining','quotaUsed','quotaFill','quotaPercent','quotaNow','quotaReset','quotaBadgeText'].map(id => [id, field(id)])) });
     vm.runInContext(slice('let quotaResetAt', '\nrenderUsage();\nloadUsage();'), dashboard);
-    await dashboard.loadUsage();
-    assert.equal(fields.quotaRemaining.textContent, '1,990.63'); assert.equal(fields.quotaUsed.textContent, '8,009.37');
+    let usageCalls=0;const originalFetch=dashboard.fetch;
+    dashboard.fetch=async url=>{usageCalls++;return originalFetch(url);};
+    await Promise.all([dashboard.loadUsage(),dashboard.loadUsage(),dashboard.loadUsage()]);
+    assert.equal(usageCalls,2,'Concurrent usage checks share one request per endpoint');
+    assert.equal(fields.quotaRemaining.textContent, '19.91%'); assert.equal(fields.quotaUsed.textContent, '80.09%');
     assert.equal(fields.quotaRemainingLabel.textContent, 'Reported remaining');
     assert.equal(fields.quotaFill.style.width,'80.09%');assert.equal(fields.quotaPercent.textContent,'80.09% reported used');
     assert(fields.quotaReset.textContent.includes('05:30')); assert(fields.quotaDescription.textContent.includes('Word export'));
     dashboard.fetch = async () => { throw new Error('offline'); };
-    await dashboard.loadUsage(); assert.equal(fields.quotaRemaining.textContent, '1,990.63');
+    await dashboard.loadUsage(); assert.equal(fields.quotaRemaining.textContent, '19.91%');
     clock = Date.parse(report.reset_at); await dashboard.loadUsage();
     assert.equal(fields.quotaRemaining.textContent, '—'); assert.equal(fields.quotaUsed.textContent, '—');
     assert(!dashboard.renderUsage().blocked);
