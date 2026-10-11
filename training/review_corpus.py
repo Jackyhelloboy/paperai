@@ -89,13 +89,18 @@ def render(item, out):
     if path.suffix.lower()=='.pdf':
         with fitz.open(path) as doc:
             for p in doc:
-                p.get_pixmap(matrix=fitz.Matrix(1.6,1.6)).save(folder/f'page-{p.number+1}.png')
+                target=folder/f'page-{p.number+1}.png'
+                temporary=folder/f'.page-{p.number+1}-writing.png'
+                p.get_pixmap(matrix=fitz.Matrix(1.6,1.6)).save(temporary)
+                temporary.replace(target)
     else:
         helper='/root/.codex/skills/builtins/documents/render_docx.py'
         env=dict(os.environ)
         env['LD_LIBRARY_PATH']='/opt/codex/runtimes/codex-primary-runtime/dependencies/native/poppler/poppler/lib'
         result=subprocess.run([sys.executable,helper,str(path),'--output_dir',str(folder),'--emit_pdf'],env=env,capture_output=True,text=True)
         if result.returncode: return {'file':item['file'],'render_error':result.stderr[-1500:]}
+    pages=list(folder.glob('page-*.png'))
+    if any(p.stat().st_size==0 for p in pages): return {'file':item['file'],'render_error':'An empty rendered page needs regeneration'}
     contacts(folder)
     return {'file':item['file'],'rendered_pages':len(list(folder.glob('page-*.png'))),'render_id':item['id']}
 

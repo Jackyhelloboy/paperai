@@ -5764,7 +5764,7 @@ function docxTableCells(rows, widths, options = {}) {
         '<w:spacing w:before="0" w:after="40" w:line="20" w:lineRule="exact"/></w:pPr></w:p>';
 }
 function docxSectionRow(title,marks,bold=true) {
-    const markWidth=Math.min(2500,Math.max(1300,String(marks).length*100));
+    const markWidth=Math.min(2800,Math.max(1600,String(marks).length*155));
     return docxTableCells([[{xml:docxRichParagraph(title,{bold,size:bold?26:24,after:0,keepNext:true})},
         {xml:docxParagraph(marks,{bold,size:bold?26:24,right:true,after:0,keepNext:true})}]],
         [10466-markWidth,markWidth],{bordered:false,keepNext:true});

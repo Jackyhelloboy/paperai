@@ -13,6 +13,7 @@ assert(!guardCtx.shouldAcceptVerifiedText('I. A real question.','_'.repeat(1000)
 assert(guardCtx.invalidLayoutMarkers('[[FIGURE: 100,900,100,200| |none]]'));
 assert(guardCtx.invalidLayoutMarkers('[[FIGURE: .1,.2,.3,.4| |none]]'));
 assert(!guardCtx.invalidLayoutMarkers('[[FIGURE_ROW: 100,200,300,100| |none || 450,200,300,100| |box]]'));
+assert(guardCtx.invalidLayoutMarkers('1. क + क = [[कक]] = ______'),'Unknown annotation syntax must not leak into a question paper');
 const html=fs.readFileSync('frontend/index.html','utf8');
 const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m=>m[1].includes('function buildDocxBody'))[1];
 const slice=(a,b)=>code.slice(code.indexOf(a),code.indexOf(b,code.indexOf(a)+1));
@@ -59,6 +60,10 @@ const fixture=[
     assert(!Layout.pdfTextReliable('Subject: Telugu \uF03E\uF044'),'Legacy glyph codes require OCR');
     assert(Layout.compactPages('Q1\n[[PAGE_BREAK]]\nQ2').includes('Q1\nQ2'));
     assert(Layout.compactPages('Q1\n[[PAGE_BREAK]]\nClass: III\nQ2').includes('PAGE_BREAK'));
+    const recovered=Layout.reconcileEmptyGrids('5. न :- [[GRID: 13x1]]\n6. प :- [[GRID: 11x1]]\nIV. Next section',[{columns:13,rows:1},{columns:13,rows:1}]);
+    assert.equal((recovered.match(/\[\[GRID: 13x1\]\]/g)||[]).length,2,'Continuation grids before a section heading must retain all observed cells');
+    assert(!recovered.includes('न :- [[GRID:'),'An inline grid must become a native block below its label');
+    assert(Layout.normalise('VIII हिन्दी शब्द से अंग्रेजी शब्द जोड़ो। 6x1=6M\n1. नयन | Ginger').includes('[[MATCH_ROW: 1. नयन || Ginger]]'),'Visible matching columns must remain unsolved native cells');
     const suggestions=code.slice(code.indexOf('function showSmartSuggestions'),code.indexOf('function chooseSmartSuggestion'));
     assert(!suggestions.includes('autoApplySmartSuggestion('),'Suggestions must require a teacher selection');
     if(process.env.PAPERAI_QA_OUTPUT)fs.writeFileSync(process.env.PAPERAI_QA_OUTPUT,Buffer.from(await blob.arrayBuffer()));

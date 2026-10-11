@@ -1474,6 +1474,7 @@ ${blankSafeDraft(text)}
 ---END FIRST OCR---
 
 VERIFICATION RULES:
+- Use only the explicitly defined layout and edit marker names. Unknown annotations such as [[कक]] are invalid. Read the source again: transcribe ordinary written text literally, or use STRIKE/INSERT/REPLACE only when the corresponding edit is visibly present. Never put a proposed answer inside invented brackets.
 - If the draft contains a repeated character loop or an incomplete first line, discard that defective draft and read the entire source page again. Never continue an underscore loop. A visible answer rule needs only a short blank or ANSWER_LINES marker.
 - Every FIGURE/BANNER crop must contain exactly four INTEGER coordinates x,y,WIDTH,HEIGHT on the 0–1000 page scale. Do not return x1,y1,x2,y2 endpoints or 0–1 fractions. Both x+width and y+height must fit within 1000. Recheck invalid crops against the actual image; never preserve an invalid draft crop.
 - Keep text unchanged when the pixels support it.

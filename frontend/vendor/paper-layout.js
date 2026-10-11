@@ -167,9 +167,13 @@
     function normalise(text) {
         const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
-        const lines=String(text||'').split('\n').map(line=>{
+        const lines=String(text||'').split('\n').flatMap(line=>{
             const m=line.match(bare);
-            return m ? '[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]' : line;
+            if(m)line='[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]';
+            // A grid following its label is a native block, not printable marker text.
+            if(!/^\s*\[\[(?:TABLE_ROW|MATCH_ROW):/i.test(line))
+                line=line.replace(/\[\[GRID(?:_ROW)?:\s*[\s\S]*?\]\]/gi,marker=>'\n'+marker+'\n');
+            return line.split('\n');
         });
         for(let i=0;i<lines.length;i++){
             const marker=lines[i].match(/^\s*\[\[SECTION_ROW:\s*([^|]*?)\]\]\s*$/i);
@@ -183,8 +187,12 @@
         let matching=false;
         for(let i=0;i<lines.length;i++){
             if(/^\s*(?:\[\[SECTION_ROW:\s*)?(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[. )\s]+\S/.test(lines[i]))
-                matching=/match(?:ing| the following)|जोड़ी|मिलान/i.test(lines[i]);
+                matching=/match(?:ing| the following)|जोड़ी|मिलान|शब्द.*शब्द.*जोड़ो/i.test(lines[i]);
             if(!matching||/^\s*\[\[/.test(lines[i]))continue;
+            const pipeCells=lines[i].split(/\s+\|\s+/);
+            if(pipeCells.length>1&&pipeCells.length<=32&&pipeCells.every(x=>x.trim())){
+                lines[i]='[[MATCH_ROW: '+pipeCells.map(x=>x.trim()).join(' || ')+']]';continue;
+            }
             const pair=lines[i].match(/^(\s*\d+[.)]?\s+[A-Za-z]\s*[-–]?)\s+([A-Za-z])\s*$/)||
                 lines[i].match(/^(\s*\d+[.)]?\s+[A-Za-z][A-Za-z ]*?)\s+(\d+)\s*$/)||
                 lines[i].match(/^(.+?)\s{3,}(\S.*?)\s*$/);
@@ -230,17 +238,16 @@
     }
     function reconcileEmptyGrids(text,grids=[]) {
         if(!grids.length)return text;
-        const lines=String(text).split('\n'), blocks=[];
+        const lines=normalise(text).split('\n'), blocks=[];
         let block=null;
         for(let i=0;i<lines.length;i++){
-            if(/^\s*(?:\[\[SECTION_ROW:\s*)?(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[. )\s]+\S/.test(lines[i])){
-                block={indexes:[]};blocks.push(block);
-            }
-            if(block&&(/^\s*\[\[GRID:\s*\d+[x×]\d+\]\]\s*$/i.test(lines[i])||
-                /^\s*\[\[GRID_ROW:\s*(?:_|\s|\|)*\]\]\s*$/i.test(lines[i])))block.indexes.push(i);
+            const empty=/^\s*\[\[GRID:\s*\d+[x×]1\]\]\s*$/i.test(lines[i])||
+                /^\s*\[\[GRID_ROW:\s*(?:_|\s|\|)*\]\]\s*$/i.test(lines[i]);
+            if(empty){if(!block){block={indexes:[]};blocks.push(block);}block.indexes.push(i);}
+            else if(lines[i].trim())block=null;
         }
         const candidates=blocks.filter(b=>b.indexes.length);
-        // Only reconcile when each observed source grid has one section container.
+        // Only reconcile when every observed source grid has one empty marker group.
         // Preserve populated grids and ambiguous mappings rather than deleting data.
         if(candidates.length!==grids.length)return text;
         for(let n=0;n<candidates.length;n++){

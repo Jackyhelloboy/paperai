@@ -8,6 +8,8 @@ export function blankSafeDraft(text) {
     return String(text||'').replace(/_{81,}/g,'____________________________').slice(0,12000);
 }
 export function invalidLayoutMarkers(text) {
+    const allowed=/^(?:(?:SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|BRANCH_ROOT|BRANCH_ITEM|DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION|PICTURE_ROW):|CHECKBOX$|BRANCH_END$)/i;
+    if([...String(text||'').matchAll(/\[\[([^\]]*?)\]\]/g)].some(m=>!allowed.test(m[1].trim())))return true;
     for(const m of String(text||'').matchAll(/\[\[(FIGURE(?:_ROW)?|BANNER):\s*([\s\S]*?)\]\]/gi)){
         const specs=m[1].toUpperCase()==='FIGURE_ROW'?m[2].split(/\s*\|\|\s*/):[m[2]];
         for(const spec of specs){
