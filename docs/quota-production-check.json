@@ -1,0 +1,39 @@
+{
+  "code_commit": "18bdd1bd025c66a74efb3bb56d022a36f673e731",
+  "app_url": "https://paperai-5up.pages.dev/",
+  "live_usage_endpoint": "https://paperai-ocr.mdjawaadkhan57.workers.dev/api/usage",
+  "observed_status": {
+    "date_utc": "2026-10-11",
+    "server_time": "2026-10-11T10:44:01.247Z",
+    "reset_at": "2026-10-12T00:00:00.000Z",
+    "provider_limit_reached": true,
+    "estimated_limit_reached": true,
+    "limit_reached_at": null
+  },
+  "real_ai_inference_performed": false,
+  "website_files_imported": false,
+  "regression_suites_passed": 10,
+  "workflows_passed": [
+    "Deploy to Cloudflare Pages",
+    "Deploy Cloudflare Worker",
+    "Verify worksheet preview and Word export"
+  ],
+  "browser_verified": {
+    "badge": "Free AI limit reached",
+    "free_ai_available": 0,
+    "reported_used": 8009.37,
+    "reported_percent": 80,
+    "reset_india": "2026-10-12 05:30 IST",
+    "manual_edit_and_word_download": "passed; exact typed questions and empty answer blanks retained; one rendered export page visually inspected"
+  },
+  "screenshot": {
+    "file": "PaperAI-Quota-Fix-Live.jpg",
+    "bytes": 55455,
+    "sha256": "ad7ca59c3529377da2036327fffe45a5a5687d04ed1c94f4f70deaf6f2ea0235"
+  },
+  "limits": [
+    "Daily provider block is real.",
+    "Midnight rollover is covered by mocked-clock regressions; post-reset real inference has not been tested.",
+    "The legacy tracker was already saturated before this fix. Existing estimates were not rewritten; the new provider flag is separate."
+  ]
+}
