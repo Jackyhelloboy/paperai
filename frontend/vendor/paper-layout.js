@@ -11,6 +11,12 @@
         gridHeight: 460, borderSize: 6, cellPadding: 90,
         contentWidth: 10466, maxColumns: 52, maxRows: 32, maxCells: 600
     });
+    const referenceFormats=Object.freeze({
+        compact:{label:'Compact question paper',font:'Arial',headingFont:'Arial',body:11,heading:12,line:1.15,after:1,indent:0},
+        science:{label:'Annual science reference',font:'Arial',headingFont:'Arial',body:10,heading:12,line:1,after:0,indent:360},
+        humanities:{label:'Social and English reference',font:'Tahoma',headingFont:'Times New Roman',body:11,heading:13,line:1.5,after:0,indent:0},
+        worksheet:{label:'Science worksheet reference',font:'Tahoma',headingFont:'Tahoma',body:12,heading:12,line:1,after:0,indent:0}
+    });
     function figure(value) {
         const parts = String(value || '').split('|');
         const nums = parts[0].trim().split(',').map(Number);
@@ -261,5 +267,5 @@
         }
         return lines.join('\n');
     }
-    return {profile,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,referenceFormats,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

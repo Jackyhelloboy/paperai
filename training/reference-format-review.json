@@ -1,0 +1,154 @@
+{
+  "date": "2026-10-11",
+  "website_uploads": 0,
+  "authored_references": 12,
+  "source_word_pages": 32,
+  "reference_output_pages": 29,
+  "controlled_formatter_fixtures": 3,
+  "controlled_formatter_pages": 3,
+  "regression_suites": 9,
+  "renderer": "LibreOffice to PDF to PNG using bundled document renderer",
+  "same_pdf_word_target_claim": false,
+  "records": [
+    {
+      "source": "1Class_1_Science_Annual.docx",
+      "source_sha256": "526e43e1872edbeb07933a769a6bdc93c0eff83c250ff5cb07305238b2086c36",
+      "source_pages": 2,
+      "output_docx": "01-1Class-1-Science-Annual.docx",
+      "output_sha256": "b86f64e76f7f597f770e5083b1b0ac5e8e54d9172c703b8d70dcff759aee5cb2",
+      "output_pdf": "01-1Class-1-Science-Annual.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "1Class_2_Science_Annual.docx",
+      "source_sha256": "417ba840696e1948eb5057181e057c6788f8e35337e05d807ed02fcdc3eabad2",
+      "source_pages": 3,
+      "output_docx": "02-1Class-2-Science-Annual.docx",
+      "output_sha256": "6588ca157fc960987891a4910ab6c0ee4181af7bd2250276bc9a18d406f8bbfd",
+      "output_pdf": "02-1Class-2-Science-Annual.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "Class_3_Science_Annual.docx",
+      "source_sha256": "2a8c664e0d9c10f9a547184cc0f8952cafb0b8e9f31410c50a5494f4a494abf5",
+      "source_pages": 3,
+      "output_docx": "03-Class-3-Science-Annual.docx",
+      "output_sha256": "849d1629bf4fd8b69da9fed0eaf21d50de311f0af62c4fa47bce9338ece5b6fe",
+      "output_pdf": "03-Class-3-Science-Annual.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "Class_4_Science_Annual.docx",
+      "source_sha256": "cd9518bef02a51689eeca31cdbdc32f0943ba06baf02e26c3cf9f6366e9bfa89",
+      "source_pages": 2,
+      "output_docx": "04-Class-4-Science-Annual.docx",
+      "output_sha256": "c500478baca59c700f48e070c074c891fe5dcc137167fa5bc613f0aaf2e1420a",
+      "output_pdf": "04-Class-4-Science-Annual.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "Class_5_Science_Annual.docx",
+      "source_sha256": "07fe704e0587a5bdffa6d3eee25a66545350dab2c575c513af42bab55af6ebd7",
+      "source_pages": 3,
+      "output_docx": "05-Class-5-Science-Annual.docx",
+      "output_sha256": "9f46f41a464c4aae9d9f82d49cbb5be7eb9eb7ad9ce87aebe46b2ccec8b563d4",
+      "output_pdf": "05-Class-5-Science-Annual.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "English 6.docx",
+      "source_sha256": "5fdd07bda194ec5d73daa31a3598ef6c03358985af460065e981562dc8510d22",
+      "source_pages": 2,
+      "output_docx": "06-English-6.docx",
+      "output_sha256": "579d9948a2f30ae652bcab06e3600a2bc58b94d145dd66c7838920910da2b324",
+      "output_pdf": "06-English-6.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "New Microsoft Office Word Document (3).docx",
+      "source_sha256": "ca4bd470229fa20d81f9f09fdd0650d47a6389b7a583ede9c5e9a2c2511db4ca",
+      "source_pages": 7,
+      "output_docx": "13-New-Microsoft-Office-Word-Document-3.docx",
+      "output_sha256": "3ffcdfc458851913e504e5208494a8ea3fb7b09eddfdaf8286e84791f1a5501f",
+      "output_pdf": "13-New-Microsoft-Office-Word-Document-3.pdf",
+      "output_pages": 7,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "Social 10.docx",
+      "source_sha256": "e83c6102a88e9db8fe544abb224d006e33b2c295237c77d8314dad33898cb4c5",
+      "source_pages": 2,
+      "output_docx": "14-Social-10.docx",
+      "output_sha256": "e497c0e2a4f957b7c318de384e748669048133ac0a0de21c65eeb95c3667c39d",
+      "output_pdf": "14-Social-10.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "Social 6.docx",
+      "source_sha256": "3d0d3dc08f1d65c40ddf012e6c7cdfecc7ef0eb33ae8463d04d5d84cb6eb2ce2",
+      "source_pages": 2,
+      "output_docx": "15-Social-6.docx",
+      "output_sha256": "1c991f1eec7d21ddcac7dfddfbd0fe96c9d6b87bf6887b6e763fb76e42c3d41e",
+      "output_pdf": "15-Social-6.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "Social 7.docx",
+      "source_sha256": "1a714af1e5c24851bea0d14175e63ebf068a0bc8e192c5b30aaa0e85b46487b1",
+      "source_pages": 2,
+      "output_docx": "16-Social-7.docx",
+      "output_sha256": "aede62b4e40118db88d81c14779904c10a14159da47cfecdd36ba7613d28f239",
+      "output_pdf": "16-Social-7.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "Social 8.docx",
+      "source_sha256": "8d05c0c65d0df702546b0bbf2ab41b7734c9cb7bc4f538ba25e108f4c7fa2349",
+      "source_pages": 2,
+      "output_docx": "17-Social-8.docx",
+      "output_sha256": "300e9fae7b53ccdb83d38ef74d46efca547506d6d5d89dc0db12ee93ed64b158",
+      "output_pdf": "17-Social-8.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    },
+    {
+      "source": "Social 9.docx",
+      "source_sha256": "78457360eb8b4a1255e460f065716fcc378c809948a964e6ff93f6123e3a23d1",
+      "source_pages": 2,
+      "output_docx": "18-Social-9.docx",
+      "output_sha256": "d809440242ffd328efd5a0cb34eaddb3aa96f9cc8850e61c0c059ae292d47ed3",
+      "output_pdf": "18-Social-9.pdf",
+      "output_pages": 2,
+      "package_check": "pass",
+      "visual_review": "all rendered pages inspected; source composition limitations remain"
+    }
+  ],
+  "limitations": [
+    "Source Word banners already overlap in the comparison renderer. Those source composition defects are not proof of extraction accuracy.",
+    "A4 narrow margins change wrapping/pagination; these are not pixel-identical conversions.",
+    "References contain mixed run fonts/sizes. Family presets are defaults; original Word mode keeps the original properties.",
+    "PDF assessment files do not establish exact converted pairs for all 12 authored Word references.",
+    "No fresh live handwriting OCR was accepted in this no-upload review; current accuracy and source-crop correctness are not certified.",
+    "Fonts and floating-object behavior can differ between LibreOffice and Microsoft Word."
+  ]
+}

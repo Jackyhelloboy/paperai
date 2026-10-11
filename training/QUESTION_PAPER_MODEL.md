@@ -77,10 +77,14 @@ Upload handwriting or a printed source, review the extracted questions, use Corr
 
 ## Verification
 
-Run `npm ci --prefix frontend`, the seven regression scripts under `tests/`, and `node tests/training-corpus.cjs`. For complete visual corpus review, install `training/requirements-layout.txt`, LibreOffice and Poppler, then run `training/review_corpus.py --render-root /absolute/scratch/path` using the bundled runtime. `corpus-review.json` records content, tables, picture bounds and hashes; `corpus-parser-results.json` records every parser check. Live OCR/Word rendering results are recorded separately. A structural pass does not certify handwritten OCR accuracy.
+Run `npm ci --prefix frontend`, the nine regression scripts in the deployment workflow, and `node tests/training-corpus.cjs`. For complete visual corpus review, install `training/requirements-layout.txt`, LibreOffice and Poppler, then run `training/review_corpus.py --render-root /absolute/scratch/path` using the bundled runtime. `corpus-review.json` records content, tables, picture bounds and hashes; `corpus-parser-results.json` records every parser check. Live OCR/Word rendering results are recorded separately. A structural pass does not certify handwritten OCR accuracy.
 
 ## Additional failures caught by live testing
 
 A Hindi scan produced a repetitive underscore loop and omitted sections. The worker now rejects token loops, rechecks a bounded draft against the image, and never publishes the loop as successful OCR. Invalid illustration coordinates also trigger verification/retry rather than fabricated crops. Photographed Hindi barahkhadi grids needed local background compensation; the detector now finds all five 13-cell rows in Class 3 and preserves populated grids by refusing to classify them as empty. Legacy Indic PDF glyph codes and broken matra ordering go through visual OCR instead of trusting a damaged text layer.
 
 The latest comparison is in [LIVE_REVIEW.md](LIVE_REVIEW.md). Unsupported annotations and missing source pictures stop editable export. PDF retries retain completed pages and their original assets while the same file remains open; refreshing the page clears this memory cache. The crop editor shows the full source page with a selectable rectangle, including source banners. Word imports retain observed picture sizes/alignments and borderless section/marks and matching columns.
+
+## Measured formats and original Word objects
+
+[REFERENCE_FORMAT_REVIEW.md](REFERENCE_FORMAT_REVIEW.md) records the 12 authored Word references, the 15 diagnostic DOCX/PDF pairs, font and spacing presets, original-object preservation, floating-table/banner fixes, and the remaining visual/OCR limits. The app now also supports creating and exporting a paper without a file upload.

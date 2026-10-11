@@ -18,6 +18,7 @@
     <script src="vendor/pdf-word-layout.js"></script>
 <script src="./vendor/paper-layout.js"></script>
 <script src="./vendor/pdf-editable-layout.js"></script>
+<script src="./vendor/docx-reference-layout.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -1203,6 +1204,15 @@
             font-style: normal;
             line-height: 1.55;
         }
+        #textOut { container-type:inline-size; }
+        .paper-preview .output-line { min-height:1em; margin-bottom:var(--paper-after); }
+        .paper-preview .output-heading { font-family:var(--paper-heading-font);font-size:var(--paper-heading-size);line-height:inherit; }
+        .paper-preview .ocr-section-row { font-family:var(--paper-heading-font);font-size:var(--paper-heading-size);margin:.6em 0 .2em; }
+        .paper-preview .ocr-match-row { gap:0; }
+        .paper-preview .ocr-match-cell { padding:.48cqw; }
+        .paper-preview .ocr-grid-cell { min-height:var(--paper-grid-height); }
+        .paper-preview .ocr-figure-answer { width:13.76cqw;max-width:100%;height:3.25cqw; }
+        .paper-preview .ocr-worksheet-table td,.paper-preview .ocr-worksheet-table th { padding:.48cqw;line-height:inherit;font-size:inherit; }
 
         .output-raw {
             font-family: Tahoma, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Segoe UI Symbol', 'Noto Sans Symbols 2', 'Noto Sans', Arial, sans-serif;
@@ -1808,6 +1818,7 @@
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 Extract Text
             </button>
+            <button class="action-btn" style="margin-top:.7rem;width:100%" onclick="startBlankPaper()">Create question paper</button>
 
             <div class="progress-wrap" id="prog">
                 <div class="progress-info">
@@ -1854,9 +1865,19 @@
               <p class="teach-sub">Narrow margins, editable text, tables and shapes. Review pictures and blanks before exporting.</p>
               <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
                 <label>Page flow <select id="paperFlow" class="teach-lang-select" onchange="refreshPaperLayout()"><option value="compact">Compact A4</option><option value="source">Keep source pages</option></select></label>
-                <label>Text size <select id="paperFont" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="11">11 pt</option><option value="12" selected>12 pt</option><option value="13">13 pt</option></select></label>
+                <label>Reference format <select id="paperFormat" class="teach-lang-select" onchange="applyPaperFormat(this.value)"><option value="custom">Custom</option><option value="compact">Compact question paper</option><option value="science">Annual science reference</option><option value="humanities">Social and English reference</option><option value="worksheet">Science worksheet reference</option></select></label>
+                <label>Font <select id="paperFamily" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option>Arial</option><option>Tahoma</option><option>Times New Roman</option><option>Calibri</option><option>Noto Sans Devanagari</option><option>Noto Sans Telugu</option></select></label>
+                <label>Text size <select id="paperFont" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="10">10 pt</option><option value="11">11 pt</option><option value="12" selected>12 pt</option><option value="13">13 pt</option><option value="14">14 pt</option></select></label>
+                <label>Heading size <select id="paperHeading" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="11">11 pt</option><option value="12">12 pt</option><option value="13" selected>13 pt</option><option value="14">14 pt</option></select></label>
+                <label>Heading font <select id="paperHeadingFamily" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="same">Same as body</option><option>Arial</option><option>Tahoma</option><option>Times New Roman</option><option>Calibri</option></select></label>
+                <label>Line spacing <select id="paperLine" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="1" selected>Single</option><option value="1.15">1.15</option><option value="1.2">1.2</option><option value="1.5">1.5</option></select></label>
+                <label>Space after questions (pt) <input id="paperAfter" type="number" min="0" max="12" step=".5" value="1" style="width:65px" oninput="refreshPaperLayout(true)"></label>
+                <label>Question indent <select id="paperIndent" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="0">None</option><option value="360">0.25 inch</option><option value="720">0.5 inch</option></select></label>
+                <label>Grid row height (cm) <input id="paperGridHeight" type="number" min=".4" max="2" step=".1" value=".8" style="width:65px" oninput="refreshPaperLayout(true)"></label>
                 <label><input type="checkbox" id="paperPageNumbers" onchange="refreshPaperLayout(true)"> Page numbers</label>
               </div>
+              <label id="paperWordFormatOption" style="display:none;margin-bottom:.7rem"><input type="checkbox" id="paperWordFormat" checked> Keep original Word formatting on A4</label>
+              <p id="paperWordFormatNote" class="teach-sub" style="display:none">Keep the original fonts and editable objects, with tables in page flow. A4 can change page breaks. The preview shows extracted content; editing uses the selected paper format.</p>
               <div id="paperBlocks"></div>
               <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0">
                 <label>Rows <input id="paperInsertRows" type="number" min="1" max="32" value="3" style="width:60px"></label>
@@ -4589,6 +4610,7 @@ function saveLearning() {
     // untouched, but every Extracted render/copy/download now uses this value.
     lastResult.plain_text = corrected;
     lastResult.text = correctedLayout;
+    invalidateOriginalWord();
     lastResult.preview_text = corrected;
     lastResult.preview_layout_text = correctedLayout;
 
@@ -5180,11 +5202,10 @@ function worksheetPictureCell(label, withAnswer = true) {
 function worksheetShapeSvg(value) {
     const name = String(value || '').toLowerCase().trim();
     const common = 'fill="none" stroke="currentColor" stroke-width="2"';
-    if (/square|वर्ग/.test(name)) return '<rect x="25" y="12" width="58" height="58" ' + common + '/>';
-    if (/rectangle|आयत/.test(name)) return '<rect x="10" y="25" width="90" height="40" ' + common + '/>';
-    if (/circle|वृत्त/.test(name)) return '<circle cx="55" cy="45" r="32" ' + common + '/>';
-    if (/triangle|त्रिभुज/.test(name)) return '<path d="M55 11 L99 78 H11 Z" ' + common + '/>';
-    if (/cube/.test(name)) return '<path d="M23 30h46v46H23z M23 30l17-17h46v46L69 76 M69 30l17-17 M86 59L69 76" ' + common + '/>';
+    if (/square|वर्ग|rectangle|आयत/.test(name)) return '<rect x="1" y="1" width="108" height="88" ' + common + '/>';
+    if (/circle|वृत्त/.test(name)) return '<ellipse cx="55" cy="45" rx="53" ry="43" ' + common + '/>';
+    if (/triangle|त्रिभुज/.test(name)) return '<path d="M55 1 L109 89 H1 Z" ' + common + '/>';
+    if (/cube/.test(name)) return '<path d="M1 20h88v69H1z M1 20l20-19h88v69L89 89 M89 20l20-19 M109 70L89 89" ' + common + '/>';
     return '<rect x="22" y="18" width="66" height="55" stroke="currentColor" stroke-dasharray="5 4" fill="none"/>';
 }
 function worksheetRenderTable(rows, widths=null, header=false) {
@@ -5242,7 +5263,7 @@ function formatStructuredWorksheetLine(line, columnWidths=null) {
     if (found) {
         const cells = worksheetCells(found[1], 8).filter(Boolean);
         return '<div class="ocr-figure-row" style="--figure-cols:' + cells.length + '">' +
-            cells.map(cell => '<div class="ocr-figure-cell"><svg class="ocr-shape-icon" viewBox="0 0 110 90" aria-label="' +
+            cells.map(cell => '<div class="ocr-figure-cell"><svg class="ocr-shape-icon" preserveAspectRatio="none" style="width:'+(/rectangle|आयत|cube/.test(PaperAILayout.shape(cell).name)?68:51)/523.3*100+'cqw;height:'+51/523.3*100+'cqw" viewBox="0 0 110 90" aria-label="' +
                 esc(PaperAILayout.shape(cell).name) + '">' + worksheetShapeSvg(PaperAILayout.shape(cell).name) + '</svg>'+ (PaperAILayout.shape(cell).answer?'<span class="ocr-figure-answer"></span>':PaperAILayout.shape(cell).line?'<div class="ocr-answer-rule"></div>':'')+'</div>'
             ).join('') + '</div>';
     }
@@ -5352,11 +5373,13 @@ function formatOutput(text) {
 
         const heading = isOutputHeadingLine(line, i, firstNonEmptyIndex);
         const cls = heading ? 'output-line output-heading' : 'output-line';
-        html += '<span class="' + cls + '">' + formatOutputLine(line) + '</span>';
+        const questionIndent=!heading&&/^\s*\d+[.)]/.test(line)&&paperLayoutOptions().indent;
+        html += '<span class="' + cls + '"'+(questionIndent?' style="padding-left:'+100*questionIndent/10466+'%;text-indent:-'+100*Math.min(questionIndent,240)/10466+'%"':'')+'>' + formatOutputLine(line) + '</span>';
         i++;
     }
 
-    return html;
+    const p=paperLayoutOptions();
+    return '<div class="paper-preview" style="font-family:'+esc(p.font)+';font-size:'+p.fontSize/523.3*100+'cqw;line-height:'+p.line+';--paper-heading-font:'+esc(paperLayoutOptions().headingFont)+';--paper-heading-size:'+p.heading/523.3*100+'cqw;--paper-after:'+(p.after??25)/20/523.3*100+'cqw;--paper-grid-height:'+p.gridHeight/10466*100+'cqw">'+html+'</div>';
 }
 
 // Successful scanned pages survive a failed request while this file stays open.
@@ -5515,7 +5538,11 @@ goBtn.onclick = async () => {
 
         if (file !== sourceFile) return;
         lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw, source_file: sourceFile,
+            native_docx_file:batch.length===1&&/\.docx$/i.test(sourceFile.name)?sourceFile:null,native_docx_text:allText,
             native_pdf_pages:nativePdfPages,native_pdf_text:allText,native_pdf_preview:nativePdfPages?PaperAIPdfEditable.preview(nativePdfPages):null };
+        $('paperWordFormatOption').style.display=lastResult.native_docx_file?'block':'none';
+        $('paperWordFormatNote').style.display=lastResult.native_docx_file?'block':'none';
+        $('paperWordFormat').checked=!!lastResult.native_docx_file;
         teachPanel.classList.remove('show');
         showingRaw = false;
         $('tabVerified').classList.add('active');
@@ -5612,7 +5639,36 @@ function docxVisibleText(value) {
 function paperLayoutOptions() {
     const element=id=>typeof document==='undefined'?null:document.getElementById(id);
     const compact=element('paperFlow')?.value==='compact';
-    return {compact,keepSourcePages:!compact,fontSize:Number(element('paperFont')?.value||12),pageNumbers:!!element('paperPageNumbers')?.checked};
+    const fontSize=Math.max(10,Math.min(14,Number(element('paperFont')?.value||12)));
+    const family=element('paperFamily')?.value||'Arial';
+    return {compact,keepSourcePages:!compact,fontSize,pageNumbers:!!element('paperPageNumbers')?.checked,
+        font:['Arial','Tahoma','Times New Roman','Calibri','Noto Sans Devanagari','Noto Sans Telugu'].includes(family)?family:'Arial',
+        headingFont:['Arial','Tahoma','Times New Roman','Calibri'].includes(element('paperHeadingFamily')?.value)?element('paperHeadingFamily').value:family,
+        heading:Number(element('paperHeading')?.value||13*fontSize/12),
+        line:Number(element('paperLine')?.value||(compact?1:1.125)),
+        after:element('paperAfter')?Math.max(0,Math.min(12,Number(element('paperAfter').value)||0))*20:null,
+        indent:Number(element('paperIndent')?.value||0),
+        gridHeight:element('paperGridHeight')?Math.round(Math.max(.4,Math.min(2,Number(element('paperGridHeight').value)||.8))*567):460};
+}
+function startBlankPaper() {
+    file=null;fileBatch=[];extractedMedia=[];
+    lastResult={text:'',plain_text:'',raw_text:''};showingRaw=false;
+    $('filePreview').classList.remove('show');$('dropZone').style.display='';$('goBtn').disabled=true;
+    $('resBox').classList.add('show');$('prog').classList.remove('show');hideErr();
+    $('teachPanel').classList.remove('show');$('tabVerified').classList.add('active');$('tabRaw').classList.remove('active');
+    $('statsBar').textContent='';invalidateOriginalWord();updateResultActionsForTab();
+    applyPaperFormat('compact');$('paperFormat').value='compact';
+    openPaperLayout();
+}
+function applyPaperFormat(name) {
+    const p=PaperAILayout.referenceFormats[name];if(!p)return;
+    for(const [id,value] of Object.entries({paperFamily:p.font,paperHeadingFamily:p.headingFont,paperFont:p.body,paperHeading:p.heading,paperLine:p.line,paperAfter:p.after,paperIndent:p.indent}))$(id).value=String(value);
+    refreshPaperLayout(true);
+}
+function invalidateOriginalWord() {
+    if(lastResult)lastResult.native_docx_file=null;
+    if($('paperWordFormatOption'))$('paperWordFormatOption').style.display='none';
+    if($('paperWordFormatNote'))$('paperWordFormatNote').style.display='none';
 }
 function paperEdited(text) {
     if(!lastResult)return;
@@ -5620,13 +5676,17 @@ function paperEdited(text) {
     lastResult.plain_text=portableText(text);
     delete lastResult.preview_layout_text;
     lastResult.native_pdf_pages=null;lastResult.native_pdf_preview=null;
+    invalidateOriginalWord();
     $('textOut').innerHTML=formatOutput(text);
 }
 function refreshPaperLayout(changeGeometry=false) {
     if(!lastResult)return;
-    if(changeGeometry){lastResult.native_pdf_pages=null;lastResult.native_pdf_preview=null;}
+    if(changeGeometry){lastResult.native_pdf_pages=null;lastResult.native_pdf_preview=null;invalidateOriginalWord();}
     $('textOut').style.fontSize=paperLayoutOptions().fontSize+'pt';
-    $('textOut').style.lineHeight=paperLayoutOptions().compact?'1.2':'1.4';
+    $('textOut').style.fontFamily=paperLayoutOptions().font;
+    $('textOut').style.lineHeight=String(paperLayoutOptions().line);
+    $('textOut').style.setProperty('--paper-heading-size',paperLayoutOptions().heading+'pt');
+    $('textOut').style.setProperty('--paper-after',(paperLayoutOptions().after??25)/20+'pt');
     $('textOut').innerHTML=formatOutput(lastResult.text);
 }
 function updatePaperCell(lineIndex,cellIndex,value) {
@@ -5640,6 +5700,28 @@ function updatePaperCell(lineIndex,cellIndex,value) {
 function updatePaperGrid(lineIndex,value) {
     if(!worksheetGridSize(value)){showErr('Use columns × rows, up to 52 columns, 32 rows and 600 cells.');return;}
     const lines=lastResult.text.split('\n');lines[lineIndex]='[[GRID: '+value+']]';paperEdited(lines.join('\n'));
+}
+function updatePaperWidths(lineIndex,value) {
+    const lines=lastResult.text.split('\n'),values=String(value).split(',').map(Number);
+    const row=lines[lineIndex].match(/^\[\[(?:TABLE_ROW|MATCH_ROW):\s*([\s\S]*?)\]\]$/i);
+    if(!row||values.length!==worksheetCells(row[1],32).length||values.some(x=>!Number.isFinite(x)||x<=0)){showErr('Enter one positive column proportion per column, separated by commas.');return;}
+    const marker='[[TABLE_WIDTHS: '+values.join(',')+']]';
+    let first=lineIndex;
+    while(/^\[\[TABLE_(?:WIDTHS|HEADER):/i.test(lines[first-1]||''))first--;
+    const existing=lines.slice(first,lineIndex).findIndex(x=>/^\[\[TABLE_WIDTHS:/i.test(x));
+    if(existing>=0)lines[first+existing]=marker;
+    else lines.splice(first,0,marker);
+    paperEdited(lines.join('\n'));openPaperLayout();
+}
+function removePaperRow(lineIndex) {
+    const lines=lastResult.text.split('\n'),kind=lines[lineIndex]?.match(/^\[\[(TABLE_ROW|MATCH_ROW):/i)?.[1];
+    lines.splice(lineIndex,1);
+    // Metadata belongs to this table, and must not leak into the next one.
+    if(kind&&!new RegExp('^\\[\\['+kind+':','i').test(lines[lineIndex]||'')){
+        let first=lineIndex;while(/^\[\[TABLE_(?:WIDTHS|HEADER):/i.test(lines[first-1]||''))first--;
+        if(first<lineIndex)lines.splice(first,lineIndex-first);
+    }
+    paperEdited(lines.join('\n'));openPaperLayout();
 }
 function paperCropEditor(asset,index) {
     return '<p>Drag around the illustration on its source page, then apply the crop. Include all of the drawing and its labels.</p>'+
@@ -5680,7 +5762,8 @@ function openPaperLayout() {
     $('paperBlocks').innerHTML=lines.map((line,index)=>{
         const m=line.match(/^\[\[(TABLE_ROW|MATCH_ROW|GRID_ROW|SECTION_ROW|QUESTION_ROW|CHOICE_ROW|OPTION_ROW|ARITHMETIC_ROW):\s*([\s\S]*?)\]\]$/i);
         if(m){const labels={TABLE_ROW:'Table row',MATCH_ROW:'Matching row',GRID_ROW:'Grid row',SECTION_ROW:'Section and marks',QUESTION_ROW:'Question and marks',CHOICE_ROW:'Choices',OPTION_ROW:'Choices with boxes',ARITHMETIC_ROW:'Vertical arithmetic'};
-            return '<fieldset style="margin:.5rem 0;border:1px solid var(--border);border-radius:6px"><legend>'+labels[m[1]]+'</legend><div style="display:flex;gap:.4rem;flex-wrap:wrap">'+worksheetCells(m[2],52).map((cell,c)=>'<textarea aria-label="'+labels[m[1]]+' cell '+(c+1)+'" style="flex:1;min-width:65px;max-width:100%;padding:.4rem" rows="2" onchange="updatePaperCell('+index+','+c+',this.value)">'+esc(cell.replace(/<br>/gi,'\n'))+'</textarea>').join('')+'</div></fieldset>';}
+            const widths=['TABLE_ROW','MATCH_ROW'].includes(m[1])&&!new RegExp('^\\[\\['+m[1]+':','i').test(lines[index-1]||'')?'<label style="display:block;margin:.5rem 0">Column proportions <input aria-label="Column proportions" value="'+esc((lines[index-1]||'').match(/^\[\[TABLE_WIDTHS:\s*([\s\S]*?)\]\]$/i)?.[1]||Array(worksheetCells(m[2],32).length).fill(1).join(','))+'" onchange="updatePaperWidths('+index+',this.value)"></label>':'';
+            return '<fieldset style="margin:.5rem 0;border:1px solid var(--border);border-radius:6px"><legend>'+labels[m[1]]+'</legend><div style="display:flex;gap:.4rem;flex-wrap:wrap">'+worksheetCells(m[2],52).map((cell,c)=>'<textarea aria-label="'+labels[m[1]]+' cell '+(c+1)+'" style="flex:1;min-width:65px;max-width:100%;padding:.4rem" rows="2" onchange="updatePaperCell('+index+','+c+',this.value)">'+esc(cell.replace(/<br>/gi,'\n'))+'</textarea>').join('')+'</div>'+widths+'<button class="action-btn" onclick="removePaperRow('+index+')">Remove row</button></fieldset>';}
         const grid=line.match(/^\[\[GRID:\s*(.*?)\]\]$/i);
         return grid?'<label style="display:block;margin:.5rem 0">Grid columns × rows <input aria-label="Grid dimensions" value="'+esc(grid[1])+'" onchange="updatePaperGrid('+index+',this.value)"></label>':'';
     }).join('')||'<p class="teach-sub">Use Correct text to edit the questions. Insert a table, grid, shape or marks below.</p>';
@@ -5757,11 +5840,15 @@ async function fillPaperPicture(index,file) {
 }
 function docxRun(text, options = {}) {
     const bold = options.bold ? '<w:b/><w:bCs/>' : '';
-    const size = Math.round(Number(options.size || PaperAILayout.profile.bodySize)*paperLayoutOptions().fontSize/12);
+    const size = Math.round(options.actualSize||Number(options.size || PaperAILayout.profile.bodySize)*paperLayoutOptions().fontSize/12);
     const preserve = /^\s|\s$|\s{2,}/.test(String(text || '')) ? ' xml:space="preserve"' : '';
     return '<w:r><w:rPr>' +
-        '<w:rFonts w:ascii="'+(options.monospace?'Courier New':'Arial')+'" w:hAnsi="'+(options.monospace?'Courier New':'Arial')+'" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
+        '<w:rFonts w:ascii="'+(options.monospace?'Courier New':options.font||paperLayoutOptions().font)+'" w:hAnsi="'+(options.monospace?'Courier New':options.font||paperLayoutOptions().font)+'" w:eastAsia="Noto Sans Devanagari" w:cs="'+(paperLayoutOptions().font==='Noto Sans Telugu'?'Noto Sans Telugu':'Noto Sans Devanagari')+'"/>' +
         bold +
+        (options.underline?'<w:u w:val="'+options.underline+'"/>':'')+
+        (options.strike?'<w:strike/>':'')+(options.doubleStrike?'<w:dstrike/>':'')+
+        (options.highlight?'<w:highlight w:val="yellow"/>':'')+
+        (options.boxed?'<w:bdr w:val="single" w:sz="4" w:space="1" w:color="000000"/>':'')+
         '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>' +
         '<w:lang w:val="en-US" w:eastAsia="hi-IN"/>' +
         '</w:rPr><w:t' + preserve + '>' + xmlEscape(text) + '</w:t></w:r>';
@@ -5771,19 +5858,19 @@ function docxParagraph(text, options = {}) {
     const bold = !!options.bold;
     const size = Math.round(Number(options.size || PaperAILayout.profile.bodySize)*paperLayoutOptions().fontSize/12);
     const before = Number(options.before || 0);
-    const after = Number(options.after ?? 40);
-    const left = Number(options.left || 0);
+    const after = Number(options.after ?? paperLayoutOptions().after ?? 40);
+    const left = Number(options.left || (options.question?paperLayoutOptions().indent:0));
     const keep = '<w:keepLines/><w:widowControl/>' + (options.keepNext ? '<w:keepNext/>' : '');
     const jc = options.center ? '<w:jc w:val="center"/>' : options.right ? '<w:jc w:val="right"/>' : '';
-    const indent = left ? '<w:ind w:left="' + left + '"/>' : '';
+    const indent = left ? '<w:ind w:left="' + left + '"'+(options.question?' w:hanging="'+Math.min(left,240)+'"':'')+'/>' : '';
     const tabs = options.answerLeader
         ? '<w:tabs><w:tab w:val="right" w:leader="underscore" w:pos="10466"/></w:tabs>'
         : '';
 
     return '<w:p><w:pPr>' + keep + jc + indent + tabs +
-        '<w:spacing w:before="' + before + '" w:after="' + after + '" w:line="'+(paperLayoutOptions().compact?240:270)+'" w:lineRule="auto"/>' +
+        '<w:spacing w:before="' + before + '" w:after="' + after + '" w:line="'+Math.round(paperLayoutOptions().line*240)+'" w:lineRule="auto"/>' +
         '</w:pPr>' +
-        docxRun(text, { bold, size:options.size || PaperAILayout.profile.bodySize, monospace:options.monospace }) +
+        docxRun(text, { bold, size:options.size || PaperAILayout.profile.bodySize, actualSize:options.actualSize,font:options.font,monospace:options.monospace }) +
         (options.answerLeader ? '<w:r><w:tab/></w:r>' : '') +
         '</w:p>';
 }
@@ -5863,8 +5950,8 @@ function docxTableCells(rows, widths, options = {}) {
 }
 function docxSectionRow(title,marks,bold=true) {
     const markWidth=Math.min(2800,Math.max(1600,String(marks).length*155));
-    return docxTableCells([[{xml:docxRichParagraph(title,{bold,size:bold?26:24,after:0,keepNext:true})},
-        {xml:docxParagraph(marks,{bold,size:bold?26:24,right:true,after:0,keepNext:true})}]],
+    return docxTableCells([[{xml:docxRichParagraph(title,{bold,size:bold?26:24,font:bold?paperLayoutOptions().headingFont:null,actualSize:bold?paperLayoutOptions().heading*2:null,after:0,keepNext:true})},
+        {xml:docxParagraph(marks,{bold,size:bold?26:24,font:bold?paperLayoutOptions().headingFont:null,actualSize:bold?paperLayoutOptions().heading*2:null,right:true,after:0,keepNext:true})}]],
         [10466-markWidth,markWidth],{bordered:false,keepNext:true});
 }
 function docxEqualWidths(count, total = 10466) {
@@ -5939,7 +6026,7 @@ function docxGrid(columns, rows, cells = []) {
     const widths = docxEqualWidths(columns);
     const content = Array.from({length:rows},(_,r)=>
         Array.from({length:columns},(_,c)=>cells[r*columns+c] || ''));
-    return docxTableCells(content,widths,{bordered:true,minHeight:460,fontSize:24,center:true,grid:true});
+    return docxTableCells(content,widths,{bordered:true,minHeight:paperLayoutOptions().gridHeight,fontSize:24,center:true,grid:true});
 }
 function docxRichParagraph(raw, options = {}) {
     // Embedded pictures stay real replaceable Word drawings even when inline.
@@ -5952,9 +6039,18 @@ function docxRichParagraph(raw, options = {}) {
             (item.caption?docxParagraph(item.caption,{size:options.size||24,after:0}):'')+
             (item.answer?docxAnswerBoxParagraph():'');
     }
-    const tokens = String(raw || '').split(/(\[\[(?:PICTURE(?:_OPTION)?|SOURCE_FIGURE|SHAPE_ROW|ANSWER_LINES):\s*[\s\S]*?\]\])/gi);
+    const tokens = String(raw || '').split(/(\[\[(?:PICTURE(?:_OPTION)?|SOURCE_FIGURE|SHAPE_ROW|ANSWER_LINES|UNDERLINE|DOUBLE-UNDERLINE|STRIKE|DOUBLE-STRIKE|INSERT|REPLACE|HIGHLIGHT|BOXED):\s*[\s\S]*?\]\])/gi);
     if (tokens.length === 1) return docxParagraph(docxVisibleText(raw),options);
     const runs = tokens.map(token => {
+        const emphasis=token.match(/^\[\[(UNDERLINE|DOUBLE-UNDERLINE|STRIKE|DOUBLE-STRIKE|INSERT|REPLACE|HIGHLIGHT|BOXED):\s*([\s\S]*?)\]\]$/i);
+        if(emphasis){
+            const name=emphasis[1].toUpperCase(),style={size:options.size||24,actualSize:options.actualSize,font:options.font,bold:!!options.bold};
+            if(name==='REPLACE'){
+                const parts=emphasis[2].split(/\s*(?:->|→|=>)\s*/);
+                return parts.length===2?docxRun(parts[0],{...style,strike:true})+docxRun(' '+parts[1],{...style,underline:'single'}):docxRun(emphasis[2],style);
+            }
+            return docxRun(emphasis[2],{...style,underline:['UNDERLINE','INSERT'].includes(name)?'single':name==='DOUBLE-UNDERLINE'?'double':null,strike:name==='STRIKE',doubleStrike:name==='DOUBLE-STRIKE',highlight:name==='HIGHLIGHT',boxed:name==='BOXED'});
+        }
         const shape=token.match(/^\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]$/i);
         if(shape)return worksheetCells(shape[1],8).map(value=>{
             const xml=docxShapeParagraph(PaperAILayout.shape(value).name,true);
@@ -5964,12 +6060,13 @@ function docxRichParagraph(raw, options = {}) {
         const recovered=token.match(/^\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]$/i);
         if(recovered){const item=PaperAILayout.source(recovered[1]);return docxSourceRun(item.id,options.available||2400,2200)+docxRun(item.caption+(item.answer?'  ☐':''),{size:24});}
         const picture = token.match(/^\[\[(PICTURE|PICTURE_OPTION):\s*([\s\S]*?)\]\]$/i);
-        if (!picture) return docxRun(docxVisibleText(token),{size:options.size || 22,bold:!!options.bold});
+        if (!picture) return docxRun(docxVisibleText(token),{size:options.size || 22,actualSize:options.actualSize,font:options.font,bold:!!options.bold});
         return docxRun('[picture needs review] ' + picture[2].trim() +
             (picture[1].toUpperCase() === 'PICTURE_OPTION' ? '  ☐' : ''),{size:18});
     }).join('');
     return '<w:p><w:pPr><w:keepLines/>'+(options.keepNext?'<w:keepNext/>':'')+
-        (options.center?'<w:jc w:val="center"/>':options.right?'<w:jc w:val="right"/>':'')+'<w:spacing w:after="'+(options.after??70)+'" w:line="'+(paperLayoutOptions().compact?240:270)+'" w:lineRule="auto"/></w:pPr>'+runs+'</w:p>';
+        (options.question&&paperLayoutOptions().indent?'<w:ind w:left="'+paperLayoutOptions().indent+'" w:hanging="'+Math.min(paperLayoutOptions().indent,240)+'"/>':'')+
+        (options.center?'<w:jc w:val="center"/>':options.right?'<w:jc w:val="right"/>':'')+'<w:spacing w:after="'+(options.after??paperLayoutOptions().after??70)+'" w:line="'+Math.round(paperLayoutOptions().line*240)+'" w:lineRule="auto"/></w:pPr>'+runs+'</w:p>';
 }
 function buildDocxBody(structuredText) {
     docxPictureCounter = 0;
@@ -6110,20 +6207,21 @@ function buildDocxBody(structuredText) {
         const heading=isOutputHeadingLine(raw,i,firstNonEmptyIndex);
         const split=heading && PaperAILayout.section(raw);
         if(split) body.push(docxSectionRow(split.title,split.marks));
-        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,after:paperLayoutOptions().compact?(heading?55:25):(heading?100:70),keepNext:heading||/^\[\[(?:GRID|GRID_ROW):/i.test(String(lines.slice(i+1).find(x=>x.trim())||'').trim()),center:i===firstNonEmptyIndex}));
+        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,font:heading?paperLayoutOptions().headingFont:null,actualSize:heading?paperLayoutOptions().heading*2:null,question:!heading&&/^\s*\d+[.)]/.test(raw),after:paperLayoutOptions().after??(paperLayoutOptions().compact?(heading?55:25):(heading?100:70)),keepNext:heading||/^\[\[(?:GRID|GRID_ROW):/i.test(String(lines.slice(i+1).find(x=>x.trim())||'').trim()),center:i===firstNonEmptyIndex}));
         i++;
     }
     return body.join('');
 }
 
 function docxStylesXml() {
+    const layout=paperLayoutOptions(),family=xmlEscape(layout.font),cs=layout.font==='Noto Sans Telugu'?'Noto Sans Telugu':'Noto Sans Devanagari';
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
       '<w:docDefaults><w:rPrDefault><w:rPr>' +
-        '<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Noto Sans Devanagari" w:cs="Noto Sans Devanagari"/>' +
-        '<w:sz w:val="22"/><w:szCs w:val="22"/>' +
+        '<w:rFonts w:ascii="'+family+'" w:hAnsi="'+family+'" w:eastAsia="'+cs+'" w:cs="'+cs+'"/>' +
+        '<w:sz w:val="'+layout.fontSize*2+'"/><w:szCs w:val="'+layout.fontSize*2+'"/>' +
       '</w:rPr></w:rPrDefault><w:pPrDefault><w:pPr>' +
-        '<w:spacing w:after="40" w:line="'+(paperLayoutOptions().compact?240:270)+'" w:lineRule="auto"/>' +
+        '<w:spacing w:after="'+(layout.after??40)+'" w:line="'+Math.round(layout.line*240)+'" w:lineRule="auto"/>' +
       '</w:pPr></w:pPrDefault></w:docDefaults>' +
       '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>' +
     '</w:styles>';
@@ -6176,7 +6274,7 @@ async function recoverSourceFigures(text, blob) {
 function sourceFigureHtml(value) {
     const info=PaperAILayout.source(value), asset=sourceAsset(info.id);
     return '<div class="ocr-figure-cell" style="align-items:'+(asset?.align==='left'?'flex-start':asset?.align==='right'?'flex-end':'center')+'">'+(asset
-        ? '<img style="max-width:100%;width:'+Math.round(PaperAILayout.fit(asset,10466,7000).w/15)+'px;object-fit:contain" src="'+esc(asset.dataUrl)+'" alt="Original source illustration">'
+        ? '<img style="max-width:100%;width:'+PaperAILayout.fit(asset,10466,7000).w/10466*100+'cqw;object-fit:contain" src="'+esc(asset.dataUrl)+'" alt="Original source illustration">'
         : '<span class="ocr-picture-label">[source image needs review]</span>')+
         (info.caption ? '<span class="ocr-picture-label">'+formatOutputLine(info.caption)+'</span>' : '')+
         (info.answer ? '<span class="ocr-figure-answer"></span>' : '')+'</div>';
@@ -6472,9 +6570,10 @@ async function downloadWord(btn) {
 
     if (!structuredText.trim()) return;
 
+    const keepWord=lastResult.native_docx_file&&structuredText===lastResult.native_docx_text&&$('paperWordFormat')?.checked;
     const missingSource=[...structuredText.matchAll(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi)].some(m=>worksheetCells(m[1],32).some(value=>!sourceAsset(PaperAILayout.source(value).id)));
-    if(missingSource){showErr('An illustration crop needs review. Re-extract this page or supply its picture before exporting.');openPaperLayout();return;}
-    if(/\[\[PICTURE(?:_OPTION|_ROW)?:/i.test(structuredText)){showErr('A picture was requested in the notes but was not drawn. Add that picture in Paper layout before exporting.');openPaperLayout();return;}
+    if(!keepWord&&missingSource){showErr('An illustration crop needs review. Re-extract this page or supply its picture before exporting.');openPaperLayout();return;}
+    if(!keepWord&&/\[\[PICTURE(?:_OPTION|_ROW)?:/i.test(structuredText)){showErr('A picture was requested in the notes but was not drawn. Add that picture in Paper layout before exporting.');openPaperLayout();return;}
     const original = btn?.innerHTML || '';
     if (btn) {
         btn.disabled = true;
@@ -6482,7 +6581,7 @@ async function downloadWord(btn) {
     }
 
     try {
-        const blob = lastResult.native_pdf_pages&&structuredText===lastResult.native_pdf_text&&paperLayoutOptions().keepSourcePages
+        const blob = keepWord ? await PaperAIWordReference.makeWord(await lastResult.native_docx_file.arrayBuffer()) : lastResult.native_pdf_pages&&structuredText===lastResult.native_pdf_text&&paperLayoutOptions().keepSourcePages
             ? await PaperAIPdfEditable.makeWord(lastResult.native_pdf_pages)
             : await makeExtractedDocx(structuredText);
         const base = String(file?.name || 'paperai')

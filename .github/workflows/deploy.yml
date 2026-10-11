@@ -35,6 +35,8 @@ jobs:
           node tests/editable-paper.cjs
           node tests/question-paper-model.cjs
           node tests/scan-resume.cjs
+          node tests/docx-reference-layout.cjs
+          node tests/reference-formats.cjs
 
       - name: Build Cloudflare usage snapshot
         env:
