@@ -30,10 +30,10 @@ jobs:
           node tests/gemini-fallback.cjs
           node tests/gemini-deployment.cjs
 
-      - name: Check the supplied backup secret securely
+      - name: Verify backup credential and model access securely
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: node .github/scripts/check-gemini.cjs
+        run: node .github/scripts/check-gemini.cjs --metadata-only
 
       - name: Configure automatic backup secret when supplied
         env:
@@ -57,3 +57,17 @@ jobs:
           workingDirectory: worker
           wranglerVersion: "4"
           command: deploy
+
+      - name: Verify backup generation after deployment
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: bash
+        run: |
+          node .github/scripts/check-gemini.cjs --generation-only || {
+            check_status=$?
+            if [ "$check_status" -eq 2 ]; then
+              echo '::warning::Backup secret installed after credential validation. Live generation is temporarily unavailable; image/PDF recognition is not yet verified.'
+            else
+              exit "$check_status"
+            fi
+          }

@@ -10,6 +10,12 @@ const {check,requestJson}=require('../.github/scripts/check-gemini.cjs');
   assert.equal(calls.length,2);assert.equal(calls[0].timeout,15000);assert.equal(calls[1].timeout,90000);
   assert(!JSON.stringify(calls[1].payload).includes(fixture));assert(!log.join('\n').includes(fixture));
   assert(!log.join('\n').includes('private reasoning'));
+  let metadataCalls=0;
+  await check(fixture,{phase:'metadata',log:()=>{},request:async(u,k,p)=>{assert.equal(p,null);metadataCalls++;return {supportedGenerationMethods:['generateContent']};}});
+  assert.equal(metadataCalls,1,'Install gate validates credentials without waiting for model capacity');
+  let generationCalls=0;
+  await check(fixture,{phase:'generation',log:()=>{},request:async(u,k,p)=>{assert(p);generationCalls++;return {candidates:[{finishReason:'STOP',content:{parts:[{text:'PaperAI connection verified'}]}}]};}});
+  assert.equal(generationCalls,1);
   await assert.rejects(check(fixture,{log:()=>{},request:async()=>{throw new Error('Connection timed out.');}}),/metadata check: Connection timed out/);
   await assert.rejects(check(fixture,{log:()=>{},request:async(u,k,p)=>p?{candidates:[{finishReason:'MAX_TOKENS'}]}:{supportedGenerationMethods:['generateContent']}}),/generation check: Incomplete/);
   function transport(status,data){return(url,options,callback)=>{
@@ -21,7 +27,7 @@ const {check,requestJson}=require('../.github/scripts/check-gemini.cjs');
   assert.deepEqual(await requestJson('https://example.test/',fixture,null,1000,transport(200,'{"ok":true}')),{ok:true});
   for(const status of [302,403,429,503]){
     await assert.rejects(requestJson('https://example.test/',fixture,null,1000,transport(status,'private '+fixture)),error=>
-      error.message.includes('HTTP '+status)&&!error.message.includes(fixture)&&!error.message.includes('private'));
+      error.message.includes('HTTP '+status)&&!error.message.includes(fixture)&&!error.message.includes('private')&&error.transient===(status===429||status>=500));
   }
   await assert.rejects(requestJson('https://example.test/',fixture,null,1000,transport(200,'private '+fixture)),/Invalid check response/);
   console.log('Deployment check: bounded IPv4 metadata/generation checks, secret-header isolation, redirect rejection, sanitized failures and incomplete-output detection verified.');
