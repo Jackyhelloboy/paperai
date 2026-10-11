@@ -18,6 +18,19 @@ async function read(path,options={}){
   const res=await fetch(BASE+path,{...options,signal:AbortSignal.timeout(15000)});
   const body=await res.text();return {status:res.status,body,headers:res.headers};
 }
+async function waitForRelease(){
+  const expected=process.env.GITHUB_SHA;
+  const deadline=Date.now()+90000;
+  do {
+    const [home,guard]=await Promise.all([read('/',{cache:'no-store'}),read('/local-ocr-check',{cache:'no-store'})]);
+    const active=home.status===200&&(!expected||home.body.includes('name="paperai-release" content="'+expected+'"'));
+    if(active&&guard.status===404)return home;
+    console.log(JSON.stringify({stage:'Waiting for production release',active,guard:guard.status,
+      responseTitle:(guard.body.match(/<title[^>]*>([^<]*)<\/title>/i)||[])[1]?.slice(0,120)}));
+    await pause(3000);
+  }while(Date.now()<deadline);
+  throw new Error('The expected release and route protections did not become active within 90 seconds.');
+}
 async function runGroup(name,count,concurrency,operation){
   let next=0,failures=0;const times=[],statuses={};const started=performance.now();
   await Promise.all(Array.from({length:concurrency},async()=>{
@@ -38,7 +51,7 @@ async function runGroup(name,count,concurrency,operation){
 }
 (async()=>{
   await status('pending','Checking public routes and bounded website/API load');
-  const home=await read('/');assert.equal(home.status,200);assert(home.body.includes('Ready to scan'));assert(!home.body.includes('id="quotaRemaining"'));assert(!home.body.includes('228 MB'));
+  const home=await waitForRelease();assert.equal(home.status,200);assert(home.body.includes('Ready to scan'));assert(!home.body.includes('id="quotaRemaining"'));assert(!home.body.includes('228 MB'));
   assert(!/Cloudflare|workers\.dev|Gemma|Florence|Neurons/i.test(home.body));checks.push('Public dashboard contains no provider labels or backend hostname');
   for(const path of ['/local-ocr-check','/local-ocr-check.html','/api/debug','/api/train/export']){
     assert.equal((await read(path)).status,404,path);checks.push(path+' is unavailable');

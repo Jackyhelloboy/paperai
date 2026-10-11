@@ -4,6 +4,10 @@ const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'../..'),source=path.join(root,'frontend'),out=path.join(root,'build/cloudflare-pages');
 fs.rmSync(out,{recursive:true,force:true});fs.mkdirSync(out,{recursive:true});
 fs.cpSync(source,out,{recursive:true,filter:p=>!['node_modules','.vercel','.gitignore','package.json','package-lock.json','local-ocr-check.html','local-ocr-worker.mjs','usage.json'].includes(path.basename(p))});
+const release=process.env.GITHUB_SHA||process.env.CF_PAGES_COMMIT_SHA||'local';
+if(!/^(?:[a-f0-9]{40}|local)$/.test(release))throw new Error('Invalid release identifier');
+const homeFile=path.join(out,'index.html');
+fs.writeFileSync(homeFile,fs.readFileSync(homeFile,'utf8').replace('<head>','<head>\n<meta name="paperai-release" content="'+release+'">'));
 // Advanced-mode code runs on the server, not as a downloadable browser script.
 const gateway=fs.readFileSync(path.join(root,'functions/api/[[path]].js'),'utf8');
 fs.writeFileSync(path.join(out,'_worker.js'),gateway+`\nexport default {fetch(request, env) {

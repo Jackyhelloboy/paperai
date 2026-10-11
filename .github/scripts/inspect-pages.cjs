@@ -13,7 +13,7 @@ async function inspect(){
         uses_functions:p.uses_functions}));
     for(const base of ['https://paperai-5up.pages.dev',c?.url].filter(Boolean)){
         const r=await fetch(base+'/local-ocr-check',{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(15000)});
-        const text=await r.text();console.log(JSON.stringify({base,status:r.status,location:r.headers.get('Location'),cache:r.headers.get('CF-Cache-Status'),type:r.headers.get('Content-Type'),dashboard:text.includes('Ready to scan'),diagnostic:text.includes('local-ocr-check')}));
+        const text=await r.text();console.log(JSON.stringify({base,status:r.status,location:r.headers.get('Location'),cache:r.headers.get('CF-Cache-Status'),type:r.headers.get('Content-Type'),dashboard:text.includes('Ready to scan'),diagnostic:text.includes('local-ocr-check'),title:(text.match(/<title[^>]*>([^<]*)<\/title>/i)||[])[1]?.slice(0,120)}));
     }
 }
 inspect().catch(error=>{console.error(error.message);process.exitCode=1;});
