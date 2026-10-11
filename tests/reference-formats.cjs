@@ -66,6 +66,10 @@ const fixtures={
     for(const p of markParagraphs)assert.equal(p.getElementsByTagName('w:jc')[0]?.getAttribute('w:val'),'right');
     assert.equal(Layout.section('I. Evaluate f(5)'),null);
     assert.equal(Layout.section('I. Explain atomic number (6)'),null);
+    vm.runInContext(slice('function isOutputHeadingLine','function formatOutputLine'),ctx);
+    assert.equal(ctx.isOutputHeadingLine('5. न:-',0,0),false,'A continued scan question is not an exam title');
+    assert.equal(ctx.isOutputHeadingLine('कक्षा २ हिन्दी प्रश्न पत्र',0,0),true);
+    assert(Layout.normalise('[[SECTION_ROW: VIII हिन्दी शब्द से अंग्रेज़ी शब्द जोड़ि || 6x1=6M]]\n1. नयन || Ginger').includes('[[MATCH_ROW: 1. नयन || Ginger]]'),'Hindi matching pairs must not export literal column separators');
     const wrapped='[[SECTION_ROW: VIII. हिन्दी शब्द [[REPLACE: ज\n|| य]] || 6x1=6M]]';
     const wrappedPreview=ctx.formatOutput(wrapped);
     assert(wrappedPreview.includes('ocr-section-marks'),'Wrapped nested correction broke section layout');
@@ -87,6 +91,10 @@ const fixtures={
     vm.runInContext('extractedMedia.push({id:"side-test",dataUrl:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB9sAAAAASUVORK5CYII=",w:178,h:251,widthTwips:1465,region:{x:550,y:370,w:140,h:100}})',ctx);
     if(process.env.PAPERAI_IMAGE_FIXTURE)vm.runInContext('extractedMedia[extractedMedia.length-1].dataUrl='+JSON.stringify('data:image/png;base64,'+fs.readFileSync(process.env.PAPERAI_IMAGE_FIXTURE).toString('base64')),ctx);
     ctx.resolveHeaderBanner=async()=>null;
+    const sizedGridZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx('[[TABLE_REGION: 317,277,329,254]]\n[[GRID: 5x8]]')).arrayBuffer());
+    if(process.env.PAPERAI_FORMAT_OUT)fs.writeFileSync(path.join(process.env.PAPERAI_FORMAT_OUT,'Format-measured-grid.docx'),Buffer.from(await sizedGridZip.generateAsync({type:'nodebuffer'})));
+    const sizedGridXml=await sizedGridZip.file('word/document.xml').async('text');
+    assert(sizedGridXml.includes('w:w="3443" w:type="dxa"'),'Source answer-grid width must not expand to the whole page');
     const side=hindi+'\n[[TABLE_REGION: 50,350,400,120]]\n[[TABLE_HEADER: 1]]\n[[TABLE_ROW: फल || नाम]]\n[[TABLE_ROW:  ||  ]]\n[[SOURCE_FIGURE: side-test| |none]]';
     const sidePreview=ctx.formatOutput(side);assert(sidePreview.includes('display:grid;grid-template-columns:'),'Side picture dropped below table in preview');
     const sideBlob=await ctx.makeExtractedDocx(side),sideZip=await JSZip.loadAsync(await sideBlob.arrayBuffer());

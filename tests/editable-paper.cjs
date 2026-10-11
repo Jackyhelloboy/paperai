@@ -82,7 +82,8 @@ const fixture=[
     const geometry=Layout.emptyGrids(multi);
     assert.equal(geometry[0]?.columns,5,'Physical alphabet-grid columns must override expected letter counts');
     assert.equal(geometry[0]?.rows,8,'A multi-row answer grid must not become four long strips');
-    assert.equal(Layout.reconcileEmptyGrids('[[GRID: 13x4]]',geometry),'[[GRID: 5x8]]');
+    assert(Layout.reconcileEmptyGrids('[[GRID: 13x4]]',geometry).includes('[[GRID: 5x8]]'));
+    assert(Layout.reconcileEmptyGrids('[[GRID: 13x4]]',geometry).includes('TABLE_REGION'),'Detected answer grids must retain source size');
     for(let x=63;x<78;x++)for(let y=52;y<65;y++)dot(x,y);
     assert.equal(Layout.emptyGrids(multi).length,0,'Populated cells must not be cleared by grid reconstruction');
     const duplicate='[[FIGURE_ROW: 100,200,200,100|1.|none]]\n1. [[FIGURE: 100,200,200,100| |none]] = _____';

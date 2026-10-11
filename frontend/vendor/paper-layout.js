@@ -260,7 +260,7 @@
         let matching=false;
         for(let i=0;i<lines.length;i++){
             if(/^\s*(?:\[\[SECTION_ROW:\s*)?(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[. )\s]+\S/.test(lines[i]))
-                matching=/match(?:ing| the following)|जोड़ी|मिलान|शब्द.*शब्द.*जोड़ो/i.test(lines[i]);
+                matching=/match(?:ing| the following)|जोड़ी|मिलान|शब्द.*शब्द.*जोड़[ोिी]/i.test(lines[i]);
             if(!matching||/^\s*\[\[/.test(lines[i]))continue;
             const pipeCells=lines[i].split(/\s*\|\|\s*|\s+\|\s+/);
             if(pipeCells.length>1&&pipeCells.length<=32&&pipeCells.every(x=>x.trim())){
@@ -325,7 +325,8 @@
         if(candidates.length!==grids.length)return text;
         for(let n=0;n<candidates.length;n++){
             const indexes=candidates[n].indexes;
-            lines[indexes[0]]='[[GRID: '+grids[n].columns+'x'+grids[n].rows+']]';
+            const grid=grids[n],region=figure([grid.x,grid.y,grid.w,grid.h].join(','));
+            lines[indexes[0]]=(region?'[[TABLE_REGION: '+[grid.x,grid.y,grid.w,grid.h].join(',')+']]\n':'')+'[[GRID: '+grid.columns+'x'+grid.rows+']]';
             for(const i of indexes.slice(1))lines[i]='';
         }
         return lines.join('\n');

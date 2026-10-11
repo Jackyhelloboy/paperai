@@ -1,0 +1,23 @@
+# Reference driven PDF formatting
+
+The training folder is used as a formatting reference and regression corpus, not as model-weight fine-tuning. The 42-file corpus parser check was rerun, including every audited Word/PDF and previous export. It identifies scanned inputs requiring recognition separately from PDFs with usable measured geometry. Unmatched files are not treated as supervised source/output pairs.
+
+Version 6 fixes plain numbered question marks in Hindi and English: recognized terminal scores after question punctuation become QUESTION_ROW, preserving their literal value. Hindi danda punctuation is supported. Operands such as f(5) and unpunctuated parenthesized numbers are not interpreted as marks. Preview and Word share normalization.
+
+For a table with an adjacent illustration, recognition now supplies TABLE_REGION before the table and FIGURE after it. Valid bounds and vertical overlap permit a native editable nested table and replaceable source picture in one borderless row. Left/right order, relative widths and gap are preserved; unrelated pictures below the table remain below. Invalid or missing bounds retain the existing flow layout rather than inventing placement. A4 portrait and 0.5-inch margins remain mandatory.
+
+All 13 existing application suites pass locally, including all 12 authored Word references and 12 FA2 PDF pages. The reference-format suite adds Hindi plain-text marks, protection against operand reinterpretation, left/right table-picture geometry, unrelated-picture rejection, native nested Word composition and no duplicated picture. Four actual formatter outputs were rendered and every generated page visually inspected: science, humanities, worksheet and Hindi table-picture. Visual QA found and corrected picture clipping caused by cell padding.
+
+This improves editable reference composition, but does not guarantee pixel-identical handwriting conversion or exact page counts. Recognition must supply usable table bounds for the adjacent-picture rule. The original PDF-page image export remains distinct from editable Word.
+
+Production release: `e5f26f95baeea9570cbe3b9aef733ab286961943`. Frontend run https://github.com/Jackyhelloboy/paperai/actions/runs/38167745564 and backend run https://github.com/Jackyhelloboy/paperai/actions/runs/38167745488 both passed, including the required actual production image scan (HTTP 200, literal question, no added answer) and bounded website/API/text load.
+
+The real two-page `class 2 hindi.pdf` was uploaded to the production interface. Recognition completed with source grids, section marks and a banner, but an alternate nested REPLACE delimiter initially blocked Word export. Follow-up normalization accepts the explicitly marked old/new pair and rejoins wrapped markers before section parsing. This preserves both observed strings instead of guessing a correction.
+
+The scan also exposed an incorrect alphabet-grid shape: recognition emitted four 13-cell strips where the source has a 5-column, 8-row grid. Physical border analysis now supports multiple rows and rejects populated cells. Direct analysis of the actual rendered source page measured 5 by 8 and the four separate 13-cell exercise strips correctly. Ambiguous geometry on the other source page was left unchanged. A synthetic 5-by-8 regression verifies reconstruction and ensures filled cells are never erased. This is an improvement, not a claim that every handwritten border is detectable.
+
+Follow-up backend release: `12f22dc71ba490eacb4071ddbf9c8421af6905dd` (runs 38168087787 and 38168087785 passed). Physical grid analysis is in frontend commit `b5d8c3a6f6c1af95bb97ec48e12b080e27647318`.
+
+The repeat live training PDF completed, its actual Editable Word file downloaded successfully, and both rendered pages were inspected. Its 5-by-8 answer grid and right-side section marks survived. Remaining recognition differences include ambiguous cell counts on the other page, uncertain word spelling and banner crops that include header fields. The output is not certified as an exact reference match.
+
+Follow-up formatter fixes convert the observed Hindi matching instruction into native unsolved matching rows, keep geometrically verified answer-grid widths and row heights rather than stretching them across the page, and avoid turning the first numbered continuation question into a centered paper title. Targeted regressions cover each case. Source page order is preserved, including the reversed page order in this training PDF. `PaperAI-Training-PDF-V6.jpg` records the successful live scan/export interface before these last formatter refinements.

@@ -5089,7 +5089,7 @@ function isOutputHeadingLine(line, index, firstNonEmptyIndex) {
     const t = String(line || '').trim();
     if (!t) return false;
 
-    if (index === firstNonEmptyIndex) return true;
+    if (index === firstNonEmptyIndex && !/^\s*[0-9०-९]+[.)।:]\s*/u.test(t)) return true;
     if (/^[A-Z][A-Z0-9 .\-/&]{5,}$/.test(t)) return true;
     if (/^(?:I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)[.)\s]+\S+/i.test(t)) return true;
     if (/^[क-ह][.)\s]+\S+/.test(t) && t.length >= 12) return true;
@@ -5325,7 +5325,8 @@ function formatOutput(text) {
         }
         const structuredLine = formatStructuredWorksheetLine(line);
         if (structuredLine) {
-            html += structuredLine;
+            html += pendingTableRegion&&/^\s*\[\[GRID:/i.test(line)?'<div style="width:'+pendingTableRegion.w/10+'%">'+structuredLine+'</div>':structuredLine;
+            if(/^\s*\[\[GRID:/i.test(line))pendingTableRegion=null;
             i++;
             continue;
         }
@@ -6018,11 +6019,11 @@ function docxShapeRow(shapes) {
     return docxTableCells([shapes.map(value=>{const shape=PaperAILayout.shape(value);return {xml:docxShapeParagraph(shape.name)+(shape.answer?docxAnswerBoxParagraph():shape.line?docxAnswerRule():'')};})],
         docxEqualWidths(shapes.length),{bordered:false});
 }
-function docxGrid(columns, rows, cells = []) {
-    const widths = docxEqualWidths(columns);
+function docxGrid(columns, rows, cells = [], region=null) {
+    const widths = docxEqualWidths(columns,region?Math.round(region.w*DOCX_CONTENT_W/1000):DOCX_CONTENT_W);
     const content = Array.from({length:rows},(_,r)=>
         Array.from({length:columns},(_,c)=>cells[r*columns+c] || ''));
-    return docxTableCells(content,widths,{bordered:true,minHeight:paperLayoutOptions().gridHeight,fontSize:24,center:true,grid:true});
+    return docxTableCells(content,widths,{bordered:true,minHeight:region?Math.max(120,Math.round(region.h*15398/1000/rows)):paperLayoutOptions().gridHeight,fontSize:24,center:true,grid:true});
 }
 function docxRichParagraph(raw, options = {}) {
     // Embedded pictures stay real replaceable Word drawings even when inline.
@@ -6110,7 +6111,8 @@ function buildDocxBody(structuredText) {
         let m = line.match(/^\[\[GRID:\s*([\s\S]*?)\]\]$/i);
         if (m) {
             const dims = worksheetGridSize(m[1]);
-            if (dims) body.push(docxGrid(dims.columns, dims.rows));
+            if (dims) body.push(docxGrid(dims.columns, dims.rows,[],pendingTableRegion));
+            pendingTableRegion=null;
             i++; continue;
         }
         m = line.match(/^\[\[GRID_ROW:\s*([\s\S]*?)\]\]$/i);
@@ -6217,7 +6219,7 @@ function buildDocxBody(structuredText) {
         const heading=isOutputHeadingLine(raw,i,firstNonEmptyIndex);
         const split=heading && PaperAILayout.section(raw);
         if(split) body.push(docxSectionRow(split.title,split.marks));
-        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,font:heading?paperLayoutOptions().headingFont:null,actualSize:heading?paperLayoutOptions().heading*2:null,question:!heading&&/^\s*\d+[.)]/.test(raw),after:paperLayoutOptions().after??(paperLayoutOptions().compact?(heading?55:25):(heading?100:70)),keepNext:heading||/^\[\[(?:GRID|GRID_ROW):/i.test(String(lines.slice(i+1).find(x=>x.trim())||'').trim()),center:i===firstNonEmptyIndex}));
+        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,font:heading?paperLayoutOptions().headingFont:null,actualSize:heading?paperLayoutOptions().heading*2:null,question:!heading&&/^\s*\d+[.)]/.test(raw),after:paperLayoutOptions().after??(paperLayoutOptions().compact?(heading?55:25):(heading?100:70)),keepNext:heading||/^\[\[(?:GRID|GRID_ROW):/i.test(String(lines.slice(i+1).find(x=>x.trim())||'').trim()),center:heading&&i===firstNonEmptyIndex}));
         i++;
     }
     return body.join('');
