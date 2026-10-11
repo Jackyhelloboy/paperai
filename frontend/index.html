@@ -20,6 +20,8 @@
 <script src="./vendor/pdf-editable-layout.js"></script>
 <script src="./vendor/docx-reference-layout.js"></script>
 <script src="./vendor/ai-quota.js"></script>
+<script src="./vendor/local-ocr-layout.js"></script>
+<script src="./vendor/local-ocr.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -1739,8 +1741,8 @@
 
     <main class="main">
         <div class="hero">
-            <h1>Upload. PaperAI does the formatting.</h1>
-            <p>Upload an image or PDF. PaperAI reads the content and builds an editable A4 paper automatically.</p>
+            <h1>Extract text from anything</h1>
+            <p>Images, handwriting, PDFs, Word, PowerPoint, Excel and text — automatically formatted for Word</p>
         </div>
 
         <section class="quota-card" id="quotaCard" aria-live="polite">
@@ -1793,12 +1795,12 @@
                 <div class="upload-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 </div>
-                <div class="upload-title">Upload an image or PDF</div>
-                <div class="upload-sub">Processing starts automatically · <strong>Images &amp; PDFs</strong><br>Also accepts Word, PPT, Excel and text · 50 MB per file</div>
+                <div class="upload-title">Drop a file here</div>
+                <div class="upload-sub">or tap to browse · <strong>Images, PDF, Word, PPT, Excel, TXT</strong><br>50 MB per file · Processing starts automatically</div>
                 <input type="file" id="fileInput" class="file-input-hidden" multiple accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif,.pdf,.doc,.docx,.odt,.rtf,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.tsv,.txt,.md,.json,.xml,.html,.htm,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.yaml,.yml,.toml,.ini,.log">
             </div>
 
-            <details class="language-row"><summary>Language is detected automatically · optional override</summary>
+            <div class="language-row">
                 <label class="language-label" for="languageSelect">Document language</label>
                 <select id="languageSelect" class="language-select">
                     <option value="auto" selected>Auto detect (recommended)</option>
@@ -1816,7 +1818,7 @@
                     <option value="ur">Urdu</option>
                     <option value="ks">Kashmiri</option>
                 </select>
-            </details>
+            </div>
 
             <div class="file-preview" id="filePreview">
                 <img class="file-thumb" id="fileThumb" src="" alt="" style="display:none">
@@ -1853,7 +1855,7 @@
 
         <div class="results" id="resBox">
             <div class="results-header">
-                <span class="results-title">Your formatted paper</span>
+                <span class="results-title">Extracted Text</span>
                 <div class="results-badges" id="statsBar"></div>
             </div>
 
@@ -1977,7 +1979,7 @@
     </main>
 
     <footer class="footer">
-        <div class="footer-text">PaperAI — Free-only OCR · no paid fallback</div>
+        <div class="footer-text">PaperAI — Automatic OCR · editable Word export</div>
     </footer>
 
 <script>
@@ -2068,19 +2070,19 @@ function renderUsage() {
     const view = PaperAIQuota.model(quotaReport, quotaLiveStatus, quotaLocalBlock);
     quotaRemaining.textContent = view.remaining === null ? '—' : fmtNeuron(view.remaining);
     quotaUsed.textContent = view.used === null ? '—' : fmtNeuron(view.used);
-    $('quotaRemainingLabel').textContent = view.blocked ? 'Free AI available' : 'Reported remaining';
+    $('quotaRemainingLabel').textContent = 'Reported remaining';
     quotaFill.style.width = (view.barPercent ?? 0).toFixed(2) + '%';
     quotaPercent.textContent = view.barLabel;
     const track=$('quotaTrack');
     track.title=view.barDescription;
     track.setAttribute('aria-valuetext',view.barLabel);
-    if(view.blocked || view.barPercent===null)track.removeAttribute('aria-valuenow');
+    if(view.barPercent===null)track.removeAttribute('aria-valuenow');
     else track.setAttribute('aria-valuenow',String(view.barPercent));
     quotaNow.textContent = formatLocalDateTime(view.updatedAt);
     quotaResetAt = view.resetAt;
     updateQuotaClock();
     quotaCard.classList.toggle('warning', !view.blocked && view.percent >= 75);
-    quotaCard.classList.toggle('exhausted', view.blocked);
+    quotaCard.classList.toggle('exhausted', false);
     quotaBadgeText.textContent = view.badge;
     $('quotaDescription').textContent = view.description;
     quotaCard.title = view.description;
@@ -4717,10 +4719,27 @@ async function sendFileToWorker(inputFile, signal) {
     return body;
 }
 
+async function scanOnDevice(prepared, signal, progressText='') {
+    const downloads=new Map();
+    setProg(18,'Default AI quota paused · starting on-device OCR…');
+    const local=await PaperAILocalOCR.recognize(prepared.blob,{signal,onProgress:p=>{
+        if(p.stage==='download'){
+            if(p.file&&Number.isFinite(p.loaded))downloads.set(p.file,p.loaded);
+            const bytes=Array.from(downloads.values()).reduce((a,b)=>a+b,0);
+            setProg(18,'Preparing on-device OCR · '+(bytes/1048576).toFixed(1)+' MB downloaded · first use needs about 228 MB');
+        }else if(p.stage==='scan')setProg(18,(progressText?progressText+' · ':'')+'On-device OCR · region '+p.current+'/'+p.total);
+        else setProg(18,'Loading on-device OCR · the first download can take a few minutes');
+    }});
+    const plain=PaperAILocalLayout.plainText(local.regions);
+    const nativeScene=await PaperAILocalOCR.page(prepared.blob,local);
+    const annotated=await recoverSourceFigures(PaperAILayout.reconcileEmptyGrids(PaperAILayout.normalise(plain),prepared.meta?.detectedGrids||[]),prepared.blob);
+    return {status:'completed',result:{annotated_text:annotated,full_text:plain,raw_text:plain,native_scene:nativeScene,engine:'on-device-florence-2'}};
+}
+
 async function sendToOCR(sourceBlob, signal, progressText = '') {
     const quota = await loadUsage();
-    if (quota.blocked) throw quotaFailure({ reset_at: quota.resetAt });
     let prepared = await prepareImageForOCR(sourceBlob, false);
+    if (quota.blocked) return scanOnDevice(prepared, signal, progressText);
 
     if (progressText) {
         const lines = Number(prepared.meta?.lineCount) || 0;
@@ -4769,7 +4788,8 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         }
 
         if (PaperAIQuota.isDailyError(body)) {
-            throw quotaFailure(body);
+            rememberQuotaBlock(body);
+            return scanOnDevice(prepared, signal, progressText);
         }
         if (res.status === 429 || body?.code === 'AI_BUSY') {
             throw new Error('Cloudflare AI is temporarily busy. Try again shortly. This does not mean your daily free quota is exhausted.');
@@ -5482,6 +5502,7 @@ async function extractOneFile(f, onProgress, label) {
             }
             if(cached.results[i]){
                 const saved=restoreScannedPage(cached.results[i]);
+                pages[i].ocrScene=saved.nativeScene||null;
                 allText+=prefix+saved.text;allPlain+=plainPrefix+saved.plain;allRaw+=plainPrefix+saved.raw;
                 report('Restored completed page '+(i+1)+'/'+pages.length+'...',48+Math.round((i/pages.length)*45));
                 continue;
@@ -5489,7 +5510,7 @@ async function extractOneFile(f, onProgress, label) {
 
             report('OCR scanned page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
             const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 240000);
+            const tid = setTimeout(() => ctrl.abort(), 900000);
             let result;
             const firstMedia=extractedMedia.length;
             try { result = await sendToOCR(pages[i].blob, ctrl.signal, label + 'Preparing page ' + (i+1) + '/' + pages.length); }
@@ -5504,12 +5525,14 @@ async function extractOneFile(f, onProgress, label) {
             if (result.status === 'completed' && result.result) {
                 const annotated = result.result.annotated_text || result.result.full_text || '';
                 const plain = result.result.full_text || annotated;
-                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia)};
+                pages[i].ocrScene=result.result.native_scene||null;
+                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia),nativeScene:pages[i].ocrScene};
                 allText += prefix + annotated;
                 allPlain += plainPrefix + plain;
                 allRaw += plainPrefix + (result.result.raw_text || annotated);
             }
         }
+        if(pages.every(p=>p.nativeScene||p.ocrScene))nativePdfPages=pages.map(p=>p.nativeScene||p.ocrScene);
     } else if (XLS_EXTS.includes(ext)) {
         report('Reading spreadsheet...', 20);
         allText = await extractSpreadsheetFile(f);
@@ -5519,7 +5542,7 @@ async function extractOneFile(f, onProgress, label) {
     } else if (IMAGE_EXTS.includes(ext)) {
         report('Analyzing image...', 12);
         const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 240000);
+        const tid = setTimeout(() => ctrl.abort(), 900000);
         let result;
         try { result = await sendToOCR(f, ctrl.signal, label + 'Preparing image'); }
         finally { clearTimeout(tid); }
@@ -5527,6 +5550,7 @@ async function extractOneFile(f, onProgress, label) {
         allText = result.result.annotated_text || result.result.full_text || '';
         allPlain = result.result.full_text || allText;
         allRaw = result.result.raw_text || allText;
+        if(result.result.native_scene)nativePdfPages=[result.result.native_scene];
     } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
         report('Reading text...', 25);
         allText = await extractPlainTextFile(f);
@@ -5550,7 +5574,7 @@ async function extractOneFile(f, onProgress, label) {
     }
 
     if (!allPlain) allPlain = allText;
-    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages };
+    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages, localOCR:!!nativePdfPages?.some(p=>p.localOCR) };
 }
 
 goBtn.onclick = async () => {
@@ -5575,6 +5599,8 @@ goBtn.onclick = async () => {
         let allPlain = '';
         let allRaw = '';
         let nativePdfPages=null;
+        const photoScenes=[];
+        let usedLocalOCR=false;
 
         for (let idx = 0; idx < batch.length; idx++) {
             const part = await extractOneFile(batch[idx], (msg, pct) => {
@@ -5582,6 +5608,8 @@ goBtn.onclick = async () => {
                 setProg(overall, msg);
             }, batch.length > 1 ? 'File ' + (idx+1) + '/' + batch.length + ': ' : '');
             if(batch.length===1)nativePdfPages=part.nativePdfPages;
+            usedLocalOCR ||= !!part.localOCR;
+            if(IMAGE_EXTS.includes(batch[idx].name.split('.').pop().toLowerCase())&&part.nativePdfPages)photoScenes.push(...part.nativePdfPages);
             if (!String(part.plain || part.text || '').trim()) continue;
             const isPhoto=f=>IMAGE_EXTS.includes(f?.name.split('.').pop().toLowerCase());
             // Consecutive photos are scan pages. Visible new-paper headers still separate papers.
@@ -5590,6 +5618,7 @@ goBtn.onclick = async () => {
             allPlain += allPlain ? '\n\n' + part.plain : part.plain;
             allRaw += allRaw ? '\n\n' + part.raw : part.raw;
         }
+        if(batch.length>1&&photoScenes.length===batch.length)nativePdfPages=photoScenes;
 
         if (!allPlain) allPlain = allText;
         if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in file');
@@ -5605,6 +5634,7 @@ goBtn.onclick = async () => {
         const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">A4 · narrow margins · auto formatted</span><span class="badge badge-gray">' + charCount + ' chars</span>';
+        if(usedLocalOCR)badges+='<span class="badge badge-gray">On-device OCR · review handwriting and language accuracy</span>';
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         $('statsBar').innerHTML = badges;
 

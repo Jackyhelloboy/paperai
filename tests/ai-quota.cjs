@@ -7,10 +7,10 @@ const report = { source: 'cloudflare-analytics', report_date_utc: '2026-10-11', 
     reported_remaining: 1990.63, percent_used: 80.09, last_updated: '2026-10-11T09:00:00Z', reset_at: '2026-10-12T00:00:00Z' };
 const blocked = { date_utc: '2026-10-11', provider_limit_reached: true, reset_at: report.reset_at };
 let view = Quota.model(report, blocked, null, now);
-assert.equal(view.remaining, 0); assert.equal(view.used, 8009.37);
-assert.equal(view.badge, 'Free AI limit reached');
-assert.equal(view.barPercent,100);assert.equal(view.percent,80.0937);
-assert.equal(view.barLabel,'Free AI paused until reset');
+assert.equal(view.remaining, 1990.63); assert.equal(view.used, 8009.37);
+assert.equal(view.badge, 'On-device backup');
+assert.equal(view.barPercent,80.0937);assert.equal(view.percent,80.0937);
+assert.equal(view.barLabel,'80.09% reported used');
 const inconsistent=Quota.model({...report,percent_used:17,reported_remaining:9999},null,null,now);
 assert.equal(inconsistent.percent,80.0937);assert.equal(inconsistent.remaining,1990.63);
 assert.equal(Quota.model({...report,daily_reference:0},null,null,now).percent,null);
@@ -96,20 +96,20 @@ const html = fs.readFileSync('frontend/index.html', 'utf8');
 const code = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m => m[1].includes('function buildDocxBody'))[1];
 const slice = (a, b) => code.slice(code.indexOf(a), code.indexOf(b, code.indexOf(a) + 1));
 async function frontend() {
-    let prepares = 0, requests = 0, response;
+    let prepares = 0, requests = 0, localCalls=0, response;
     const ui = vm.createContext({ PaperAIQuota: Quota, Blob, FormData, languageSelect: { value: 'auto' },
-        loadUsage: async () => ({ blocked: true, resetAt: report.reset_at }), quotaFailure: () => Object.assign(new Error('quota stopped'), { code: 'FREE_AI_LIMIT_REACHED' }),
+        scanOnDevice: async () => {localCalls++;return {status:'completed',local:true};}, rememberQuotaBlock(){}, loadUsage: async () => ({ blocked: true, resetAt: report.reset_at }), quotaFailure: () => Object.assign(new Error('quota stopped'), { code: 'FREE_AI_LIMIT_REACHED' }),
         prepareImageForOCR: async () => { prepares++; return { blob: new Blob(['page']), meta: {} }; },
         fetchOcrEndpoint: async () => { requests++; return response; }, appendLearningHints() {}, setProg() {}, wait: async () => {} });
     vm.runInContext(slice('async function sendToOCR', 'function publicPlainTextFromStructured'), ui);
-    await assert.rejects(() => ui.sendToOCR(new Blob(['page'])), /quota stopped/);
-    assert.equal(prepares, 0); assert.equal(requests, 0, 'Known quota failure stops before preparation/upload');
+    assert.equal((await ui.sendToOCR(new Blob(['page']))).local,true);
+    assert.equal(prepares, 1); assert.equal(localCalls,1); assert.equal(requests, 0, 'Known quota failure uses on-device OCR without cloud upload');
     ui.loadUsage = async () => ({ blocked: false });
     response = Response.json({ code: 'AI_BUSY' }, { status: 429 });
     await assert.rejects(() => ui.sendToOCR(new Blob(['page'])), /temporarily busy/);
     assert.equal(requests, 1);
     response = Response.json({ code: 'FREE_AI_LIMIT_REACHED' }, { status: 429 });
-    await assert.rejects(() => ui.sendToOCR(new Blob(['page'])), /quota stopped/);
+    assert.equal((await ui.sendToOCR(new Blob(['page']))).local,true);assert.equal(localCalls,2);
     let urls = [];
     const proxy = vm.createContext({ API_LOCAL: 'https://paperai.test', API_DIRECT: 'https://worker.test',
         fetch: async url => { urls.push(url); return Response.json({ code: 'AI_BUSY' }, { status: 503 }); } });
@@ -127,19 +127,19 @@ async function frontend() {
         ...Object.fromEntries(['quotaCard','quotaRemaining','quotaUsed','quotaFill','quotaPercent','quotaNow','quotaReset','quotaBadgeText'].map(id => [id, field(id)])) });
     vm.runInContext(slice('let quotaResetAt', '\nrenderUsage();\nloadUsage();'), dashboard);
     await dashboard.loadUsage();
-    assert.equal(fields.quotaRemaining.textContent, '0'); assert.equal(fields.quotaUsed.textContent, '8,009.37');
-    assert.equal(fields.quotaRemainingLabel.textContent, 'Free AI available');
-    assert.equal(fields.quotaFill.style.width,'100.00%');assert.equal(fields.quotaPercent.textContent,'Free AI paused until reset');
+    assert.equal(fields.quotaRemaining.textContent, '1,990.63'); assert.equal(fields.quotaUsed.textContent, '8,009.37');
+    assert.equal(fields.quotaRemainingLabel.textContent, 'Reported remaining');
+    assert.equal(fields.quotaFill.style.width,'80.09%');assert.equal(fields.quotaPercent.textContent,'80.09% reported used');
     assert(fields.quotaReset.textContent.includes('05:30')); assert(fields.quotaDescription.textContent.includes('Word export'));
     dashboard.fetch = async () => { throw new Error('offline'); };
-    await dashboard.loadUsage(); assert.equal(fields.quotaRemaining.textContent, '0');
+    await dashboard.loadUsage(); assert.equal(fields.quotaRemaining.textContent, '1,990.63');
     clock = Date.parse(report.reset_at); await dashboard.loadUsage();
     assert.equal(fields.quotaRemaining.textContent, '—'); assert.equal(fields.quotaUsed.textContent, '—');
     assert(!dashboard.renderUsage().blocked);
 
     const classes = () => { const set = new Set(); return { add: v => set.add(v), remove: v => set.delete(v), has: v => set.has(v) }; };
     const f = { name: 'same-open-file.pdf' }, saved = { text: 'Completed questions', source_file: f }, media = { id: 'reviewed-picture' };
-    const flow = vm.createContext({ file: f, fileBatch: [f], lastResult: saved, extractedMedia: [media],
+    const flow = vm.createContext({ IMAGE_EXTS:['png','jpg'],file: f, fileBatch: [f], lastResult: saved, extractedMedia: [media],
         processingUpload:false,uploadRun:0,fileInput:{},clearBtn:{},goBtn: {classList:classes()}, languageSelect: {}, prog: { classList: classes() }, resBox: { classList: classes() },
         hideErr() {}, setProg() {}, loadUsage: async () => {},
         extractOneFile: async () => { throw new Error('free AI stopped'); }, showErr: message => { flow.message = message; } });

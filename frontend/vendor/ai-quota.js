@@ -27,19 +27,19 @@
         const percent = currentReport ? Math.min(100, values[0] / values[1] * 100) : null;
         return {
             blocked, currentReport: Boolean(currentReport), live: Boolean(live),
-            remaining: blocked ? 0 : currentReport ? Math.max(0, values[1] - values[0]) : null,
+            remaining: currentReport ? Math.max(0, values[1] - values[0]) : null,
             used: currentReport ? report.reported_used : null,
             percent,
-            // A full red bar means a confirmed pause, not a fabricated analytics total.
-            barPercent: blocked ? 100 : percent,
-            barLabel: blocked ? 'Free AI paused until reset' : percent === null
+            // Analytics percentage and provider availability are independent signals.
+            barPercent: percent,
+            barLabel: percent === null
                 ? 'Today’s analytics unavailable' : percent.toFixed(2) + '% reported used',
             barDescription: blocked ? 'Cloudflare has confirmed the free AI limit; usage totals may still be delayed.' : 'Reported account usage against the daily reference; analytics may be delayed.',
             updatedAt: currentReport ? report.last_updated : null,
             resetAt: nextReset(now),
-            badge: blocked ? 'Free AI limit reached' : live ? 'No quota block reported' : 'Live status unavailable',
+            badge: blocked ? 'On-device backup' : live ? 'Default AI available' : 'Live status unavailable',
             description: blocked
-                ? 'Cloudflare has paused free AI scanning until the reset below. Analytics totals may lag. Existing results and Word export still work.'
+                ? 'Default AI quota is paused. Uploads automatically use on-device OCR, then return to the default AI after reset. First use downloads about 228 MB; handwriting and language accuracy can differ. Word export still works.'
                 : 'Account-wide analytics may be delayed. Reported remaining is not a guarantee that Cloudflare will accept the next AI request.',
         };
     }

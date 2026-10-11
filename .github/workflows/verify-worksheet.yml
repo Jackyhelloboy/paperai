@@ -12,6 +12,8 @@ on:
       - 'tests/ai-quota.cjs'
       - 'tests/automatic-upload.cjs'
       - 'frontend/vendor/ai-quota.js'
+      - 'frontend/vendor/local-ocr*'
+      - 'tests/local-ocr.cjs'
       - 'frontend/vendor/paper-layout.js'
       - 'worker/src/paper-layout-rules.js'
       - '.github/workflows/verify-worksheet.yml'
@@ -38,3 +40,4 @@ jobs:
           node tests/ai-quota.cjs
           node tests/automatic-upload.cjs
           node tests/scan-resume.cjs
+          node tests/local-ocr.cjs
