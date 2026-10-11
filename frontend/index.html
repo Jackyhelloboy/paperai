@@ -1947,7 +1947,7 @@
     </main>
 
     <footer class="footer">
-        <div class="footer-text">PaperAI — Automatic OCR · editable Word export</div>
+        <div class="footer-text">PaperAI — Upload, review and export editable Word</div>
     </footer>
 
 <script>
@@ -4661,7 +4661,7 @@ async function scanOnDevice(prepared, signal, progressText='', sourceBlob=prepar
 
 async function sendToOCR(sourceBlob, signal, progressText = '') {
     const quota = await loadUsage();
-    let prepared = await prepareImageForOCR(sourceBlob, false);
+    let prepared = quota.blocked ? {blob:sourceBlob,meta:{}} : await prepareImageForOCR(sourceBlob, false);
     if (quota.blocked) return scanOnDevice(prepared, signal, progressText, sourceBlob);
 
     if (progressText) {
@@ -5427,7 +5427,7 @@ async function extractOneFile(f, onProgress, label) {
                 continue;
             }
 
-            report('OCR scanned page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
+            report('Reading page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
             const ctrl = new AbortController();
             activeScanController=ctrl;
             const tid = setTimeout(() => ctrl.abort(), 900000);

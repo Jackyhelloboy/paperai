@@ -44,7 +44,9 @@ paperai/
 
 ### Frontend (Cloudflare Pages)
 ```bash
-npx wrangler pages deploy frontend --project-name=paperai
+npm ci --prefix frontend --ignore-scripts
+node .github/scripts/build-pages.cjs
+npx wrangler pages deploy build/cloudflare-pages --project-name=paperai
 ```
 
 ### Worker (Cloudflare Workers)

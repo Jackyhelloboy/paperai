@@ -45,6 +45,12 @@ jobs:
           node tests/local-ocr.cjs
           node tests/public-gateway.cjs
 
+      - name: Ensure one production deployment path
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node .github/scripts/ensure-pages-config.cjs
+
       - name: Stage frontend and on-device runtime
         run: node .github/scripts/build-pages.cjs
 

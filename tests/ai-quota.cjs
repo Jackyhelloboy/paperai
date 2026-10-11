@@ -102,7 +102,7 @@ async function frontend() {
         fetchOcrEndpoint: async () => { requests++; return response; }, appendLearningHints() {}, setProg() {}, wait: async () => {} });
     vm.runInContext(slice('async function sendToOCR', 'function publicPlainTextFromStructured'), ui);
     assert.equal((await ui.sendToOCR(originalPhoto)).local,true);
-    assert.equal(prepares, 1); assert.equal(localCalls,1); assert.equal(requests, 0, 'Known quota failure uses on-device OCR without cloud upload');
+    assert.equal(prepares, 0,'Known daily block skips server-only image enhancement'); assert.equal(localCalls,1); assert.equal(requests, 0, 'Known quota failure uses on-device OCR without cloud upload');
     ui.loadUsage = async () => ({ blocked: false });
     response = Response.json({ code: 'AI_BUSY' }, { status: 429 });
     await assert.rejects(() => ui.sendToOCR(originalPhoto), /temporarily busy/);

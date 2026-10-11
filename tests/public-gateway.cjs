@@ -52,3 +52,18 @@ async function gateway(path,upstream,options={}){
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
 assert(fs.readFileSync('.github/scripts/build-pages.cjs','utf8').includes('/vendor/local-ocr-worker.mjs'), 'Retired reader route must return 404 rather than the default dashboard fallback');
+
+// A competing raw frontend deployment must not override the tested production build.
+(async()=>{
+ const {ensureConfig}=require('../.github/scripts/ensure-pages-config.cjs');
+ let config={source:{type:'github',config:{owner:'Jackyhelloboy',repo_name:'paperai',production_deployments_enabled:true,preview_deployment_setting:'all'}},build_config:{build_command:'',destination_dir:'frontend',root_dir:'',build_caching:true}};
+ const methods=[];
+ const fetcher=async(url,options)=>{methods.push(options.method);if(options.method==='PATCH')config={...config,...JSON.parse(options.body)};return Response.json({success:true,result:config});};
+ await ensureConfig({fetcher,token:'test-only',account:'test-only',repository:'Jackyhelloboy/paperai',log(){}});
+ assert.deepEqual(methods,['GET','PATCH','GET']);assert.equal(config.source.config.production_deployments_enabled,false);
+ assert.equal(config.source.config.preview_deployment_setting,'all');assert.equal(config.build_config.build_caching,true);
+ assert.equal(config.build_config.destination_dir,'build/cloudflare-pages');
+ methods.length=0;await ensureConfig({fetcher,repository:'Jackyhelloboy/paperai',log(){}});assert.deepEqual(methods,['GET'],'Configured builds must be idempotent');
+ await assert.rejects(()=>ensureConfig({fetcher,repository:'another/repository',log(){}}),/does not match/);
+ console.log('Production configuration: repository verified, competing trigger disabled, preview recipe aligned, unrelated settings preserved.');
+})().catch(error=>{console.error(error);process.exitCode=1;});
