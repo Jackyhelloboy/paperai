@@ -1,6 +1,7 @@
 import { PAPER_LAYOUT_RULES, normaliseMarkerRows } from './paper-layout-rules.js';
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
+import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers } from './ocr-output-guard.js';
 
 const DAILY_FREE_NEURONS = 10000;
 const GEMMA4_INPUT_NEURONS_PER_MILLION = 9091;
@@ -31,7 +32,7 @@ export default {
           'WS /api/live',
           'GET /health',
         ],
-        architecture: 'production-literal-ocr-v21',
+        architecture: 'production-literal-ocr-v22',
         layout_rules_version: 5,
       }, { headers: corsHeaders });
     }
@@ -40,7 +41,7 @@ export default {
       return Response.json({
         status: 'healthy',
         platform: 'cloudflare-workers',
-        architecture: 'production-literal-ocr-v21',
+        architecture: 'production-literal-ocr-v22',
         layout_rules_version: 5,
         model: '@cf/google/gemma-4-26b-a4b-it',
       }, { headers: corsHeaders });
@@ -909,6 +910,7 @@ async function handleOCR(request, env, corsHeaders) {
     // verification pass only when the first result is uncertain. No paid fallback.
     aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints);
   } catch (e) {
+    if(e?.code==='OCR_OUTPUT_INVALID')return Response.json({error:'OCR returned repetitive or incomplete output. Please retry this page or review its source.',code:'OCR_OUTPUT_INVALID'}, {status:502,headers:corsHeaders});
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
       return Response.json({
@@ -992,7 +994,7 @@ async function handleOCR(request, env, corsHeaders) {
         mode: 'free_only_literal_transcription',
         billing_safety: 'free_only_conditional_verification_no_paid_fallback',
         model: aiResult.model || 'unknown',
-        architecture: 'production-literal-ocr-v21',
+        architecture: 'production-literal-ocr-v22',
         layout_rules_version: 5,
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
@@ -1295,7 +1297,7 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
       (imageMeta?.branchingLayout ? '; possible branching/diagram layout detected. Preserve arrows and branch relationships.' : '.') + '\n'
     : '';
   const grids=Array.isArray(imageMeta?.detectedGrids)?imageMeta.detectedGrids.filter(g=>Number.isInteger(g.columns)&&g.columns>=5&&g.columns<=52&&g.rows===1&&[g.x,g.y,g.w,g.h].every(v=>Number.isFinite(v)&&v>=0&&v<=1000)).slice(0,12):[];
-  const gridSection=grids.length ? '\nLOCAL BORDER EVIDENCE (recheck against pixels):\n'+grids.map(g=>`Empty one-row grid at normalized x=${g.x}, y=${g.y}, width=${g.w}, height=${g.h}: ${g.columns} columns, ONE row. Use [[GRID: ${g.columns}x1]] here. Notebook lines passing through it are background. Do not substitute an expected alphabet or number count.`).join('\n')+'\n' : '';
+  const gridSection=grids.length ? '\nLOCAL BORDER EVIDENCE (recheck against pixels):\n'+grids.map(g=>`Visually detected EMPTY one-row grid at normalized x=${g.x}, y=${g.y}, width=${g.w}, height=${g.h}: ${g.columns} columns, ONE row. Use [[GRID: ${g.columns}x1]] here. Notebook lines passing through it are background. Do not substitute an expected alphabet or number count.`).join('\n')+'\n' : '';
   const learnedConfusions = sanitizeLearningHints(learningHints);
   const learningSection = learnedConfusions.length
     ? '\nVISUAL CONFUSION MEMORY (human-corrected examples from this browser):\n' +
@@ -1373,7 +1375,7 @@ Use only text actually visible in the image. If there is no right-side label, le
 17C. An actual picture with a separate answer box uses FIGURE with the box flag. A written picture request with no illustration and a visible checkbox uses PICTURE_OPTION.
 17D. EMPTY CHECKBOXES/SQUARE ANSWER BOXES: output [[CHECKBOX]] for each clearly visible empty square/rectangular selection box. Do not convert several boxes into one.
 17E. MULTIPLE-CHOICE ROWS: preserve all visible choices in their original order. Use CHOICE_ROW when there are no selection boxes. Use OPTION_ROW only when every choice has a visible box. Never add new checkboxes.
-17F. MATCH-THE-FOLLOWING: for a clear left/right pair on the same visual row, output [[MATCH_ROW: left text || right text]]. Do not solve or rearrange the matching exercise. If the columns are not aligned enough to establish a row, keep the two columns as literal text instead of guessing a pair.
+17F. MATCH-THE-FOLLOWING: preserve ALL visible columns on each source row, including empty brackets and pictures, using [[MATCH_ROW: left text || (   ) || right text]] where three columns are present. Do not solve or rearrange the matching exercise. If the columns are not aligned enough to establish a row, keep the two columns as literal text instead of guessing a pair.
 17G. Picture rows, option rows, matching rows, tables, blanks and boxes are CONTENT. Never omit them just because they contain little text.
 17H. ACTUAL PICTURE ROWS: use FIGURE_ROW with a distinct normalized bounding box for EACH illustration. Preserve the exact visible count, left-to-right order, and any printed captions; use the box flag only where a blank answer box is visible. No object labels may be guessed. Keep surrounding questions outside the crop.
 17I. GEOMETRIC SHAPE IDENTIFICATION: use the SHAPE_ROW syntax above with explicit none, box or line answer-space flags based only on what is visible. Preserve shaded or labelled diagrams as original FIGURE crops.
@@ -1468,10 +1470,12 @@ Below is the first OCR transcription. Re-check it against the image line-by-line
 
 FIRST OCR:
 ---BEGIN FIRST OCR---
-${text}
+${blankSafeDraft(text)}
 ---END FIRST OCR---
 
 VERIFICATION RULES:
+- If the draft contains a repeated character loop or an incomplete first line, discard that defective draft and read the entire source page again. Never continue an underscore loop. A visible answer rule needs only a short blank or ANSWER_LINES marker.
+- Every FIGURE/BANNER crop must contain exactly four INTEGER coordinates x,y,WIDTH,HEIGHT on the 0–1000 page scale. Do not return x1,y1,x2,y2 endpoints or 0–1 fractions. Both x+width and y+height must fit within 1000. Recheck invalid crops against the actual image; never preserve an invalid draft crop.
 - Keep text unchanged when the pixels support it.
 - Resolve [unclear] only when the image gives enough visual evidence.
 - Remove [[INSERT]], [[REPLACE]], [[STRIKE]], [[CIRCLED]], [[UNDERLINE]], or other edit markers if the corresponding visual mark is not clearly present.
@@ -1528,6 +1532,7 @@ VERIFICATION RULES:
     }
   }
 
+  if(degenerateOcr(text)||invalidLayoutMarkers(text)){const error=new Error('Invalid OCR output or illustration bounds');error.code='OCR_OUTPUT_INVALID';throw error;}
   return { text, raw: text, model, usage, scanMode, rescued };
 }
 
@@ -1573,7 +1578,7 @@ function shouldVerifyOcr(text, imageMeta = {}) {
     imageMeta?.difficulty === 'hard' ||
     Number(imageMeta?.score || 0) >= 2;
 
-  return emptyLike ||
+  return degenerateOcr(visible) || invalidLayoutMarkers(visible) || emptyLike ||
     lineMiss ||
     hasUnclear ||
     hasEditMetadata ||
@@ -1586,7 +1591,10 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   const a = String(first || '').trim();
   const b = String(second || '').trim();
   if (!b) return false;
+  if(degenerateOcr(b))return false;
+  if(invalidLayoutMarkers(b))return false;
   if (/^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(b)) return false;
+  if(degenerateOcr(a)||invalidLayoutMarkers(a))return true;
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
 
   const usefulLength = s => s
@@ -1815,8 +1823,8 @@ function stripOcrMetadata(text) {
 
   return stripBranchMetadata(String(text))
     .replace(/\[\[(?:FIGURE|FIGURE_ROW):\s*([\s\S]*?)\]\]/gi,(_,body)=>String(body).split(/\s*\|\|\s*/).map(x=>x.split('|')[1]?.trim() || '[illustration]').join('    '))
-    .replace(/\[\[(?:BANNER|TABLE_WIDTHS|FOOTER):[\s\S]*?\]\]/gi,'')
-    .replace(/\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
+    .replace(/\[\[(?:BANNER|TABLE_WIDTHS|TABLE_HEADER|FOOTER):[\s\S]*?\]\]/gi,'')
+    .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
       (_,title,marks)=>title.trim()+'    '+marks.trim())
     .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
       String(body).split(/\s*\|\|\s*/).map(x => '[' + x.trim() + ' picture] ______').join('    '))
@@ -1826,6 +1834,7 @@ function stripOcrMetadata(text) {
       Array.from({length:Math.min(32,+r)},()=>Array.from({length:Math.min(52,+c)},()=> '□').join(' ')).join('\n'))
     .replace(/\[\[GRID_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
       String(body).split(/\s*\|\|\s*/).map(x => x.trim() === '_' ? '□' : x.trim()).join(' | '))
+    .replace(/\[\[ARITHMETIC_ROW:\s*([\s\S]*?)\]\]/gi, (_,body)=>String(body).split(/\s*\|\|\s*/).map(cell=>cell.replace(/<br>/gi,'\n')).join('\n\n'))
     .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
       String(body).split(/\s*\|\|\s*/).join(' | '))
     .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>

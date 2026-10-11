@@ -1,6 +1,18 @@
 // Behavioral regressions drawn from distinct layout families in training/.
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const Layout=require('../frontend/vendor/paper-layout.js');
+const guardCtx=vm.createContext({});
+vm.runInContext(fs.readFileSync('worker/src/ocr-output-guard.js','utf8').replace(/export /g,''),guardCtx);
+const worker=fs.readFileSync('worker/src/index.js','utf8');
+vm.runInContext(worker.slice(worker.indexOf('function shouldAcceptVerifiedText('),worker.indexOf('function mergeAiUsage(')),guardCtx);
+assert(guardCtx.degenerateOcr('5. न :- '+ '_'.repeat(97500)),'Model answer-line loops must be rejected');
+assert(!guardCtx.degenerateOcr('1. Write the answer. _________'));
+assert(guardCtx.shouldAcceptVerifiedText('5. न :- '+'_'.repeat(97500),'IV. शब्द बनाकर लिखो।\n1. अ - ______\n2. फ - ______'));
+assert(!guardCtx.shouldAcceptVerifiedText('5. न :- '+'_'.repeat(97500),'No text detected'));
+assert(!guardCtx.shouldAcceptVerifiedText('I. A real question.','_'.repeat(1000)));
+assert(guardCtx.invalidLayoutMarkers('[[FIGURE: 100,900,100,200| |none]]'));
+assert(guardCtx.invalidLayoutMarkers('[[FIGURE: .1,.2,.3,.4| |none]]'));
+assert(!guardCtx.invalidLayoutMarkers('[[FIGURE_ROW: 100,200,300,100| |none || 450,200,300,100| |box]]'));
 const html=fs.readFileSync('frontend/index.html','utf8');
 const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m=>m[1].includes('function buildDocxBody'))[1];
 const slice=(a,b)=>code.slice(code.indexOf(a),code.indexOf(b,code.indexOf(a)+1));
@@ -41,6 +53,10 @@ const fixture=[
     for(const s of ['big','biggest','smarter','Leaf','Root','Stem','Flower'])assert(xml.includes(s));
     assert.equal(Layout.section('IV. Map pointing. 4×½=2').marks,'4×½=2');
     assert.equal(Layout.section('I. Answer. 2½ Marks').marks,'2½ Marks');
+    assert(Layout.pdfTextReliable('I. Match the following. 2M'));
+    assert(Layout.pdfTextReliable('प्रश्न लिखो।'));
+    assert(!Layout.pdfTextReliable('वणŊमाला िलखो।'),'Broken Indic text maps require OCR');
+    assert(!Layout.pdfTextReliable('Subject: Telugu \uF03E\uF044'),'Legacy glyph codes require OCR');
     assert(Layout.compactPages('Q1\n[[PAGE_BREAK]]\nQ2').includes('Q1\nQ2'));
     assert(Layout.compactPages('Q1\n[[PAGE_BREAK]]\nClass: III\nQ2').includes('PAGE_BREAK'));
     const suggestions=code.slice(code.indexOf('function showSmartSuggestions'),code.indexOf('function chooseSmartSuggestion'));

@@ -59,6 +59,15 @@
         const [name, flag='box']=String(value||'').split('|').map(x=>x.trim());
         return {name, answer:flag==='box', line:flag==='line'};
     }
+    function pdfTextReliable(value) {
+        const text=String(value||'');
+        // Legacy symbol/Indic fonts can expose private glyph codes or broken matra order.
+        // Read those pixels with OCR; never guess a character substitution here.
+        if(/[\uE000-\uF8FF\uFFFD]/u.test(text))return false;
+        if(/[\u0900-\u0D7F]/u.test(text)&&/[\u0100-\u017F]/u.test(text))return false;
+        if(/(?:^|\s)[\u093E-\u094C\u0C3E-\u0C4C]/u.test(text))return false;
+        return true;
+    }
     function compactPages(text, keepSourcePages=false) {
         const lines=String(text||'').split('\n');
         return lines.filter((line,i)=>{
@@ -83,14 +92,24 @@
         const {width:w,height:h,data}=image;
         if(w>1000||h>2000) return [];
         const dark=new Uint8Array(w*h), expanded=new Uint8Array(w*h);
-        for(let i=0;i<dark.length;i++) dark[i]=Math.max(data[4*i],data[4*i+1],data[4*i+2])<125 ? 1:0;
+        // Local background compensation handles photographed grey paper and shadows.
+        const stride=w+1,integral=new Float64Array((w+1)*(h+1));
+        for(let y=0;y<h;y++){let row=0;for(let x=0;x<w;x++){
+            const i=(y*w+x)*4;row+=Math.max(data[i],data[i+1],data[i+2]);
+            integral[(y+1)*stride+x+1]=integral[y*stride+x+1]+row;
+        }}
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+            const left=Math.max(0,x-15),right=Math.min(w,x+16),top=Math.max(0,y-15),bottom=Math.min(h,y+16);
+            const mean=(integral[bottom*stride+right]-integral[top*stride+right]-integral[bottom*stride+left]+integral[top*stride+left])/((right-left)*(bottom-top));
+            const i=y*w+x;dark[i]=Math.max(data[4*i],data[4*i+1],data[4*i+2])<mean-12?1:0;
+        }
         for(let y=0;y<h;y++)for(let x=1;x<w-1;x++) {
             const i=y*w+x;expanded[i]=dark[i-1]|dark[i]|dark[i+1];
         }
         const segments=[];
         for(let x=15;x<w-15;x++) {
             let start=-1,last=-1,count=0;
-            const finish=()=>{if(start>=0&&last-start>=48&&count/(last-start+1)>=.7)segments.push({x,y:start,z:last});};
+            const finish=()=>{if(start>=0&&last-start>=28&&count/(last-start+1)>=.7)segments.push({x,y:start,z:last});};
             for(let y=0;y<h;y++)if(expanded[y*w+x]) {
                 if(start<0||y-last>6){finish();start=y;count=0;}
                 last=y;count++;
@@ -105,7 +124,7 @@
         }
         const groups=[];
         for(const line of lines){
-            const same=groups.find(g=>Math.abs(g.y-line.y)<20&&Math.abs(g.z-line.z)<20);
+            const same=groups.find(g=>Math.abs(g.y-line.y)<35&&Math.abs(g.z-line.z)<35);
             if(same){same.lines.push(line);const n=same.lines.length;same.y=(same.y*(n-1)+line.y)/n;same.z=(same.z*(n-1)+line.z)/n;}
             else groups.push({y:line.y,z:line.z,lines:[line]});
         }
@@ -127,6 +146,18 @@
                 if(total&&ink/total>.65)closed++;
             }
             if(closed/(2*(n-1))<.8)continue;
+            // Border evidence is not proof of empty cells. Reject populated grids.
+            let populated=false;
+            for(let i=0;i<n-1;i++){
+                let ink=0,total=0;
+                const left=ls[i],right=ls[i+1],padding=Math.max(5,Math.round((right.x-left.x)*.15));
+                for(let x=Math.ceil(left.x)+padding;x<right.x-padding;x++){
+                    const t=(x-left.x)/(right.x-left.x),top=Math.round(left.y*(1-t)+right.y*t)+7,bottom=Math.round(left.z*(1-t)+right.z*t)-7;
+                    for(let y=top;y<bottom;y++){ink+=dark[y*w+x]||0;total++;}
+                }
+                if(total&&ink/total>.025){populated=true;break;}
+            }
+            if(populated)continue;
             const x=ls[0].x,z=ls[n-1].x;
             const y=Math.min(...ls.map(p=>p.y)),bottom=Math.max(...ls.map(p=>p.z));
             results.push({columns:n-1,rows:1,x:Math.round(x/w*1000),y:Math.round(y/h*1000),w:Math.round((z-x)/w*1000),h:Math.round((bottom-y)/h*1000)});
@@ -140,6 +171,11 @@
             const m=line.match(bare);
             return m ? '[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]' : line;
         });
+        for(let i=0;i<lines.length;i++){
+            const marker=lines[i].match(/^\s*\[\[SECTION_ROW:\s*([^|]*?)\]\]\s*$/i);
+            const split=marker&&section(marker[1]);
+            if(split)lines[i]='[[SECTION_ROW: '+split.title+' || '+split.marks+']]';
+        }
         for(let i=0;i<lines.length;i++)if(/^\s*\(?Note:.*FIGURE_ROW.*conceptual representation/i.test(lines[i])){
             lines[i]='';
             if(i&&/^\s*\[\[FIGURE_ROW:/.test(lines[i-1]))lines[i-1]='';
@@ -214,5 +250,5 @@
         }
         return lines.join('\n');
     }
-    return {profile,figure,pixels,source,fit,tableWidths,section,shape,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

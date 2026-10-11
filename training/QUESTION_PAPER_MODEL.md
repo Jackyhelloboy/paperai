@@ -38,8 +38,8 @@ Upload handwriting or a printed source, review the extracted questions, use Corr
 | Class_4_Science_Annual.docx | reference | 2 | text-parser-pass |
 | Class_5_Science_Annual.docx | reference | 3 | text-parser-pass |
 | English 6.docx | reference | 2 | text-parser-pass |
-| HINDI SA-1 (1).pdf | reference | 17 | measured-parser-pass |
-| HINDI SA-1.pdf | reference | 17 | measured-parser-pass |
+| HINDI SA-1 (1).pdf | reference | 17 | OCR-or-flow-fallback-required |
+| HINDI SA-1.pdf | reference | 17 | OCR-or-flow-fallback-required |
 | I - SA-1 SCIENCE.pdf | reference | 4 | measured-parser-pass |
 | II-SA-1 SCIENCE.pdf | reference | 4 | measured-parser-pass |
 | III-SA-1 SCIENCE.pdf | reference | 4 | measured-parser-pass |
@@ -56,10 +56,10 @@ Upload handwriting or a printed source, review the extracted questions, use Corr
 | class 3 hindi (1).pdf | scan-input | 1 | requires-live-OCR |
 | class 3 hindi.pdf | scan-input | 1 | requires-live-OCR |
 | english.pdf | scan-input | 13 | requires-live-OCR |
-| entrance class 2.pdf | reference | 4 | measured-parser-pass |
-| entrance class 3.pdf | reference | 4 | measured-parser-pass |
-| entrance class 4.pdf | reference | 4 | measured-parser-pass |
-| entrance class 5.pdf | reference | 4 | measured-parser-pass |
+| entrance class 2.pdf | reference | 4 | OCR-or-flow-fallback-required |
+| entrance class 3.pdf | reference | 4 | OCR-or-flow-fallback-required |
+| entrance class 4.pdf | reference | 4 | OCR-or-flow-fallback-required |
+| entrance class 5.pdf | reference | 4 | OCR-or-flow-fallback-required |
 | entrance class UKG.pdf | reference | 3 | measured-parser-pass |
 | fa-2 sci.pdf | reference | 12 | measured-parser-pass |
 | fa-2-sci-1-extracted (2).docx | export-under-review | 15 | text-parser-pass |
@@ -78,3 +78,7 @@ Upload handwriting or a printed source, review the extracted questions, use Corr
 ## Verification
 
 Run `npm ci --prefix frontend`, the six regression scripts under `tests/`, and `node tests/training-corpus.cjs`. For complete visual corpus review, install `training/requirements-layout.txt`, LibreOffice and Poppler, then run `training/review_corpus.py --render-root /absolute/scratch/path` using the bundled runtime. `corpus-review.json` records content, tables, picture bounds and hashes; `corpus-parser-results.json` records every parser check. Live OCR/Word rendering results are recorded separately. A structural pass does not certify handwritten OCR accuracy.
+
+## Additional failures caught by live testing
+
+A Hindi scan produced a repetitive underscore loop and omitted sections. The worker now rejects token loops, rechecks a bounded draft against the image, and never publishes the loop as successful OCR. Invalid illustration coordinates also trigger verification/retry rather than fabricated crops. Photographed Hindi barahkhadi grids needed local background compensation; the detector now finds all five 13-cell rows in Class 3 and preserves populated grids by refusing to classify them as empty. Legacy Indic PDF glyph codes and broken matra ordering go through visual OCR instead of trusting a damaged text layer.

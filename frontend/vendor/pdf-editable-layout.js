@@ -95,6 +95,9 @@
                 if(!pathSupported)supported=false;
                 else if(path.some(p=>p.kind!=='rect')){
                     // Copy the observed vector path. Do not infer a geometric label.
+                    path=path.flatMap(p=>p.kind==='rect'?[
+                        {kind:'move',x:p.x,y:p.y},{kind:'line',x:p.x+p.w,y:p.y},
+                        {kind:'line',x:p.x+p.w,y:p.y+p.h},{kind:'line',x:p.x,y:p.y+p.h},{kind:'close'}]:[p]);
                     const all=path.flatMap(p=>p.kind==='curve'?p.points:Number.isFinite(p.x)?[p]:[]);
                     if(all.length){const box=bounds(all);box.w=Math.max(.1,box.w);box.h=Math.max(.1,box.h);
                         shapes.push({...box,kind:'path',path:path.slice(),fill:fn===O.stroke?null:state.fill,stroke:fn===O.fill||fn===O.eoFill?null:state.stroke,line:state.line});}

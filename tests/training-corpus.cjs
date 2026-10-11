@@ -3,6 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const JSZip=require('../frontend/node_modules/jszip');
 const pdfjs=require('../frontend/node_modules/pdfjs-dist/legacy/build/pdf.js');
 const Edit=require('../frontend/vendor/pdf-editable-layout.js');
+const Layout=require('../frontend/vendor/paper-layout.js');
 const {DOMParser:Parser}=require('../frontend/node_modules/@xmldom/xmldom');
 class DOMParser {parseFromString(...args){const d=new Parser().parseFromString(...args);d.querySelector=t=>d.getElementsByTagName(t)[0]||null;return d;}}
 const html=fs.readFileSync('frontend/index.html','utf8'),a=html.indexOf('function docxStructuredXml('),b=html.indexOf('async function extractOfficeZipFile(',a);
@@ -30,7 +31,8 @@ const corpus=JSON.parse(fs.readFileSync('training/corpus-review.json','utf8')),r
             record.pages=[];
             try {for(let i=1;i<=pdf.numPages;i++){
                 const p=await pdf.getPage(i),scene=await Edit.scene(p,pdfjs);
-                record.pages.push({page:i,measured_layout_supported:scene.supported,text_objects:scene.texts.length,pictures:scene.images.length,editable_paths:scene.shapes.filter(s=>s.kind==='path').length,shapes:scene.shapes.length});
+                const reliable=Layout.pdfTextReliable(scene.texts.map(t=>t.text).join(' '));
+                record.pages.push({page:i,measured_layout_supported:scene.supported&&reliable,text_layer_reliable:reliable,text_objects:scene.texts.length,pictures:scene.images.length,editable_paths:scene.shapes.filter(s=>s.kind==='path').length,shapes:scene.shapes.length});
             }}finally{await pdf.destroy();}
             record.status=source.kind==='scan-input'?'requires-live-OCR':record.pages.every(p=>p.measured_layout_supported)?'measured-parser-pass':'OCR-or-flow-fallback-required';
         }
