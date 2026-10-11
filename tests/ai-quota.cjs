@@ -110,6 +110,10 @@ async function frontend() {
     assert.equal(requests, 1);
     response = Response.json({ code: 'FREE_AI_LIMIT_REACHED' }, { status: 429 });
     assert.equal((await ui.sendToOCR(new Blob(['page']))).local,true);assert.equal(localCalls,2);
+    ui.PaperAILayout={normalise:s=>s,reconcileEmptyGrids:s=>s};ui.recoverSourceFigures=async s=>s;ui.portableText=s=>s;ui.docxVisibleText=s=>s;
+    response=Response.json({status:'completed',result:{full_text:'1. Name the planet.',engine:'default-cloud-model'}});
+    assert.equal((await ui.sendToOCR(new Blob(['page']))).result.engine,'default-cloud-model');
+    assert.equal(localCalls,2,'An unblocked upload returns to the default model without using the local worker');
     let urls = [];
     const proxy = vm.createContext({ API_LOCAL: 'https://paperai.test', API_DIRECT: 'https://worker.test',
         fetch: async url => { urls.push(url); return Response.json({ code: 'AI_BUSY' }, { status: 503 }); } });

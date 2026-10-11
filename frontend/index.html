@@ -5480,6 +5480,7 @@ async function extractOneFile(f, onProgress, label) {
     let allPlain = '';
     let allRaw = '';
     let nativePdfPages=null;
+    let localOCR=false;
 
     if (ext === 'pdf') {
         report('Loading PDF...', 8);
@@ -5503,6 +5504,7 @@ async function extractOneFile(f, onProgress, label) {
             if(cached.results[i]){
                 const saved=restoreScannedPage(cached.results[i]);
                 pages[i].ocrScene=saved.nativeScene||null;
+                localOCR ||= !!saved.localOCR;
                 allText+=prefix+saved.text;allPlain+=plainPrefix+saved.plain;allRaw+=plainPrefix+saved.raw;
                 report('Restored completed page '+(i+1)+'/'+pages.length+'...',48+Math.round((i/pages.length)*45));
                 continue;
@@ -5526,7 +5528,8 @@ async function extractOneFile(f, onProgress, label) {
                 const annotated = result.result.annotated_text || result.result.full_text || '';
                 const plain = result.result.full_text || annotated;
                 pages[i].ocrScene=result.result.native_scene||null;
-                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia),nativeScene:pages[i].ocrScene};
+                localOCR ||= result.result.engine==='on-device-florence-2';
+                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia),nativeScene:pages[i].ocrScene,localOCR:result.result.engine==='on-device-florence-2'};
                 allText += prefix + annotated;
                 allPlain += plainPrefix + plain;
                 allRaw += plainPrefix + (result.result.raw_text || annotated);
@@ -5551,6 +5554,7 @@ async function extractOneFile(f, onProgress, label) {
         allPlain = result.result.full_text || allText;
         allRaw = result.result.raw_text || allText;
         if(result.result.native_scene)nativePdfPages=[result.result.native_scene];
+        localOCR=result.result.engine==='on-device-florence-2';
     } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
         report('Reading text...', 25);
         allText = await extractPlainTextFile(f);
@@ -5574,7 +5578,7 @@ async function extractOneFile(f, onProgress, label) {
     }
 
     if (!allPlain) allPlain = allText;
-    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages, localOCR:!!nativePdfPages?.some(p=>p.localOCR) };
+    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages, localOCR };
 }
 
 goBtn.onclick = async () => {

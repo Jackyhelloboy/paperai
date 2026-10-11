@@ -10,6 +10,7 @@
         return new Promise((resolve,reject)=>{
             const id=++sequence;
             const finish=(error,result)=>{
+                if(pending?.id!==id)return;
                 signal?.removeEventListener('abort',abort);pending=null;
                 if(error){reset();reject(error);}else resolve(result);
             };

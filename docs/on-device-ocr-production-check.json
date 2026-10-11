@@ -1,0 +1,42 @@
+{
+  "verified_on": "2026-10-11",
+  "feature_commit": "dce2a34b98b6269195f3dd9a0c28a98a40651dc9",
+  "live_site": "https://paperai-5up.pages.dev/",
+  "default_model": "@cf/google/gemma-4-26b-a4b-it",
+  "backup_model": "onnx-community/Florence-2-base-ft",
+  "backup_revision": "e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f",
+  "api_quota_used_by_backup": 0,
+  "browser_result": {
+    "source": "generated science page; no personal upload",
+    "regions": 9,
+    "first_run_seconds": 86,
+    "runtime": "single-thread WASM in browser worker",
+    "ocr_quality": "review required: Roman section I read as 1 and Flower read as flower",
+    "artwork": "circle and original table borders retained; text remains editable"
+  },
+  "reference_checks": {
+    "printed_science": "native model inference; Word rendered and inspected",
+    "handwritten_maths": "native model inference; Word rendered and inspected; recognition errors remain"
+  },
+  "automated_suites_passed": 12,
+  "routing_checks": [
+    "known daily block selects local OCR without provider request",
+    "provider rejection falls back on the same prepared image",
+    "busy errors do not set daily block",
+    "expired UTC daily block selects the default model again",
+    "cancelled worker cannot cancel a later scan"
+  ],
+  "dashboard": {
+    "layout": "original compact dashboard",
+    "manual_model_buttons": 0,
+    "blank_paper_builder": false,
+    "uploads_start_automatically": true,
+    "quota_percentage": "reported analytics only; live test showed 80.09%",
+    "availability": "separate on-device backup badge"
+  },
+  "limitations": [
+    "Initial model download approximately 228 MB; browser support and device memory required",
+    "Handwriting and multilingual accuracy cannot match the default model on every page",
+    "Source artwork and table borders are preserved as pixels in the local fallback"
+  ]
+}

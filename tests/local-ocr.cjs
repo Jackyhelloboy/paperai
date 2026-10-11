@@ -29,7 +29,9 @@ async function lifecycle(){
     assert.equal((await scan).regions.length,3);assert(!worker.terminated);
     const controller=new AbortController(),cancelled=context.PaperAILocalOCR.recognize({},{signal:controller.signal});
     controller.abort();await assert.rejects(()=>cancelled,{name:'AbortError'});assert(worker.terminated);
+    const oldWorker=worker;
     const again=context.PaperAILocalOCR.recognize({});worker=instances[1];
+    oldWorker.onerror();assert(!worker.terminated,'An old worker event cannot cancel a new scan');
     assert.equal(worker.options.type,'module');worker.onerror();await assert.rejects(()=>again,/could not start/);assert(worker.terminated);
     const final=context.PaperAILocalOCR.recognize({});worker=instances[2];worker.onmessage({data:{id:worker.data.id,type:'result',regions}});await final;
 }

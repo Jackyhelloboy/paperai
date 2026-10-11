@@ -1,9 +1,11 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PaperAI local OCR verification</title>
 <style>body{font:16px system-ui;max-width:800px;margin:32px auto;padding:20px}button{padding:12px}canvas{max-width:100%;border:1px solid #ccc}pre{white-space:pre-wrap}#preview{max-width:600px}</style>
 <h1>PaperAI local OCR verification</h1><p>This check reads a generated test page on this device. It sends no paper to the cloud AI and uses no API quota.</p>
-<button id="run">Run local OCR check</button><p id="status" role="status">Ready</p><canvas id="sample" width="1200" height="900"></canvas><pre id="result"></pre><div id="preview"></div>
+<button id="run">Run local OCR check</button><button id="word" disabled>Download test Word</button><p id="status" role="status">Ready</p><canvas id="sample" width="1200" height="900"></canvas><pre id="result"></pre><div id="preview"></div>
 <script src="vendor/local-ocr-layout.js"></script><script src="vendor/local-ocr.js"></script><script src="vendor/pdf-editable-layout.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
+let verifiedPage=null;
 const canvas=document.getElementById('sample'),ctx=canvas.getContext('2d');
 ctx.fillStyle='white';ctx.fillRect(0,0,1200,900);ctx.fillStyle='black';ctx.font='bold 32px Arial';ctx.fillText('Subject: Science',440,80);
 ctx.font='28px Arial';ctx.fillText('I. Answer the following questions.',70,150);ctx.fillText('(2 x 5 = 10)',940,150);
@@ -15,9 +17,10 @@ document.getElementById('run').onclick=async()=>{
  const button=document.getElementById('run'),status=document.getElementById('status'),start=performance.now();button.disabled=true;
  try{const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));const output=await PaperAILocalOCR.recognize(blob,{onProgress:p=>{status.textContent=p.stage==='scan'?'Scanning region '+p.current+'/'+p.total:p.stage==='download'?'Downloading '+(p.file||'model')+' '+((p.loaded||0)/1048576).toFixed(1)+' MB':'Loading model';}});
  const text=PaperAILocalLayout.plainText(output.regions);document.getElementById('result').textContent=text;
- const page=await PaperAILocalOCR.page(blob,output);document.getElementById('preview').innerHTML=PaperAIPdfEditable.preview([page]);
+ const page=await PaperAILocalOCR.page(blob,output);verifiedPage=page;document.getElementById('word').disabled=false;document.getElementById('preview').innerHTML=PaperAIPdfEditable.preview([page]);
  const passed=/Subject: Science/.test(text)&&/Name two things/.test(text)&&/10/.test(text)&&/Flower/.test(text);
  status.textContent=(passed?'PASS':'REVIEW')+' · '+output.regions.length+' editable text regions · '+Math.round((performance.now()-start)/1000)+' seconds';
  }catch(error){status.textContent='FAILED: '+error.message;}finally{button.disabled=false;}
 };
+document.getElementById('word').onclick=async()=>{if(!verifiedPage)return;const blob=await PaperAIPdfEditable.makeWord([verifiedPage]);const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='PaperAI-On-Device-Test.docx';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);};
 </script></html>
