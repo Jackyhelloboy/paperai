@@ -1,0 +1,59 @@
+{
+  "code_commit": "af4eaf04a3064cf728bd859ee8aa33a52d686e1e",
+  "checked_at_utc": "2026-10-11T11:16:22.288194+00:00",
+  "site": "https://paperai-5up.pages.dev/",
+  "github_checks": {
+    "pages_deployment": {
+      "run_id": 38134807583,
+      "conclusion": "success"
+    },
+    "worksheet_verification": {
+      "run_id": 38134807538,
+      "conclusion": "success"
+    }
+  },
+  "local_regressions": [
+    "worksheet-layout",
+    "pdf-word-layout",
+    "pdf-editable-layout",
+    "docx-import",
+    "editable-paper",
+    "question-paper-model",
+    "scan-resume",
+    "docx-reference-layout",
+    "reference-formats",
+    "ai-quota",
+    "automatic-upload"
+  ],
+  "rendered_word_samples": {
+    "science": 1,
+    "humanities": 1,
+    "worksheet": 1
+  },
+  "visual_checks": [
+    "Right-aligned literal marks",
+    "Matching options retain original order",
+    "Native editable shape outlines and answer spaces",
+    "Bordered 10x5 grid and multiline table cells",
+    "A4 narrow margins without clipped content"
+  ],
+  "live_dom": {
+    "upload_multiple": true,
+    "manual_creation_controls": 0,
+    "retry_visible_without_failure": false,
+    "language_override_open": false,
+    "quota_bar_width": "100%",
+    "quota_bar_label": "Free AI paused until reset",
+    "free_ai_available": "0",
+    "reported_used": "8,009.37",
+    "reset_display": "Oct 12, 2026, 05:30 AM GMT+5:30 \u00b7 00:00 UTC"
+  },
+  "provider_status": true,
+  "screenshot": "PaperAI-Automatic-Upload-Live.jpg",
+  "limits": [
+    "No files were imported into the production app for this check.",
+    "Automatic upload processing was tested with a stubbed AI boundary.",
+    "Fresh live handwriting OCR remains blocked by the provider daily free allocation.",
+    "Unseen handwriting and missing source illustrations cannot be guaranteed correct."
+  ]
+}
