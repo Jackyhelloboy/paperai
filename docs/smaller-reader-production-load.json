@@ -1,0 +1,92 @@
+{
+  "started_at": "2026-10-11T17:26:12.304Z",
+  "commit": "3154829a1520c5e63619882d221ba8aed060d0d1",
+  "scope": "Public pages and API; synthetic text only. Maximum 20 concurrent requests. No image-model capacity claim.",
+  "groups": [
+    {
+      "name": "dashboard-5",
+      "requested": 40,
+      "completed": 40,
+      "concurrency": 5,
+      "failures": 0,
+      "statuses": {
+        "200": 40
+      },
+      "p50_ms": 62,
+      "p95_ms": 119,
+      "max_ms": 148,
+      "seconds": 8
+    },
+    {
+      "name": "dashboard-10",
+      "requested": 40,
+      "completed": 40,
+      "concurrency": 10,
+      "failures": 0,
+      "statuses": {
+        "200": 40
+      },
+      "p50_ms": 65,
+      "p95_ms": 114,
+      "max_ms": 149,
+      "seconds": 4
+    },
+    {
+      "name": "dashboard-20",
+      "requested": 40,
+      "completed": 40,
+      "concurrency": 20,
+      "failures": 0,
+      "statuses": {
+        "200": 40
+      },
+      "p50_ms": 74,
+      "p95_ms": 127,
+      "max_ms": 130,
+      "seconds": 2
+    },
+    {
+      "name": "usage",
+      "requested": 40,
+      "completed": 40,
+      "concurrency": 10,
+      "failures": 0,
+      "statuses": {
+        "200": 40
+      },
+      "p50_ms": 250,
+      "p95_ms": 332,
+      "max_ms": 359,
+      "seconds": 4
+    },
+    {
+      "name": "text-upload",
+      "requested": 20,
+      "completed": 20,
+      "concurrency": 5,
+      "failures": 0,
+      "statuses": {
+        "200": 20
+      },
+      "p50_ms": 33,
+      "p95_ms": 62,
+      "max_ms": 63,
+      "seconds": 4
+    }
+  ],
+  "checks": [
+    "Public dashboard contains no provider labels or backend hostname",
+    "/local-ocr-check is unavailable",
+    "/local-ocr-check.html is unavailable",
+    "/api/debug is unavailable",
+    "/api/train/export is unavailable",
+    "/vendor/document-reader.js loads",
+    "/vendor/document-worker.js loads",
+    "/vendor/archive-reader.js loads",
+    "/vendor/sheet-reader.js loads",
+    "/vendor/local-runtime/reader.js loads",
+    "/vendor/local-runtime/reader-worker.js loads"
+  ],
+  "finished_at": "2026-10-11T17:26:36.816Z",
+  "result": "passed"
+}

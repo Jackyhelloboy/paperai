@@ -22,4 +22,4 @@ Previous measured recognition limits remain: complex handwriting and Hindi may b
 
 ## Measured production load
 
-The deployment check for commit `810082e` passed all 180 load requests with zero failures, maximum concurrency 20 and worst-group p95 latency 278 ms. The detailed pipeline artifact is retained at https://github.com/Jackyhelloboy/paperai/actions/runs/38158767700. These measurements cover the stated bounded workload, not maximum capacity.
+The deployment check for commit `3154829` passed all 180 load requests with zero failures, maximum concurrency 20 and worst-group p95 latency 332 ms. The detailed pipeline artifact is retained at https://github.com/Jackyhelloboy/paperai/actions/runs/38159596494. These measurements cover the stated bounded workload, not maximum capacity.

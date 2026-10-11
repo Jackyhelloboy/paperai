@@ -1,19 +1,17 @@
 {
-  "checked_commit": "c76e0991485b00b0c80d4ea3d4bd7f6f841d2773",
-  "production_workflow": "https://github.com/Jackyhelloboy/paperai/actions/runs/38146775726",
+  "checked_commit": "3154829a1520c5e63619882d221ba8aed060d0d1",
+  "production_workflow": "https://github.com/Jackyhelloboy/paperai/actions/runs/38159596494",
   "scope": "Pages, status API and synthetic literal-text uploads; not concurrent image inference",
   "load_requests": 180,
   "failures": 0,
   "maximum_concurrency": 20,
-  "worst_group_p95_ms": 964,
+  "worst_group_p95_ms": 332,
   "regression_suites_passed": 13,
-  "training_files_audited": 42,
-  "training_records_requiring_OCR_or_source_review": 12,
   "browser_checks": {
     "automatic_synthetic_text_upload": "passed",
     "same_origin_presence": "passed",
-    "public_dashboard": "provider-free PaperAI branding",
-    "word_download": "passed",
+    "public_dashboard": "Ready to scan; no quota percentages, download byte counters, provider labels or backend hostname",
+    "word_download": "passed; real production export downloaded and rendered",
     "word_page_size_twips": [
       11906,
       16838
@@ -24,11 +22,33 @@
       "bottom": 720,
       "left": 720
     },
-    "visual_word_review": "One clean page; found bare (5) marks remaining inline, then added a formatting fix and preview/Word regression coverage."
+    "visual_word_review": "One A4 page; table, circle and right-side (5)/(2) marks preserved. Original-image reading removed enhancement damage and word masks removed stray text remnants. Numeral and punctuation recognition still require review.",
+    "automatic_hindi_image_upload": "passed; automatic on-device reading used during confirmed daily block",
+    "automatic_language_detection": "Devanagari detected",
+    "cancel_and_retry": "passed in production"
   },
   "remaining_limits": [
     "Fallback handwriting and Hindi recognition can be inaccurate.",
     "Some source artwork and table borders are raster-preserved.",
     "Client-side code, weights and public repository history remain inspectable."
-  ]
+  ],
+  "prior_training_parser_audit": {
+    "files": 42,
+    "records_requiring_ocr_or_source_review": 12,
+    "scope": "Earlier full parser audit; not handwriting accuracy certification or model fine-tuning."
+  },
+  "reader_setup": {
+    "previous_model_download_mb": 228,
+    "automatic_hindi_staged_assets_mib": 15.42,
+    "language_files_cached": true,
+    "same_origin_assets": true,
+    "primary_scanner_unchanged": true
+  },
+  "production_deployment": {
+    "owner": "GitHub Actions",
+    "serialized": true,
+    "competing_native_production_trigger_disabled": true,
+    "preview_build_recipe_aligned": true,
+    "active_release_checked_before_load_test": true
+  }
 }
