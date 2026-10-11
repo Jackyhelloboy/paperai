@@ -49,5 +49,10 @@ const fixtures={
     ctx.updatePaperWidths(2,'20,80');assert.equal((ctx.lastResult.text.match(/TABLE_WIDTHS/g)||[]).length,1,'Editing a header table added stale widths');
     ctx.removePaperRow(2);assert(!ctx.lastResult.text.includes('TABLE_WIDTHS')&&!ctx.lastResult.text.includes('TABLE_HEADER'),'Removed table left layout settings on the next table');
     ctx.updatePaperWidths(1,'-10,110');assert(ctx.error.includes('positive'));assert(!ctx.lastResult.text.includes('-10'));
+    ctx.lastResult=null;ctx.esc=String;ctx.formatOutputLine=String;ctx.parseBranchBlock=()=>null;ctx.formatSingleAnswerBlankLine=()=>null;ctx.isAnswerBlankContinuationLine=()=>false;
+    vm.runInContext(slice('function worksheetCells','function formatOutput(text)'),ctx);
+    vm.runInContext(slice('function formatOutput(text)','// Successful scanned pages'),ctx);
+    const preview=ctx.formatOutput('I. Answer the questions. 4×½=2\n1. Read the question.');
+    assert(preview.includes('class="ocr-section-marks">4×½=2'),'Plain section marks must also be on the right in the teacher preview');
     console.log('Reference formats: measured fonts, body and heading sizes, spacing, question indents, right marks, native emphasis, unsolved matching, editable grid height and table edits pass.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

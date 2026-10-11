@@ -4629,6 +4629,7 @@ function saveLearning() {
     closeTeachPanel();
     textOut.innerHTML = formatOutput(lastResult.text || '');
     textOut.className = 'output-body';
+    if($('paperLayoutPanel').classList.contains('show'))openPaperLayout();
 
     const learned = pairs.length;
     if (learned) $('statsBar').innerHTML += '<span class="badge badge-gray">' + learned + ' learned</span>';
@@ -5230,7 +5231,7 @@ function formatStructuredWorksheetLine(line, columnWidths=null) {
     if(banner) return sourceFigureHtml(banner[1]);
     if(/^\[\[(?:FOOTER|TABLE_WIDTHS):/i.test(source)) return '<span></span>';
     const section = source.match(/^\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
-    if (section) return '<div class="ocr-section-row"'+(/^\[\[QUESTION_ROW:/i.test(source)?' style="font-weight:normal"':'')+'><span>' +
+    if (section) return '<div class="ocr-section-row"'+(/^\[\[QUESTION_ROW:/i.test(source)?' style="font-weight:normal;font-size:inherit;font-family:inherit"':'')+'><span>' +
         formatOutputLine(section[1].trim()) + '</span><span class="ocr-section-marks">' +
         formatOutputLine(section[2].trim()) + '</span></div>';
     const arithmetic=source.match(/^\[\[ARITHMETIC_ROW:\s*([\s\S]*?)\]\]$/i);
@@ -5372,6 +5373,8 @@ function formatOutput(text) {
         }
 
         const heading = isOutputHeadingLine(line, i, firstNonEmptyIndex);
+        const section=heading&&PaperAILayout.section(line);
+        if(section){html+=formatStructuredWorksheetLine('[[SECTION_ROW: '+section.title+' || '+section.marks+']]');i++;continue;}
         const cls = heading ? 'output-line output-heading' : 'output-line';
         const questionIndent=!heading&&/^\s*\d+[.)]/.test(line)&&paperLayoutOptions().indent;
         html += '<span class="' + cls + '"'+(questionIndent?' style="padding-left:'+100*questionIndent/10466+'%;text-indent:-'+100*Math.min(questionIndent,240)/10466+'%"':'')+'>' + formatOutputLine(line) + '</span>';
