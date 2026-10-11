@@ -4864,7 +4864,7 @@ function portableText(value) {
 
     out = out
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,32).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
-        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|FOOTER):[\s\S]*?\]\]/gi,'')
+        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER):[\s\S]*?\]\]/gi,'')
         .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
             (_,title,marks)=>title.trim()+'    '+marks.trim())
         .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
@@ -5258,11 +5258,11 @@ function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
     if(lastResult?.native_pdf_preview&&text===lastResult.native_pdf_text&&paperLayoutOptions().keepSourcePages)return lastResult.native_pdf_preview;
 
-    const lines = PaperAILayout.compactPages(repairLegacyBranchDiagram(String(text)),paperLayoutOptions().keepSourcePages).split('\n');
+    const lines = PaperAILayout.compactPages(PaperAILayout.normalise(repairLegacyBranchDiagram(String(text))),paperLayoutOptions().keepSourcePages).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     let html = '';
     let i = 0;
-    let pendingTableWidths=null, pendingTableHeader=false;
+    let pendingTableWidths=null, pendingTableHeader=false, pendingTableRegion=null;
 
     while (i < lines.length) {
         const branch = parseBranchBlock(lines, i);
@@ -5273,6 +5273,8 @@ function formatOutput(text) {
         }
 
         const line = lines[i];
+        const tableRegion=String(line).trim().match(/^\[\[TABLE_REGION:\s*([^\]]+)\]\]$/i);
+        if(tableRegion){pendingTableRegion=PaperAILayout.figure(tableRegion[1]);i++;continue;}
         const widthMarker=String(line).match(/^\[\[TABLE_WIDTHS:\s*([\d., ]+)\]\]$/i);
         if(widthMarker){const widths=widthMarker[1].split(',').map(Number);pendingTableWidths=widths.every(x=>Number.isFinite(x)&&x>0)?widths:null;i++;continue;}
         const headerMarker=String(line).match(/^\[\[TABLE_HEADER:\s*([01])\]\]$/i);
@@ -5293,8 +5295,18 @@ function formatOutput(text) {
             tableIndex++;
         }
         if (tableRows.length) {
-            html += worksheetRenderTable(tableRows,pendingTableWidths,pendingTableHeader);
-            pendingTableWidths=null; pendingTableHeader=false;
+            const next=String(lines[tableIndex]||'').trim().match(/^\[\[SOURCE_FIGURE:\s*([^\]]+)\]\]$/i);
+            const asset=next?sourceAsset(PaperAILayout.source(next[1]).id):null;
+            const placement=PaperAILayout.tablePlacement(pendingTableRegion,asset?.region);
+            const table=worksheetRenderTable(tableRows,pendingTableWidths,pendingTableHeader);
+            if(placement?.pictureWidth){
+                const cells=['<div>'+table+'</div>',sourceFigureHtml(next[1])];
+                const widths=[placement.tableWidth,placement.pictureWidth];
+                if(placement.pictureFirst){cells.reverse();widths.reverse();}
+                html+='<div style="display:grid;grid-template-columns:'+widths.map(w=>w/10466*100+'%').join(' ')+';gap:'+placement.gap/10466*100+'%;align-items:start">'+cells.join('')+'</div>';
+                tableIndex++;
+            }else html+=placement?'<div style="width:'+placement.tableWidth/10466*100+'%">'+table+'</div>':table;
+            pendingTableWidths=null; pendingTableHeader=false;pendingTableRegion=null;
             i = tableIndex;
             continue;
         }
@@ -5592,7 +5604,7 @@ function docxVisibleText(value) {
 
     out = out
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,32).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
-        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|FOOTER):[\s\S]*?\]\]/gi,'')
+        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER):[\s\S]*?\]\]/gi,'')
         .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
             (_,title,marks)=>title.trim()+'    '+marks.trim())
         .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
@@ -5912,7 +5924,7 @@ function docxTableCells(rows, widths, options = {}) {
     const bordered=options.bordered!==false, total=widths.reduce((a,b)=>a+b,0);
     const borders='<w:tblBorders>'+['top','bottom','left','right','insideH','insideV'].map(side=>
         '<w:'+side+' w:val="'+(bordered?'single':'nil')+'"'+(bordered?' w:sz="6" w:color="333333"':'')+'/>').join('')+'</w:tblBorders>';
-    const pad=options.grid ? 25 : paperLayoutOptions().compact ? 50 : 90;
+    const pad=options.padding??(options.grid ? 25 : paperLayoutOptions().compact ? 50 : 90);
     const tableRows=rows.map((row,rowIndex)=>{
         const cells=widths.map((width,index)=>{
             const content=row[index]??'';
@@ -6059,7 +6071,7 @@ function buildDocxBody(structuredText) {
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     const body = [];
     let i = 0;
-    let pendingWidths=null, pendingHeader=false;
+    let pendingWidths=null, pendingHeader=false, pendingTableRegion=null;
 
     while (i < lines.length) {
         const branch = parseDocxBranchBlock(lines, i);
@@ -6070,6 +6082,8 @@ function buildDocxBody(structuredText) {
             continue;
         }
         const line = String(lines[i] || '').trim();
+        const tableRegion=line.match(/^\[\[TABLE_REGION:\s*([^\]]+)\]\]$/i);
+        if(tableRegion){pendingTableRegion=PaperAILayout.figure(tableRegion[1]);i++;continue;}
         let sourceFigure=line.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
         if(sourceFigure){body.push(docxSourceRow(worksheetCells(sourceFigure[1],32)));i++;continue;}
         const sourceBanner=line.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
@@ -6152,8 +6166,20 @@ function buildDocxBody(structuredText) {
                 i++;
             }
             const n=Math.max(...rows.map(x=>x.length));
-            body.push(docxTableCells(rows, pendingWidths?.length===n ? pendingWidths : PaperAILayout.tableWidths(rows),{bordered:true,fontSize:24,minHeight:paperLayoutOptions().compact?320:450,repeatHeader:pendingHeader}));
-            pendingWidths=null; pendingHeader=false;
+            const next=String(lines[i]||'').trim().match(/^\[\[SOURCE_FIGURE:\s*([^\]]+)\]\]$/i);
+            const asset=next?sourceAsset(PaperAILayout.source(next[1]).id):null;
+            const placement=PaperAILayout.tablePlacement(pendingTableRegion,asset?.region);
+            const total=placement?.tableWidth||DOCX_CONTENT_W;
+            const widths=pendingWidths?.length===n?pendingWidths.map(w=>Math.round(w*total/DOCX_CONTENT_W)):PaperAILayout.tableWidths(rows,total);
+            const table=docxTableCells(rows,widths,{bordered:true,fontSize:24,minHeight:paperLayoutOptions().compact?320:450,repeatHeader:pendingHeader});
+            if(placement?.pictureWidth){
+                const cells=[{xml:table},{xml:docxRichParagraph('[[SOURCE_FIGURE: '+next[1]+']]',{available:placement.pictureWidth,after:0})}];
+                const outerWidths=[placement.tableWidth,placement.pictureWidth];
+                if(placement.pictureFirst){cells.reverse();outerWidths.reverse();}
+                cells.splice(1,0,'');outerWidths.splice(1,0,placement.gap);
+                body.push(docxTableCells([cells],outerWidths,{bordered:false,padding:0}));i++;
+            }else body.push(table);
+            pendingWidths=null; pendingHeader=false;pendingTableRegion=null;
             continue;
         }
         const matchRows=[];

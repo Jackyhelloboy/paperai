@@ -1938,7 +1938,7 @@ function stripOcrMetadata(text) {
 
   return stripBranchMetadata(String(text))
     .replace(/\[\[(?:FIGURE|FIGURE_ROW):\s*([\s\S]*?)\]\]/gi,(_,body)=>String(body).split(/\s*\|\|\s*/).map(x=>x.split('|')[1]?.trim() || '[illustration]').join('    '))
-    .replace(/\[\[(?:BANNER|TABLE_WIDTHS|TABLE_HEADER|FOOTER):[\s\S]*?\]\]/gi,'')
+    .replace(/\[\[(?:BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER):[\s\S]*?\]\]/gi,'')
     .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
       (_,title,marks)=>title.trim()+'    '+marks.trim())
     .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>

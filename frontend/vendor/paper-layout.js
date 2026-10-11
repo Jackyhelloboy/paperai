@@ -5,7 +5,7 @@
     else root.PaperAILayout = api;
 })(typeof globalThis === 'object' ? globalThis : this, function() {
     const profile = Object.freeze({
-        version: 5, pageWidth: 11906, pageHeight: 16838, margin: 720,
+        version: 6, pageWidth: 11906, pageHeight: 16838, margin: 720,
         font: 'Arial', scriptFont: 'Noto Sans Devanagari',
         bodySize: 24, sectionSize: 26, titleSize: 28, line: 270,
         gridHeight: 460, borderSize: 6, cellPadding: 90,
@@ -73,8 +73,20 @@
         // A bare parenthesized score is a mark only after an instruction's
         // closing punctuation. Do not reinterpret operands such as f(5).
         const m=s.match(new RegExp('^(.+?)\\s+('+equation+'|'+number+'\\s*(?:[mM]|[Mm]arks))\\s*$')) ||
-            s.match(new RegExp('^(.+[.?:])\\s+(\\(\\s*'+number+'\\s*\\))\\s*$'));
+            s.match(new RegExp('^(.+[.?:।॥])\\s+(\\(\\s*'+number+'\\s*\\))\\s*$'));
         return m ? {title:m[1],marks:m[2]} : null;
+    }
+    function tablePlacement(region, figureRegion) {
+        if(!region)return null;
+        const tableWidth=Math.max(600,Math.round(region.w*profile.contentWidth/1000));
+        const overlaps=figureRegion&&Math.min(region.y+region.h,figureRegion.y+figureRegion.h)-Math.max(region.y,figureRegion.y)>0;
+        const right=figureRegion&&figureRegion.x>=region.x+region.w;
+        const left=figureRegion&&figureRegion.x+figureRegion.w<=region.x;
+        if(!overlaps||(!right&&!left))return {tableWidth};
+        const gap=Math.max(120,Math.round((right?figureRegion.x-region.x-region.w:region.x-figureRegion.x-figureRegion.w)*profile.contentWidth/1000));
+        const pictureWidth=Math.max(400,Math.round(figureRegion.w*profile.contentWidth/1000));
+        const scale=Math.min(1,profile.contentWidth/(tableWidth+gap+pictureWidth));
+        return {tableWidth:Math.floor(tableWidth*scale),gap:Math.floor(gap*scale),pictureWidth:Math.floor(pictureWidth*scale),pictureFirst:Boolean(left)};
     }
     function shape(value) {
         const [name, flag='box']=String(value||'').split('|').map(x=>x.trim());
@@ -186,7 +198,7 @@
         return results.sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,12);
     }
     function normalise(text) {
-        const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER';
+        const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
         text=String(text||'').replace(/\[\[TABLE_ROW:\s*(\[\[(?:FIGURE|SOURCE_FIGURE)_ROW:[\s\S]*?\]\])\s*((?:\|\|\s*_?\s*)*)\]\]/gi,'$1');
         const lines=text.split('\n').flatMap(line=>{
@@ -202,6 +214,11 @@
             const split=marker&&section(marker[1]);
             if(split)lines[i]='[[SECTION_ROW: '+split.title+' || '+split.marks+']]';
             else if(marker)lines[i]=marker[1].trim();
+            if(!/^\s*\[\[/.test(lines[i])){
+                const mark=section(lines[i]);
+                if(mark&&/^\s*[0-9०-९]+[.)।]\s*/u.test(mark.title))
+                    lines[i]='[[QUESTION_ROW: '+mark.title+' || '+mark.marks+']]';
+            }
             const question=lines[i].match(/^\s*\[\[QUESTION_ROW:\s*([^|]*?)\]\]\s*$/i);
             if(question)lines[i]=question[1].trim();
         }
@@ -282,5 +299,5 @@
         }
         return lines.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

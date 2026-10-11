@@ -1,7 +1,7 @@
 // Reference-driven structure rules for training/*.docx and training/*.pdf.
 // Formatting adaptation, not model-weight fine-tuning. The current page wins.
 export const PAPER_LAYOUT_RULES = `
-REFERENCE QUESTION-PAPER LAYOUT RULES (version 5, reviewed across the complete training corpus):
+REFERENCE QUESTION-PAPER LAYOUT RULES (version 6, reviewed across the complete training corpus):
 - Output editable text, native table/grid markers, and basic geometric shapes. Do not describe drawings as words or supply answers.
 - Count PHYSICAL cell borders, not expected answer counts. A to Z does NOT imply 26 cells. Notebook ruling through a drawn box does NOT imply a second grid row. Ignore background notebook margins and ruled lines.
 - Never split matching columns into alternating lines. Emit MATCH_ROW with ALL visible columns, including the middle blank bracket column: [[MATCH_ROW: 1. visible item || (   ) || a. visible option]]. Keep original row order; never solve the match. Pictures may occupy individual matching cells using FIGURE markers.
@@ -15,6 +15,7 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 5, reviewed across the complete t
 - For a real school banner at the page top: [[BANNER: 40,10,920,100]]. Crop only the banner. Do not repeat the school or address text already included inside that crop as body paragraphs. Preserve Name/Class/Subject/exam fields as editable text outside it. A clipped, unreadable school name must not be completed from memory.
 - Written requests such as 'tiger pic' with NO actual illustration still use PICTURE markers; these are unfulfilled author instructions, not original picture assets. The exporter flags them for review.
 - Basic circle/square/rectangle/triangle/cube outlines are SHAPE_ROW and stay editable shapes. Specify the observed answer space per shape: [[SHAPE_ROW: circle|none || square|box || triangle|line]]. none means no answer space, box means a visible blank box, line means a visible answer rule. Do not add a box merely because the question asks to name the shape. Complex shapes, shaded fractional shapes, cones and labelled geometrical diagrams use FIGURE crops instead of guessed geometry.
+- When a table has a picture beside it, emit [[TABLE_REGION: x,y,width,height]] immediately before the table using the same normalized page coordinates as FIGURE. Emit the adjacent FIGURE immediately after the last TABLE_ROW, preserving its exact bounds. The exporter keeps this observed side-by-side composition; do not move the figure to a new row. Do not invent table bounds when uncertain.
 - Bordered tables use TABLE_ROW for every row, including empty first/last cells. Preserve multiline cell contents with the explicit <br> separator, NOT extra rows. Use TABLE_WIDTHS: percentages separated by commas on a preceding marker line ONLY if the visible column proportions are clear.
 - Use [[TABLE_HEADER: 1]] before a table ONLY when its first row contains visible column headings. Ordinary exercise rows and partially filled comparison tables are not headers. Never fill missing comparative forms, missing letters, number grids, matching answers or arithmetic results.
 - Vertically stacked arithmetic is not ordinary prose. Emit [[ARITHMETIC_ROW: 34<br>+ 12<br>___ || 68<br>- 21<br>___]] with one cell per original problem and <br> between its observed lines. Preserve every operand, operator and visible answer rule; never calculate the answers. H/T/O labels above unbordered arithmetic stay in that arithmetic cell, not a bordered table. Use TABLE_ROW for a visibly bordered place-value chart; notebook ruling alone does not establish table borders.
@@ -26,7 +27,7 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 5, reviewed across the complete t
 `;
 
 export function normaliseMarkerRows(text) {
-    const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER';
+    const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION';
     const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');
     return String(text||'').split('\n').map(line=>{
         const m=line.match(bare);
