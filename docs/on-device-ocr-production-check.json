@@ -17,7 +17,8 @@
   },
   "reference_checks": {
     "printed_science": "native model inference; Word rendered and inspected",
-    "handwritten_maths": "native model inference; Word rendered and inspected; recognition errors remain"
+    "handwritten_maths": "native model inference; Word rendered and inspected; recognition errors remain",
+    "handwritten_hindi": "first-page region from class 2 hindi.pdf tested with native inference; garbled Hindi recognition, so default-model parity is not achieved"
   },
   "automated_suites_passed": 12,
   "routing_checks": [
