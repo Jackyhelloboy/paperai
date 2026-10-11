@@ -2551,10 +2551,13 @@ function docxStructuredXml(xmlText, media = {}, numbering = {}) {
         const cols = Math.max(...rows.map(row=>row.length));
         const borders=children(child).find(x=>tag(x)==='tblPr')?.getElementsByTagNameNS(ns,'tblBorders')[0];
         const borderless=!!borders&&children(borders).every(x=>['nil','none','0'].includes(x.getAttributeNS(ns,'val')));
-        if(borderless&&rows.length===1&&cols===2&&/^\s*(?:[IVXLCDM]+[. )]|\d+[.)])/.test(rows[0][0])&&/^[\d०-९.,×xX*+÷/=()½¼¾\s]+(?:M|Marks?)?\.?$/i.test(rows[0][1])){
+        if(borderless&&rows.length===1&&cols===2&&(/^\s*(?:[IVXLCDM]+[. )]|\d+[.)])/.test(rows[0][0])||/(?:M|Marks?)\.?$/i.test(rows[0][1]))&&/^[\d०-९.,×xX*+÷/=()½¼¾\s]+(?:M|Marks?)?\.?$/i.test(rows[0][1])){
             results.push('[['+(/^[IVXLCDM]/.test(rows[0][0])?'SECTION_ROW':'QUESTION_ROW')+': '+rows[0].join(' || ')+']]');continue;
         }
-        if(borderless&&cols>=2&&cols<=3&&rows.every(row=>row.length===cols&&(/\(\s*\)/.test(row[1])||cols===2))){
+        if(borderless&&cols>=2&&cols<=32&&rows.every(row=>row.length===cols)){
+            const grid=children(child).find(x=>tag(x)==='tblGrid');
+            const widths=grid?children(grid).filter(x=>tag(x)==='gridCol').map(x=>Number(x.getAttributeNS(ns,'w'))):[];
+            if(widths.length===cols&&widths.every(x=>x>0))results.push('[[TABLE_WIDTHS: '+widths.join(',')+']]');
             rows.forEach(row=>results.push('[[MATCH_ROW: '+row.join(' || ')+']]'));continue;
         }
         const empty = rows.every(row=>row.every(cell=>!cell));
@@ -5195,7 +5198,7 @@ function worksheetRenderTable(rows, widths=null, header=false) {
     }).join('');
     return '<div class="ocr-layout-scroll"><table class="ocr-worksheet-table">'+(widths?.length===columns?'<colgroup>'+widths.map(w=>'<col style="width:'+w/widths.reduce((a,b)=>a+b,0)*100+'%">').join('')+'</colgroup>':'')+'<tbody>' + content + '</tbody></table></div>';
 }
-function formatStructuredWorksheetLine(line) {
+function formatStructuredWorksheetLine(line, columnWidths=null) {
     const source = String(line || '').trim();
     const figure=source.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
     if(figure) {
@@ -5225,7 +5228,7 @@ function formatStructuredWorksheetLine(line) {
     }
     found = source.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\]\]$/i);
     if (found) {
-        const cells=worksheetCells(found[1],32), widths=PaperAILayout.tableWidths([cells]);
+        const cells=worksheetCells(found[1],32), widths=columnWidths?.length===cells.length?columnWidths:PaperAILayout.tableWidths([cells]);
         return '<div class="ocr-match-row" style="grid-template-columns:'+widths.map(w=>w+'fr').join(' ')+'">'+
             cells.map(cell=>'<div class="ocr-match-cell">'+String(cell).split(/<br>/i).map(formatOutputLine).join('<br>')+'</div>').join('')+'</div>';
     }
@@ -5310,6 +5313,19 @@ function formatOutput(text) {
             pendingTableWidths=null; pendingTableHeader=false;
             i = tableIndex;
             continue;
+        }
+        const matchingRows=[];
+        let matchingIndex=i;
+        while(matchingIndex<lines.length){
+            const row=String(lines[matchingIndex]).trim().match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\]\]$/i);
+            if(!row)break;
+            matchingRows.push(worksheetCells(row[1],32));matchingIndex++;
+        }
+        if(matchingRows.length){
+            const count=Math.max(...matchingRows.map(row=>row.length));
+            const widths=pendingTableWidths?.length===count?pendingTableWidths:PaperAILayout.tableWidths(matchingRows);
+            html+=matchingRows.map(row=>formatStructuredWorksheetLine('[[MATCH_ROW: '+row.join(' || ')+']]',widths)).join('');
+            pendingTableWidths=null;pendingTableHeader=false;i=matchingIndex;continue;
         }
         const structuredLine = formatStructuredWorksheetLine(line);
         if (structuredLine) {
@@ -5671,7 +5687,7 @@ function openPaperLayout() {
     $('paperInsertAfter').innerHTML=lines.map((line,i)=>'<option value="'+i+'" '+(i===lines.length-1?'selected':'')+'>'+esc((i+1)+'. '+portableText(line).slice(0,70))+'</option>').join('');
     $('paperPictures').innerHTML=extractedMedia.map((asset,i)=>
         '<fieldset style="margin:1rem 0;border:1px solid var(--border);padding:.7rem"><legend>'+ (asset.role==='banner'?'Source banner':'Picture '+(i+1))+'</legend><img src="'+esc(asset.dataUrl)+'" style="max-width:180px;max-height:180px;object-fit:contain" alt="Original picture"><div style="display:flex;gap:.7rem;flex-wrap:wrap">'+
-        '<label>Width in cm <input type="number" min=".5" max="18.46" step=".1" value="'+((asset.widthTwips||2260)/567).toFixed(1)+'" onchange="setPaperPicture('+i+',\'width\',this.value)"></label>'+
+        '<label>Width in cm <input type="number" min=".5" max="18.46" step=".1" value="'+((asset.widthTwips||2260)/567).toFixed(1)+'" oninput="setPaperPicture('+i+',\'width\',this.value)"></label>'+
         '<label>Alignment <select onchange="setPaperPicture('+i+',\'align\',this.value)">'+['left','center','right'].map(a=>'<option '+((asset.align||'center')===a?'selected':'')+'>'+a+'</option>').join('')+'</select></label>'+
         '<label>Replace picture <input type="file" accept="image/png,image/jpeg,image/webp" onchange="replacePaperPicture('+i+',this.files[0])"></label></div>'+
         (asset.sourceDataUrl?paperCropEditor(asset,i):'')+'</fieldset>').join('');
@@ -5832,9 +5848,9 @@ function docxTableCells(rows, widths, options = {}) {
             const inner=typeof content==='string' ? String(content).split(/<br>/i).map(value=>docxRichParagraph(value,{
                 size:options.fontSize||24, after:0, center:options.center, right:options.right,
                 bold:options.repeatHeader&&rowIndex===0,
-                keepNext:options.keepNext
+                keepNext:options.keepNext, available:Math.max(1,width-2*pad)
             })).join('') : String(content.xml||docxParagraph('',{after:0}));
-            return '<w:tc><w:tcPr><w:tcW w:w="'+width+'" w:type="dxa"/><w:vAlign w:val="'+(options.grid?'center':'top')+'"/>'+
+            return '<w:tc><w:tcPr><w:tcW w:w="'+width+'" w:type="dxa"/><w:vAlign w:val="'+(options.grid||options.centerVertically?'center':'top')+'"/>'+
                 '<w:tcMar>'+['top','bottom','left','right'].map(side=>'<w:'+side+' w:w="'+pad+'" w:type="dxa"/>').join('')+'</w:tcMar></w:tcPr>'+inner+'</w:tc>';
         }).join('');
         return '<w:tr><w:trPr><w:cantSplit/>'+(options.repeatHeader&&rowIndex===0?'<w:tblHeader/>':'')+
@@ -5927,6 +5943,15 @@ function docxGrid(columns, rows, cells = []) {
 }
 function docxRichParagraph(raw, options = {}) {
     // Embedded pictures stay real replaceable Word drawings even when inline.
+    const standalone=String(raw||'').trim().match(/^\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]$/i);
+    if(standalone){
+        const item=PaperAILayout.source(standalone[1]), asset=sourceAsset(item.id);
+        return '<w:p><w:pPr><w:jc w:val="'+(asset?.align||'center')+'"/>'+
+            (options.keepNext?'<w:keepNext/>':'')+'<w:spacing w:after="'+(options.after??70)+'"/></w:pPr>'+
+            docxSourceRun(item.id,options.available||DOCX_CONTENT_W,4400)+'</w:p>'+
+            (item.caption?docxParagraph(item.caption,{size:options.size||24,after:0}):'')+
+            (item.answer?docxAnswerBoxParagraph():'');
+    }
     const tokens = String(raw || '').split(/(\[\[(?:PICTURE(?:_OPTION)?|SOURCE_FIGURE|SHAPE_ROW|ANSWER_LINES):\s*[\s\S]*?\]\])/gi);
     if (tokens.length === 1) return docxParagraph(docxVisibleText(raw),options);
     const runs = tokens.map(token => {
@@ -5937,7 +5962,7 @@ function docxRichParagraph(raw, options = {}) {
         }).join('');
         if(/^\[\[ANSWER_LINES:/i.test(token))return docxRun('________',{size:options.size||24});
         const recovered=token.match(/^\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]$/i);
-        if(recovered){const item=PaperAILayout.source(recovered[1]);return docxSourceRun(item.id,2400,2200)+docxRun(item.caption+(item.answer?'  ☐':''),{size:24});}
+        if(recovered){const item=PaperAILayout.source(recovered[1]);return docxSourceRun(item.id,options.available||2400,2200)+docxRun(item.caption+(item.answer?'  ☐':''),{size:24});}
         const picture = token.match(/^\[\[(PICTURE|PICTURE_OPTION):\s*([\s\S]*?)\]\]$/i);
         if (!picture) return docxRun(docxVisibleText(token),{size:options.size || 22,bold:!!options.bold});
         return docxRun('[picture needs review] ' + picture[2].trim() +
@@ -6058,7 +6083,9 @@ function buildDocxBody(structuredText) {
             i++;
         }
         if(matchRows.length){
-            body.push(docxTableCells(matchRows,PaperAILayout.tableWidths(matchRows),{bordered:false,fontSize:24,minHeight:paperLayoutOptions().compact?300:400}));
+            const count=Math.max(...matchRows.map(row=>row.length));
+            body.push(docxTableCells(matchRows,pendingWidths?.length===count?pendingWidths:PaperAILayout.tableWidths(matchRows),{bordered:false,fontSize:24,minHeight:paperLayoutOptions().compact?300:400,centerVertically:matchRows.some(row=>row.some(cell=>/\[\[SOURCE_FIGURE:/i.test(cell)))}));
+            pendingWidths=null;pendingHeader=false;
             continue;
         }
         const raw=lines[i];

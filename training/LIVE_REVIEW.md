@@ -34,6 +34,21 @@ The four automatic DOCX downloads were rendered, and all 18 resulting pages were
 
 ## Validation and remaining work
 
+An additional production Word-import/edit/export check exposed picture-width
+edits that had not committed on input and standalone pictures in matching cells
+that ignored alignment. Width changes now commit as they are entered, and native
+Word picture paragraphs honor their alignment and measured available cell width.
+Picture exercises vertically center adjacent numbers and answer blanks. Matching
+preview/export rows share consistent column proportions; Word reimport retains
+borderless picture exercises and their unequal widths instead of adding borders.
+
+`out/PaperAI-UKG-Maths-Reviewed.docx` and its PDF are a manually source-checked,
+one-page target for the first maths scan. All five counting groups retain original
+pixels, the 50-cell number grid is native, marks are on the right, and the matching
+rows remain unsolved. The exact transcription/crops and a reproducible exporter
+script are under `gold/ukg-maths/` and `build-reviewed-maths.cjs`. This reviewed
+sample does not certify automatic OCR on the other maths pages.
+
 Seven regression suites pass: worksheet preview/export, PDF page-image Word, measured editable PDF, Word import, editable paper, question-paper model and scan resume. The complete corpus parser audit also ran on all 42 original records. Deployment checks are recorded on GitHub Actions. The two-page layout fixture was rendered and both pages inspected; it verifies formatting mechanisms, not OCR accuracy.
 
 Automatic illustration boundaries remain the main unresolved accuracy issue. Valid coordinates alone do not prove that the correct illustration was cropped. Dense handwritten arithmetic and handwritten corrections also remain imperfect. These need visual teacher review and a further live rerun after the daily free service becomes available. Arbitrary Word merges, complex PDF clipping and scanned diagrams are not certified as completely editable reconstructions. Complex scanned art remains an editable image object.

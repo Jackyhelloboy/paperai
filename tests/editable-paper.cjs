@@ -54,6 +54,13 @@ const fixture=[
     assert.equal((xml.match(/<w:tbl>/g)||[]).length,12,'Consecutive grid rows should form one native table');
     assert(!Object.keys(zip.files).some(x=>x.includes('default-picture')),'Generic images must not replace source drawings');
     assert.equal((await zip.file('word/media/rIdSource1.png').async('base64')),png,'Source pixels must remain unchanged');
+    vm.runInContext("extractedMedia[0].widthTwips=1814;extractedMedia[0].align='right';",ctx);
+    const edited=ctx.buildDocxBody('[[MATCH_ROW: [[SOURCE_FIGURE: source-1| |none]] || ______]]');
+    assert(edited.includes('cx="1151890"'),'A teacher-selected picture width must survive inside a matching cell');
+    assert(/<w:jc w:val="right"\/>[\s\S]*?<wp:inline/.test(edited),'A standalone picture in a matching cell must honor its alignment');
+    const countRow=ctx.buildDocxBody('[[TABLE_WIDTHS: 5,50,45]]\n[[MATCH_ROW: 1. || [[SOURCE_FIGURE: source-1| |none]] || = ______]]');
+    assert(countRow.includes('<w:gridCol w:w="523"/>'),'Observed narrow number columns must retain their proportions');
+    assert.equal((countRow.match(/<w:vAlign w:val="center"\/>/g)||[]).length,3,'Question numbers and blank answers must align vertically with their picture');
     const rels=await zip.file('word/_rels/document.xml.rels').async('text');
     assert(rels.includes('rIdSource1')&&rels.includes('media/rIdSource1.png'));
     const widths=Layout.tableWidths([['Name','Long detailed materials column','Tool']],10466);

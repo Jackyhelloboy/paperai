@@ -1,0 +1,25 @@
+DHARMARAM ❀ VELGATOOR ❀ NASPUR ❀ LUXETTIPET ❀ MEDARIPET ❀ GOLLAPALLY
+ANSWER SHEET
+Name: Formative Assessment - 1     Class: UKG     Roll No: ______
+[[QUESTION_ROW: Sub: Maths.     Name of the Examination: ______ || 25m]]
+[[SECTION_ROW: I. Write the numbers from 1-50 || 10M]]
+[[GRID: 10x5]]
+[[SECTION_ROW: II. Count and write the correct number || 5x1=5]]
+[[TABLE_WIDTHS: 5,50,45]]
+[[MATCH_ROW: 1. || [[SOURCE_FIGURE: count-row-1| |none]] || = __________]]
+[[MATCH_ROW: 2. || [[SOURCE_FIGURE: count-row-2| |none]] || = __________]]
+[[MATCH_ROW: 3. || [[SOURCE_FIGURE: count-row-3| |none]] || = __________]]
+[[MATCH_ROW: 4. || [[SOURCE_FIGURE: count-row-4| |none]] || = __________]]
+[[MATCH_ROW: 5. || [[SOURCE_FIGURE: count-row-5| |none]] || = __________]]
+[[SECTION_ROW: III. Write the numbers in words || 5x1=5]]
+1. 5 = __________________
+2. 8 = __________________
+3. 10 = _________________
+4. 3 = __________________
+5. 12 = _________________
+[[SECTION_ROW: IV. Match the following || 5x1=5]]
+[[MATCH_ROW: 1. Thirteen || 15]]
+[[MATCH_ROW: 2. Twenty || 13]]
+[[MATCH_ROW: 3. Nineteen || 20]]
+[[MATCH_ROW: 4. Sixteen || 19]]
+[[MATCH_ROW: 5. Fifteen || 16]]

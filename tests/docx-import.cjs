@@ -40,7 +40,11 @@ assert.equal(lists,'1. Leaves\n2. Bamboo','Native Word list numbers must remain 
 const cell=text=>'<w:tc><w:p><w:r><w:t>'+text+'</w:t></w:r></w:p></w:tc>';
 const invisible='<w:tblPr><w:tblBorders><w:top w:val="nil"/><w:bottom w:val="nil"/><w:left w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders></w:tblPr>';
 assert.equal(ctx.docxStructuredXml(wrap('<w:tbl>'+invisible+'<w:tr>'+cell('IV. Write the words.')+cell('5 × 2 = 10M')+'</w:tr></w:tbl>')),'[[SECTION_ROW: IV. Write the words. || 5 × 2 = 10M]]');
+assert.equal(ctx.docxStructuredXml(wrap('<w:tbl>'+invisible+'<w:tr>'+cell('Sub: Maths.')+cell('25m')+'</w:tr></w:tbl>')),'[[QUESTION_ROW: Sub: Maths. || 25m]]','Explicit total marks must retain their right-side column');
 assert.equal(ctx.docxStructuredXml(wrap('<w:tbl>'+invisible+'<w:tr>'+cell('1. Leaf')+cell('(   )')+cell('b. Root')+'</w:tr></w:tbl>')),'[[MATCH_ROW: 1. Leaf || (   ) || b. Root]]');
+const countTable=ctx.docxStructuredXml(wrap('<w:tbl>'+invisible+'<w:tblGrid><w:gridCol w:w="500"/><w:gridCol w:w="5000"/><w:gridCol w:w="4966"/></w:tblGrid><w:tr>'+cell('1.')+cell('[[SOURCE_FIGURE: count-row-1| |none]]')+cell('= ______')+'</w:tr></w:tbl>'));
+assert(countTable.startsWith('[[TABLE_WIDTHS: 500,5000,4966]]'),'Unequal borderless column widths must survive reimport');
+assert(countTable.includes('[[MATCH_ROW:')&&!countTable.includes('[[TABLE_ROW:'),'Picture counting rows must not acquire borders');
 ctx.extractedMedia=[];ctx.DOCX_CONTENT_W=10466;
 const drawing=width=>'<w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:drawing xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><wp:inline><wp:extent cx="'+width*635+'" cy="635000"/><a:blip r:embed="rIdImage"/></wp:inline></w:drawing></w:r></w:p>';
 ctx.docxStructuredXml(wrap(drawing(1800)+drawing(3200)),{rIdImage:{id:'original',dataUrl:'same-source-pixels',w:100,h:80}});

@@ -1,0 +1,76 @@
+{
+  "kind": "manually-reviewed-reference",
+  "source": "training/maths.pdf",
+  "page": 1,
+  "source_pixels": [
+    952,
+    1348
+  ],
+  "grid": {
+    "columns": 10,
+    "rows": 5
+  },
+  "counting_rows": [
+    {
+      "question": 1,
+      "asset": "count-row-1.png",
+      "pixel_box": [
+        130,
+        492,
+        484,
+        565
+      ],
+      "width_cm": 6.73
+    },
+    {
+      "question": 2,
+      "asset": "count-row-2.png",
+      "pixel_box": [
+        128,
+        565,
+        433,
+        604
+      ],
+      "width_cm": 5.79
+    },
+    {
+      "question": 3,
+      "asset": "count-row-3.png",
+      "pixel_box": [
+        130,
+        606,
+        474,
+        642
+      ],
+      "width_cm": 6.54
+    },
+    {
+      "question": 4,
+      "asset": "count-row-4.png",
+      "pixel_box": [
+        133,
+        650,
+        307,
+        710
+      ],
+      "width_cm": 3.31
+    },
+    {
+      "question": 5,
+      "asset": "count-row-5.png",
+      "pixel_box": [
+        207,
+        715,
+        271,
+        760
+      ],
+      "width_cm": 1.22
+    }
+  ],
+  "notes": [
+    "Five question rows retain their complete repeated-object groups as original raster crops.",
+    "Counts and matching answers are not supplied.",
+    "The clipped school title is not reconstructed.",
+    "This target demonstrates a reviewed layout, not a successful new automatic OCR run."
+  ]
+}
