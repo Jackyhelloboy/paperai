@@ -6,6 +6,8 @@ on:
     paths:
       - 'worker/**'
       - '.github/workflows/deploy-worker.yml'
+      - '.github/scripts/check-gemini.cjs'
+      - 'tests/gemini-deployment.cjs'
   workflow_dispatch:
 
 concurrency:
@@ -26,6 +28,7 @@ jobs:
         run: |
           node tests/ai-quota.cjs
           node tests/gemini-fallback.cjs
+          node tests/gemini-deployment.cjs
 
       - name: Check the supplied backup secret securely
         env:

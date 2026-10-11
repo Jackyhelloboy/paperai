@@ -1,14 +1,44 @@
-// A minimal live credential/model check. Never print keys or upstream bodies.
-const key=String(process.env.GEMINI_API_KEY||'').trim();
-if(!key){console.log('Live backup check skipped: no deployment secret supplied. Routing regression tests use fixtures.');process.exit(0);}
-(async()=>{
-  const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',{
-    method:'POST',redirect:'error',headers:{'Content-Type':'application/json','X-goog-api-key':key},
-    body:JSON.stringify({contents:[{parts:[{text:'Return exactly this text, with no explanation: PaperAI connection verified'}]}],
-      generationConfig:{temperature:0,maxOutputTokens:4096}}),signal:AbortSignal.timeout(90000)});
-  if(!response.ok)throw new Error('Backup credential/model check failed (HTTP '+response.status+'). Check the secret, API access and account limits.');
-  const body=await response.json(),candidate=body.candidates?.[0];
-  const text=(candidate?.content?.parts||[]).filter(p=>!p.thought&&typeof p.text==='string').map(p=>p.text).join('');
-  if(candidate?.finishReason!=='STOP'||!text.includes('PaperAI connection verified'))throw new Error('Backup returned an incomplete connection check.');
-  console.log('Live backup credential and configured model verified. No source documents uploaded by this check.');
-})().catch(error=>{console.error(error.name==='TimeoutError'?'Backup connection check timed out.':error.message);process.exitCode=1;});
+// Deployment-only check. Credentials stay in headers; never print upstream bodies.
+const https=require('node:https');
+const origin='https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest';
+const networkCodes=new Set(['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH']);
+function requestJson(url,key,payload,timeoutMs,requestImpl=https.request){
+  return new Promise((resolve,reject)=>{
+    // The deployment runner uses IPv4 explicitly; Workers use their own fetch.
+    const body=payload?JSON.stringify(payload):null;
+    const req=requestImpl(url,{method:body?'POST':'GET',family:4,
+      headers:{'X-goog-api-key':key,...(body?{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}:{})},
+      signal:AbortSignal.timeout(timeoutMs)},response=>{
+      const chunks=[];let size=0;
+      response.on('data',chunk=>{size+=chunk.length;if(size>2*1024*1024){req.destroy();reject(new Error('Invalid check response.'));}else chunks.push(chunk);});
+      response.on('error',()=>reject(new Error('Check response interrupted.')));
+      response.on('end',()=>{
+        // Do not follow redirects carrying the credential header.
+        if(response.statusCode<200||response.statusCode>=300){reject(new Error('Credential/model check failed (HTTP '+response.statusCode+'). Check API access, key restrictions and account limits.'));return;}
+        try{resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));}catch(_){reject(new Error('Invalid check response.'));}
+      });
+    });
+    req.on('error',error=>reject(new Error(error.name==='AbortError'?'Connection timed out.':
+      'Connection failed'+(networkCodes.has(error.code)?' ('+error.code+')':'')+'.')));
+    req.end(body);
+  });
+}
+async function check(key,{request=requestJson,log=console.log}={}){
+  key=String(key||'').trim();
+  if(!key){log('Live backup check skipped: no deployment secret supplied. Routing regression tests use fixtures.');return;}
+  try{
+    const model=await request(origin,key,null,15000);
+    if(!model.supportedGenerationMethods?.includes('generateContent'))throw new Error('Configured model does not support generation.');
+    log('Backup credential and model metadata verified; checking text generation.');
+  }catch(error){throw new Error('Backup metadata check: '+error.message);}
+  try{
+    const result=await request(origin+':generateContent',key,{contents:[{parts:[{text:'Return exactly this text, with no explanation: PaperAI connection verified'}]}],
+      generationConfig:{temperature:0,maxOutputTokens:4096}},90000);
+    const candidate=result.candidates?.[0];
+    const text=(candidate?.content?.parts||[]).filter(p=>!p.thought&&typeof p.text==='string').map(p=>p.text).join('');
+    if(result.promptFeedback?.blockReason||candidate?.finishReason!=='STOP'||!text.includes('PaperAI connection verified'))throw new Error('Incomplete connection check.');
+    log('Live backup credential and configured model verified. No source documents uploaded by this check.');
+  }catch(error){throw new Error('Backup generation check: '+error.message);}
+}
+if(require.main===module)check(process.env.GEMINI_API_KEY).catch(error=>{console.error(error.message);process.exitCode=1;});
+module.exports={check,requestJson};
