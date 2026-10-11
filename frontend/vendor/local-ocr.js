@@ -37,7 +37,7 @@
         // Remove recognized source glyphs only. Unread text, drawings, boxes and table
         // borders remain source pixels, so the fallback never invents an illustration.
         context.fillStyle='#ffffff';
-        for(const r of result.regions)for(const box of r.erase||[r])context.fillRect(box.x,box.y,box.w,box.h);
+        for(const r of result.regions)for(const box of r.erase||[r])context.fillRect(Math.max(0,box.x-1),Math.max(0,box.y-1),box.w+2,box.h+2);
         const scene=PaperAILocalLayout.scene(result.regions,result.width,result.height,canvas.toDataURL('image/png'));
         canvas.width=canvas.height=0;return scene;
     }

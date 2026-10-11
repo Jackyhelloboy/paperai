@@ -4631,23 +4631,38 @@ async function sendFileToWorker(inputFile, signal) {
     return body;
 }
 
-async function scanOnDevice(prepared, signal, progressText='') {
+async function scanOnDevice(prepared, signal, progressText='', sourceBlob=prepared.blob) {
+    // Enhancement tuned for handwriting can damage Indic strokes. Keep original
+    // pixels for this reader, limiting only the dimensions for phone memory.
+    const bitmap=await createImageBitmap(sourceBlob);
+    let readerBlob=sourceBlob;
+    try {
+        if(Math.max(bitmap.width,bitmap.height)>2600){
+            const scale=2600/Math.max(bitmap.width,bitmap.height),canvas=document.createElement('canvas');
+            canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
+            const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);
+            context.drawImage(bitmap,0,0,canvas.width,canvas.height);
+            readerBlob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+            canvas.width=canvas.height=0;
+            if(!readerBlob)throw new Error('Could not prepare this image. Please retry.');
+        }
+    } finally {bitmap.close();}
     setProg(18,'Preparing to read your paper…');
-    const local=await PaperAILocalOCR.recognize(prepared.blob,{signal,language:languageSelect.value||'auto',onProgress:p=>{
+    const local=await PaperAILocalOCR.recognize(readerBlob,{signal,language:languageSelect.value||'auto',onProgress:p=>{
         const stage = p.stage==='scan' ? 'Reading text…' : p.stage==='detect' ? 'Identifying document language…' :
             'Preparing reader · small first-use files are saved for future scans';
         setProg(18,(progressText?progressText+' · ':'')+stage);
     }});
     const plain=PaperAILocalLayout.plainText(local.regions);
-    const nativeScene=await PaperAILocalOCR.page(prepared.blob,local);
-    const annotated=await recoverSourceFigures(PaperAILayout.reconcileEmptyGrids(PaperAILayout.normalise(plain),prepared.meta?.detectedGrids||[]),prepared.blob);
+    const nativeScene=await PaperAILocalOCR.page(readerBlob,local);
+    const annotated=await recoverSourceFigures(PaperAILayout.normalise(plain),readerBlob);
     return {status:'completed',result:{annotated_text:annotated,full_text:plain,raw_text:plain,native_scene:nativeScene,engine:'backup-reader'}};
 }
 
 async function sendToOCR(sourceBlob, signal, progressText = '') {
     const quota = await loadUsage();
     let prepared = await prepareImageForOCR(sourceBlob, false);
-    if (quota.blocked) return scanOnDevice(prepared, signal, progressText);
+    if (quota.blocked) return scanOnDevice(prepared, signal, progressText, sourceBlob);
 
     if (progressText) {
         const lines = Number(prepared.meta?.lineCount) || 0;
@@ -4691,7 +4706,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
 
         if (PaperAIQuota.isDailyError(body)) {
             rememberQuotaBlock(body);
-            return scanOnDevice(prepared, signal, progressText);
+            return scanOnDevice(prepared, signal, progressText, sourceBlob);
         }
         if (res.status === 429 || body?.code === 'AI_BUSY') {
             throw new Error('PaperAI is temporarily busy. Please try again shortly.');

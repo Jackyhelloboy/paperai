@@ -26,7 +26,7 @@ assert(html.includes('<h1>Extract text from anything</h1>'));assert(!html.includ
 assert(!/id="(?:modelSelect|switchModel|createPaperBtn)"/.test(html));
 assert(!/id="(?:quotaRemaining|quotaUsed|quotaTrack|quotaPercent|quotaReset)"/.test(html),'Dashboard must not show shared daily percentages as paper progress');
 assert(!html.includes('228 MB')&&!html.includes('MB downloaded'));
-assert(html.includes('if (quota.blocked) return scanOnDevice(prepared, signal, progressText)'));
+assert(html.includes('if (quota.blocked) return scanOnDevice(prepared, signal, progressText, sourceBlob)'));
 assert(html.includes('pages[i].ocrScene=saved.nativeScene||null'));
 
 async function lifecycle(){

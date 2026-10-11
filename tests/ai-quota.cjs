@@ -95,22 +95,23 @@ const code = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].fin
 const slice = (a, b) => code.slice(code.indexOf(a), code.indexOf(b, code.indexOf(a) + 1));
 async function frontend() {
     let prepares = 0, requests = 0, localCalls=0, response;
+    const originalPhoto=new Blob(['original photo']);
     const ui = vm.createContext({ PaperAIQuota: Quota, Blob, FormData, languageSelect: { value: 'auto' },
-        scanOnDevice: async () => {localCalls++;return {status:'completed',local:true};}, rememberQuotaBlock(){}, loadUsage: async () => ({ blocked: true, resetAt: report.reset_at }), quotaFailure: () => Object.assign(new Error('quota stopped'), { code: 'FREE_AI_LIMIT_REACHED' }),
+        scanOnDevice: async (prepared,signal,progress,original) => {assert.equal(original,originalPhoto,'Both quota fallback paths must use original pixels');localCalls++;return {status:'completed',local:true};}, rememberQuotaBlock(){}, loadUsage: async () => ({ blocked: true, resetAt: report.reset_at }), quotaFailure: () => Object.assign(new Error('quota stopped'), { code: 'FREE_AI_LIMIT_REACHED' }),
         prepareImageForOCR: async () => { prepares++; return { blob: new Blob(['page']), meta: {} }; },
         fetchOcrEndpoint: async () => { requests++; return response; }, appendLearningHints() {}, setProg() {}, wait: async () => {} });
     vm.runInContext(slice('async function sendToOCR', 'function publicPlainTextFromStructured'), ui);
-    assert.equal((await ui.sendToOCR(new Blob(['page']))).local,true);
+    assert.equal((await ui.sendToOCR(originalPhoto)).local,true);
     assert.equal(prepares, 1); assert.equal(localCalls,1); assert.equal(requests, 0, 'Known quota failure uses on-device OCR without cloud upload');
     ui.loadUsage = async () => ({ blocked: false });
     response = Response.json({ code: 'AI_BUSY' }, { status: 429 });
-    await assert.rejects(() => ui.sendToOCR(new Blob(['page'])), /temporarily busy/);
+    await assert.rejects(() => ui.sendToOCR(originalPhoto), /temporarily busy/);
     assert.equal(requests, 1);
     response = Response.json({ code: 'FREE_AI_LIMIT_REACHED' }, { status: 429 });
-    assert.equal((await ui.sendToOCR(new Blob(['page']))).local,true);assert.equal(localCalls,2);
+    assert.equal((await ui.sendToOCR(originalPhoto)).local,true);assert.equal(localCalls,2);
     ui.PaperAILayout={normalise:s=>s,reconcileEmptyGrids:s=>s};ui.recoverSourceFigures=async s=>s;ui.portableText=s=>s;ui.docxVisibleText=s=>s;
     response=Response.json({status:'completed',result:{full_text:'1. Name the planet.',engine:'default-cloud-model'}});
-    assert.equal((await ui.sendToOCR(new Blob(['page']))).result.engine,'default-cloud-model');
+    assert.equal((await ui.sendToOCR(originalPhoto)).result.engine,'default-cloud-model');
     assert.equal(localCalls,2,'An unblocked upload returns to the default model without using the local worker');
     let urls = [];
     const proxy = vm.createContext({ API_LOCAL: 'https://paperai.test',
@@ -123,7 +124,7 @@ async function frontend() {
     await assert.rejects(()=>proxy.fetchOcrEndpoint('/api/ocr',{}),/network interrupted/);
     assert.equal(urls.length,1,'Ambiguous network failures must never resubmit an upload');
     let networkCalls=0;ui.fetchOcrEndpoint=async()=>{networkCalls++;throw new Error('offline');};
-    await assert.rejects(()=>ui.sendToOCR(new Blob(['page'])),/Could not reach/);
+    await assert.rejects(()=>ui.sendToOCR(originalPhoto),/Could not reach/);
     assert.equal(networkCalls,1);
 
     const fields = {};

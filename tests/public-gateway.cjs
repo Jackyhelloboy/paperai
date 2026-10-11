@@ -50,3 +50,5 @@ async function gateway(path,upstream,options={}){
   assert(build.includes("'local-ocr-check.html'"));assert(build.includes("'_worker.js'"));assert(build.includes("include:['/api/*'"));
   console.log('Public gateway: same-origin uploads, literal content preserved, private metadata/errors removed, socket upgrade retained, unknown routes blocked, diagnostic excluded.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+assert(fs.readFileSync('.github/scripts/build-pages.cjs','utf8').includes('/vendor/local-ocr-worker.mjs'), 'Retired reader route must return 404 rather than the default dashboard fallback');

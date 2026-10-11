@@ -14,7 +14,7 @@ The cold automatic Hindi setup totals approximately 15.4 MiB of staged JavaScrip
 
 ## Layout and cancellation
 
-Sparse text detection retains isolated right-side marks. Word boxes are grouped into lines while large horizontal gaps keep marks and matching columns separate. Only recognized word rectangles are removed from the source background, preserving artwork and rules in the intervening whitespace. Native Word text uses source coordinates; A4 portrait and 0.5-inch margins remain in effect.
+The backup reads original pixels, resized only when the longest dimension exceeds 2600 pixels; enhancement intended for the server scanner must not damage Indic strokes or alter source geometry. Sparse text detection retains isolated right-side marks. Word boxes are grouped into lines while large horizontal gaps keep marks and matching columns separate. Only recognized word rectangles are removed from the source background, preserving artwork and rules in the intervening whitespace. Native Word text uses source coordinates; A4 portrait and 0.5-inch margins remain in effect.
 
 Source diagrams and table rules remain background pixels in the backup. This does not reconstruct every drawing or table as a native editable object. Recognition is literal and does not generate answers or apply spelling corrections. Unread text can remain in the background. Results show a review badge because difficult handwriting, numerals and language recognition can still be wrong.
 
