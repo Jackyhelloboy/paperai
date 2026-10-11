@@ -1,6 +1,7 @@
 // Deployment-only check. Credentials stay in headers; never print upstream bodies.
 const https=require('node:https');
 const origin='https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest';
+const capacityOrigin='https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite';
 const networkCodes=new Set(['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH']);
 function failure(message,transient=false){const error=new Error(message);error.transient=transient;return error;}
 function requestJson(url,key,payload,timeoutMs,requestImpl=https.request){
@@ -29,19 +30,24 @@ async function check(key,{request=requestJson,log=console.log,phase='all'}={}){
   key=String(key||'').trim();
   if(!key){log('Live backup check skipped: no deployment secret supplied. Routing regression tests use fixtures.');return;}
   if(phase!=='generation')try{
-    const model=await request(origin,key,null,15000);
-    if(!model.supportedGenerationMethods?.includes('generateContent'))throw new Error('Configured model does not support generation.');
-    log('Backup credential and model metadata verified.');
+    for(const endpoint of [origin,capacityOrigin]){
+      const model=await request(endpoint,key,null,15000);
+      if(!model.supportedGenerationMethods?.includes('generateContent'))throw new Error('Configured model does not support generation.');
+    }
+    log('Backup credential and both configured model endpoints verified.');
   }catch(error){throw failure('Backup metadata check: '+error.message,error.transient);}
   if(phase==='metadata')return;
-  try{
-    const result=await request(origin+':generateContent',key,{contents:[{parts:[{text:'Return exactly this text, with no explanation: PaperAI connection verified'}]}],
-      generationConfig:{temperature:0,maxOutputTokens:4096}},90000);
+  for(const [index,endpoint] of [origin,capacityOrigin].entries())try{
+    const result=await request(endpoint+':generateContent',key,{contents:[{parts:[{text:'Return exactly this text, with no explanation: PaperAI connection verified'}]}],
+      generationConfig:{temperature:0,maxOutputTokens:4096}},index===0?25000:90000);
     const candidate=result.candidates?.[0];
     const text=(candidate?.content?.parts||[]).filter(p=>!p.thought&&typeof p.text==='string').map(p=>p.text).join('');
     if(result.promptFeedback?.blockReason||candidate?.finishReason!=='STOP'||!text.includes('PaperAI connection verified'))throw new Error('Incomplete connection check.');
-    log('Live backup credential and configured model verified. No source documents uploaded by this check.');
-  }catch(error){throw failure('Backup generation check: '+error.message,error.transient);}
+    log('Live backup generation verified on '+(index===0?'preferred':'capacity fallback')+' endpoint. No source documents uploaded by this check.');return;
+  }catch(error){
+    if(index===0&&error.transient){log('Preferred backup generation temporarily unavailable; checking capacity fallback.');continue;}
+    throw failure('Backup generation check: '+error.message,error.transient);
+  }
 }
 if(require.main===module)check(process.env.GEMINI_API_KEY,{phase:process.argv.includes('--metadata-only')?'metadata':process.argv.includes('--generation-only')?'generation':'all'})
   .catch(error=>{console.error(error.message);process.exitCode=error.transient?2:1;});

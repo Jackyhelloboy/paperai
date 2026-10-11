@@ -7,15 +7,20 @@ const {check,requestJson}=require('../.github/scripts/check-gemini.cjs');
   await check(fixture,{log:s=>log.push(s),request:async(url,key,payload,timeout)=>{
     calls.push({url,key,payload,timeout});return payload?{candidates:[{finishReason:'STOP',content:{parts:[{thought:true,text:'private reasoning'},{text:'PaperAI connection verified'}]}}]}:{supportedGenerationMethods:['generateContent']};
   }});
-  assert.equal(calls.length,2);assert.equal(calls[0].timeout,15000);assert.equal(calls[1].timeout,90000);
-  assert(!JSON.stringify(calls[1].payload).includes(fixture));assert(!log.join('\n').includes(fixture));
+  assert.equal(calls.length,3);assert.equal(calls[0].timeout,15000);assert.equal(calls[2].timeout,25000);
+  assert(!JSON.stringify(calls[2].payload).includes(fixture));assert(!log.join('\n').includes(fixture));
   assert(!log.join('\n').includes('private reasoning'));
   let metadataCalls=0;
   await check(fixture,{phase:'metadata',log:()=>{},request:async(u,k,p)=>{assert.equal(p,null);metadataCalls++;return {supportedGenerationMethods:['generateContent']};}});
-  assert.equal(metadataCalls,1,'Install gate validates credentials without waiting for model capacity');
+  assert.equal(metadataCalls,2,'Install gate validates both model endpoints without waiting for capacity');
   let generationCalls=0;
   await check(fixture,{phase:'generation',log:()=>{},request:async(u,k,p)=>{assert(p);generationCalls++;return {candidates:[{finishReason:'STOP',content:{parts:[{text:'PaperAI connection verified'}]}}]};}});
   assert.equal(generationCalls,1);
+  let capacityCalls=0;
+  await check(fixture,{phase:'generation',log:()=>{},request:async(url)=>{
+    capacityCalls++;if(url.includes('gemini-flash-latest')){const error=new Error('HTTP 503');error.transient=true;throw error;}
+    assert(url.includes('gemini-3.5-flash-lite'));return {candidates:[{finishReason:'STOP',content:{parts:[{text:'PaperAI connection verified'}]}}]};
+  }});assert.equal(capacityCalls,2);
   await assert.rejects(check(fixture,{log:()=>{},request:async()=>{throw new Error('Connection timed out.');}}),/metadata check: Connection timed out/);
   await assert.rejects(check(fixture,{log:()=>{},request:async(u,k,p)=>p?{candidates:[{finishReason:'MAX_TOKENS'}]}:{supportedGenerationMethods:['generateContent']}}),/generation check: Incomplete/);
   function transport(status,data){return(url,options,callback)=>{

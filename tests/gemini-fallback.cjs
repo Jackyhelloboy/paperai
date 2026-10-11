@@ -3,14 +3,15 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 let clock=Date.parse('2026-10-11T22:00:00Z'),primaryCalls=0;
 class Clock extends Date {constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}}
-const requests=[],queue=[];
+const requests=[],queue=[],endpoints=[];
 const ctx=vm.createContext({Date:Clock,URL,Request,Response,Headers,TextDecoder,Uint8Array,btoa,AbortSignal,setTimeout,
   console:{log(){}},DurableObject:class{constructor(c,e){this.ctx=c;this.env=e;}},
   PAPER_LAYOUT_RULES:fs.readFileSync('worker/src/paper-layout-rules.js','utf8'),normaliseMarkerRows:s=>s,
   DICTIONARY:{},getDictionaryWords:()=>[],isInDictionary:()=>false,autoCorrect:s=>s,
   verifyWord:()=>({}),getSuggestions:()=>[],CONFUSION_PAIRS:{},
   fetch:async(url,options)=>{
-    assert.equal(url,'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent');
+    assert(['gemini-flash-latest','gemini-3.5-flash-lite'].some(model=>url==='https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent'));
+    endpoints.push(url);
     assert.equal(options.redirect,'error');assert.equal(options.headers['X-goog-api-key'],'fixture-credential');
     assert(options.signal instanceof AbortSignal);requests.push(JSON.parse(options.body));
     const next=queue.shift();assert(next,'Unexpected upstream submission');return next;
@@ -62,8 +63,17 @@ const limit=()=>{throw new Error('3036: daily free allocation reached');};
   queue.push(new Response('PRIVATE PROVIDER MESSAGE fixture-credential',{status:403}));
   response=await ctx.handler.fetch(image(),structured.env);body=await response.json();assert.equal(response.status,503);
   assert.equal(body.code,'SCAN_SERVICE_UNAVAILABLE');assert(!/PRIVATE|credential|Gemini|Google/i.test(JSON.stringify(body)));
-  queue.push(new Response('PRIVATE QUOTA MESSAGE',{status:429}));response=await ctx.handler.fetch(image(),structured.env);
+  queue.push(new Response('PRIVATE QUOTA MESSAGE',{status:429}),new Response('PRIVATE BUSY MESSAGE',{status:503}));response=await ctx.handler.fetch(image(),structured.env);
   assert.equal(response.status,503);assert.equal((await response.json()).code,'AI_BUSY');
+  const capacity=environment(limit);
+  queue.push(new Response('PRIVATE BUSY MESSAGE',{status:503}),output(table),output(table));
+  response=await ctx.handler.fetch(image({structuredLayout:true}),capacity.env);body=await response.json();
+  assert.equal(response.status,200);assert(body.result.annotated_text.includes('TABLE_ROW'));
+  assert(endpoints.at(-3).includes('gemini-flash-latest'));assert(endpoints.at(-2).includes('gemini-3.5-flash-lite'));
+  assert(endpoints.at(-1).includes('gemini-3.5-flash-lite'),'Verification stays on the successful capacity endpoint');
+  assert.equal((await ctx.getUsageStatus(capacity.env)).estimated_used,0);
+  queue.push(output(good.response));assert.equal((await ctx.handler.fetch(image(),capacity.env)).status,200);
+  assert(endpoints.at(-1).includes('gemini-flash-latest'),'New requests restore the preferred Gemini endpoint');
   queue.push(Response.json({candidates:[{finishReason:'MAX_TOKENS',content:{parts:[{text:'Partial question'}]}}]}));
   response=await ctx.handler.fetch(image(),structured.env);assert.equal((await response.json()).code,'OCR_OUTPUT_INVALID');
   const noKey=environment(limit);delete noKey.env.GEMINI_API_KEY;

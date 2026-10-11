@@ -541,6 +541,7 @@ async function confirmedFreeLimit(env) {
 
 const PRIMARY_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 const GEMINI_MODEL = 'gemini-flash-latest';
+const GEMINI_CAPACITY_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
 
 function scanServiceError(code, message) {
@@ -549,7 +550,7 @@ function scanServiceError(code, message) {
   return error;
 }
 
-async function runGemini(env, requestBody, signal) {
+async function runGemini(env, requestBody, signal, state = {}) {
   // Read only the deployment secret. Never put credentials in a URL or log an
   // upstream error body, which may contain request details or document text.
   const apiKey = String(env.GEMINI_API_KEY || '').trim();
@@ -573,10 +574,13 @@ async function runGemini(env, requestBody, signal) {
     ...(system.length ? {systemInstruction: {parts: system}} : {}),
     generationConfig: {temperature: 0, maxOutputTokens: Math.max(256, Math.min(16384, Number(requestBody.max_completion_tokens) || 6144))},
   };
-  const timeout = AbortSignal.timeout(90000);
+  const models = state.geminiModel ? [state.geminiModel] : [GEMINI_MODEL, GEMINI_CAPACITY_MODEL];
+  for (let attempt = 0; attempt < models.length; attempt++) {
+  const model = models[attempt], canContinue = attempt + 1 < models.length;
+  const timeout = AbortSignal.timeout(canContinue ? 25000 : 90000);
   let response, result;
   try {
-    response = await fetch(GEMINI_ENDPOINT, {
+    response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
       method: 'POST', redirect: 'error',
       headers: {'Content-Type': 'application/json', 'X-goog-api-key': apiKey},
       body: JSON.stringify(body), signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
@@ -584,10 +588,14 @@ async function runGemini(env, requestBody, signal) {
     // Do not parse or expose upstream failure bodies.
     if (response.ok) result = await response.json();
   } catch (_) {
+    if (!signal?.aborted && canContinue) continue;
     throw scanServiceError(timeout.aborted || signal?.aborted ? 'AI_TIMEOUT' : 'AI_BUSY',
       'Scanning is temporarily unavailable. Please retry.');
   }
   if (!response.ok) {
+    // Only transient capacity/rate/timeout failures advance to the next endpoint.
+    // Authentication, malformed requests, redirects and incomplete output do not.
+    if (canContinue && (response.status === 408 || response.status === 429 || response.status >= 500)) continue;
     throw scanServiceError(response.status === 429 || response.status >= 500 ? 'AI_BUSY' : 'SCAN_SERVICE_UNAVAILABLE',
       'Scanning is temporarily unavailable. Please retry.');
   }
@@ -597,16 +605,18 @@ async function runGemini(env, requestBody, signal) {
   const text = (candidate?.content?.parts || []).filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('');
   if (!text.trim()) throw scanServiceError('OCR_OUTPUT_INVALID', 'This page could not be read completely.');
   // Gemini token usage must never be counted as primary-provider neurons.
-  return {response: text, usage: null, model: GEMINI_MODEL};
+  state.geminiModel = model;
+  return {response: text, usage: null, model};
+  }
 }
 
 async function runInference(env, body, state = {}, signal) {
   const hasBackup = Boolean(String(env.GEMINI_API_KEY || '').trim());
-  if (state.provider === 'gemini') return runGemini(env, body, signal);
+  if (state.provider === 'gemini') return runGemini(env, body, signal, state);
   if (await confirmedFreeLimit(env)) {
     if (!hasBackup) throw new Error('3036: daily free allocation reached');
     state.provider = 'gemini';
-    return runGemini(env, body, signal);
+    return runGemini(env, body, signal, state);
   }
   try {
     if (!env.AI) throw scanServiceError('SCAN_SERVICE_UNAVAILABLE', 'Scanning is temporarily unavailable.');
@@ -616,7 +626,7 @@ async function runInference(env, body, state = {}, signal) {
     if (dailyLimit) { try { await markUsageExhausted(env); } catch (_) {} }
     if (hasBackup && (dailyLimit || isPaidModelRequiredError(error) || isTransientAiError(error) || isAiTimeoutError(error) || !env.AI)) {
       state.provider = 'gemini';
-      return runGemini(env, body, signal);
+      return runGemini(env, body, signal, state);
     }
     throw error;
   }
