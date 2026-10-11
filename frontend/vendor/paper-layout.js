@@ -164,7 +164,7 @@
         const results=[];
         for(const g of groups){
             const ls=g.lines.sort((a,b)=>a.x-b.x), n=ls.length;
-            if(n<6||n>53||g.z-g.y>130)continue;
+            if(n<3||n>53||g.z-g.y>Math.min(700,h*.8))continue;
             const gaps=ls.slice(1).map((p,i)=>p.x-ls[i].x).sort((a,b)=>a-b),median=gaps[Math.floor(gaps.length/2)];
             if(median<10||median>100||gaps.some(x=>x<median*.65||x>median*1.55))continue;
             // A true border connects adjacent vertical divisions near both ends.
@@ -179,21 +179,43 @@
                 if(total&&ink/total>.65)closed++;
             }
             if(closed/(2*(n-1))<.8)continue;
-            // Border evidence is not proof of empty cells. Reject populated grids.
+            // Find physical horizontal divisions. Notebook ruling and filled
+            // cells remain excluded by per-cell ink checks below.
+            const leftEdge=ls[0],rightEdge=ls[n-1],horizontal=[];
+            for(let yy=Math.ceil(g.y);yy<=Math.floor(g.z);yy++){
+                let ink=0,total=0;
+                for(let xx=Math.ceil(leftEdge.x)+4;xx<rightEdge.x-4;xx++){
+                    const t=(xx-leftEdge.x)/(rightEdge.x-leftEdge.x);
+                    const row=Math.round(yy+(leftEdge.y-g.y)*(1-t)+(rightEdge.y-g.y)*t);
+                    let hit=0;for(let dy=-2;dy<=2;dy++)if(row+dy>=0&&row+dy<h)hit|=dark[(row+dy)*w+xx];
+                    ink+=hit;total++;
+                }
+                if(total&&ink/total>.8){
+                    const previous=horizontal[horizontal.length-1];
+                    if(previous&&yy-previous.last<=5){previous.last=yy;previous.y=(previous.first+yy)/2;}
+                    else horizontal.push({first:yy,last:yy,y:yy});
+                }
+            }
+            const rowEdges=horizontal.map(r=>r.y);
+            if(rowEdges.length<2||rowEdges.length>33)continue;
+            const rowGaps=rowEdges.slice(1).map((y,i)=>y-rowEdges[i]);
+            const rowMedian=[...rowGaps].sort((a,b)=>a-b)[Math.floor(rowGaps.length/2)];
+            if(rowMedian<15||rowGaps.some(gap=>gap<rowMedian*.6||gap>rowMedian*1.6))continue;
             let populated=false;
-            for(let i=0;i<n-1;i++){
+            for(let i=0;i<n-1;i++)for(let r=0;r<rowEdges.length-1;r++){
                 let ink=0,total=0;
                 const left=ls[i],right=ls[i+1],padding=Math.max(5,Math.round((right.x-left.x)*.15));
                 for(let x=Math.ceil(left.x)+padding;x<right.x-padding;x++){
-                    const t=(x-left.x)/(right.x-left.x),top=Math.round(left.y*(1-t)+right.y*t)+7,bottom=Math.round(left.z*(1-t)+right.z*t)-7;
-                    for(let y=top;y<bottom;y++){ink+=dark[y*w+x]||0;total++;}
+                    const t=(x-leftEdge.x)/(rightEdge.x-leftEdge.x),shift=(leftEdge.y-g.y)*(1-t)+(rightEdge.y-g.y)*t;
+                    const top=Math.round(rowEdges[r]+shift)+6,bottom=Math.round(rowEdges[r+1]+shift)-6;
+                    for(let y=top;y<bottom;y++){if(y>=0&&y<h){ink+=dark[y*w+x]||0;total++;}}
                 }
                 if(total&&ink/total>.025){populated=true;break;}
             }
             if(populated)continue;
             const x=ls[0].x,z=ls[n-1].x;
             const y=Math.min(...ls.map(p=>p.y)),bottom=Math.max(...ls.map(p=>p.z));
-            results.push({columns:n-1,rows:1,x:Math.round(x/w*1000),y:Math.round(y/h*1000),w:Math.round((z-x)/w*1000),h:Math.round((bottom-y)/h*1000)});
+            results.push({columns:n-1,rows:rowEdges.length-1,x:Math.round(x/w*1000),y:Math.round(y/h*1000),w:Math.round((z-x)/w*1000),h:Math.round((bottom-y)/h*1000)});
         }
         return results.sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,12);
     }
@@ -292,7 +314,7 @@
         const lines=normalise(text).split('\n'), blocks=[];
         let block=null;
         for(let i=0;i<lines.length;i++){
-            const empty=/^\s*\[\[GRID:\s*\d+[x×]1\]\]\s*$/i.test(lines[i])||
+            const empty=/^\s*\[\[GRID:\s*\d+[x×]\d+\]\]\s*$/i.test(lines[i])||
                 /^\s*\[\[GRID_ROW:\s*(?:_|\s|\|)*\]\]\s*$/i.test(lines[i]);
             if(empty){if(!block){block={indexes:[]};blocks.push(block);}block.indexes.push(i);}
             else if(lines[i].trim())block=null;

@@ -75,6 +75,16 @@ const fixture=[
     assert(!ctx.docxFooterXml('Name: Formative Assessment - I Class: UKG\nSub: English MARKS').includes('Formative Assessment'),'Body metadata must not be guessed into the footer');
     assert(ctx.docxFooterXml('[[FOOTER: FA - I || English]]').includes('FA - I'),'Explicit source footer must be retained');
     assert.equal(Layout.normalise('SECTION_ROW: I. Count || 5M'),'[[SECTION_ROW: I. Count || 5M]]');
+    const multi={width:600,height:400,data:new Uint8Array(600*400*4).fill(255)};
+    const dot=(x,y)=>{const n=(y*600+x)*4;multi.data[n]=multi.data[n+1]=multi.data[n+2]=0;};
+    for(let x=50;x<=250;x+=40)for(let y=40;y<=280;y++)dot(x,y);
+    for(let y=40;y<=280;y+=30)for(let x=50;x<=250;x++)dot(x,y);
+    const geometry=Layout.emptyGrids(multi);
+    assert.equal(geometry[0]?.columns,5,'Physical alphabet-grid columns must override expected letter counts');
+    assert.equal(geometry[0]?.rows,8,'A multi-row answer grid must not become four long strips');
+    assert.equal(Layout.reconcileEmptyGrids('[[GRID: 13x4]]',geometry),'[[GRID: 5x8]]');
+    for(let x=63;x<78;x++)for(let y=52;y<65;y++)dot(x,y);
+    assert.equal(Layout.emptyGrids(multi).length,0,'Populated cells must not be cleared by grid reconstruction');
     const duplicate='[[FIGURE_ROW: 100,200,200,100|1.|none]]\n1. [[FIGURE: 100,200,200,100| |none]] = _____';
     assert(!Layout.deduplicateFigures(duplicate).includes('FIGURE_ROW'),'Duplicated detached illustration should not print twice');
     assert.equal(Layout.figureRows([{x:10,y:20,w:20,h:20},{x:40,y:22,w:20,h:20},{x:10,y:60,w:20,h:20}]).length,2,'Vertical picture rows must not be flattened horizontally');
