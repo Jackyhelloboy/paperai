@@ -13,6 +13,7 @@ export default {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Expose-Headers': 'Retry-After',
     };
 
     if (request.method === 'OPTIONS') {
@@ -54,8 +55,8 @@ export default {
       return getPresenceStub(env).fetch(request);
     }
 
-    // Public daily free-AI quota dashboard. This is a PaperAI-side estimate
-    // calculated from Workers AI token usage returned after each OCR request.
+    // Token totals are estimates. A confirmed provider rejection is tracked
+    // separately and takes precedence over delayed analytics snapshots.
     if (url.pathname === '/api/usage' && request.method === 'GET') {
       try {
         const usage = await getUsageStatus(env);
@@ -88,10 +89,14 @@ export default {
       } catch (e) {
         if (isDailyFreeLimitError(e)) {
           try { await markUsageExhausted(env); } catch (_) {}
-          return Response.json({ suggestions: [], code: 'FREE_AI_LIMIT_REACHED' }, { status: 429, headers: corsHeaders });
+          return freeLimitResponse(corsHeaders, { suggestions: [] });
         }
         if (isPaidModelRequiredError(e)) {
           return Response.json({ suggestions: [], code: 'FREE_MODEL_UNAVAILABLE' }, { status: 503, headers: corsHeaders });
+        }
+        if (isTransientAiError(e)) {
+          return Response.json({ suggestions: [], code: 'AI_BUSY', error: 'Cloudflare AI is temporarily busy. Try again shortly; local suggestions still work.' },
+            { status: 503, headers: { ...corsHeaders, 'Retry-After': '5' } });
         }
         return Response.json({ suggestions: [], error: 'Suggestion service unavailable' }, { status: 503, headers: corsHeaders });
       }
@@ -425,10 +430,8 @@ export class UsageTracker extends DurableObject {
     }
 
     if (request.method === 'POST' && url.pathname === '/exhausted') {
-      state.used = DAILY_FREE_NEURONS;
       state.exhausted = true;
-      state.history.push({ at: now.toISOString(), used: DAILY_FREE_NEURONS });
-      state.history = state.history.slice(-144);
+      state.limit_reached_at = state.limit_reached_at || now.toISOString();
       await this.ctx.storage.put('daily', state);
     }
 
@@ -451,7 +454,10 @@ export class UsageTracker extends DurableObject {
       estimated_remaining: Math.round(remaining * 100) / 100,
       percent_used: Math.round((used / DAILY_FREE_NEURONS) * 10000) / 100,
       ocr_requests_tracked: Number(state.requests) || 0,
-      exhausted: Boolean(state.exhausted || used >= DAILY_FREE_NEURONS),
+      exhausted: Boolean(state.exhausted),
+      provider_limit_reached: Boolean(state.exhausted),
+      limit_reached_at: state.limit_reached_at || null,
+      estimated_limit_reached: used >= DAILY_FREE_NEURONS,
       history: state.history || [],
       scope: 'PaperAI OCR requests handled by this Worker',
       accuracy: 'estimate',
@@ -529,6 +535,30 @@ async function markUsageExhausted(env) {
   await getUsageStub(env).fetch('https://usage.internal/exhausted', {
     method: 'POST',
   });
+}
+
+function freeLimitResponse(corsHeaders, extra = {}) {
+  const now = new Date();
+  const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  return Response.json({
+    ...extra,
+    error: 'Cloudflare has reached the shared daily free AI limit. Editing and Word export still work. AI scanning resumes after the daily reset.',
+    code: 'FREE_AI_LIMIT_REACHED',
+    reset_at: reset.toISOString(),
+    server_time: now.toISOString(),
+    scope: 'Cloudflare account-wide daily free AI allocation',
+  }, { status: 429, headers: {
+    ...corsHeaders, 'Cache-Control': 'no-store',
+    'Retry-After': String(Math.max(1, Math.ceil((reset - now) / 1000))),
+  } });
+}
+
+async function confirmedFreeLimit(env) {
+  // Do not reject scans based on a token estimate or an unavailable tracker.
+  try {
+    const status = await getUsageStatus(env);
+    return status.provider_limit_reached === true;
+  } catch (_) { return false; }
 }
 
 const SUGGESTION_LANGUAGES = Object.freeze({
@@ -654,6 +684,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
   }
 
   if (!env.AI) return Response.json({ suggestions: [] }, { headers: corsHeaders });
+  if (await confirmedFreeLimit(env)) return freeLimitResponse(corsHeaders, { suggestions: [] });
 
   const wordCount = input.split(/\s+/).filter(Boolean).length;
   const isPhrase = wordCount >= 2;
@@ -905,6 +936,7 @@ async function handleOCR(request, env, corsHeaders) {
   }
 
   let aiResult;
+  if (await confirmedFreeLimit(env)) return freeLimitResponse(corsHeaders);
   try {
     // FREE-ONLY MODE: one primary inference, with a conditional same-model
     // verification pass only when the first result is uncertain. No paid fallback.
@@ -913,10 +945,7 @@ async function handleOCR(request, env, corsHeaders) {
     if(e?.code==='OCR_OUTPUT_INVALID')return Response.json({error:'OCR returned repetitive or incomplete output. Please retry this page or review its source.',code:'OCR_OUTPUT_INVALID'}, {status:502,headers:corsHeaders});
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
-      return Response.json({
-        error: 'Daily free AI OCR limit reached. PaperAI stopped before any paid fallback. Try again after the Cloudflare daily reset.',
-        code: 'FREE_AI_LIMIT_REACHED',
-      }, { status: 429, headers: corsHeaders });
+      return freeLimitResponse(corsHeaders);
     }
     if (isPaidModelRequiredError(e)) {
       return Response.json({
@@ -929,6 +958,10 @@ async function handleOCR(request, env, corsHeaders) {
         error: 'AI OCR timed out on this image. PaperAI can automatically retry a lighter scan.',
         code: 'AI_TIMEOUT',
       }, { status: 408, headers: corsHeaders });
+    }
+    if (isTransientAiError(e)) {
+      return Response.json({ error: 'Cloudflare AI is temporarily busy. Try again shortly; this is not a daily quota failure.', code: 'AI_BUSY' },
+        { status: 503, headers: { ...corsHeaders, 'Retry-After': '5' } });
     }
     return Response.json({
       error: 'AI OCR failed: ' + (e?.message || 'unknown error'),
@@ -1263,15 +1296,15 @@ function isAiTimeoutError(error) {
 
 function isTransientAiError(error) {
   const s = aiErrorText(error);
-  return s.includes('3040') ||
+  return /\b(?:3040|429|502|503|504)\b/.test(s) ||
     s.includes('out of capacity') ||
+    s.includes('capacity temporarily exceeded') ||
+    s.includes('too many requests') ||
+    s.includes('rate limit') ||
     s.includes('temporarily unavailable') ||
     s.includes('service unavailable') ||
     s.includes('bad gateway') ||
-    s.includes('gateway timeout') ||
-    s.includes('502') ||
-    s.includes('503') ||
-    s.includes('504');
+    s.includes('gateway timeout');
 }
 
 function sleep(ms) {
@@ -1527,6 +1560,11 @@ VERIFICATION RULES:
         rescued = true;
       }
     } catch (e) {
+      if (isDailyFreeLimitError(e)) {
+        // Keep a usable first transcription, but publish the provider block
+        // immediately so the next page cannot spend a second futile request.
+        try { await markUsageExhausted(env); } catch (_) {}
+      }
       if (!isDailyFreeLimitError(e) && !isPaidModelRequiredError(e)) {
         console.log('[Literal verification] skipped:', e?.message || e);
       }
@@ -1734,10 +1772,9 @@ function aiErrorText(error) {
 
 function isDailyFreeLimitError(error) {
   const s = aiErrorText(error);
-  return s.includes('3036') ||
+  return /\b3036\b/.test(s) ||
     s.includes('daily free allocation') ||
-    s.includes('used up your daily free') ||
-    (s.includes('429') && (s.includes('neuron') || s.includes('allocation')));
+    s.includes('used up your daily free');
 }
 
 function isPaidModelRequiredError(error) {

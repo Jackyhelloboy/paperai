@@ -19,6 +19,7 @@
 <script src="./vendor/paper-layout.js"></script>
 <script src="./vendor/pdf-editable-layout.js"></script>
 <script src="./vendor/docx-reference-layout.js"></script>
+<script src="./vendor/ai-quota.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -186,6 +187,7 @@
 
         .quota-head {
             display: flex;
+            flex-wrap: wrap;
             align-items: flex-start;
             justify-content: space-between;
             gap: 0.75rem;
@@ -1540,7 +1542,7 @@
             }
 
             .quota-subtitle {
-                display: none;
+                display: block;
             }
 
             .quota-live {
@@ -1731,7 +1733,7 @@
             <div class="quota-head">
                 <div>
                     <div class="quota-title">Cloudflare AI · daily usage</div>
-                    <div class="quota-subtitle">Reported by Cloudflare Analytics · may be delayed</div>
+                    <div class="quota-subtitle" id="quotaDescription">Checking the live AI limit. Analytics totals may be delayed.</div>
                 </div>
                 <div class="quota-live" id="quotaBadge">
                     <span class="quota-live-dot"></span>
@@ -1741,7 +1743,7 @@
 
             <div class="quota-stats">
                 <div class="quota-stat">
-                    <span class="quota-stat-label">Reported remaining</span>
+                    <span class="quota-stat-label" id="quotaRemainingLabel">Reported remaining</span>
                     <span class="quota-stat-value" id="quotaRemaining">—</span>
                 </div>
                 <div class="quota-stat">
@@ -2008,6 +2010,10 @@ const hideErr = () => errBox.classList.remove('show');
 const setProg = (pct,msg) => { pFill.style.width=pct+'%'; pPct.textContent=pct+'%'; if(msg)pMsg.textContent=msg; };
 
 let quotaResetAt = null;
+let quotaReport = null, quotaLiveStatus = null, usageRequestId = 0;
+const QUOTA_BLOCK_KEY = 'paperai_confirmed_ai_block_v1';
+let quotaLocalBlock = null;
+try { quotaLocalBlock = JSON.parse(localStorage.getItem(QUOTA_BLOCK_KEY) || 'null'); } catch (_) {}
 
 const fmtNeuron = n => {
     const value = Number(n);
@@ -2038,43 +2044,67 @@ function updateQuotaClock() {
     quotaReset.textContent = formatLocalDateTime(quotaResetAt) + ' · 00:00 UTC';
 }
 
-async function loadUsage() {
-    try {
-        const res = await fetch('/usage.json?t=' + Date.now(), { cache: 'no-store' });
-        if (!res.ok) throw new Error('status ' + res.status);
-        const data = await res.json();
-        if (data.source !== 'cloudflare-analytics') throw new Error('untrusted source');
-
-        const used = Number(data.reported_used);
-        const remaining = Number(data.reported_remaining);
-        const pct = Number(data.percent_used);
-        if (![used, remaining, pct].every(Number.isFinite)) throw new Error('invalid report');
-
-        quotaRemaining.textContent = fmtNeuron(remaining);
-        quotaUsed.textContent = fmtNeuron(used);
-        quotaFill.style.width = Math.max(0, Math.min(100, pct)).toFixed(2) + '%';
-        quotaPercent.textContent = pct.toFixed(pct < 10 ? 1 : 0) + '% used';
-        quotaNow.textContent = formatLocalDateTime(data.last_updated);
-        quotaResetAt = data.reset_at || null;
-        updateQuotaClock();
-
-        quotaCard.classList.toggle('warning', pct >= 75 && pct < 100);
-        quotaCard.classList.toggle('exhausted', pct >= 100);
-        quotaBadgeText.textContent = 'Cloudflare report';
-        quotaCard.title = data.accuracy || 'Cloudflare-reported analytics';
-    } catch (e) {
-        quotaRemaining.textContent = '—';
-        quotaUsed.textContent = '—';
-        quotaFill.style.width = '0%';
-        quotaPercent.textContent = 'Usage unavailable';
-        quotaNow.textContent = '—';
-        quotaResetAt = null;
-        quotaReset.textContent = '—';
-        quotaBadgeText.textContent = 'Unavailable';
-        quotaCard.classList.remove('warning', 'exhausted');
-    }
+function rememberQuotaBlock(body) {
+    const now = Date.now();
+    quotaLocalBlock = {
+        date_utc: new Date(now).toISOString().slice(0, 10),
+        provider_limit_reached: true,
+        reset_at: body?.reset_at || PaperAIQuota.nextReset(now),
+    };
+    try { localStorage.setItem(QUOTA_BLOCK_KEY, JSON.stringify(quotaLocalBlock)); } catch (_) {}
+    renderUsage();
 }
 
+function renderUsage() {
+    const view = PaperAIQuota.model(quotaReport, quotaLiveStatus, quotaLocalBlock);
+    quotaRemaining.textContent = view.remaining === null ? '—' : fmtNeuron(view.remaining);
+    quotaUsed.textContent = view.used === null ? '—' : fmtNeuron(view.used);
+    $('quotaRemainingLabel').textContent = view.blocked ? 'Free AI available' : 'Reported remaining';
+    quotaFill.style.width = (view.percent ?? 0).toFixed(2) + '%';
+    quotaPercent.textContent = view.percent === null ? 'Today’s analytics unavailable' :
+        Math.round(view.percent) + '% reported used';
+    quotaNow.textContent = formatLocalDateTime(view.updatedAt);
+    quotaResetAt = view.resetAt;
+    updateQuotaClock();
+    quotaCard.classList.toggle('warning', !view.blocked && view.percent >= 75);
+    quotaCard.classList.toggle('exhausted', view.blocked);
+    quotaBadgeText.textContent = view.badge;
+    $('quotaDescription').textContent = view.description;
+    quotaCard.title = view.description;
+    return view;
+}
+
+async function loadUsage() {
+    const requestId = ++usageRequestId;
+    const read = async url => {
+        const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+        if (!res.ok) throw new Error('Usage unavailable');
+        return res.json();
+    };
+    const results = await Promise.allSettled([
+        read('/usage.json?t=' + Date.now()),
+        read(API_DIRECT + '/api/usage'),
+    ]);
+    if (requestId !== usageRequestId) return renderUsage();
+    if (results[0].status === 'fulfilled') quotaReport = results[0].value;
+    quotaLiveStatus = results[1].status === 'fulfilled' ? results[1].value : null;
+    if (PaperAIQuota.activeBlock(quotaLiveStatus)) rememberQuotaBlock(quotaLiveStatus);
+    if (quotaLocalBlock && !PaperAIQuota.activeBlock(quotaLocalBlock)) {
+        quotaLocalBlock = null;
+        try { localStorage.removeItem(QUOTA_BLOCK_KEY); } catch (_) {}
+    }
+    return renderUsage();
+}
+
+function quotaFailure(body) {
+    rememberQuotaBlock(body);
+    const error = new Error('Cloudflare’s shared daily free AI limit has been reached. AI scanning resumes at ' +
+        formatLocalDateTime(quotaResetAt) + '. Editing and Word export still work.');
+    error.code = 'FREE_AI_LIMIT_REACHED';
+    return error;
+}
+
+renderUsage();
 loadUsage();
 setInterval(loadUsage, 60000);
 
@@ -3349,7 +3379,10 @@ async function fetchOcrEndpoint(path, options) {
         try {
             const res = await fetch(targets[i], options);
             if (i === 0 && ([404,405,502,503,504].includes(res.status) || res.headers.get('X-PaperAI-Proxy-Error') === '1')) {
-                continue;
+                // A structured application error already reached the Worker.
+                // Sending it to the direct URL would duplicate AI work.
+                const body = await res.clone().json().catch(() => null);
+                if (!body?.code || res.headers.get('X-PaperAI-Proxy-Error') === '1') continue;
             }
             return res;
         } catch (e) {
@@ -4124,6 +4157,7 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
         });
 
         const body = await res.json().catch(() => ({}));
+        if (PaperAIQuota.isDailyError(body)) throw quotaFailure(body);
         if (!res.ok) {
             throw new Error(body?.error || 'AI suggestions are unavailable. You can keep editing manually.');
         }
@@ -4667,6 +4701,8 @@ async function sendFileToWorker(inputFile, signal) {
 }
 
 async function sendToOCR(sourceBlob, signal, progressText = '') {
+    const quota = await loadUsage();
+    if (quota.blocked) throw quotaFailure({ reset_at: quota.resetAt });
     let prepared = await prepareImageForOCR(sourceBlob, false);
 
     if (progressText) {
@@ -4715,8 +4751,11 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
             return body;
         }
 
-        if (res.status === 429 || body?.code === 'FREE_AI_LIMIT_REACHED') {
-            throw new Error('Daily free AI OCR limit reached. Try again after the daily reset.');
+        if (PaperAIQuota.isDailyError(body)) {
+            throw quotaFailure(body);
+        }
+        if (res.status === 429 || body?.code === 'AI_BUSY') {
+            throw new Error('Cloudflare AI is temporarily busy. Try again shortly. This does not mean your daily free quota is exhausted.');
         }
 
         if ((res.status === 408 || body?.code === 'AI_TIMEOUT') && attempt === 0) {
@@ -5439,7 +5478,9 @@ async function extractOneFile(f, onProgress, label) {
             try { result = await sendToOCR(pages[i].blob, ctrl.signal, label + 'Preparing page ' + (i+1) + '/' + pages.length); }
             catch(error){
                 const message=error.name==='AbortError'?'The page request timed out.':error.message;
-                throw new Error(message+' Completed '+i+'/'+pages.length+' pages are kept while this file stays open. Press Extract Text to resume the remaining pages when the service is available.');
+                const stopped = new Error(message+' Completed '+i+'/'+pages.length+' pages are kept while this file stays open. Press Extract Text to resume the remaining pages when the service is available.');
+                stopped.code = error.code;
+                throw stopped;
             }
             finally { clearTimeout(tid); }
             if (result.status !== 'completed' || !result.result) throw new Error('OCR failed on page ' + (i+1) + '.');
@@ -5499,6 +5540,7 @@ goBtn.onclick = async () => {
     const batch = fileBatch.length ? fileBatch.slice() : (file ? [file] : []);
     if (!batch.length) return;
     const sourceFile = file;
+    const previousResult = lastResult, previousMedia = extractedMedia.slice();
     goBtn.disabled=true;
     languageSelect.disabled=true;
     hideErr();
@@ -5562,7 +5604,14 @@ goBtn.onclick = async () => {
             setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
         }
     } catch(e) {
+        prog.classList.remove('show');
+        if (previousResult && file === sourceFile) {
+            lastResult = previousResult;
+            extractedMedia = previousMedia;
+            resBox.classList.add('show');
+        }
         showErr(e.name==='AbortError' ? 'The network request took too long. PaperAI now retries AI timeouts automatically; please check your connection and try again.' : e.message);
+        loadUsage();
     } finally {
         goBtn.disabled=false;
         languageSelect.disabled=false;

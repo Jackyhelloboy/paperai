@@ -9,6 +9,8 @@ on:
       - 'tests/worksheet-layout.cjs'
       - 'tests/question-paper-model.cjs'
       - 'tests/scan-resume.cjs'
+      - 'tests/ai-quota.cjs'
+      - 'frontend/vendor/ai-quota.js'
       - 'frontend/vendor/paper-layout.js'
       - 'worker/src/paper-layout-rules.js'
       - '.github/workflows/verify-worksheet.yml'
@@ -30,3 +32,7 @@ jobs:
       - name: Check Worker JavaScript
         run: |
           node --input-type=module --check < worker/src/index.js
+      - name: Check quota and scan recovery
+        run: |
+          node tests/ai-quota.cjs
+          node tests/scan-resume.cjs
