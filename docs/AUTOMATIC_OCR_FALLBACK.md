@@ -1,33 +1,27 @@
-# Automatic OCR fallback
+# Automatic scanning and the smaller reader
 
-The compact dashboard again says “Extract text from anything” and “Drop a file here.” Uploads still start processing automatically. No blank-paper builder or model-switch button has been added.
+Uploads start processing automatically. The dashboard keeps the existing upload layout and shows no daily usage percentages, counters or reset dates. Paper progress uses actual stages, followed by “Ready”; duration is unknown, so no invented completion percentage is shown.
 
-The default OCR model remains `@cf/google/gemma-4-26b-a4b-it`. Cloudflare models share one account-wide daily neuron allocation; choosing another Cloudflare model cannot bypass that allocation.
+The default server scanner is unchanged. A confirmed daily limit selects the on-device reader automatically. At UTC midnight the confirmed block expires and the next scan returns to the default server scanner. Busy, network and timeout failures are not treated as quota exhaustion. Concurrent status checks share one request to `/api/usage`; the dashboard no longer downloads daily analytics.
 
-When the provider confirms `FREE_AI_LIMIT_REACHED`, or the same-day confirmed block is already known, PaperAI automatically reads the prepared image using Florence-2 on the user's device. No inference API or paid fallback is used. At UTC midnight the confirmed daily block expires, and the next scan uses the default model again. Busy, network and timeout errors do not masquerade as daily quota exhaustion.
+## Smaller first-use setup
 
-## Runtime
+The earlier 228 MB vision model and Transformers dependency have been removed from the deployment. The replacement is Tesseract.js 6.0.1 with a pinned tessdata_fast revision `87416418657359cb625c412a48b6e1d6d41c29bd`. All scripts, embedded WASM and language files come from the PaperAI origin. The build retains upstream licenses and verifies per-file hosting limits. No inference API is needed by the backup.
 
-- Transformers.js is pinned to 3.8.1 in the npm lockfile.
-- Model: `onnx-community/Florence-2-base-ft`, revision `e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f`.
-- Quantization: q8 image encoder and embeddings; q4 text encoder and decoder.
-- The first model download is approximately 228 MB. Browser caching reduces later downloads where supported. Downloads need internet; inference runs in a dedicated browser worker using same-origin WASM assets. It depends on browser support, available memory and device speed.
-- GitHub Actions stages frontend assets and the pinned runtime in `build/cloudflare-pages`; neither node_modules nor model weights are published as Pages source files.
+Automatic script detection chooses a language pack and English for mixed headers and marks. If the script is uncertain, the reader tries English and Hindi. Explicit document-language choices use the corresponding pack; Marathi must be selected when distinction from Hindi is needed. The available packs cover English, Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, Odia and Urdu. Kashmiri uses the Urdu script reader and requires review; it is not a dedicated Kashmiri recognizer.
 
-## Layout and limits
+The cold automatic Hindi setup totals approximately 15.4 MiB of staged JavaScript and compressed language files, compared with the previous approximately 228 MB model. Explicit Hindi skips script detection and requires approximately 6.7 MiB. HTTP compression may reduce transfer further. Language files are cached in IndexedDB; normal HTTP caching reuses runtime scripts. Cleared storage, private browsing and a different language can require another download. These are reader support files, not a downloaded copy of the uploaded paper. The interface describes preparation in plain language without displaying byte counters or provider names.
 
-The local model performs OCR with region boxes, not question generation. It does not intentionally answer questions, rewrite spelling or add suggestions. Overlapping source regions are deduplicated and blank regions are skipped. Dense regions are split automatically when generation reaches its reading limit. Malformed model coordinate tokens are excluded from displayed text.
+## Layout and cancellation
 
-Recognized text becomes editable Word text boxes at its detected source positions. Original artwork, boxes and table borders remain source pixels behind the text. Preview and Word use the existing A4 portrait, 0.5-inch-margin geometry. This fallback does not promise native editable reconstruction of every source drawing or table. Unrecognized source text can remain in the preserved background.
+Sparse text detection retains isolated right-side marks. Word boxes are grouped into lines while large horizontal gaps keep marks and matching columns separate. Only recognized word rectangles are removed from the source background, preserving artwork and rules in the intervening whitespace. Native Word text uses source coordinates; A4 portrait and 0.5-inch margins remain in effect.
 
-Local OCR is less accurate than the default model on difficult handwriting and some languages. Real tests on a printed science paper and a handwritten maths scan revealed wording and number errors. Results are explicitly marked for review. Identical recognition quality across both models cannot be guaranteed.
+Source diagrams and table rules remain background pixels in the backup. This does not reconstruct every drawing or table as a native editable object. Recognition is literal and does not generate answers or apply spelling corrections. Unread text can remain in the background. Results show a review badge because difficult handwriting, numerals and language recognition can still be wrong.
 
-The usage percentage always comes from current Cloudflare analytics. Provider availability is a separate badge and explanation; a provider pause never fabricates a 100% usage total. “Reported remaining” is not a promise that the primary provider accepts another request.
+The file’s remove button becomes “Cancel processing” during a scan. Cancellation stops the worker and restores retry controls; completed PDF pages remain cached while the same file stays open. A three-minute local-reader deadline prevents an indefinite preparation spinner. Old worker events cannot finish or cancel a replacement scan.
 
 ## Verification
 
-`tests/local-ocr.cjs` covers region geometry, literal text and marks, overlapping crops, A4 Word XML, worker cancellation, failure recovery and duplicate-scan rejection. Quota tests cover backup selection during a block, backup after a rejection, busy responses, expired block state, and preservation of completed scans and editing. Existing Word import, reference-format, PDF, automatic-upload and scan-resume suites remain part of deployment verification.
+The 13 regression suites cover quota expiry, automatic upload, cancellation, completed-page retention, all 12 authored Word references, FA2 PDF geometry, right-side marks and A4 export. Reader tests cover language selection, uncertain script fallback, same-origin assets and word-level masks. A real printed Hindi fixture detected Devanagari and retained Hindi question text and isolated `(5)`/`(2)` marks. Its first question numeral was misrecognized, demonstrating why the review badge is necessary. This is not evidence of perfect handwriting recognition or model fine-tuning.
 
-`/local-ocr-check.html` exercises the deployed worker and runtime with a generated test page; no personal file is uploaded and no cloud AI request is made. This diagnostic page is not linked from the dashboard and does not select the application's OCR model.
-
-Official sources: [Cloudflare pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/), [Transformers.js 3.8.1 per-module dtypes](https://huggingface.co/docs/transformers.js/v3.8.1/guides/dtypes), and [the pinned Florence model](https://huggingface.co/onnx-community/Florence-2-base-ft/tree/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f).
+Production browser checks and bounded load results are recorded after deployment. The load check exercises dashboard, availability and text uploads up to 20 concurrent requests; it does not measure handwriting inference throughput on arbitrary phones.

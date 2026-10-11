@@ -3,7 +3,7 @@
 const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'../..'),source=path.join(root,'frontend'),out=path.join(root,'build/cloudflare-pages');
 fs.rmSync(out,{recursive:true,force:true});fs.mkdirSync(out,{recursive:true});
-fs.cpSync(source,out,{recursive:true,filter:p=>!['node_modules','.vercel','.gitignore','package.json','package-lock.json','local-ocr-check.html'].includes(path.basename(p))});
+fs.cpSync(source,out,{recursive:true,filter:p=>!['node_modules','.vercel','.gitignore','package.json','package-lock.json','local-ocr-check.html','local-ocr-worker.mjs','usage.json'].includes(path.basename(p))});
 // Advanced-mode code runs on the server, not as a downloadable browser script.
 const gateway=fs.readFileSync(path.join(root,'functions/api/[[path]].js'),'utf8');
 fs.writeFileSync(path.join(out,'_worker.js'),gateway+`\nexport default {fetch(request, env) {
@@ -15,13 +15,6 @@ fs.writeFileSync(path.join(out,'_worker.js'),gateway+`\nexport default {fetch(re
 }};\n`);
 fs.writeFileSync(path.join(out,'_routes.json'),JSON.stringify({version:1,
     include:['/api/*','/local-ocr-check','/local-ocr-check.html','/_worker.js'],exclude:[]}));
-const runtime=path.join(out,'vendor/local-runtime');fs.mkdirSync(runtime,{recursive:true});
-for(const file of ['transformers.min.js','ort-wasm-simd-threaded.jsep.mjs','ort-wasm-simd-threaded.jsep.wasm']){
-    const from=path.join(source,'node_modules/@huggingface/transformers/dist',file);
-    if(fs.statSync(from).size>25*1024*1024)throw new Error('Pages asset exceeds 25 MiB: '+file);
-    fs.copyFileSync(from,path.join(runtime,file));
-}
-fs.copyFileSync(path.join(source,'node_modules/@huggingface/transformers/LICENSE'),path.join(runtime,'LICENSE.txt'));
 for(const [from,to] of [
     ['pdfjs-dist/build/pdf.min.js','document-reader.js'],
     ['pdfjs-dist/build/pdf.worker.min.js','document-worker.js'],
@@ -33,4 +26,4 @@ for(const [from,to] of [
     ['jszip/LICENSE.markdown','archive-reader-LICENSE.txt'],
     ['xlsx/LICENSE','sheet-reader-LICENSE.txt'],
 ])fs.copyFileSync(path.join(source,'node_modules',from),path.join(out,'vendor',to));
-console.log('Pages assets staged with Transformers.js 3.8.1 and local WASM runtime.');
+require('./stage-reader.cjs').stageReader(source,out).then(()=>console.log('Pages assets staged with the compact language reader.')).catch(error=>{console.error(error);process.exitCode=1;});

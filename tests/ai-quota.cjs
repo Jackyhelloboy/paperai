@@ -137,15 +137,15 @@ async function frontend() {
     let usageCalls=0;const originalFetch=dashboard.fetch;
     dashboard.fetch=async url=>{usageCalls++;return originalFetch(url);};
     await Promise.all([dashboard.loadUsage(),dashboard.loadUsage(),dashboard.loadUsage()]);
-    assert.equal(usageCalls,2,'Concurrent usage checks share one request per endpoint');
-    assert.equal(fields.quotaRemaining.textContent, '19.91%'); assert.equal(fields.quotaUsed.textContent, '80.09%');
-    assert.equal(fields.quotaRemainingLabel.textContent, 'Reported remaining');
-    assert.equal(fields.quotaFill.style.width,'80.09%');assert.equal(fields.quotaPercent.textContent,'80.09% reported used');
-    assert(fields.quotaReset.textContent.includes('05:30')); assert(fields.quotaDescription.textContent.includes('Word export'));
+    assert.equal(usageCalls,1,'Concurrent availability checks share one request');
+    assert.equal(fields.quotaBadgeText.textContent, 'Automatic');
+    assert(fields.quotaDescription.textContent.includes('editable Word'));
+    assert(!fields.quotaDescription.textContent.includes('%'));
+    assert(!/download|228|usage totals/i.test(fields.quotaDescription.textContent));
+    assert(dashboard.renderUsage().blocked);
     dashboard.fetch = async () => { throw new Error('offline'); };
-    await dashboard.loadUsage(); assert.equal(fields.quotaRemaining.textContent, '19.91%');
+    await dashboard.loadUsage(); assert(dashboard.renderUsage().blocked,'Confirmed block survives an offline status request');
     clock = Date.parse(report.reset_at); await dashboard.loadUsage();
-    assert.equal(fields.quotaRemaining.textContent, '—'); assert.equal(fields.quotaUsed.textContent, '—');
     assert(!dashboard.renderUsage().blocked);
 
     const classes = () => { const set = new Set(); return { add: v => set.add(v), remove: v => set.delete(v), has: v => set.has(v) }; };

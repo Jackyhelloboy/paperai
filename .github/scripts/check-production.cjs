@@ -38,7 +38,7 @@ async function runGroup(name,count,concurrency,operation){
 }
 (async()=>{
   await status('pending','Checking public routes and bounded website/API load');
-  const home=await read('/');assert.equal(home.status,200);assert(home.body.includes('PaperAI · daily usage'));
+  const home=await read('/');assert.equal(home.status,200);assert(home.body.includes('Ready to scan'));assert(!home.body.includes('id="quotaRemaining"'));assert(!home.body.includes('228 MB'));
   assert(!/Cloudflare|workers\.dev|Gemma|Florence|Neurons/i.test(home.body));checks.push('Public dashboard contains no provider labels or backend hostname');
   for(const path of ['/local-ocr-check','/local-ocr-check.html','/api/debug','/api/train/export']){
     assert.equal((await read(path)).status,404,path);checks.push(path+' is unavailable');
@@ -46,8 +46,10 @@ async function runGroup(name,count,concurrency,operation){
   const health=await read('/api/health');assert.equal(health.status,200);assert.deepEqual(JSON.parse(health.body),{status:'healthy'});
   const usage=await read('/api/usage');assert.equal(usage.status,200);
   assert.deepEqual(Object.keys(JSON.parse(usage.body)).sort(),['date_utc','provider_limit_reached','reset_at']);
-  const snapshot=await read('/usage.json');assert.equal(snapshot.status,200);assert.equal(JSON.parse(snapshot.body).source,'paperai-usage');
-  for(const path of ['/vendor/document-reader.js','/vendor/document-worker.js','/vendor/archive-reader.js','/vendor/sheet-reader.js']){
+  const readerManifest=await read('/vendor/local-runtime/manifest.json');assert.equal(readerManifest.status,200);
+  const manifest=JSON.parse(readerManifest.body);assert.equal(manifest.runtime,'tesseract.js@6.0.1');assert(manifest.files.some(f=>f.code==='hin'));
+  assert.equal((await read('/vendor/local-ocr-worker.mjs')).status,404);
+  for(const path of ['/vendor/document-reader.js','/vendor/document-worker.js','/vendor/archive-reader.js','/vendor/sheet-reader.js','/vendor/local-runtime/reader.js','/vendor/local-runtime/reader-worker.js']){
     const asset=await read(path);assert.equal(asset.status,200);assert(asset.body.length>10000);checks.push(path+' loads');
   }
   for(const concurrency of [5,10,20])await runGroup('dashboard-'+concurrency,40,concurrency,async()=>{

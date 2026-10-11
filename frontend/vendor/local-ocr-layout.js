@@ -18,6 +18,34 @@
         }
         return out;
     }
+    function readerRegions(data,width,height){
+        const output=[];
+        for(const block of data.blocks||[])for(const paragraph of block.paragraphs||[])for(const line of paragraph.lines||[]){
+            const words=(line.words||[]).filter(word=>String(word.text||'').trim()&&word.bbox&&
+                Object.values(word.bbox).every(Number.isFinite)&&word.bbox.x1>word.bbox.x0&&word.bbox.y1>word.bbox.y0);
+            if(!words.length)continue;
+            const lineTop=Math.max(0,Math.min(...words.map(w=>w.bbox.y0))),lineBottom=Math.min(height,Math.max(...words.map(w=>w.bbox.y1)));
+            const lineHeight=lineBottom-lineTop;
+            let group=[];
+            const flush=()=>{
+                if(!group.length)return;
+                const x=Math.max(0,Math.min(...group.map(w=>w.bbox.x0))),right=Math.min(width,Math.max(...group.map(w=>w.bbox.x1)));
+                if(right>x&&lineHeight>0)output.push({text:group.map(w=>w.text.trim()).join(' '),x,y:lineTop,w:right-x,h:lineHeight,
+                    erase:group.map(w=>({x:Math.max(0,w.bbox.x0),y:Math.max(0,w.bbox.y0),w:Math.min(width,w.bbox.x1)-Math.max(0,w.bbox.x0),h:Math.min(height,w.bbox.y1)-Math.max(0,w.bbox.y0)}))});
+                group=[];
+            };
+            for(const word of words){
+                // Keep the reader's logical order for RTL text. Large physical gaps
+                // split matching columns and right-side marks into separate runs.
+                if(group.length){const previous=group.at(-1).bbox,next=word.bbox;
+                    const gap=Math.max(next.x0-previous.x1,previous.x0-next.x1);
+                    if(gap>Math.max(12,lineHeight*1.4))flush();}
+                group.push(word);
+            }
+            flush();
+        }
+        return output;
+    }
     function merge(values){
         const sorted=values.slice().sort((a,b)=>a.y-b.y||a.x-b.x),out=[];
         for(const value of sorted){
@@ -50,5 +78,5 @@
                 family:'Arial',bold:/^(?:Subject\s*:|[IVX]+[.)]\s)/i.test(r.text),italic:false})),
             images:[{x:0,y:0,w:width*unit,h:height*unit,dataUrl,pixelWidth:width,pixelHeight:height}],shapes:[]};
     }
-    return Object.freeze({tiles,regions,merge,rows,plainText,scene});
+    return Object.freeze({tiles,regions,readerRegions,merge,rows,plainText,scene});
 });

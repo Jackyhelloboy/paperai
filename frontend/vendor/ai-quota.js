@@ -38,7 +38,7 @@
             resetAt: nextReset(now),
             badge: blocked || live ? 'Scanning available' : 'Checking availability',
             description: blocked
-                ? 'Scanning continues automatically. First setup downloads about 228 MB; review handwriting and language accuracy before exporting. Word export still works.'
+                ? 'Upload your paper. Review the text, then export editable Word.'
                 : 'Usage totals may be delayed. Reported remaining does not guarantee that the next scan will be accepted.',
         };
     }

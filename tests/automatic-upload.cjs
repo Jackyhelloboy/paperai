@@ -14,7 +14,7 @@ function setup(){
   setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];}} );
  const files=[];let finish,reading=0;
  const ctx=vm.createContext({PaperAILayout:Layout,$:field,console,
-  file:null,fileBatch:[],lastResult:null,showingRaw:false,processingUpload:false,uploadRun:0,extractedMedia:[],
+  file:null,fileBatch:[],lastResult:null,showingRaw:false,processingUpload:false,uploadRun:0,activeScanController:null,scanCancelled:false,extractedMedia:[],
   ...Object.fromEntries(['dropZone','fileInput','goBtn','languageSelect','filePreview','fileThumb','fileTypeIcon','fileName','fileMeta','clearBtn','prog','pFill','pPct','pMsg','resBox','teachPanel','textOut'].map(k=>[k,field(k)])),
   IMAGE_EXTS:['png','jpg'],PDF_EXTS:['pdf'],DOC_EXTS:['docx'],PPT_EXTS:[],XLS_EXTS:[],TXT_EXTS:['txt'],ALLOWED_EXTS:['png','jpg','pdf','docx','txt'],BLOCKED_EXTS:['mp4'],
   FileReader:class{readAsDataURL(f){this.onload({target:{result:'data:image/png;base64,test'}});}},fmtSize:n=>String(n),hideErr(){ctx.error=null;},showErr:m=>{ctx.error=m;},
@@ -34,8 +34,8 @@ const settle=async()=>{for(let i=0;i<5;i++)await Promise.resolve();};
  const f={name:'photo.png',type:'image/png',size:1024},pdf={name:'paper.pdf',type:'application/pdf',size:1234};
  const t=setup();t.ctx.setFiles([f]);
  assert.equal(t.reads(),1,'Selecting a file must start processing with no Extract click');
- assert.equal(t.ctx.processingUpload,true);assert.equal(t.nodes.fileInput.disabled,true);assert.equal(t.nodes.clearBtn.disabled,true);
- await t.ctx.goBtn.onclick();t.ctx.setFiles([pdf]);t.ctx.clearFile();
+ assert.equal(t.ctx.processingUpload,true);assert.equal(t.nodes.fileInput.disabled,true);assert.equal(t.nodes.clearBtn.disabled,false);
+ await t.ctx.goBtn.onclick();t.ctx.setFiles([pdf]);
  assert.equal(t.reads(),1,'Clicks, replacements and remove while processing must not duplicate OCR');assert.equal(t.ctx.file,f);
  t.ctx.updateProgress(48,'Reading page 1/3');assert.equal(t.nodes.pPct.textContent,'Working…');assert(!('aria-valuenow' in t.nodes.scanProgress.attrs));
  t.ctx.updateProgress(18,'Preparing scan');assert.equal(t.nodes.pPct.textContent,'Working…','Slow AI preparation must not make a fake percentage regress');
@@ -45,7 +45,7 @@ const settle=async()=>{for(let i=0;i<5;i++)await Promise.resolve();};
  assert.equal(t.nodes.paperFormat.value,'science');assert.equal(t.nodes.paperFont.value,'10');assert.equal(t.nodes.paperLine.value,'1');
  assert.equal(t.ctx.lastResult.text,page.text,'Auto layout must not change wording, solve questions or strip structures');
  assert(t.nodes.textOut.innerHTML.includes('SHAPE_ROW')&&t.nodes.textOut.innerHTML.includes('TABLE_ROW'));
- assert.equal(t.nodes.pPct.textContent,'100%');assert.equal(t.nodes.scanProgress.attrs['aria-valuenow'],'100');
+ assert.equal(t.nodes.pPct.textContent,'Ready');assert.equal(t.nodes.scanProgress.attrs['aria-valuenow'],'100');
  t.ctx.setFiles([pdf]);t.complete({...page,nativePdfPages:[{page:1}]});await settle();
  assert.equal(t.ctx.lastResult.native_pdf_pages.length,1);assert.equal(t.nodes.paperFlow.value,'source');assert.equal(t.nodes.paperFormat.value,'custom');
  t.ctx.setFiles([{name:'original.docx',type:'application/octet-stream',size:100}]);t.complete(page);await settle();
@@ -54,6 +54,7 @@ const settle=async()=>{for(let i=0;i<5;i++)await Promise.resolve();};
  assert(t.nodes.goBtn.classList.has('show'));assert(!t.nodes.prog.classList.has('show'));assert.equal(t.ctx.processingUpload,false);
  assert(!t.nodes.resBox.classList.has('show'),'An unrelated previous document must not be presented as the failed scan');
  const retry=t.ctx.goBtn.onclick();t.complete(page);await retry;assert.equal(t.ctx.lastResult.source_file,f);
+ const cancel=setup();let aborted=false;cancel.ctx.setFiles([f]);cancel.ctx.activeScanController={abort(){aborted=true;}};cancel.ctx.clearFile();assert(aborted);assert(cancel.ctx.scanCancelled);cancel.fail();await settle();assert(cancel.ctx.error.includes('Processing cancelled'));assert(cancel.nodes.goBtn.classList.has('show'));
  const second={name:'photo-2.png',type:'image/png',size:100};
  t.ctx.setFiles([f,second]);t.complete(page);await settle();
  t.complete({text:'2. Continue the questions. ______',plain:'2. Continue the questions. ______',raw:'2. Continue the questions. ______'});await settle();

@@ -1746,48 +1746,16 @@
         </div>
 
         <section class="quota-card" id="quotaCard" aria-live="polite">
-            <div class="quota-head">
+            <div class="quota-head" style="margin-bottom:0">
                 <div>
-                    <div class="quota-title">PaperAI · daily usage</div>
-                    <div class="quota-subtitle" id="quotaDescription">Checking scanning availability. Usage totals may be delayed.</div>
+                    <div class="quota-title">Ready to scan</div>
+                    <div class="quota-subtitle" id="quotaDescription">Upload your paper. Review the text, then export editable Word.</div>
                 </div>
                 <div class="quota-live" id="quotaBadge">
                     <span class="quota-live-dot"></span>
-                    <span id="quotaBadgeText">Loading</span>
+                    <span id="quotaBadgeText">Automatic</span>
                 </div>
             </div>
-
-            <div class="quota-stats">
-                <div class="quota-stat">
-                    <span class="quota-stat-label" id="quotaRemainingLabel">Reported remaining</span>
-                    <span class="quota-stat-value" id="quotaRemaining">—</span>
-                </div>
-                <div class="quota-stat">
-                    <span class="quota-stat-label">Reported used</span>
-                    <span class="quota-stat-value" id="quotaUsed">—</span>
-                </div>
-            </div>
-
-            <div class="quota-track" id="quotaTrack" role="progressbar" aria-label="Daily processing usage" aria-valuemin="0" aria-valuemax="100">
-                <div class="quota-fill" id="quotaFill"></div>
-            </div>
-            <div class="quota-scale">
-                <span id="quotaPercent">Checking scanning availability…</span>
-                <span>Daily usage · percentage</span>
-            </div>
-
-
-            <div class="quota-times">
-                <div>
-                    <span class="quota-time-label">Usage last updated</span>
-                    <span class="quota-time-value" id="quotaNow">—</span>
-                </div>
-                <div>
-                    <span class="quota-time-label">Daily reset</span>
-                    <span class="quota-time-value" id="quotaReset">—</span>
-                </div>
-            </div>
-
         </section>
 
         <div class="upload-card">
@@ -1989,16 +1957,14 @@ const dropZone=$('dropZone'),fileInput=$('fileInput'),goBtn=$('goBtn'),languageS
 const filePreview=$('filePreview'),fileThumb=$('fileThumb'),fileTypeIcon=$('fileTypeIcon'),fileName=$('fileName'),fileMeta=$('fileMeta'),clearBtn=$('clearBtn');
 const prog=$('prog'),pFill=$('pFill'),pPct=$('pPct'),pMsg=$('pMsg');
 const errBox=$('errBox'),errText=$('errText'),resBox=$('resBox'),textOut=$('textOut');
-const quotaCard=$('quotaCard'),quotaRemaining=$('quotaRemaining'),quotaUsed=$('quotaUsed'),quotaFill=$('quotaFill');
-const quotaPercent=$('quotaPercent'),quotaNow=$('quotaNow'),quotaReset=$('quotaReset');
-const quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
+const quotaCard=$('quotaCard'),quotaBadgeText=$('quotaBadgeText'),onlineCount=$('onlineCount');
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
 const teachAiBtn=$('teachAiBtn'),teachAiStatus=$('teachAiStatus');
 const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
 
 let file=null, fileBatch=[], lastResult=null, showingRaw=false;
-let processingUpload=false, uploadRun=0;
+let processingUpload=false, uploadRun=0, activeScanController=null, scanCancelled=false;
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
@@ -2013,23 +1979,17 @@ const setProg = (pct,msg) => {
     const done=pct===100, track=$('scanProgress');
     pFill.classList.toggle('indeterminate',!done);
     pFill.style.width=done?'100%':'35%';
-    pPct.textContent=done?'100%':'Working…';
+    pPct.textContent=done?'Ready':'Working…';
     if(msg)pMsg.textContent=msg;
     if(done)track.setAttribute('aria-valuenow','100');else track.removeAttribute('aria-valuenow');
     track.setAttribute('aria-valuetext',msg||'Processing uploaded paper');
 };
 
 let quotaResetAt = null;
-let quotaReport = null, quotaLiveStatus = null, usageRequestId = 0, usagePending = null;
+let quotaLiveStatus = null, usageRequestId = 0, usagePending = null;
 const QUOTA_BLOCK_KEY = 'paperai_confirmed_ai_block_v1';
 let quotaLocalBlock = null;
 try { quotaLocalBlock = JSON.parse(localStorage.getItem(QUOTA_BLOCK_KEY) || 'null'); } catch (_) {}
-
-const fmtUsage = n => {
-    const value = Number(n);
-    if (!Number.isFinite(value)) return '—';
-    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
-};
 
 function formatLocalDateTime(value) {
     if (!value) return '—';
@@ -2046,14 +2006,6 @@ function formatLocalDateTime(value) {
     }).format(d);
 }
 
-function updateQuotaClock() {
-    if (!quotaResetAt) {
-        quotaReset.textContent = '—';
-        return;
-    }
-    quotaReset.textContent = formatLocalDateTime(quotaResetAt) + ' · 00:00 UTC';
-}
-
 function rememberQuotaBlock(body) {
     const now = Date.now();
     quotaLocalBlock = {
@@ -2066,25 +2018,10 @@ function rememberQuotaBlock(body) {
 }
 
 function renderUsage() {
-    const view = PaperAIQuota.model(quotaReport, quotaLiveStatus, quotaLocalBlock);
-    quotaRemaining.textContent = view.remaining === null ? '—' : fmtUsage(view.remaining) + '%';
-    quotaUsed.textContent = view.used === null ? '—' : fmtUsage(view.used) + '%';
-    $('quotaRemainingLabel').textContent = 'Reported remaining';
-    quotaFill.style.width = (view.barPercent ?? 0).toFixed(2) + '%';
-    quotaPercent.textContent = view.barLabel;
-    const track=$('quotaTrack');
-    track.title=view.barDescription;
-    track.setAttribute('aria-valuetext',view.barLabel);
-    if(view.barPercent===null)track.removeAttribute('aria-valuenow');
-    else track.setAttribute('aria-valuenow',String(view.barPercent));
-    quotaNow.textContent = formatLocalDateTime(view.updatedAt);
+    const view = PaperAIQuota.model(null, quotaLiveStatus, quotaLocalBlock);
     quotaResetAt = view.resetAt;
-    updateQuotaClock();
-    quotaCard.classList.toggle('warning', !view.blocked && view.percent >= 75);
-    quotaCard.classList.toggle('exhausted', false);
-    quotaBadgeText.textContent = view.badge;
-    $('quotaDescription').textContent = view.description;
-    quotaCard.title = view.description;
+    quotaBadgeText.textContent = 'Automatic';
+    $('quotaDescription').textContent = 'Upload your paper. Review the text, then export editable Word.';
     return view;
 }
 
@@ -2101,13 +2038,10 @@ async function refreshUsage() {
         if (!res.ok) throw new Error('Usage unavailable');
         return res.json();
     };
-    const results = await Promise.allSettled([
-        read('/usage.json?t=' + Date.now()),
-        read(API_LOCAL + '/api/usage'),
-    ]);
+    let status = null;
+    try { status = await read(API_LOCAL + '/api/usage'); } catch (_) {}
     if (requestId !== usageRequestId) return renderUsage();
-    if (results[0].status === 'fulfilled') quotaReport = results[0].value;
-    quotaLiveStatus = results[1].status === 'fulfilled' ? results[1].value : null;
+    quotaLiveStatus = status;
     if (PaperAIQuota.activeBlock(quotaLiveStatus)) rememberQuotaBlock(quotaLiveStatus);
     if (quotaLocalBlock && !PaperAIQuota.activeBlock(quotaLocalBlock)) {
         quotaLocalBlock = null;
@@ -2241,7 +2175,7 @@ function setFile(f) {
 }
 
 function clearFile() {
-    if(processingUpload)return;
+    if(processingUpload){scanCancelled=true;activeScanController?.abort();setProg(18,'Stopping…');return;}
     lastResult=null;extractedMedia=[];
     file=null;
     fileBatch=[];
@@ -4698,15 +4632,11 @@ async function sendFileToWorker(inputFile, signal) {
 }
 
 async function scanOnDevice(prepared, signal, progressText='') {
-    const downloads=new Map();
-    setProg(18,'Preparing scanner…');
-    const local=await PaperAILocalOCR.recognize(prepared.blob,{signal,onProgress:p=>{
-        if(p.stage==='download'){
-            if(p.file&&Number.isFinite(p.loaded))downloads.set(p.file,p.loaded);
-            const bytes=Array.from(downloads.values()).reduce((a,b)=>a+b,0);
-            setProg(18,'Preparing scanner · '+(bytes/1048576).toFixed(1)+' MB downloaded · first use needs about 228 MB');
-        }else if(p.stage==='scan')setProg(18,(progressText?progressText+' · ':'')+'Reading region '+p.current+'/'+p.total);
-        else setProg(18,'Loading scanner · the first download can take a few minutes');
+    setProg(18,'Preparing to read your paper…');
+    const local=await PaperAILocalOCR.recognize(prepared.blob,{signal,language:languageSelect.value||'auto',onProgress:p=>{
+        const stage = p.stage==='scan' ? 'Reading text…' : p.stage==='detect' ? 'Identifying document language…' :
+            'Preparing reader · small first-use files are saved for future scans';
+        setProg(18,(progressText?progressText+' · ':'')+stage);
     }});
     const plain=PaperAILocalLayout.plainText(local.regions);
     const nativeScene=await PaperAILocalOCR.page(prepared.blob,local);
@@ -5447,7 +5377,7 @@ function restoreScannedPage(page) {
 }
 async function extractOneFile(f, onProgress, label) {
     const ext = f.name.split('.').pop().toLowerCase();
-    const report = typeof onProgress === 'function' ? onProgress : () => {};
+    const report = (message,percent) => {if(scanCancelled)throw new DOMException('Scan cancelled.','AbortError');if(typeof onProgress==='function')onProgress(message,percent);};
     let allText = '';
     let allPlain = '';
     let allRaw = '';
@@ -5484,6 +5414,7 @@ async function extractOneFile(f, onProgress, label) {
 
             report('OCR scanned page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
             const ctrl = new AbortController();
+            activeScanController=ctrl;
             const tid = setTimeout(() => ctrl.abort(), 900000);
             let result;
             const firstMedia=extractedMedia.length;
@@ -5517,6 +5448,7 @@ async function extractOneFile(f, onProgress, label) {
     } else if (IMAGE_EXTS.includes(ext)) {
         report('Analyzing image...', 12);
         const ctrl = new AbortController();
+        activeScanController=ctrl;
         const tid = setTimeout(() => ctrl.abort(), 900000);
         let result;
         try { result = await sendToOCR(f, ctrl.signal, label + 'Preparing image'); }
@@ -5540,6 +5472,7 @@ async function extractOneFile(f, onProgress, label) {
     } else {
         report('Reading legacy document...', 20);
         const ctrl = new AbortController();
+        activeScanController=ctrl;
         const tid = setTimeout(() => ctrl.abort(), 120000);
         const result = await sendFileToWorker(f, ctrl.signal);
         clearTimeout(tid);
@@ -5558,10 +5491,10 @@ goBtn.onclick = async () => {
     const batch = fileBatch.length ? fileBatch.slice() : (file ? [file] : []);
     if (!batch.length) return;
     const sourceFile = file, run=++uploadRun;
-    processingUpload=true;
+    processingUpload=true;scanCancelled=false;clearBtn.title='Cancel processing';
     const previousResult = lastResult?.source_file===sourceFile?lastResult:null, previousMedia = extractedMedia.slice();
     goBtn.classList.remove('show');
-    fileInput.disabled=true;clearBtn.disabled=true;
+    fileInput.disabled=true;clearBtn.disabled=false;
     goBtn.disabled=true;
     languageSelect.disabled=true;
     hideErr();
@@ -5583,6 +5516,7 @@ goBtn.onclick = async () => {
                 const overall = Math.min(95, 5 + Math.round(((idx + (pct / 100)) / batch.length) * 90));
                 setProg(overall, msg);
             }, batch.length > 1 ? 'File ' + (idx+1) + '/' + batch.length + ': ' : '');
+            if(scanCancelled)throw new DOMException('Scan cancelled.','AbortError');
             if(batch.length===1)nativePdfPages=part.nativePdfPages;
             usedLocalOCR ||= !!part.localOCR;
             if(IMAGE_EXTS.includes(batch[idx].name.split('.').pop().toLowerCase())&&part.nativePdfPages)photoScenes.push(...part.nativePdfPages);
@@ -5644,10 +5578,10 @@ goBtn.onclick = async () => {
             extractedMedia = previousMedia;
             resBox.classList.add('show');
         }
-        showErr(e.name==='AbortError' ? 'The network request took too long. PaperAI now retries AI timeouts automatically; please check your connection and try again.' : e.message);
+        showErr(scanCancelled ? 'Processing cancelled. Completed pages are kept; tap Retry / resume processing to continue.' : e.name==='AbortError' ? 'The network request took too long. PaperAI now retries AI timeouts automatically; please check your connection and try again.' : e.message);
         loadUsage();
     } finally {
-        processingUpload=false;
+        processingUpload=false;activeScanController=null;clearBtn.title='Remove';
         goBtn.disabled=false;
         languageSelect.disabled=false;
         fileInput.disabled=false;clearBtn.disabled=false;

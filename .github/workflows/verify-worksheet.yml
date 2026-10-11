@@ -13,6 +13,8 @@ on:
       - 'tests/automatic-upload.cjs'
       - 'frontend/vendor/ai-quota.js'
       - 'frontend/vendor/local-ocr*'
+      - 'frontend/vendor/local-reader-worker.js'
+      - '.github/scripts/stage-reader.cjs'
       - 'tests/local-ocr.cjs'
       - 'tests/public-gateway.cjs'
       - 'functions/**'
