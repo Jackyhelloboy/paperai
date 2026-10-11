@@ -20,8 +20,6 @@
 <script src="./vendor/pdf-editable-layout.js"></script>
 <script src="./vendor/docx-reference-layout.js"></script>
 <script src="./vendor/ai-quota.js"></script>
-<script src="./vendor/local-ocr-layout.js"></script>
-<script src="./vendor/local-ocr.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -2052,8 +2050,7 @@ async function refreshUsage() {
 
 function quotaFailure(body) {
     rememberQuotaBlock(body);
-    const error = new Error('Scanning continues automatically. Daily usage resets at ' +
-        formatLocalDateTime(quotaResetAt) + '. Editing and Word export still work.');
+    const error = new Error('Scanning is temporarily unavailable. Please retry later. Editing and Word export still work.');
     error.code = 'FREE_AI_LIMIT_REACHED';
     return error;
 }
@@ -4631,38 +4628,10 @@ async function sendFileToWorker(inputFile, signal) {
     return body;
 }
 
-async function scanOnDevice(prepared, signal, progressText='', sourceBlob=prepared.blob) {
-    // Enhancement tuned for handwriting can damage Indic strokes. Keep original
-    // pixels for this reader, limiting only the dimensions for phone memory.
-    const bitmap=await createImageBitmap(sourceBlob);
-    let readerBlob=sourceBlob;
-    try {
-        if(Math.max(bitmap.width,bitmap.height)>2600){
-            const scale=2600/Math.max(bitmap.width,bitmap.height),canvas=document.createElement('canvas');
-            canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
-            const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);
-            context.drawImage(bitmap,0,0,canvas.width,canvas.height);
-            readerBlob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
-            canvas.width=canvas.height=0;
-            if(!readerBlob)throw new Error('Could not prepare this image. Please retry.');
-        }
-    } finally {bitmap.close();}
-    setProg(18,'Preparing to read your paper…');
-    const local=await PaperAILocalOCR.recognize(readerBlob,{signal,language:languageSelect.value||'auto',onProgress:p=>{
-        const stage = p.stage==='scan' ? 'Reading text…' : p.stage==='detect' ? 'Identifying document language…' :
-            'Preparing reader · small first-use files are saved for future scans';
-        setProg(18,(progressText?progressText+' · ':'')+stage);
-    }});
-    const plain=PaperAILocalLayout.plainText(local.regions);
-    const nativeScene=await PaperAILocalOCR.page(readerBlob,local);
-    const annotated=await recoverSourceFigures(PaperAILayout.normalise(plain),readerBlob);
-    return {status:'completed',result:{annotated_text:annotated,full_text:plain,raw_text:plain,native_scene:nativeScene,engine:'backup-reader'}};
-}
-
 async function sendToOCR(sourceBlob, signal, progressText = '') {
-    const quota = await loadUsage();
-    let prepared = quota.blocked ? {blob:sourceBlob,meta:{}} : await prepareImageForOCR(sourceBlob, false);
-    if (quota.blocked) return scanOnDevice(prepared, signal, progressText, sourceBlob);
+    // Provider selection belongs to the backend. A cached primary-provider
+    // block must never prevent uploading a page to the automatic backup.
+    let prepared = await prepareImageForOCR(sourceBlob, false);
 
     if (progressText) {
         const lines = Number(prepared.meta?.lineCount) || 0;
@@ -4706,7 +4675,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
 
         if (PaperAIQuota.isDailyError(body)) {
             rememberQuotaBlock(body);
-            return scanOnDevice(prepared, signal, progressText, sourceBlob);
+            throw quotaFailure(body);
         }
         if (res.status === 429 || body?.code === 'AI_BUSY') {
             throw new Error('PaperAI is temporarily busy. Please try again shortly.');
@@ -5397,7 +5366,6 @@ async function extractOneFile(f, onProgress, label) {
     let allPlain = '';
     let allRaw = '';
     let nativePdfPages=null;
-    let localOCR=false;
 
     if (ext === 'pdf') {
         report('Loading PDF...', 8);
@@ -5421,7 +5389,6 @@ async function extractOneFile(f, onProgress, label) {
             if(cached.results[i]){
                 const saved=restoreScannedPage(cached.results[i]);
                 pages[i].ocrScene=saved.nativeScene||null;
-                localOCR ||= !!saved.localOCR;
                 allText+=prefix+saved.text;allPlain+=plainPrefix+saved.plain;allRaw+=plainPrefix+saved.raw;
                 report('Restored completed page '+(i+1)+'/'+pages.length+'...',48+Math.round((i/pages.length)*45));
                 continue;
@@ -5446,8 +5413,7 @@ async function extractOneFile(f, onProgress, label) {
                 const annotated = result.result.annotated_text || result.result.full_text || '';
                 const plain = result.result.full_text || annotated;
                 pages[i].ocrScene=result.result.native_scene||null;
-                localOCR ||= result.result.engine==='backup-reader';
-                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia),nativeScene:pages[i].ocrScene,localOCR:result.result.engine==='backup-reader'};
+                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia),nativeScene:pages[i].ocrScene};
                 allText += prefix + annotated;
                 allPlain += plainPrefix + plain;
                 allRaw += plainPrefix + (result.result.raw_text || annotated);
@@ -5473,7 +5439,6 @@ async function extractOneFile(f, onProgress, label) {
         allPlain = result.result.full_text || allText;
         allRaw = result.result.raw_text || allText;
         if(result.result.native_scene)nativePdfPages=[result.result.native_scene];
-        localOCR=result.result.engine==='backup-reader';
     } else if (TXT_EXTS.includes(ext) || ext === 'rtf') {
         report('Reading text...', 25);
         allText = await extractPlainTextFile(f);
@@ -5498,7 +5463,7 @@ async function extractOneFile(f, onProgress, label) {
     }
 
     if (!allPlain) allPlain = allText;
-    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages, localOCR };
+    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages };
 }
 
 goBtn.onclick = async () => {
@@ -5524,7 +5489,6 @@ goBtn.onclick = async () => {
         let allRaw = '';
         let nativePdfPages=null;
         const photoScenes=[];
-        let usedLocalOCR=false;
 
         for (let idx = 0; idx < batch.length; idx++) {
             const part = await extractOneFile(batch[idx], (msg, pct) => {
@@ -5533,7 +5497,6 @@ goBtn.onclick = async () => {
             }, batch.length > 1 ? 'File ' + (idx+1) + '/' + batch.length + ': ' : '');
             if(scanCancelled)throw new DOMException('Scan cancelled.','AbortError');
             if(batch.length===1)nativePdfPages=part.nativePdfPages;
-            usedLocalOCR ||= !!part.localOCR;
             if(IMAGE_EXTS.includes(batch[idx].name.split('.').pop().toLowerCase())&&part.nativePdfPages)photoScenes.push(...part.nativePdfPages);
             if (!String(part.plain || part.text || '').trim()) continue;
             const isPhoto=f=>IMAGE_EXTS.includes(f?.name.split('.').pop().toLowerCase());
@@ -5559,7 +5522,6 @@ goBtn.onclick = async () => {
         const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">A4 · narrow margins · auto formatted</span><span class="badge badge-gray">' + charCount + ' chars</span>';
-        if(usedLocalOCR)badges+='<span class="badge badge-gray">Review handwriting and language accuracy</span>';
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         $('statsBar').innerHTML = badges;
 

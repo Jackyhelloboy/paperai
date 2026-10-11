@@ -2,7 +2,7 @@
 
 The dashboard uses PaperAI branding. Public browser code no longer contains the backend service address. Uploads, status and presence go through same-origin `/api/` routes. The server gateway preserves live socket upgrades, keeps document content verbatim, limits public metadata, maps errors to product messages, and rejects non-public routes.
 
-The dashboard shows a compact “Ready to scan” message. Shared daily percentages, counters and reset dates are removed. Processing shows actual stages and “Ready”, never a guessed percentage. Automatic fallback and return after the daily reset remain in place; no model selection controls were added. The large 228 MB backup is replaced with a smaller language-aware reader; see AUTOMATIC_OCR_FALLBACK.md for transfer sizes and limitations.
+The dashboard shows a compact “Ready to scan” message. Shared daily percentages, counters and reset dates are removed. Processing shows actual stages and “Ready”, never a guessed percentage. Automatic fallback and return after the daily reset remain in place; no model selection controls were added. The browser backup and all language-pack downloads are removed. The replacement runs on the server; see AUTOMATIC_OCR_FALLBACK.md for secure activation and verification limits.
 
 Diagnostic pages are excluded from production and their former routes return 404. Static assets continue through the asset cache; only API and blocked diagnostic routes run the gateway. Document readers are shipped from pinned dependencies on the same origin, including the current official spreadsheet reader. Required third-party license notices are retained.
 

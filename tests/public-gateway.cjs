@@ -42,8 +42,8 @@ async function gateway(path,upstream,options={}){
   res=await context.onRequest({request:request('/api/usage'),fetcher:async()=>{throw new Error('secret provider failure');}});
   assert.equal(res.status,502);assert(!JSON.stringify(await res.json()).includes('secret'));
   const html=fs.readFileSync('frontend/index.html','utf8');
-  assert(!/Cloudflare|Neurons|workers\.dev|Gemma|Florence|API_DIRECT/i.test(html));
-  assert(!/Cloudflare|Gemma|Florence/i.test(fs.readFileSync('frontend/vendor/ai-quota.js','utf8')));
+  assert(!/Cloudflare|Neurons|workers\.dev|Gemma|Gemini|Tesseract|Florence|API_DIRECT/i.test(html));
+  assert(!/Cloudflare|Gemma|Gemini|Tesseract|Florence/i.test(fs.readFileSync('frontend/vendor/ai-quota.js','utf8')));
   const snapshot=JSON.parse(fs.readFileSync('frontend/usage.json','utf8'));
   assert.equal(snapshot.source,'paperai-usage');assert(!snapshot.scope);assert(!snapshot.reported_used);
   const build=fs.readFileSync('.github/scripts/build-pages.cjs','utf8');

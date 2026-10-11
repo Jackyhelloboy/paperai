@@ -42,7 +42,7 @@ jobs:
           node tests/reference-formats.cjs
           node tests/ai-quota.cjs
           node tests/automatic-upload.cjs
-          node tests/local-ocr.cjs
+          node tests/gemini-fallback.cjs
           node tests/public-gateway.cjs
 
       - name: Ensure one production deployment path

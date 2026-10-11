@@ -4,6 +4,8 @@ __pycache__/
 *.pyo
 venv/
 .env
+.dev.vars
+.dev.vars.*
 
 # Backend
 backend/uploads/

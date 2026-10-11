@@ -5,7 +5,8 @@ const ROUTES = Object.freeze({
   '/api/usage': 'GET', '/api/live': 'GET', '/api/health': 'GET',
 });
 const ERRORS = Object.freeze({
-  FREE_AI_LIMIT_REACHED: 'Scanning continues automatically. Editing and Word export remain available.',
+  FREE_AI_LIMIT_REACHED: 'Scanning is temporarily unavailable. Please retry later. Editing and Word export remain available.',
+  SCAN_SERVICE_UNAVAILABLE: 'Scanning is temporarily unavailable. Editing and Word export remain available.',
   AI_BUSY: 'PaperAI is temporarily busy. Please try again shortly.',
   AI_TIMEOUT: 'This scan took too long. Please retry a clearer or smaller page.',
   OCR_OUTPUT_INVALID: 'This page could not be read reliably. Please retry or review the source.',
@@ -22,7 +23,7 @@ function publicResult(body) {
   // Only application-owned metadata is reduced to fields used by the editor.
   if (!body.result || typeof body.result !== 'object') return body;
   const result = {...body.result};
-  for (const key of ['engine','model','revision','architecture','platform']) delete result[key];
+  for (const key of ['engine','model','revision','architecture','platform','provider']) delete result[key];
   if (result.metadata) {
     result.metadata = Object.fromEntries(Object.entries(result.metadata).filter(([key]) =>
       ['filename','total_pages','total_characters','char_count','language','requested_language',

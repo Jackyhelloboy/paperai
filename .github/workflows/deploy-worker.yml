@@ -8,6 +8,10 @@ on:
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 
+concurrency:
+  group: paperai-worker-production
+  cancel-in-progress: false
+
 jobs:
   deploy-worker:
     runs-on: ubuntu-latest
@@ -19,7 +23,28 @@ jobs:
           node-version: '22'
 
       - name: Verify quota handling before deploying the Worker
-        run: node tests/ai-quota.cjs
+        run: |
+          node tests/ai-quota.cjs
+          node tests/gemini-fallback.cjs
+
+      - name: Check the supplied backup secret securely
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node .github/scripts/check-gemini.cjs
+
+      - name: Configure automatic backup secret when supplied
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        working-directory: worker
+        shell: bash
+        run: |
+          if [ -n "$GEMINI_API_KEY" ]; then
+            printf '%s' "$GEMINI_API_KEY" | npx --yes wrangler@4 secret put GEMINI_API_KEY
+          else
+            echo 'No new backup secret supplied; preserving existing backend secrets.'
+          fi
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4

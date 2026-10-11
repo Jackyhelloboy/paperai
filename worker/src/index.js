@@ -521,7 +521,7 @@ function freeLimitResponse(corsHeaders, extra = {}) {
   const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
   return Response.json({
     ...extra,
-    error: 'Scanning continues automatically. Editing and Word export still work.',
+    error: 'Scanning is temporarily unavailable. Editing and Word export still work.',
     code: 'FREE_AI_LIMIT_REACHED',
     reset_at: reset.toISOString(),
     server_time: now.toISOString(),
@@ -537,6 +537,89 @@ async function confirmedFreeLimit(env) {
     const status = await getUsageStatus(env);
     return status.provider_limit_reached === true;
   } catch (_) { return false; }
+}
+
+const PRIMARY_MODEL = '@cf/google/gemma-4-26b-a4b-it';
+const GEMINI_MODEL = 'gemini-flash-latest';
+const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
+
+function scanServiceError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+async function runGemini(env, requestBody, signal) {
+  // Read only the deployment secret. Never put credentials in a URL or log an
+  // upstream error body, which may contain request details or document text.
+  const apiKey = String(env.GEMINI_API_KEY || '').trim();
+  if (!apiKey) throw scanServiceError('SCAN_SERVICE_UNAVAILABLE', 'Scanning is temporarily unavailable.');
+  const system = [], contents = [];
+  for (const message of requestBody.messages || []) {
+    const parts = [];
+    for (const item of Array.isArray(message.content) ? message.content : [{type: 'text', text: message.content}]) {
+      if (item.type === 'text') parts.push({text: String(item.text || '')});
+      else if (item.type === 'image_url') {
+        const match = /^data:(image\/[a-z0-9.+-]+|application\/pdf);base64,([A-Za-z0-9+/=]+)$/i.exec(item.image_url?.url || '');
+        if (!match) throw scanServiceError('OCR_FAILED', 'This file could not be read.');
+        parts.push({inline_data: {mime_type: match[1], data: match[2]}});
+      }
+    }
+    if (message.role === 'system') system.push(...parts.filter(part => 'text' in part));
+    else if (parts.length) contents.push({role: message.role === 'assistant' ? 'model' : 'user', parts});
+  }
+  const body = {
+    contents,
+    ...(system.length ? {systemInstruction: {parts: system}} : {}),
+    generationConfig: {temperature: 0, maxOutputTokens: Math.max(256, Math.min(16384, Number(requestBody.max_completion_tokens) || 6144))},
+  };
+  const timeout = AbortSignal.timeout(90000);
+  let response, result;
+  try {
+    response = await fetch(GEMINI_ENDPOINT, {
+      method: 'POST', redirect: 'error',
+      headers: {'Content-Type': 'application/json', 'X-goog-api-key': apiKey},
+      body: JSON.stringify(body), signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    });
+    // Do not parse or expose upstream failure bodies.
+    if (response.ok) result = await response.json();
+  } catch (_) {
+    throw scanServiceError(timeout.aborted || signal?.aborted ? 'AI_TIMEOUT' : 'AI_BUSY',
+      'Scanning is temporarily unavailable. Please retry.');
+  }
+  if (!response.ok) {
+    throw scanServiceError(response.status === 429 || response.status >= 500 ? 'AI_BUSY' : 'SCAN_SERVICE_UNAVAILABLE',
+      'Scanning is temporarily unavailable. Please retry.');
+  }
+  const candidate = result?.candidates?.[0];
+  if (result?.promptFeedback?.blockReason || (candidate?.finishReason && candidate.finishReason !== 'STOP'))
+    throw scanServiceError('OCR_OUTPUT_INVALID', 'This page could not be read completely.');
+  const text = (candidate?.content?.parts || []).filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('');
+  if (!text.trim()) throw scanServiceError('OCR_OUTPUT_INVALID', 'This page could not be read completely.');
+  // Gemini token usage must never be counted as primary-provider neurons.
+  return {response: text, usage: null, model: GEMINI_MODEL};
+}
+
+async function runInference(env, body, state = {}, signal) {
+  const hasBackup = Boolean(String(env.GEMINI_API_KEY || '').trim());
+  if (state.provider === 'gemini') return runGemini(env, body, signal);
+  if (await confirmedFreeLimit(env)) {
+    if (!hasBackup) throw new Error('3036: daily free allocation reached');
+    state.provider = 'gemini';
+    return runGemini(env, body, signal);
+  }
+  try {
+    if (!env.AI) throw scanServiceError('SCAN_SERVICE_UNAVAILABLE', 'Scanning is temporarily unavailable.');
+    return await env.AI.run(PRIMARY_MODEL, body, {rejectIfBusy: true});
+  } catch (error) {
+    const dailyLimit = isDailyFreeLimitError(error);
+    if (dailyLimit) { try { await markUsageExhausted(env); } catch (_) {} }
+    if (hasBackup && (dailyLimit || isPaidModelRequiredError(error) || isTransientAiError(error) || isAiTimeoutError(error) || !env.AI)) {
+      state.provider = 'gemini';
+      return runGemini(env, body, signal);
+    }
+    throw error;
+  }
 }
 
 const SUGGESTION_LANGUAGES = Object.freeze({
@@ -661,8 +744,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     }, { headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' } });
   }
 
-  if (!env.AI) return Response.json({ suggestions: [] }, { headers: corsHeaders });
-  if (await confirmedFreeLimit(env)) return freeLimitResponse(corsHeaders, { suggestions: [] });
+  if (!env.AI && !env.GEMINI_API_KEY) return Response.json({ suggestions: [] }, { headers: corsHeaders });
 
   const wordCount = input.split(/\s+/).filter(Boolean).length;
   const isPhrase = wordCount >= 2;
@@ -722,7 +804,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     '- Output strict JSON exactly like {"suggestions":["candidate1","candidate2"]}.',
   ].join('\n');
 
-  const response = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
+  const response = await runInference(env, {
     messages: [
       {
         role: 'system',
@@ -735,7 +817,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     max_completion_tokens: Math.min(1500, Math.max(300, input.length * 3)),
     temperature: 0,
     chat_template_kwargs: { enable_thinking: false },
-  }, { rejectIfBusy: true });
+  }, {}, request.signal);
 
   try { await recordAiUsage(env, response?.usage || null); } catch (_) {}
 
@@ -762,7 +844,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     source_language: sourceLanguage,
     language,
     mode: sourceLanguage === language ? 'ocr_proofread' : (isPhrase ? 'phonetic_phrase' : 'phonetic_word'),
-    source: 'workers-ai',
+    source: 'paperai',
   }, {
     headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' },
   });
@@ -914,30 +996,32 @@ async function handleOCR(request, env, corsHeaders) {
   }
 
   let aiResult;
-  if (await confirmedFreeLimit(env)) return freeLimitResponse(corsHeaders);
   try {
-    // FREE-ONLY MODE: one primary inference, with a conditional same-model
-    // verification pass only when the first result is uncertain. No paid fallback.
-    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints);
+    // Both providers share the literal transcription and layout rules. A
+    // request stays on the backup through verification after it switches.
+    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, request.signal);
   } catch (e) {
     if(e?.code==='OCR_OUTPUT_INVALID')return Response.json({error:'OCR returned repetitive or incomplete output. Please retry this page or review its source.',code:'OCR_OUTPUT_INVALID'}, {status:502,headers:corsHeaders});
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
       return freeLimitResponse(corsHeaders);
     }
+    if (e?.code === 'SCAN_SERVICE_UNAVAILABLE') return Response.json({
+      error: 'Scanning is temporarily unavailable. Editing and Word export still work.', code: e.code,
+    }, {status: 503, headers: corsHeaders});
     if (isPaidModelRequiredError(e)) {
       return Response.json({
         error: 'Scanning is temporarily unavailable. Editing and Word export still work.',
         code: 'FREE_MODEL_UNAVAILABLE',
       }, { status: 503, headers: corsHeaders });
     }
-    if (isAiTimeoutError(e)) {
+    if (e?.code === 'AI_TIMEOUT' || isAiTimeoutError(e)) {
       return Response.json({
         error: 'AI OCR timed out on this image. PaperAI can automatically retry a lighter scan.',
         code: 'AI_TIMEOUT',
       }, { status: 408, headers: corsHeaders });
     }
-    if (isTransientAiError(e)) {
+    if (e?.code === 'AI_BUSY' || isTransientAiError(e)) {
       return Response.json({ error: 'PaperAI is temporarily busy. Please try again shortly.', code: 'AI_BUSY' },
         { status: 503, headers: { ...corsHeaders, 'Retry-After': '5' } });
     }
@@ -947,7 +1031,7 @@ async function handleOCR(request, env, corsHeaders) {
     }, { status: 502, headers: corsHeaders });
   }
 
-  // Record this successful inference for the public daily usage graph.
+  // Record successful primary-provider usage for the private daily ledger.
   // Failure to write analytics must never block the OCR result.
   try {
     await recordAiUsage(env, aiResult.usage || null);
@@ -963,7 +1047,7 @@ async function handleOCR(request, env, corsHeaders) {
   const regexResult = safeRegexCleanup(rawOcrText, effectiveLanguage);
   let correctedText = validateOcrOutput(regexResult.text, rawOcrText);
 
-  // No semantic auto-correction in free-only literal OCR mode.
+  // No semantic auto-correction in literal OCR mode, with either provider.
   const allCorrections = [];
 
   const consistencyWarnings = checkConsistency(correctedText);
@@ -1000,7 +1084,7 @@ async function handleOCR(request, env, corsHeaders) {
         language: effectiveLanguage,
         requested_language: language,
         detected_language: detectedLanguage,
-        mode: 'free_only_literal_transcription',
+        mode: 'literal_transcription',
         scan_mode: aiResult.scanMode || difficulty,
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
@@ -1283,12 +1367,8 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = []) {
-  if (!env.AI) {
-    throw new Error('Workers AI not available - check if AI binding is configured');
-  }
-
-  const model = '@cf/google/gemma-4-26b-a4b-it';
+async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], signal) {
+  const providerState = {};
   const scanStrategy = imageMeta?.scanStrategy || 'full-page';
   const scanMode = scanStrategy === 'line-mosaic'
     ? 'line-by-line'
@@ -1450,11 +1530,12 @@ Return only the final transcription plus the allowed [[...]] edit markers when n
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      response = await env.AI.run(model, requestBody, { rejectIfBusy: true });
+      response = await runInference(env, requestBody, providerState, signal);
       break;
     } catch (e) {
       lastError = e;
-      if (isDailyFreeLimitError(e) || isPaidModelRequiredError(e) || !isTransientAiError(e) || attempt === 1) {
+      if (['SCAN_SERVICE_UNAVAILABLE','AI_BUSY','AI_TIMEOUT','OCR_OUTPUT_INVALID','OCR_FAILED'].includes(e?.code) ||
+          isDailyFreeLimitError(e) || isPaidModelRequiredError(e) || !isTransientAiError(e) || attempt === 1) {
         throw e;
       }
       await sleep(attempt === 0 ? 350 : 800);
@@ -1503,7 +1584,7 @@ VERIFICATION RULES:
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
 
     try {
-      const rescueResponse = await env.AI.run(model, {
+      const rescueResponse = await runInference(env, {
         messages: [
           {
             role: 'system',
@@ -1522,7 +1603,7 @@ VERIFICATION RULES:
         chat_template_kwargs: {
           enable_thinking: false
         }
-      }, { rejectIfBusy: true });
+      }, providerState, signal);
 
       const rescueText = normaliseMarkerRows(extractAiText(rescueResponse));
       usage = mergeAiUsage(usage, rescueResponse.usage || null);
@@ -1538,13 +1619,13 @@ VERIFICATION RULES:
         try { await markUsageExhausted(env); } catch (_) {}
       }
       if (!isDailyFreeLimitError(e) && !isPaidModelRequiredError(e)) {
-        console.log('[Literal verification] skipped:', e?.message || e);
+        console.log('[Literal verification] skipped');
       }
     }
   }
 
   if(degenerateOcr(text)||invalidLayoutMarkers(text)){const error=new Error('Invalid OCR output or illustration bounds');error.code='OCR_OUTPUT_INVALID';throw error;}
-  return { text, raw: text, model, usage, scanMode, rescued };
+  return { text, raw: text, model: providerState.provider === 'gemini' ? GEMINI_MODEL : PRIMARY_MODEL, usage, scanMode, rescued };
 }
 
 function shouldVerifyOcr(text, imageMeta = {}) {

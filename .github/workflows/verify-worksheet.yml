@@ -12,10 +12,7 @@ on:
       - 'tests/ai-quota.cjs'
       - 'tests/automatic-upload.cjs'
       - 'frontend/vendor/ai-quota.js'
-      - 'frontend/vendor/local-ocr*'
-      - 'frontend/vendor/local-reader-worker.js'
-      - '.github/scripts/stage-reader.cjs'
-      - 'tests/local-ocr.cjs'
+      - 'tests/gemini-fallback.cjs'
       - 'tests/public-gateway.cjs'
       - 'functions/**'
       - '.github/scripts/build-pages.cjs'
@@ -45,5 +42,5 @@ jobs:
           node tests/ai-quota.cjs
           node tests/automatic-upload.cjs
           node tests/scan-resume.cjs
-          node tests/local-ocr.cjs
+          node tests/gemini-fallback.cjs
           node tests/public-gateway.cjs
