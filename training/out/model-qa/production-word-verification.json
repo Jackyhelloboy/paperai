@@ -1,0 +1,39 @@
+{
+  "checked_at_utc": "2026-10-11T03:13:36.181220+00:00",
+  "deployment_commit": "9d376957b64cc520552a4e94289141a0843b6f78",
+  "app": "https://paperai-5up.pages.dev/",
+  "scope": "Production Word import, teacher picture editing and editable Word export using a manually reviewed maths reference. No new OCR request or model-weight training.",
+  "source": "training/out/PaperAI-UKG-Maths-Reviewed.docx",
+  "output": "UKG-Maths-Production-Roundtrip.docx",
+  "rendered_pages": 1,
+  "visually_reviewed_pages": [
+    1
+  ],
+  "a4_twips": [
+    "11906",
+    "16838"
+  ],
+  "margins_twips": [
+    "720",
+    "720",
+    "720",
+    "720"
+  ],
+  "grid_cells": 50,
+  "right_side_marks": [
+    "25m",
+    "10M",
+    "5x1=5",
+    "5x1=5",
+    "5x1=5"
+  ],
+  "picture_count": 5,
+  "picture_bytes_preserved": true,
+  "teacher_control_test": {
+    "entered_width_cm": 3.2,
+    "actual_width_emu": 1151890,
+    "right_aligned_picture_paragraphs": 1
+  },
+  "docx_sha256": "1be9c37f652de40120f072171b561c993d9b472863e4b2ca6c2f479d6f316827",
+  "remaining_blocker": "The free OCR service rejected the latest English scan at page 10/13. Final automatic full-corpus OCR remains unverified; earlier handwriting/crop diagnostics require review."
+}

@@ -49,6 +49,16 @@ rows remain unsolved. The exact transcription/crops and a reproducible exporter
 script are under `gold/ukg-maths/` and `build-reviewed-maths.cjs`. This reviewed
 sample does not certify automatic OCR on the other maths pages.
 
+After deployment `9d37695`, the reviewed Word was uploaded to the production app.
+All 50 grid cells and five source pictures survived import. Editing the first
+picture to 3.2 cm and right alignment survived a real browser download (1,151,890
+EMU and one right-aligned picture paragraph in the DOCX). All five embedded picture
+byte streams matched the reviewed source crops. Restoring its original width and
+alignment produced a one-page A4 Word/PDF, rendered and visually inspected.
+`out/model-qa/production-word-verification.json` records these assertions;
+`UKG-Maths-Production-Roundtrip.docx` and its PDF retain the actual live export.
+The complete parser audit was rerun on all 42 original records after these fixes.
+
 Seven regression suites pass: worksheet preview/export, PDF page-image Word, measured editable PDF, Word import, editable paper, question-paper model and scan resume. The complete corpus parser audit also ran on all 42 original records. Deployment checks are recorded on GitHub Actions. The two-page layout fixture was rendered and both pages inspected; it verifies formatting mechanisms, not OCR accuracy.
 
 Automatic illustration boundaries remain the main unresolved accuracy issue. Valid coordinates alone do not prove that the correct illustration was cropped. Dense handwritten arithmetic and handwritten corrections also remain imperfect. These need visual teacher review and a further live rerun after the daily free service becomes available. Arbitrary Word merges, complex PDF clipping and scanned diagrams are not certified as completely editable reconstructions. Complex scanned art remains an editable image object.
