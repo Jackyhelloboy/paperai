@@ -12,7 +12,8 @@
     "first_run_seconds": 86,
     "runtime": "single-thread WASM in browser worker",
     "ocr_quality": "review required: Roman section I read as 1 and Flower read as flower",
-    "artwork": "circle and original table borders retained; text remains editable"
+    "artwork": "circle and original table borders retained; text remains editable",
+    "repeat_run_seconds": 78
   },
   "reference_checks": {
     "printed_science": "native model inference; Word rendered and inspected",
@@ -38,5 +39,15 @@
     "Initial model download approximately 228 MB; browser support and device memory required",
     "Handwriting and multilingual accuracy cannot match the default model on every page",
     "Source artwork and table borders are preserved as pixels in the local fallback"
-  ]
+  ],
+  "browser_word_export": {
+    "editable_text_regions": 9,
+    "embedded_source_artwork": 1,
+    "page_size": "A4 portrait",
+    "margins": "0.5 inch",
+    "max_word_preview_position_difference_points": 0.00036294960631266804,
+    "test_result": "PASS geometry and export; REVIEW recognition quality",
+    "rendered_pages": 1,
+    "visual_review": "one rendered page inspected; no overlaps or clipping; marks, circle and table borders retained"
+  }
 }
