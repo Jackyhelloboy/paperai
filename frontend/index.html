@@ -4601,8 +4601,8 @@ function portableText(value) {
         .replace(/\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\]/gi, '\n\n')
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' [ ]').join('   '))
-        .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
-            String(left || '').trim() + ' | ' + String(right || '').trim())
+        .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
+            worksheetCells(body,32).join(' | '))
         .replace(/\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]/gi, (_, label) =>
             '[' + String(label || '').trim() + ' picture] [ ]')
         .replace(/\[\[PICTURE:\s*([\s\S]*?)\]\]/gi, (_, label) =>
@@ -4985,6 +4985,11 @@ function formatOutput(text) {
         }
 
         const line = lines[i];
+        const schoolBanner=PaperAILayout.schoolBannerTable(lines,i);
+        if(schoolBanner){
+            html+='<div style="display:grid;grid-template-columns:minmax(0,1fr) '+schoolBanner.width/10466*100+'%;gap:0;align-items:start">'+sourceFigureHtml(schoolBanner.id)+worksheetRenderTable(schoolBanner.rows.map(row=>row.join(' || ')))+'</div>';
+            pendingTableWidths=null;pendingTableHeader=false;pendingTableRegion=null;i=schoolBanner.nextIndex;continue;
+        }
         const tableRegion=String(line).trim().match(/^\[\[TABLE_REGION:\s*([^\]]+)\]\]$/i);
         if(tableRegion){pendingTableRegion=PaperAILayout.figure(tableRegion[1]);i++;continue;}
         const widthMarker=String(line).match(/^\[\[TABLE_WIDTHS:\s*([\d., ]+)\]\]$/i);
@@ -5017,7 +5022,7 @@ function formatOutput(text) {
                 if(placement.pictureFirst){cells.reverse();widths.reverse();}
                 html+='<div style="display:grid;grid-template-columns:'+widths.map(w=>w/10466*100+'%').join(' ')+';gap:'+placement.gap/10466*100+'%;align-items:start">'+cells.join('')+'</div>';
                 tableIndex++;
-            }else html+=placement?'<div style="width:'+placement.tableWidth/10466*100+'%">'+table+'</div>':table;
+            }else html+=placement?'<div style="width:'+placement.tableWidth/10466*100+'%;margin-left:'+(placement.indent||0)/10466*100+'%">'+table+'</div>':table;
             pendingTableWidths=null; pendingTableHeader=false;pendingTableRegion=null;
             i = tableIndex;
             continue;
@@ -5334,8 +5339,8 @@ function docxVisibleText(value) {
         .replace(/\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\]/gi, '\n\n')
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' ☐').join('    '))
-        .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi, (_, left, right) =>
-            String(left || '').trim() + '    ' + String(right || '').trim())
+        .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
+            worksheetCells(body,32).join('    '))
         .replace(/\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]/gi, (_, label) =>
             '[' + String(label || '').trim() + ' picture] ☐')
         .replace(/\[\[PICTURE:\s*([\s\S]*?)\]\]/gi, (_, label) =>
@@ -5488,7 +5493,8 @@ function docxTableCells(rows, widths, options = {}) {
         return '<w:tr><w:trPr><w:cantSplit/>'+(options.repeatHeader&&rowIndex===0?'<w:tblHeader/>':'')+
             (options.minHeight?'<w:trHeight w:val="'+options.minHeight+'" w:hRule="atLeast"/>':'')+'</w:trPr>'+cells+'</w:tr>';
     }).join('');
-    return '<w:tbl><w:tblPr><w:tblW w:w="'+total+'" w:type="dxa"/><w:jc w:val="center"/>'+
+    return '<w:tbl><w:tblPr><w:tblW w:w="'+total+'" w:type="dxa"/><w:jc w:val="'+(options.indent!=null?'left':'center')+'"/>'+
+        (options.indent!=null?'<w:tblInd w:w="'+Math.max(0,Math.round(options.indent))+'" w:type="dxa"/>':'')+
         '<w:tblLayout w:type="fixed"/>'+borders+'</w:tblPr><w:tblGrid>'+widths.map(w=>'<w:gridCol w:w="'+w+'"/>').join('')+
         '</w:tblGrid>'+tableRows+'</w:tbl><w:p><w:pPr>'+(options.keepNext?'<w:keepNext/>':'')+
         '<w:spacing w:before="0" w:after="40" w:line="20" w:lineRule="exact"/></w:pPr></w:p>';
@@ -5645,6 +5651,14 @@ function buildDocxBody(structuredText) {
             continue;
         }
         const line = String(lines[i] || '').trim();
+        const schoolBanner=PaperAILayout.schoolBannerTable(lines,i);
+        if(schoolBanner){
+            const pictureWidth=DOCX_CONTENT_W-schoolBanner.width;
+            const picture='<w:p><w:pPr><w:keepNext/><w:spacing w:after="0"/></w:pPr>'+docxSourceRun(schoolBanner.id,pictureWidth,2200,'Original source banner')+'</w:p>';
+            const marks=docxTableCells(schoolBanner.rows,[schoolBanner.width],{bordered:true,fontSize:24,center:true,keepNext:true,indent:0});
+            body.push(docxTableCells([[{xml:picture},{xml:marks}]],[pictureWidth,schoolBanner.width],{bordered:false,padding:0,keepNext:true}));
+            pendingWidths=null;pendingHeader=false;pendingTableRegion=null;i=schoolBanner.nextIndex;continue;
+        }
         const tableRegion=line.match(/^\[\[TABLE_REGION:\s*([^\]]+)\]\]$/i);
         if(tableRegion){pendingTableRegion=PaperAILayout.figure(tableRegion[1]);i++;continue;}
         let sourceFigure=line.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
@@ -5735,7 +5749,7 @@ function buildDocxBody(structuredText) {
             const placement=PaperAILayout.tablePlacement(pendingTableRegion,asset?.region);
             const total=placement?.tableWidth||DOCX_CONTENT_W;
             const widths=pendingWidths?.length===n?pendingWidths.map(w=>Math.round(w*total/DOCX_CONTENT_W)):PaperAILayout.tableWidths(rows,total);
-            const table=docxTableCells(rows,widths,{bordered:true,fontSize:24,minHeight:paperLayoutOptions().compact?320:450,repeatHeader:pendingHeader});
+            const table=docxTableCells(rows,widths,{bordered:true,fontSize:24,minHeight:paperLayoutOptions().compact?320:450,repeatHeader:pendingHeader,indent:placement&&!placement.pictureWidth?placement.indent:undefined});
             if(placement?.pictureWidth){
                 const cells=[{xml:table},{xml:docxRichParagraph('[[SOURCE_FIGURE: '+next[1]+']]',{available:placement.pictureWidth,after:0})}];
                 const outerWidths=[placement.tableWidth,placement.pictureWidth];

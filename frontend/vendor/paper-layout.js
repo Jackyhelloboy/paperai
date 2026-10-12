@@ -149,11 +149,31 @@
         const overlaps=figureRegion&&Math.min(region.y+region.h,figureRegion.y+figureRegion.h)-Math.max(region.y,figureRegion.y)>0;
         const right=figureRegion&&figureRegion.x>=region.x+region.w;
         const left=figureRegion&&figureRegion.x+figureRegion.w<=region.x;
-        if(!overlaps||(!right&&!left))return {tableWidth};
+        if(!overlaps||(!right&&!left))return {tableWidth,indent:Math.max(0,Math.min(profile.contentWidth-tableWidth,Math.round(region.x*profile.pageWidth/1000)-profile.margin))};
         const gap=Math.max(120,Math.round((right?figureRegion.x-region.x-region.w:region.x-figureRegion.x-figureRegion.w)*profile.pageWidth/1000));
         const pictureWidth=Math.max(400,Math.round(figureRegion.w*profile.pageWidth/1000));
         const scale=Math.min(1,profile.contentWidth/(sourceTableWidth+gap+pictureWidth));
         return {tableWidth:Math.floor(sourceTableWidth*scale),gap:Math.floor(gap*scale),pictureWidth:Math.floor(pictureWidth*scale),pictureFirst:Boolean(left)};
+    }
+    function schoolBannerTable(lines,index) {
+        const banner=String(lines[index]||'').trim().match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
+        if(!banner)return null;
+        let i=index+1,region=null;
+        while(i<lines.length){
+            const line=String(lines[i]).trim(),meta=line.match(/^\[\[TABLE_REGION:\s*([^\]]+)\]\]$/i);
+            if(meta){region=figure(meta[1]);i++;continue;}
+            if(!line||/^\[\[TABLE_(?:WIDTHS|HEADER):/i.test(line)){i++;continue;}
+            break;
+        }
+        const rows=[];
+        while(i<lines.length){
+            const row=String(lines[i]).trim().match(/^\[\[TABLE_ROW:\s*([^|\]]+)\]\]$/i);
+            if(!row)break;
+            rows.push([row[1].trim()]);i++;
+        }
+        if(rows.length!==2||!/^(?:total\s+)?marks\s*:?$|^(?:कुल\s+)?अंक\s*:?$/i.test(rows[0][0])||!/^\d+(?:\s*(?:M|marks|अंक))?$/i.test(rows[1][0]))return null;
+        const width=region?Math.round(region.w*profile.pageWidth/1000):Math.max(...rows.map(row=>row[0].length))*140;
+        return {id:banner[1].trim(),rows,width:Math.min(2600,Math.max(1100,width)),nextIndex:i};
     }
     function shape(value) {
         const [name, flag='box']=String(value||'').split('|').map(x=>x.trim());
@@ -578,7 +598,7 @@
             if(!/^\s*\[\[GRID:\s*\d+[x×]1\]\]\s*$/i.test(lines[i]||'')){i=blockStart;break;}
             block.push(lines[i++]);while(i<lines.length&&!lines[i].trim())block.push(lines[i++]);
             const label=lines[i]||'';
-            if(!/^\s*[0-9०-९]+[.)]?\s+[^|\n]{1,32}[:：]\s*-?\s*$/u.test(label))return text;
+            if(!/^\s*[0-9०-९]+[.)]?\s+[^|\n]{1,32}[:：]\s*[-‐‑‒–—―]?\s*$/u.test(label))return text;
             pairs.push({block,label});i++;
         }
         if(pairs.length<2||pairs.length!==observedCount)return text;
@@ -612,5 +632,5 @@
         }
         return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,figure,bannerRegion,bannerInkBounds,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
 });
