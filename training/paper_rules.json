@@ -93,12 +93,13 @@
     "corpus_parser_records": 84
   },
   "automatic_reading": {
-    "detail_views": "Up to three bounded enlarged overlapping image regions accompany the independent visual verifier; they are not additional pages. Crop coordinates remain on the full page.",
+    "detail_views": "Up to three bounded overlapping regions are enlarged up to 2000 pixels wide for the independent visual verifier. Gray paper receives a soft contrast adjustment on a copy only; original image assets and full-page coordinates remain unchanged.",
     "page_order": "Use unique printed page numbers when available, otherwise a sole real exam header followed by section I may precede continuation pages. Missing/duplicate evidence never invents a page number.",
     "rows": "Read each physical row left to right, retain original question numbering including source mistakes, and keep short question columns as native rows.",
     "validation": "Do not count escaped blank rules or unreadable placeholders as source question content. Reject verification that turns a known question stem into a blank.",
     "export_text": "Download Word rebuilds the current optional text-editor snapshot. Token provenance prevents repeated Hindi edits from changing a different table cell or geometry/image metadata. Explicit Indic fonts and language tags retain script shaping.",
     "suggestions": "Automatically use the selected text and nearby language context; allow English inside Hindi and context-supported Romanized native-language spelling. Preserve numbers/equations and never supply answers. Suggestions do not change wording until selected.",
-    "row_contract": "SECTION_ROW and QUESTION_ROW combine separate section-number/instruction cells into one heading and reserve the final actual score for the right column. Empty none mark flags never become paper text. Genuine None options remain unchanged."
+    "row_contract": "SECTION_ROW and QUESTION_ROW combine separate section-number/instruction cells into one heading and reserve the final actual score for the right column. Empty none mark flags never become paper text. Genuine None options remain unchanged.",
+    "indic_components": "Read isolated vowel signs and consonant counts from image strokes, including components separated by plus signs. Never substitute a lookalike consonant/digit, add a dotted circle, complete a word, or repair irregular numbering."
   }
 }

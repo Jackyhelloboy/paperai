@@ -1,6 +1,12 @@
 // Behavioral regressions drawn from distinct layout families in training/.
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const Layout=require('../frontend/vendor/paper-layout.js');
+const faint=new Uint8ClampedArray(400);for(let i=0;i<faint.length;i+=4){faint[i]=faint[i+1]=faint[i+2]=180;faint[i+3]=255;}
+faint[0]=faint[1]=faint[2]=160;faint[4]=faint[5]=faint[6]=140;
+const originalPixels=new Uint8ClampedArray(faint),enhanced=Layout.enhanceDetailPixels(faint);
+assert.deepEqual(faint,originalPixels,'OCR detail enhancement must not alter source assets');
+assert(enhanced[8]-enhanced[0]>faint[8]-faint[0]&&enhanced[0]>enhanced[4],'Faint vowel strokes need greater contrast with their ordering preserved');
+assert.equal(enhanced[3],255);assert.deepEqual(Layout.enhanceDetailPixels(new Uint8ClampedArray(400).fill(255)),new Uint8ClampedArray(400).fill(255),'Already white paper must remain unchanged');
 const guardCtx=vm.createContext({});
 vm.runInContext(fs.readFileSync('worker/src/ocr-output-guard.js','utf8').replace(/export /g,''),guardCtx);
 const worker=fs.readFileSync('worker/src/index.js','utf8');

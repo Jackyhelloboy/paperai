@@ -101,6 +101,23 @@
         return {x,y,w:Math.max(1,Math.min(width-x,Math.ceil(region.w*width/1000))),
             h:Math.max(1,Math.min(height-y,Math.ceil(region.h*height/1000)))};
     }
+    function enhanceDetailPixels(rgba) {
+        const output=new Uint8ClampedArray(rgba),hist=new Uint32Array(256);
+        const luminance=i=>Math.round((rgba[i]*299+rgba[i+1]*587+rgba[i+2]*114)/1000);
+        let samples=0;
+        for(let i=0;i<rgba.length;i+=16){hist[luminance(i)]++;samples++;}
+        let count=0,background=255;
+        for(let n=0;n<256;n++){count+=hist[n];if(count>=samples*.85){background=n;break;}}
+        // Work on a copy for the verifier only. Source pictures/crop coordinates
+        // keep their original pixels. A soft tonal curve retains faint strokes;
+        // it never thresholds, draws, closes or erases letter shapes.
+        if(!samples||background<90||background>235)return output;
+        for(let i=0;i<rgba.length;i+=4){
+            const lum=luminance(i),target=Math.max(0,Math.min(255,245+(lum-background)*1.65)),shift=target-lum;
+            for(let channel=0;channel<3;channel++)output[i+channel]=Math.max(0,Math.min(255,rgba[i+channel]+shift));
+        }
+        return output;
+    }
     function source(value) {
         const [id,caption='',answer=''] = String(value || '').split('|');
         return {id:id.trim(),caption:caption.trim(),answer:answer.trim()==='box'};
@@ -632,5 +649,5 @@
         }
         return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
 });

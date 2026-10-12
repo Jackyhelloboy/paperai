@@ -3182,9 +3182,12 @@ async function prepareImageForOCR(source, forceSafe = false) {
         for(const top of [0,300,600]){
             const y=Math.floor(targetHeight*top/1000),height=targetHeight-y;
             const bandHeight=Math.min(height,Math.ceil(targetHeight*.4));
-            const detail=document.createElement('canvas');detail.width=Math.min(1800,targetWidth);detail.height=Math.max(1,Math.round(bandHeight*detail.width/targetWidth));
+            const detail=document.createElement('canvas');detail.width=Math.min(2000,Math.round(targetWidth*1.5));detail.height=Math.max(1,Math.round(bandHeight*detail.width/targetWidth));
             const dc=detail.getContext('2d',{alpha:false});if(!dc)continue;
+            dc.imageSmoothingEnabled=true;dc.imageSmoothingQuality='high';
             dc.drawImage(canvas,0,y,targetWidth,bandHeight,0,0,detail.width,detail.height);
+            const detailPixels=dc.getImageData(0,0,detail.width,detail.height);
+            detailPixels.data.set(PaperAILayout.enhanceDetailPixels(detailPixels.data));dc.putImageData(detailPixels,0,0);
             const url=detail.toDataURL('image/jpeg',.97);
             if(url.length<=2*1024*1024)detailViews.push({url,region:{x:0,y:top,w:1000,h:Math.min(400,1000-top)}});
         }
