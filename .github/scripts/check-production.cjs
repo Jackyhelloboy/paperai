@@ -53,7 +53,12 @@ async function runGroup(name,count,concurrency,operation){
   await status('pending','Checking public routes and bounded website/API load');
   const home=await waitForRelease();assert.equal(home.status,200);assert(home.body.includes('Ready to scan'));assert(!home.body.includes('id="quotaRemaining"'));assert(!home.body.includes('228 MB'));
   assert(!/Cloudflare|workers\.dev|Gemma|Gemini|Florence|Tesseract|Neurons/i.test(home.body));checks.push('Public dashboard contains no provider labels or backend hostname');
-  for(const path of ['/local-ocr-check','/local-ocr-check.html','/api/debug','/api/train/export','/vendor/local-ocr.js','/vendor/local-ocr-layout.js','/vendor/local-reader-worker.js','/vendor/local-runtime/reader.js','/vendor/local-runtime/manifest.json','/vendor/local-runtime/hin.traineddata.gz','/vendor/local-ocr-worker.mjs']){
+  assert(home.body.includes('Download Word'));
+  assert(!/Word matching PDF|Review layout|paperLayoutPanel|teachFromSelect|teachToSelect/.test(home.body));
+  checks.push('Single Download Word export; layout and language controls removed');
+  const textMapper=await read('/vendor/paper-text.js');assert.equal(textMapper.status,200);assert(textMapper.body.includes('PaperAIText'));
+  checks.push('Current-editor text mapper loads');
+  for(const path of ['/vendor/pdf-word-layout.js','/local-ocr-check','/local-ocr-check.html','/api/debug','/api/train/export','/vendor/local-ocr.js','/vendor/local-ocr-layout.js','/vendor/local-reader-worker.js','/vendor/local-runtime/reader.js','/vendor/local-runtime/manifest.json','/vendor/local-runtime/hin.traineddata.gz','/vendor/local-ocr-worker.mjs']){
     assert.equal((await read(path)).status,404,path);checks.push(path+' is unavailable');
   }
   const health=await read('/api/health');assert.equal(health.status,200);assert.deepEqual(JSON.parse(health.body),{status:'healthy'});

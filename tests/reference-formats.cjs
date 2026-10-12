@@ -5,14 +5,12 @@ const {DOMParser}=require('../frontend/node_modules/@xmldom/xmldom');
 const html=fs.readFileSync('frontend/index.html','utf8');
 const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(x=>x[1].includes('function buildDocxBody'))[1];
 const slice=(a,b)=>code.slice(code.indexOf(a),code.indexOf(b,code.indexOf(a)+1));
-const fields={};for(const id of ['paperFamily','paperHeadingFamily','paperFont','paperHeading','paperLine','paperAfter','paperIndent','paperGridHeight','paperFlow','paperFormat','paperPageNumbers'])fields[id]={value:''};
-const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,document:{getElementById:id=>fields[id]},$:id=>fields[id],
+const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,
     worksheetCells:(s,n=32)=>String(s).split(/\s*\|\|\s*/).map(x=>x.trim()).slice(0,n),
     worksheetGridSize:s=>{const m=s.match(/^(\d+)x(\d+)$/);return m?{columns:+m[1],rows:+m[2]}:null;},
     repairLegacyBranchDiagram:s=>s,isOutputHeadingLine:s=>/^(?:I|II|III|IV)[. ]/.test(s),circledNumberValue:()=>null,
-    refreshPaperLayout:()=>{},openPaperLayout:()=>{},hideErr:()=>{ctx.error=null;},showErr:message=>{ctx.error=message;},fetch:async()=>({ok:false}),setTimeout,clearTimeout});
+    hideErr:()=>{ctx.error=null;},showErr:message=>{ctx.error=message;},fetch:async()=>({ok:false}),setTimeout,clearTimeout});
 vm.runInContext(slice('function xmlEscape','async function downloadWord'),ctx);
-ctx.refreshPaperLayout=()=>{};ctx.openPaperLayout=()=>{};
 const fixtures={
     science:'Subject: Science\nI. Answer Any Ten of the Following. (10 x 4 = 40)\n1) Name two things we can see in the sky at night.\n2) What kind of clothes do we wear in the summer season?\nII. Give two examples for each of the following. (5x2=10)\n1) Cereals ______________________           ______________________\n[[TABLE_WIDTHS: 20,50,30]]\n[[TABLE_ROW: Basket making || 1. Leaves<br>2. Bamboo || Knife]]',
     humanities:'Subject: English\nI. Answer the questions. 4×½=2\n1. Read the [[UNDERLINE: passage]] and answer the questions.\n[[TABLE_WIDTHS: 15,45,40]]\n[[MATCH_ROW: 1. Leaf || (   ) || b. Root]]\n[[MATCH_ROW: 2. Stem || (   ) || a. Flower]]\nII. Rewrite the words. 2M\n1. [[DOUBLE-UNDERLINE: word]] [[STRIKE: old]] [[INSERT: new]] [[BOXED: cue]]',
@@ -20,8 +18,8 @@ const fixtures={
 };
 (async()=>{
     for(const [name,text] of Object.entries(fixtures)){
-        fields.paperFlow.value='compact';fields.paperGridHeight.value='.8';ctx.configureAutomaticPaper(text);
-        assert.equal(fields.paperFormat.value,name,'The source header must select its reference format automatically');
+        ctx.configureAutomaticPaper(text);
+        assert.equal(ctx.paperLayoutOptions().format,name,'The source header must select its reference format automatically');
         const preset=Layout.referenceFormats[name],blob=await ctx.makeExtractedDocx(text),zip=await JSZip.loadAsync(await blob.arrayBuffer());
         const xml=await zip.file('word/document.xml').async('text'),doc=new DOMParser().parseFromString(xml,'application/xml');
         assert.equal(doc.getElementsByTagName('parsererror').length,0);
@@ -41,16 +39,9 @@ const fixtures={
             assert(xml.includes('w:val="double"')&&!xml.includes('<w:strike/>')&&xml.includes('<w:bdr'));
             assert(xml.indexOf('Leaf')<xml.indexOf('Root')&&xml.indexOf('Stem')<xml.indexOf('Flower'),'Matching choices were reordered or solved');
         }
-        if(name==='worksheet')assert(xml.includes('w:trHeight w:val="454"'),'Teacher grid height was ignored');
+        if(name==='worksheet')assert(xml.includes('w:trHeight w:val="454"'),'Automatic grid height was ignored');
         if(process.env.PAPERAI_FORMAT_OUT){fs.mkdirSync(process.env.PAPERAI_FORMAT_OUT,{recursive:true});fs.writeFileSync(path.join(process.env.PAPERAI_FORMAT_OUT,'Format-'+name+'.docx'),Buffer.from(await blob.arrayBuffer()));}
     }
-    vm.runInContext(slice('function updatePaperWidths','function paperCropEditor'),ctx);
-    ctx.lastResult={text:'[[TABLE_WIDTHS: 15,85]]\n[[TABLE_HEADER: 1]]\n[[TABLE_ROW: Name || Class]]\nOther question\n[[TABLE_ROW: a || b]]'};
-    ctx.paperEdited=text=>{ctx.lastResult.text=text;};
-    ctx.updatePaperWidths(2,'20,80');assert.equal((ctx.lastResult.text.match(/TABLE_WIDTHS/g)||[]).length,1,'Editing a header table added stale widths');
-    ctx.removePaperRow(2);assert(!ctx.lastResult.text.includes('TABLE_WIDTHS')&&!ctx.lastResult.text.includes('TABLE_HEADER'),'Removed table left layout settings on the next table');
-    ctx.updatePaperWidths(1,'-10,110');assert(ctx.error.includes('positive'));assert(!ctx.lastResult.text.includes('-10'));
-    ctx.updatePaperWidths(1,'20,80');assert.equal(ctx.error,null,'Correcting column widths must clear the previous validation error');
     ctx.lastResult=null;ctx.esc=String;ctx.formatOutputLine=String;ctx.parseBranchBlock=()=>null;ctx.formatSingleAnswerBlankLine=()=>null;ctx.isAnswerBlankContinuationLine=()=>false;
     vm.runInContext(slice('function worksheetCells','function formatOutput(text)'),ctx);
     vm.runInContext(slice('function formatOutput(text)','// Successful scanned pages'),ctx);
@@ -95,7 +86,7 @@ const fixtures={
     vm.runInContext(slice('function formatOutputLine','function formatSingleAnswerBlankLine'),ctx);
     const inlineHeading='IV नीचे दिये अक्षरों से शब्द बनाकर लिखो। [[SECTION_ROW: IV नीचे दिये अक्षरों से शब्द बनाकर लिखो। || 5x1=5M]]';
     const inlineHeadingXml=ctx.docxDocumentXml(Layout.normalise(inlineHeading));
-    assert.equal((inlineHeadingXml.match(/IV नीचे दिये अक्षरों से शब्द बनाकर लिखो।/g)||[]).length,1,'Inline row metadata must not duplicate an exam heading');
+    assert.equal((inlineHeadingXml.replace(/<[^>]+>/g,'').match(/IV नीचे दिये अक्षरों से शब्द बनाकर लिखो।/g)||[]).length,1,'Inline row metadata must not duplicate an exam heading');
     assert(inlineHeadingXml.includes('<w:jc w:val="right"/>'),'Inline heading marks must use the native right column');
     assert(!inlineHeadingXml.includes('[['),'Structured headings must never print annotation syntax');
     const nested='[[HIGHLIGHT:[[BOXED: हिन्दी शब्द से अंग्रेजी शब्द जोड़ो।]]]]';
@@ -116,7 +107,7 @@ const fixtures={
     const sizedGridZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx('[[TABLE_REGION: 317,277,329,254]]\n[[GRID: 5x8]]')).arrayBuffer());
     if(process.env.PAPERAI_FORMAT_OUT)fs.writeFileSync(path.join(process.env.PAPERAI_FORMAT_OUT,'Format-measured-grid.docx'),Buffer.from(await sizedGridZip.generateAsync({type:'nodebuffer'})));
     const sizedGridXml=await sizedGridZip.file('word/document.xml').async('text');
-    assert(sizedGridXml.includes('w:w="3443" w:type="dxa"'),'Source answer-grid width must not expand to the whole page');
+    assert(sizedGridXml.includes('w:w="3917" w:type="dxa"'),'Source answer-grid width must not expand to the whole page');
     const side=hindi+'\n[[TABLE_REGION: 50,350,400,120]]\n[[TABLE_HEADER: 1]]\n[[TABLE_ROW: फल || नाम]]\n[[TABLE_ROW:  ||  ]]\n[[SOURCE_FIGURE: side-test| |none]]';
     const sidePreview=ctx.formatOutput(side);assert(sidePreview.includes('display:grid;grid-template-columns:'),'Side picture dropped below table in preview');
     const sideBlob=await ctx.makeExtractedDocx(side),sideZip=await JSZip.loadAsync(await sideBlob.arrayBuffer());
@@ -125,5 +116,5 @@ const fixtures={
     assert(tables.some(t=>t.getElementsByTagName('w:tbl').length&&t.getElementsByTagName('pic:pic').length),'Editable table and source picture must share a borderless layout row');
     assert.equal(sideDoc.getElementsByTagName('pic:pic').length,1,'Source picture duplicated');
     if(process.env.PAPERAI_FORMAT_OUT)fs.writeFileSync(path.join(process.env.PAPERAI_FORMAT_OUT,'Format-hindi-side.docx'),Buffer.from(await sideBlob.arrayBuffer()));
-    console.log('Reference formats: measured fonts, body and heading sizes, spacing, question indents, right marks, native emphasis, unsolved matching, editable grid height and table edits pass.');
+    console.log('Reference formats: measured fonts, body and heading sizes, spacing, question indents, right marks, native emphasis, unsolved matching, automatic grid geometry pass.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

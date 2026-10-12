@@ -29,14 +29,6 @@ const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(
 const slice=(a,b)=>code.slice(code.indexOf(a),code.indexOf(b,code.indexOf(a)+1));
 const ui=vm.createContext({PaperAILayout:Layout,esc:s=>String(s),formatOutputLine:s=>String(s)});
 vm.runInContext(slice('function worksheetCells','function formatOutput(text)'),ui);
-const cropInputs={};for(const key of ['x','y','w','h'])cropInputs['crop-2-'+key]={value:0};cropInputs['crop-frame-2']={style:{}};
-ui.$=id=>cropInputs[id];
-vm.runInContext(slice('function paperCropEditor','function openPaperLayout'),ui);
-const cropEvent=(x,y)=>({button:0,pointerId:7,clientX:x,clientY:y,preventDefault(){},currentTarget:{getBoundingClientRect:()=>({left:20,top:30,width:400,height:600}),setPointerCapture(){},hasPointerCapture:()=>true,releasePointerCapture(){}}});
-ui.beginPaperCrop(2,cropEvent(60,150));ui.movePaperCrop(2,cropEvent(180,390));ui.endPaperCrop(cropEvent(180,390));
-assert.equal(cropInputs['crop-2-x'].value,100);assert.equal(cropInputs['crop-2-y'].value,200);
-assert.equal(cropInputs['crop-2-w'].value,300);assert.equal(cropInputs['crop-2-h'].value,400);
-assert.equal(cropInputs['crop-frame-2'].style.width,'30%');
 const matching=ui.formatStructuredWorksheetLine('[[MATCH_ROW: 1. Leaf || (   ) || b. Root]]');
 assert.equal((matching.match(/class="ocr-match-cell"/g)||[]).length,3);
 assert(matching.indexOf('Leaf')<matching.indexOf('Root'),'Matching choices must not be solved or reordered');
@@ -44,7 +36,6 @@ assert.equal((ui.formatStructuredWorksheetLine('[[SHAPE_ROW: circle|none || squa
 assert.equal(ui.worksheetRenderTable(['big || _ || biggest']).includes('<th>'),false,'Partially filled exercises are not table headers');
 const ctx=vm.createContext({...ui,Blob,JSZip:require('../frontend/node_modules/jszip'),repairLegacyBranchDiagram:s=>s,
     isOutputHeadingLine:s=>/^I\./.test(s),circledNumberValue:()=>null,circledWordNumber:String,
-    document:{getElementById:id=>({paperFlow:{value:'compact'},paperFont:{value:'11'},paperPageNumbers:{checked:false}})[id]},
     fetch:async()=>{throw new Error('Export must not fetch a default banner');}});
 vm.runInContext(slice('function xmlEscape','async function downloadWord'),ctx);
 const fixture=[
@@ -69,7 +60,7 @@ const fixture=[
     assert(!xml.includes('QUESTION PAPER')&&!xml.includes('AUTO-FORMATTED'),'Unseen banners must not be invented');
     const footer=await zip.file('word/footer1.xml').async('text');
     assert(!footer.includes('PAGE NO'),'Page numbers are opt-in');
-    assert(xml.includes('w:val="22"'),'Teacher-selected 11pt text must reach Word');
+    assert(xml.includes('w:val="22"'),'Automatic 11pt text must reach Word');
     for(const s of ['big','biggest','smarter','Leaf','Root','Stem','Flower'])assert(xml.includes(s));
     assert.equal(Layout.section('IV. Map pointing. 4×½=2').marks,'4×½=2');
     assert.equal(Layout.section('I. Answer. 2½ Marks').marks,'2½ Marks');

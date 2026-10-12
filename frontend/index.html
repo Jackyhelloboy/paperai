@@ -11,12 +11,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
-    <script src="vendor/indic-transliterate.js"></script>
     <script src="vendor/document-reader.js"></script>
     <script src="vendor/sheet-reader.js"></script>
     <script src="vendor/archive-reader.js"></script>
-    <script src="vendor/pdf-word-layout.js"></script>
 <script src="./vendor/paper-layout.js"></script>
+<script src="./vendor/paper-text.js"></script>
 <script src="./vendor/pdf-editable-layout.js"></script>
 <script src="./vendor/docx-reference-layout.js"></script>
 <script src="./vendor/ai-quota.js"></script>
@@ -845,49 +844,10 @@
 
         .teach-language-bar {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            grid-template-columns: minmax(0, 1fr);
             gap: 0.45rem;
             align-items: end;
             margin-bottom: 0.55rem;
-        }
-
-        .teach-lang-field {
-            display: flex;
-            flex-direction: column;
-            gap: 0.22rem;
-            min-width: 0;
-        }
-
-        .teach-lang-label {
-            font-size: 0.58rem;
-            font-weight: 700;
-            color: var(--text3);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .teach-lang-select {
-            width: 100%;
-            min-height: 36px;
-            padding: 0.38rem 1.9rem 0.38rem 0.6rem;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--surface);
-            color: var(--text);
-            font: 600 0.72rem/1.2 Tahoma, 'Hind', 'Noto Sans Devanagari', 'Noto Sans Telugu', sans-serif;
-            outline: none;
-        }
-
-        .teach-lang-select:focus {
-            border-color: var(--accent);
-        }
-
-        .teach-lang-arrow {
-            align-self: center;
-            color: var(--text3);
-            font-size: 1rem;
-            font-weight: 700;
-            padding-bottom: 0.5rem;
         }
 
         .teach-language-status {
@@ -906,16 +866,15 @@
 
         @media (max-width: 520px) {
             .teach-language-bar {
-                grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+                grid-template-columns: minmax(0, 1fr);
                 gap: 0.3rem;
             }
 
-            .teach-lang-select {
-                font-size: 0.66rem;
-                padding-left: 0.45rem;
-                padding-right: 1.35rem;
-            }
+
         }
+
+        #downloadWordBtn { background:var(--accent); border-color:var(--accent); color:#fff; }
+        #downloadWordBtn:hover { background:var(--accent-hover); }
 
         .teach-tool {
             min-height: 34px;
@@ -1832,83 +1791,20 @@
                 </button>
                 <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Editable Word
+                    Download Word
                 </button>
-                <button class="action-btn" id="downloadPdfWordBtn" style="display:none" onclick="downloadPdfWord(this)" title="Preserves original PDF pages as images, including pictures, tables and alignment. Text is not individually editable.">Word matching PDF</button>
+
                 <button class="action-btn" onclick="openTeachPanel()">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
                     Correct text
                 </button>
             </div>
 
-            <p id="pdfWordNote" style="display:none;font-size:0.82rem;color:var(--text2)">Word matching PDF preserves the original pages as images. Editable Word contains the automatically formatted question paper.</p>
-            <button class="action-btn" onclick="openPaperLayout()" style="margin-bottom:.75rem">Review layout (optional)</button>
-            <div class="teach-panel" id="paperLayoutPanel">
-              <div class="teach-title">Detected A4 layout</div>
-              <p class="teach-sub">PaperAI formats detected questions, marks, tables, shapes and pictures automatically. Corrections here are optional.</p>
-              <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
-                <label>Page flow <select id="paperFlow" class="teach-lang-select" onchange="refreshPaperLayout()"><option value="compact">Compact A4</option><option value="source">Keep source pages</option></select></label>
-                <label>Reference format <select id="paperFormat" class="teach-lang-select" onchange="applyPaperFormat(this.value)"><option value="custom">Custom</option><option value="compact">Compact question paper</option><option value="science">Annual science reference</option><option value="humanities">Social and English reference</option><option value="worksheet">Science worksheet reference</option></select></label>
-                <label>Font <select id="paperFamily" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option>Arial</option><option>Tahoma</option><option>Times New Roman</option><option>Calibri</option><option>Noto Sans Devanagari</option><option>Noto Sans Telugu</option></select></label>
-                <label>Text size <select id="paperFont" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="10">10 pt</option><option value="11">11 pt</option><option value="12" selected>12 pt</option><option value="13">13 pt</option><option value="14">14 pt</option></select></label>
-                <label>Heading size <select id="paperHeading" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="11">11 pt</option><option value="12">12 pt</option><option value="13" selected>13 pt</option><option value="14">14 pt</option></select></label>
-                <label>Heading font <select id="paperHeadingFamily" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="same">Same as body</option><option>Arial</option><option>Tahoma</option><option>Times New Roman</option><option>Calibri</option></select></label>
-                <label>Line spacing <select id="paperLine" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="1" selected>Single</option><option value="1.15">1.15</option><option value="1.2">1.2</option><option value="1.5">1.5</option></select></label>
-                <label>Space after questions (pt) <input id="paperAfter" type="number" min="0" max="12" step=".5" value="1" style="width:65px" oninput="refreshPaperLayout(true)"></label>
-                <label>Question indent <select id="paperIndent" class="teach-lang-select" onchange="refreshPaperLayout(true)"><option value="0">None</option><option value="360">0.25 inch</option><option value="720">0.5 inch</option></select></label>
-                <label>Grid row height (cm) <input id="paperGridHeight" type="number" min=".4" max="2" step=".1" value=".8" style="width:65px" oninput="refreshPaperLayout(true)"></label>
-                <label><input type="checkbox" id="paperPageNumbers" onchange="refreshPaperLayout(true)"> Page numbers</label>
-              </div>
-              <label id="paperWordFormatOption" style="display:none;margin-bottom:.7rem"><input type="checkbox" id="paperWordFormat" checked> Keep original Word formatting on A4</label>
-              <p id="paperWordFormatNote" class="teach-sub" style="display:none">Keep the original fonts and editable objects, with tables in page flow. A4 can change page breaks. The preview shows extracted content; editing uses the selected paper format.</p>
-              <div id="paperBlocks"></div>
-              <div id="paperPictures"></div>
-              <button class="action-btn" onclick="document.getElementById('paperLayoutPanel').classList.remove('show')">Done</button>
-            </div>
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct your question paper</div>
                 <div class="teach-sub">Edit the questions before exporting. Suggestions apply only when you select them. Save &amp; apply keeps your chosen wording.</div>
                 <div class="teach-language-bar">
-                    <label class="teach-lang-field">
-                        <span class="teach-lang-label">From</span>
-                        <select class="teach-lang-select" id="teachFromSelect">
-                            <option value="auto">Auto detect</option>
-                            <option value="en" selected>English / Roman</option>
-                            <option value="hi">Hindi</option>
-                            <option value="mr">Marathi</option>
-                            <option value="te">Telugu</option>
-                            <option value="ta">Tamil</option>
-                            <option value="kn">Kannada</option>
-                            <option value="ml">Malayalam</option>
-                            <option value="bn">Bengali</option>
-                            <option value="gu">Gujarati</option>
-                            <option value="pa">Punjabi</option>
-                            <option value="or">Odia</option>
-                            <option value="ur">Urdu</option>
-                            <option value="ks">Kashmiri</option>
-                        </select>
-                    </label>
-                    <span class="teach-lang-arrow">→</span>
-                    <label class="teach-lang-field">
-                        <span class="teach-lang-label">To</span>
-                        <select class="teach-lang-select" id="teachToSelect">
-                            <option value="auto">Auto from document</option>
-                            <option value="en">English</option>
-                            <option value="hi">Hindi</option>
-                            <option value="mr">Marathi</option>
-                            <option value="te">Telugu</option>
-                            <option value="ta">Tamil</option>
-                            <option value="kn">Kannada</option>
-                            <option value="ml">Malayalam</option>
-                            <option value="bn">Bengali</option>
-                            <option value="gu">Gujarati</option>
-                            <option value="pa">Punjabi</option>
-                            <option value="or">Odia</option>
-                            <option value="ur">Urdu</option>
-                            <option value="ks">Kashmiri</option>
-                        </select>
-                    </label>
-                    <div class="teach-language-status" id="teachLanguageStatus"></div>
+                    <div class="teach-language-status" id="teachLanguageStatus">Language detected automatically</div>
                 </div>
                 <div class="teach-toolbar">
                     <button class="teach-tool" id="teachUndoBtn" type="button" onclick="teachUndo()">↶ Undo</button>
@@ -1945,7 +1841,7 @@
     </main>
 
     <footer class="footer">
-        <div class="footer-text">PaperAI — Automatic question papers · Editable Word</div>
+        <div class="footer-text">PaperAI — Automatic question papers · Download Word</div>
     </footer>
 
 <script>
@@ -1959,7 +1855,7 @@ const quotaCard=$('quotaCard'),quotaBadgeText=$('quotaBadgeText'),onlineCount=$(
 const teachPanel=$('teachPanel'),teachEditor=$('teachEditor');
 const teachUndoBtn=$('teachUndoBtn'),teachRedoBtn=$('teachRedoBtn'),translitSuggestions=$('translitSuggestions');
 const teachAiBtn=$('teachAiBtn'),teachAiStatus=$('teachAiStatus');
-const teachFromSelect=$('teachFromSelect'),teachToSelect=$('teachToSelect'),teachLanguageStatus=$('teachLanguageStatus');
+const teachLanguageStatus=$('teachLanguageStatus');
 
 let file=null, fileBatch=[], lastResult=null, showingRaw=false;
 let processingUpload=false, uploadRun=0, activeScanController=null, scanCancelled=false;
@@ -3718,6 +3614,9 @@ function applyTeachWordCorrectionsToLayout(layoutText, originalPlain, correctedP
     if (!layout) return String(correctedPlain || '');
     if (String(originalPlain || '') === String(correctedPlain || '')) return layout;
 
+    const literal = PaperAIText.applyEdits(layout, originalPlain, correctedPlain);
+    if (literal !== null) return literal;
+
     const edits = extractLayoutWordEdits(originalPlain, correctedPlain);
     if (!edits.length) return layout;
 
@@ -3789,80 +3688,6 @@ function applyTeachWordCorrectionsToLayout(layoutText, originalPlain, correctedP
         }
     }
     return out;
-}
-
-const CANONICAL_PHONETIC_OVERRIDES = Object.freeze({
-    allah: 'अल्लाह',
-    allaah: 'अल्लाह',
-    jawad: 'जवाद',
-    jawaad: 'जवाद',
-    rupaya: 'रुपया',
-    rupayaa: 'रुपया',
-    rupaye: 'रुपये',
-    aadmi: 'आदमी',
-    aadamii: 'आदमी',
-    gaadi: 'गाड़ी',
-    gaadii: 'गाड़ी',
-    birbal: 'बीरबल',
-    beerbal: 'बीरबल',
-    i: 'आई',
-    love: 'लव',
-    you: 'यू',
-    my: 'माय',
-    name: 'नेम',
-    is: 'इज़',
-    hello: 'हेलो',
-    hi: 'हाय',
-    good: 'गुड',
-    morning: 'मॉर्निंग',
-    night: 'नाइट',
-    thank: 'थैंक',
-    thanks: 'थैंक्स'
-});
-
-const CANONICAL_PHONETIC_PHRASES = Object.freeze({
-    'i love you': 'आई लव यू',
-    'thank you': 'थैंक यू',
-    'good morning': 'गुड मॉर्निंग',
-    'good night': 'गुड नाइट',
-    'how are you': 'हाउ आर यू'
-});
-
-function getCanonicalPhraseOverride(phrase, script) {
-    const normalized = String(phrase || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    let devanagari = CANONICAL_PHONETIC_PHRASES[normalized] || '';
-
-    if (!devanagari && normalized.includes(' ')) {
-        const words = normalized.split(' ');
-        const converted = words.map(word => CANONICAL_PHONETIC_OVERRIDES[word] || '');
-        if (converted.every(Boolean)) devanagari = converted.join(' ');
-    }
-
-    if (!devanagari || script === 'latin') return '';
-    if (script === 'devanagari') return devanagari;
-
-    try {
-        if (window.IndicTransliterate?.convertScript) {
-            return window.IndicTransliterate.convertScript(devanagari, script);
-        }
-    } catch (_) {}
-
-    return '';
-}
-
-function getCanonicalPhoneticOverride(roman, script) {
-    const devanagari = CANONICAL_PHONETIC_OVERRIDES[String(roman || '').toLowerCase()];
-    if (!devanagari || script === 'latin') return '';
-
-    if (script === 'devanagari') return devanagari;
-
-    try {
-        if (window.IndicTransliterate?.convertScript) {
-            return window.IndicTransliterate.convertScript(devanagari, script);
-        }
-    } catch (_) {}
-
-    return '';
 }
 
 const TEACH_LANGUAGE_META = Object.freeze({
@@ -3937,71 +3762,21 @@ function detectTeachLanguage(text) {
 }
 
 function currentTeachLanguage() {
-    const chosenTarget = teachToSelect?.value || 'auto';
-    if (chosenTarget !== 'auto' && TEACH_LANGUAGE_META[chosenTarget]) return chosenTarget;
     return detectTeachLanguage(teachEditor?.value || teachOriginalText || lastResult?.plain_text || '');
 }
 
-function currentTeachScript() {
-    return TEACH_LANGUAGE_META[currentTeachLanguage()]?.script || 'latin';
-}
-
 function detectLanguageFromSegment(text) {
-    const source = String(text || '');
-    const counts = countTeachScripts(source).sort((a,b) => b[1] - a[1]);
+    const counts = countTeachScripts(String(text || '')).sort((a,b) => b[1] - a[1]);
     return counts[0]?.[1] > 0 ? counts[0][0] : 'en';
 }
 
 function currentTeachSourceLanguage(segmentText = '') {
-    const chosen = teachFromSelect?.value || 'en';
-    if (chosen !== 'auto' && TEACH_LANGUAGE_META[chosen]) return chosen;
     return detectLanguageFromSegment(segmentText || smartComposition?.source || '');
 }
 
 function updateTeachLanguageStatus() {
-    const targetLanguage = currentTeachLanguage();
-    const targetMeta = TEACH_LANGUAGE_META[targetLanguage] || TEACH_LANGUAGE_META.en;
-    const sourceLanguage = currentTeachSourceLanguage(smartComposition?.source || '');
-    const sourceMeta = TEACH_LANGUAGE_META[sourceLanguage] || TEACH_LANGUAGE_META.en;
-
-    const targetLabel = teachToSelect?.value === 'auto'
-        ? 'Auto → ' + targetMeta.label
-        : targetMeta.label;
-    const sourceLabel = teachFromSelect?.value === 'auto'
-        ? 'Auto → ' + sourceMeta.label
-        : sourceMeta.label;
-
-    teachLanguageStatus.textContent =
-        sourceLabel + ' → ' + targetLabel +
-        (sourceLanguage === targetLanguage
-            ? ' · spelling/script suggestions'
-            : ' · phonetic transliteration only · meaning is not translated');
-}
-
-function getLocalSmartSuggestions(input) {
-    const roman = String(input || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    if (!/^[a-z]+(?: [a-z]+)*$/.test(roman)) return [input];
-
-    const script = currentTeachScript();
-    if (script === 'latin') return [roman];
-
-    const suggestions = [];
-    const isSingleWord = !roman.includes(' ');
-    const phraseOverride = !isSingleWord ? getCanonicalPhraseOverride(roman, script) : '';
-    const override = isSingleWord ? getCanonicalPhoneticOverride(roman, script) : '';
-    if (phraseOverride) suggestions.push(phraseOverride);
-    if (override) suggestions.push(override);
-
-    try {
-        if (window.IndicTransliterate?.suggest) {
-            suggestions.push(...window.IndicTransliterate.suggest(roman, script));
-        } else if (window.IndicTransliterate?.transliterate) {
-            suggestions.push(window.IndicTransliterate.transliterate(roman, script));
-        }
-    } catch (_) {}
-
-    suggestions.push(roman);
-    return uniqueStrings(suggestions).slice(0, 8);
+    const label = TEACH_LANGUAGE_META[currentTeachLanguage()]?.label || 'English';
+    teachLanguageStatus.textContent = 'Auto detected: ' + label + ' · mixed-language spelling suggestions';
 }
 
 function getLearnedCorrectionSuggestions(input, localCandidates = []) {
@@ -4040,10 +3815,6 @@ function getLearnedCorrectionSuggestions(input, localCandidates = []) {
     ).slice(0, 5);
 }
 
-function transliterateSmartWord(input) {
-    return getLocalSmartSuggestions(input)[0] || input;
-}
-
 function getTeachContext(position) {
     const text = teachEditor.value || '';
     const start = Math.max(0, Number(position || 0) - 90);
@@ -4078,7 +3849,7 @@ function findInputSegmentAtCaret() {
 async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage, localSuggestions, learnedSuggestions, sequence) {
     const normalized = String(sourceText || '').replace(/\s+/g, ' ').trim();
     const context = getTeachContext(smartComposition?.start || teachEditor.selectionStart);
-    const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000smart\u0000' +
+    const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000contextual\u0000' +
         normalized.toLowerCase() + '\u0000' + context;
 
     if (aiSuggestionCache.has(cacheKey)) return aiSuggestionCache.get(cacheKey);
@@ -4097,14 +3868,14 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
                 context,
                 local_suggestions: localSuggestions.slice(0, 5),
                 learned_suggestions: (learnedSuggestions || []).slice(0, 5),
-                mode: 'smart'
+                mode: 'contextual'
             })
         });
 
         const body = await res.json().catch(() => ({}));
         if (PaperAIQuota.isDailyError(body)) throw quotaFailure(body);
         if (!res.ok) {
-            throw new Error(body?.error || 'AI suggestions are unavailable. You can keep editing manually.');
+            throw new Error(body?.error || 'AI suggestions are temporarily unavailable.');
         }
         if (sequence !== aiSuggestionSequence) return [];
 
@@ -4156,28 +3927,10 @@ async function requestAdvancedAiSuggestions() {
 
     const sourceText = segment.source.replace(/\s+/g, ' ').trim();
     smartComposition = { ...segment, source: sourceText };
-    const detectedSourceLanguage = detectLanguageFromSegment(sourceText);
-    const selectedHasNativeScript = detectedSourceLanguage !== 'en';
-    const sourceLanguage = selectedHasNativeScript
-        ? detectedSourceLanguage
-        : currentTeachSourceLanguage(sourceText);
+    const sourceLanguage = currentTeachSourceLanguage(sourceText);
     const targetLanguage = currentTeachLanguage();
-    const targetScript = currentTeachScript();
-    const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
-    const isPhrase = sourceText.split(/\s+/).filter(Boolean).length >= 2;
-
-    let localChoices = [];
-    if (isRomanSource && targetScript !== 'latin' && isPhrase) {
-        const knownPhrase = getCanonicalPhraseOverride(sourceText, targetScript);
-        if (knownPhrase) localChoices.push(knownPhrase);
-    }
-    if (isRomanSource && targetScript !== 'latin' && !isPhrase) {
-        localChoices.push(...getLocalSmartSuggestions(sourceText)
-            .filter(choice => choice.toLowerCase() !== sourceText.toLowerCase()));
-    }
-
-    const learnedChoices = getLearnedCorrectionSuggestions(sourceText, localChoices);
-    localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
+    const learnedChoices = getLearnedCorrectionSuggestions(sourceText);
+    const localChoices = learnedChoices;
     const normalizedSource = sourceText.normalize('NFC').toLocaleLowerCase();
     const visibleLocalChoices = localChoices.filter(choice =>
         String(choice || '').normalize('NFC').toLocaleLowerCase() !== normalizedSource
@@ -4246,24 +3999,6 @@ function renderSuggestionChips(choices, aiChoices = [], loading = false) {
     });
 }
 
-function autoApplySmartSuggestion(expectedSource, choice, sequence) {
-    if (!choice || sequence !== aiSuggestionSequence || !smartComposition) return;
-
-    const current = findInputSegmentAtCaret();
-    if (!current) return;
-    if (current.start !== smartComposition.start || current.end !== smartComposition.end) return;
-    if (current.source.normalize('NFC') !== String(expectedSource).normalize('NFC')) return;
-
-    const newEnd = replaceTeachRange(current.start, current.end, choice);
-    pushTeachHistory(teachEditor.value);
-    renderTeachPreview();
-
-    smartComposition = null;
-    translitSuggestions.classList.remove('show');
-    translitSuggestions.innerHTML = '';
-    teachEditor.setSelectionRange(newEnd, newEnd);
-}
-
 function showSmartSuggestions() {
     if (aiSuggestionTimer) {
         clearTimeout(aiSuggestionTimer);
@@ -4278,52 +4013,22 @@ function showSmartSuggestions() {
 
     const sourceText = smartComposition.source.replace(/\s+/g, ' ').trim();
     const targetLanguage = currentTeachLanguage();
-    const targetScript = currentTeachScript();
     const sourceLanguage = currentTeachSourceLanguage(sourceText);
-    const isRomanSource = sourceLanguage === 'en' && /^[A-Za-z'’\- ]+$/.test(sourceText);
     const isPhrase = sourceText.split(/\s+/).filter(Boolean).length >= 2;
-
-    let localChoices = [];
-    let learnedChoices = [];
-
-    // Known phrases use pronunciation-based forms, not spelling-based forms.
-    // Example: "i love you" -> "आई लव यू", not "इ लोवे योउ".
-    if (isRomanSource && targetScript !== 'latin' && isPhrase) {
-        const knownPhrase = getCanonicalPhraseOverride(sourceText, targetScript);
-        if (knownPhrase) localChoices.push(knownPhrase);
-    }
-
-    // Single words/names can still use the fast local transliterator.
-    if (isRomanSource && targetScript !== 'latin' && !isPhrase) {
-        localChoices.push(
-            ...getLocalSmartSuggestions(sourceText)
-                .filter(choice => choice.toLowerCase() !== sourceText.toLowerCase())
-        );
-    }
-
-    localChoices = uniqueStrings(localChoices);
-    learnedChoices = getLearnedCorrectionSuggestions(sourceText, localChoices);
-    localChoices = uniqueStrings([...learnedChoices, ...localChoices]);
+    const learnedChoices = getLearnedCorrectionSuggestions(sourceText);
+    const localChoices = learnedChoices;
     renderSuggestionChips(localChoices, [], localChoices.length === 0);
 
     const sequence = ++aiSuggestionSequence;
-    // For unknown English phrases, AI is preferred because English spelling
-    // does not map reliably to pronunciation (love -> लव, you -> यू, I -> आई).
-    // The AI returns phonetic script, never a semantic translation.
     aiSuggestionTimer = setTimeout(async () => {
-        const aiChoices = await fetchAiTextSuggestions(
-            sourceText,
-            sourceLanguage,
-            targetLanguage,
-            localChoices,
-            learnedChoices,
-            sequence
-        );
-
-        if (sequence !== aiSuggestionSequence || !smartComposition) return;
-        renderSuggestionChips(localChoices, aiChoices, false);
-
-
+        try {
+            const aiChoices = await fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage,
+                localChoices, learnedChoices, sequence);
+            if (sequence !== aiSuggestionSequence || !smartComposition) return;
+            renderSuggestionChips(localChoices, aiChoices, false);
+        } catch (_) {
+            if (sequence === aiSuggestionSequence) renderSuggestionChips(localChoices, [], false);
+        }
     }, isPhrase ? 650 : 900);
 }
 
@@ -4452,11 +4157,6 @@ function openTeachPanel() {
     aiSuggestionCalls = 0;
     aiSuggestionSequence++;
 
-    const selectedDocumentLanguage = languageSelect.value || 'auto';
-    teachToSelect.value = selectedDocumentLanguage !== 'auto'
-        ? selectedDocumentLanguage
-        : detectTeachLanguage(teachOriginalText);
-
     teachPanel.classList.add('show');
     updateTeachLanguageStatus();
     showSmartSuggestions();
@@ -4484,22 +4184,6 @@ function closeTeachPanel() {
         textOut.className = 'output-body';
     }
 }
-
-teachFromSelect.addEventListener('change', () => {
-    aiSuggestionSequence++;
-    if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
-    refreshSmartComposition();
-    updateTeachLanguageStatus();
-    teachEditor.focus();
-});
-
-teachToSelect.addEventListener('change', () => {
-    aiSuggestionSequence++;
-    if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
-    refreshSmartComposition();
-    updateTeachLanguageStatus();
-    teachEditor.focus();
-});
 
 teachEditor.addEventListener('keydown', event => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
@@ -4608,7 +4292,6 @@ function saveLearning() {
     closeTeachPanel();
     textOut.innerHTML = formatOutput(lastResult.text || '');
     textOut.className = 'output-body';
-    if($('paperLayoutPanel').classList.contains('show'))openPaperLayout();
 
     const learned = pairs.length;
     if (learned) $('statsBar').innerHTML += '<span class="badge badge-gray">' + learned + ' learned</span>';
@@ -4776,7 +4459,7 @@ function publicPlainTextFromStructured(value) {
 function currentPlainText() {
     if (!lastResult) return '';
     const live = teachPanel.classList.contains('show')
-        ? (lastResult.preview_text || teachEditor.value)
+        ? teachEditor.value
         : '';
     return publicPlainTextFromStructured(
         live || lastResult.plain_text || lastResult.text || ''
@@ -4788,14 +4471,7 @@ function updateResultActionsForTab() {
     if (!downloadBtn) return;
     downloadBtn.style.display = showingRaw ? 'none' : '';
     downloadBtn.disabled = showingRaw;
-    const pdfBtn = $('downloadPdfWordBtn');
-    if (pdfBtn) {
-        const available = !showingRaw && !!lastResult?.source_file && /\.pdf$/i.test(lastResult.source_file.name);
-        pdfBtn.style.display = available ? '' : 'none';
-        pdfBtn.disabled = !available;
-        const note = $('pdfWordNote');
-        if (note) note.style.display = available ? '' : 'none';
-    }
+
 }
 
 function showTab(tab) {
@@ -5339,7 +5015,7 @@ function formatOutput(text) {
         }
         const structuredLine = formatStructuredWorksheetLine(line);
         if (structuredLine) {
-            html += pendingTableRegion&&/^\s*\[\[GRID:/i.test(line)?'<div style="width:'+pendingTableRegion.w/10+'%">'+structuredLine+'</div>':structuredLine;
+            if(pendingTableRegion&&/^\s*\[\[GRID:/i.test(line)){const dimensions=worksheetGridSize(line.replace(/^\s*\[\[GRID:\s*/i,'').replace(/\]\]\s*$/,'')),metric=PaperAILayout.measuredGrid(pendingTableRegion,dimensions?.rows||1);html+='<div style="width:'+metric.width/10466*100+'%;--paper-grid-height:'+metric.rowHeight/10466*100+'cqw">'+structuredLine+'</div>';}else html+=structuredLine;
             if(/^\s*\[\[GRID:/i.test(line))pendingTableRegion=null;
             i++;
             continue;
@@ -5545,8 +5221,6 @@ goBtn.onclick = async () => {
         if (file !== sourceFile) return;
         const nativeWord=batch.length===1&&/\.docx$/i.test(sourceFile.name);
         configureAutomaticPaper(allText,!!nativePdfPages||nativeWord);
-        $('paperFlow').value=nativePdfPages ? 'source' : 'compact';
-        $('paperLayoutPanel').classList.remove('show');
         const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">A4 · narrow margins · auto formatted</span><span class="badge badge-gray">' + charCount + ' chars</span>';
@@ -5557,9 +5231,6 @@ goBtn.onclick = async () => {
         lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw, source_file: sourceFile,
             native_docx_file:batch.length===1&&/\.docx$/i.test(sourceFile.name)?sourceFile:null,native_docx_text:allText,
             native_pdf_pages:nativePdfPages,native_pdf_text:allText,native_pdf_preview:nativePdfPages?PaperAIPdfEditable.preview(nativePdfPages):null };
-        $('paperWordFormatOption').style.display=lastResult.native_docx_file?'block':'none';
-        $('paperWordFormatNote').style.display=lastResult.native_docx_file?'block':'none';
-        $('paperWordFormat').checked=!!lastResult.native_docx_file;
         teachPanel.classList.remove('show');
         showingRaw = false;
         $('tabVerified').classList.add('active');
@@ -5663,206 +5334,45 @@ function docxVisibleText(value) {
     });
 }
 
+let automaticPaperLayout = null;
 function paperLayoutOptions() {
-    const element=id=>typeof document==='undefined'?null:document.getElementById(id);
-    const compact=element('paperFlow')?.value==='compact';
-    const fontSize=Math.max(10,Math.min(14,Number(element('paperFont')?.value||12)));
-    const family=element('paperFamily')?.value||'Arial';
-    return {compact,keepSourcePages:!compact,fontSize,pageNumbers:!!element('paperPageNumbers')?.checked,
-        font:['Arial','Tahoma','Times New Roman','Calibri','Noto Sans Devanagari','Noto Sans Telugu'].includes(family)?family:'Arial',
-        headingFont:['Arial','Tahoma','Times New Roman','Calibri'].includes(element('paperHeadingFamily')?.value)?element('paperHeadingFamily').value:family,
-        heading:Number(element('paperHeading')?.value||13*fontSize/12),
-        line:Number(element('paperLine')?.value||(compact?1:1.125)),
-        after:element('paperAfter')?Math.max(0,Math.min(12,Number(element('paperAfter').value)||0))*20:null,
-        indent:Number(element('paperIndent')?.value||0),
-        gridHeight:element('paperGridHeight')?Math.round(Math.max(.4,Math.min(2,Number(element('paperGridHeight').value)||.8))*567):460};
+    if(automaticPaperLayout)return {...automaticPaperLayout};
+    const p=PaperAILayout.referenceFormats.compact;
+    return {compact:true,keepSourcePages:false,fontSize:p.body,pageNumbers:false,font:p.font,headingFont:p.headingFont,heading:p.heading,line:p.line,after:p.after*20,indent:p.indent,gridHeight:454,format:'compact'};
 }
 function configureAutomaticPaper(text,nativeSource=false) {
     const detected=PaperAILayout.automaticFormat(text,nativeSource),p=detected.format;
-    for(const [id,value] of Object.entries({paperFamily:p.font,paperHeadingFamily:p.headingFont,paperFont:p.body,paperHeading:p.heading,paperLine:p.line,paperAfter:p.after,paperIndent:p.indent,paperGridHeight:.8,paperFormat:detected.preserveSource?'custom':detected.name}))$(id).value=String(value);
-    $('paperPageNumbers').checked=false;
-    // Do not invalidate the original Word/PDF geometry while choosing defaults.
-}
-function applyPaperFormat(name) {
-    const p=PaperAILayout.referenceFormats[name];if(!p)return;
-    for(const [id,value] of Object.entries({paperFamily:p.font,paperHeadingFamily:p.headingFont,paperFont:p.body,paperHeading:p.heading,paperLine:p.line,paperAfter:p.after,paperIndent:p.indent}))$(id).value=String(value);
-    refreshPaperLayout(true);
+    automaticPaperLayout={compact:!nativeSource,keepSourcePages:Boolean(nativeSource),fontSize:p.body,pageNumbers:false,font:p.font,headingFont:p.headingFont,heading:p.heading,line:p.line,after:p.after*20,indent:p.indent,gridHeight:454,format:detected.name};
 }
 function invalidateOriginalWord() {
-    if(lastResult)lastResult.native_docx_file=null;
-    if($('paperWordFormatOption'))$('paperWordFormatOption').style.display='none';
-    if($('paperWordFormatNote'))$('paperWordFormatNote').style.display='none';
-}
-function paperEdited(text) {
-    if(!lastResult)return;
-    lastResult.text=text;
-    lastResult.plain_text=portableText(text);
-    delete lastResult.preview_layout_text;
-    lastResult.native_pdf_pages=null;lastResult.native_pdf_preview=null;
-    invalidateOriginalWord();
-    $('textOut').innerHTML=formatOutput(text);
-}
-function refreshPaperLayout(changeGeometry=false) {
-    if(!lastResult)return;
-    if(changeGeometry){lastResult.native_pdf_pages=null;lastResult.native_pdf_preview=null;invalidateOriginalWord();}
-    $('textOut').style.fontSize=paperLayoutOptions().fontSize+'pt';
-    $('textOut').style.fontFamily=paperLayoutOptions().font;
-    $('textOut').style.lineHeight=String(paperLayoutOptions().line);
-    $('textOut').style.setProperty('--paper-heading-size',paperLayoutOptions().heading+'pt');
-    $('textOut').style.setProperty('--paper-after',(paperLayoutOptions().after??25)/20+'pt');
-    $('textOut').innerHTML=formatOutput(lastResult.text);
-}
-function updatePaperCell(lineIndex,cellIndex,value) {
-    const lines=lastResult.text.split('\n'), marker=lines[lineIndex].match(/^\[\[([A-Z_]+):\s*([\s\S]*?)\]\]$/);
-    if(!marker)return;
-    const cells=worksheetCells(marker[2],52);
-    cells[cellIndex]=String(value).replace(/\r?\n/g,'<br>').replace(/\|\|/g,'|').replace(/\]\]/g,']');
-    lines[lineIndex]='[['+marker[1]+': '+cells.join(' || ')+']]';
-    paperEdited(lines.join('\n'));
-}
-function updatePaperGrid(lineIndex,value) {
-    if(!worksheetGridSize(value)){showErr('Use columns × rows, up to 52 columns, 32 rows and 600 cells.');return;}
-    const lines=lastResult.text.split('\n');lines[lineIndex]='[[GRID: '+value+']]';paperEdited(lines.join('\n'));
-}
-function updatePaperWidths(lineIndex,value) {
-    const lines=lastResult.text.split('\n'),values=String(value).split(',').map(Number);
-    const row=lines[lineIndex].match(/^\[\[(?:TABLE_ROW|MATCH_ROW):\s*([\s\S]*?)\]\]$/i);
-    if(!row||values.length!==worksheetCells(row[1],32).length||values.some(x=>!Number.isFinite(x)||x<=0)){showErr('Enter one positive column proportion per column, separated by commas.');return;}
-    const marker='[[TABLE_WIDTHS: '+values.join(',')+']]';
-    hideErr();
-    let first=lineIndex;
-    while(/^\[\[TABLE_(?:WIDTHS|HEADER):/i.test(lines[first-1]||''))first--;
-    const existing=lines.slice(first,lineIndex).findIndex(x=>/^\[\[TABLE_WIDTHS:/i.test(x));
-    if(existing>=0)lines[first+existing]=marker;
-    else lines.splice(first,0,marker);
-    paperEdited(lines.join('\n'));openPaperLayout();
-}
-function removePaperRow(lineIndex) {
-    const lines=lastResult.text.split('\n'),kind=lines[lineIndex]?.match(/^\[\[(TABLE_ROW|MATCH_ROW):/i)?.[1];
-    lines.splice(lineIndex,1);
-    // Metadata belongs to this table, and must not leak into the next one.
-    if(kind&&!new RegExp('^\\[\\['+kind+':','i').test(lines[lineIndex]||'')){
-        let first=lineIndex;while(/^\[\[TABLE_(?:WIDTHS|HEADER):/i.test(lines[first-1]||''))first--;
-        if(first<lineIndex)lines.splice(first,lineIndex-first);
-    }
-    paperEdited(lines.join('\n'));openPaperLayout();
-}
-function paperCropEditor(asset,index) {
-    return '<p>Drag around the illustration on its source page, then apply the crop. Include all of the drawing and its labels.</p>'+
-        '<div aria-label="Source page for picture '+(index+1)+'" style="position:relative;width:100%;max-width:420px;touch-action:none;cursor:crosshair" onpointerdown="beginPaperCrop('+index+',event)" onpointermove="movePaperCrop('+index+',event)" onpointerup="endPaperCrop(event)" onpointercancel="endPaperCrop(event)">'+
-        '<img src="'+esc(asset.sourceDataUrl)+'" alt="Full source page" draggable="false" style="display:block;width:100%;pointer-events:none">'+
-        '<div id="crop-frame-'+index+'" style="pointer-events:none;position:absolute;border:2px solid #2463eb;background:rgba(36,99,235,.12);left:'+asset.region.x/10+'%;top:'+asset.region.y/10+'%;width:'+asset.region.w/10+'%;height:'+asset.region.h/10+'%"></div></div>'+
-        '<div style="margin-top:.7rem">Crop (0–1000): '+['x','y','w','h'].map(key=>'<label>'+({x:'Left',y:'Top',w:'Width',h:'Height'}[key])+' <input style="width:65px" type="number" id="crop-'+index+'-'+key+'" min="0" max="1000" value="'+asset.region[key]+'" oninput="updatePaperCropFrame('+index+')"></label>').join(' ')+' <button class="action-btn" onclick="cropPaperPicture('+index+')">Apply crop</button></div>';
-}
-let paperCropDrag=null;
-function paperCropPoint(event) {
-    const rect=event.currentTarget.getBoundingClientRect();
-    return [Math.round(Math.max(0,Math.min(1000,(event.clientX-rect.left)/rect.width*1000))),Math.round(Math.max(0,Math.min(1000,(event.clientY-rect.top)/rect.height*1000)))];
-}
-function beginPaperCrop(index,event) {
-    if(event.button!==0)return;
-    event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);
-    paperCropDrag={index,start:paperCropPoint(event)};
-}
-function movePaperCrop(index,event) {
-    if(!paperCropDrag||paperCropDrag.index!==index)return;
-    const a=paperCropDrag.start,b=paperCropPoint(event),values={x:Math.min(a[0],b[0]),y:Math.min(a[1],b[1]),w:Math.abs(b[0]-a[0]),h:Math.abs(b[1]-a[1])};
-    for(const key of ['x','y','w','h'])$('crop-'+index+'-'+key).value=values[key];
-    updatePaperCropFrame(index);
-}
-function endPaperCrop(event) {
-    paperCropDrag=null;
-    if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
-}
-function updatePaperCropFrame(index) {
-    const frame=$('crop-frame-'+index);if(!frame)return;
-    const keys={x:'left',y:'top',w:'width',h:'height'};
-    for(const key of Object.keys(keys))frame.style[keys[key]]=Number($('crop-'+index+'-'+key).value)/10+'%';
-}
-function openPaperLayout() {
-    if(!lastResult)return;
-    const lines=lastResult.text.split('\n');
-    $('paperLayoutPanel').classList.add('show');
-    $('paperBlocks').innerHTML=lines.map((line,index)=>{
-        const m=line.match(/^\[\[(TABLE_ROW|MATCH_ROW|GRID_ROW|SECTION_ROW|QUESTION_ROW|CHOICE_ROW|OPTION_ROW|ARITHMETIC_ROW):\s*([\s\S]*?)\]\]$/i);
-        if(m){const labels={TABLE_ROW:'Table row',MATCH_ROW:'Matching row',GRID_ROW:'Grid row',SECTION_ROW:'Section and marks',QUESTION_ROW:'Question and marks',CHOICE_ROW:'Choices',OPTION_ROW:'Choices with boxes',ARITHMETIC_ROW:'Vertical arithmetic'};
-            const widths=['TABLE_ROW','MATCH_ROW'].includes(m[1])&&!new RegExp('^\\[\\['+m[1]+':','i').test(lines[index-1]||'')?'<label style="display:block;margin:.5rem 0">Column proportions <input aria-label="Column proportions" value="'+esc((lines[index-1]||'').match(/^\[\[TABLE_WIDTHS:\s*([\s\S]*?)\]\]$/i)?.[1]||Array(worksheetCells(m[2],32).length).fill(1).join(','))+'" onchange="updatePaperWidths('+index+',this.value)"></label>':'';
-            return '<fieldset style="margin:.5rem 0;border:1px solid var(--border);border-radius:6px"><legend>'+labels[m[1]]+'</legend><div style="display:flex;gap:.4rem;flex-wrap:wrap">'+worksheetCells(m[2],52).map((cell,c)=>'<textarea aria-label="'+labels[m[1]]+' cell '+(c+1)+'" style="flex:1;min-width:65px;max-width:100%;padding:.4rem" rows="2" oninput="updatePaperCell('+index+','+c+',this.value)">'+esc(cell.replace(/<br>/gi,'\n'))+'</textarea>').join('')+'</div>'+widths+'<button class="action-btn" onclick="removePaperRow('+index+')">Remove row</button></fieldset>';}
-        const grid=line.match(/^\[\[GRID:\s*(.*?)\]\]$/i);
-        return grid?'<label style="display:block;margin:.5rem 0">Grid columns × rows <input aria-label="Grid dimensions" value="'+esc(grid[1])+'" onchange="updatePaperGrid('+index+',this.value)"></label>':'';
-    }).join('')||'<p class="teach-sub">Layout is detected from the uploaded source. Use Correct text only if you want to make a correction.</p>';
-
-    $('paperPictures').innerHTML=extractedMedia.map((asset,i)=>
-        '<fieldset style="margin:1rem 0;border:1px solid var(--border);padding:.7rem"><legend>'+ (asset.role==='banner'?'Source banner':'Picture '+(i+1))+'</legend><img src="'+esc(asset.dataUrl)+'" style="max-width:180px;max-height:180px;object-fit:contain" alt="Original picture"><div style="display:flex;gap:.7rem;flex-wrap:wrap">'+
-        '<label>Width in cm <input type="number" min=".5" max="18.46" step=".1" value="'+((asset.widthTwips||2260)/567).toFixed(1)+'" oninput="setPaperPicture('+i+',\'width\',this.value)"></label>'+
-        '<label>Alignment <select onchange="setPaperPicture('+i+',\'align\',this.value)">'+['left','center','right'].map(a=>'<option '+((asset.align||'center')===a?'selected':'')+'>'+a+'</option>').join('')+'</select></label>'+
-        '<label>Replace picture <input type="file" accept="image/png,image/jpeg,image/webp" onchange="replacePaperPicture('+i+',this.files[0])"></label></div>'+
-        (asset.sourceDataUrl?paperCropEditor(asset,i):'')+'</fieldset>').join('');
-    const missing=[...lastResult.text.matchAll(/\[\[(PICTURE(?:_OPTION|_ROW)?):\s*([\s\S]*?)\]\]/gi)];
-    $('paperPictures').innerHTML+=missing.map((m,i)=>'<label style="display:block;margin:.6rem 0">Add requested picture: '+esc(m[2])+' <input type="file" accept="image/png,image/jpeg,image/webp" onchange="fillPaperPicture('+i+',this.files[0])"></label>').join('');
-    const unresolved=[...lastResult.text.matchAll(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi)];
-    $('paperPictures').innerHTML+=unresolved.map((m,index)=>worksheetCells(m[1],32).map((cell,c)=>sourceAsset(PaperAILayout.source(cell).id)?'':'<label style="display:block;margin:.6rem 0">Replace illustration needing review '+(index+1)+'.'+(c+1)+' <input type="file" accept="image/png,image/jpeg,image/webp" onchange="fillMissingSource('+index+','+c+',this.files[0])"></label>').join('')).join('');
-}
-async function fillMissingSource(index,cellIndex,file) {
-    if(!file)return;
-    const matches=[...lastResult.text.matchAll(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi)],m=matches[index];if(!m)return;
-    try {const dataUrl=await blobToDataURL(file),dim=await imageDataUrlSize(dataUrl),id='teacher-picture-'+(extractedMedia.length+1),cells=worksheetCells(m[1],32),info=PaperAILayout.source(cells[cellIndex]);
-        extractedMedia.push({id,dataUrl,w:dim.w,h:dim.h,widthTwips:2260});
-        cells[cellIndex]=id+'|'+(info.caption==='[source image needs review]'?' ':info.caption)+'|'+(info.answer?'box':'none');
-        const replacement='[[SOURCE_FIGURE'+(cells.length>1?'_ROW':'')+': '+cells.join(' || ')+']]';
-        paperEdited(lastResult.text.slice(0,m.index)+replacement+lastResult.text.slice(m.index+m[0].length));openPaperLayout();
-    }catch(error){showErr(error.message);}
-}
-function setPaperPicture(index,kind,value) {
-    const asset=extractedMedia[index];if(!asset)return;
-    if(kind==='width')asset.widthTwips=Math.round(Math.max(.5,Math.min(18.46,Number(value)||4))*567);
-    else asset.align=['left','center','right'].includes(value)?value:'center';
-    paperEdited(lastResult.text);
-}
-async function replacePaperPicture(index,file) {
-    if(!file)return;
-    try {const dataUrl=await blobToDataURL(file),dim=await imageDataUrlSize(dataUrl);
-        Object.assign(extractedMedia[index],{dataUrl,w:dim.w,h:dim.h,sourceDataUrl:null});
-        paperEdited(lastResult.text);openPaperLayout();
-    } catch(error){showErr(error.message);}
-}
-async function cropPaperPicture(index) {
-    const asset=extractedMedia[index],values=['x','y','w','h'].map(key=>Number($('crop-'+index+'-'+key).value));
-    const region=PaperAILayout.figure(values.join(','));
-    if(!region){showErr('The crop must fit inside the source page.');return;}
-    try {const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('Could not load the source picture.'));img.src=asset.sourceDataUrl;});
-        const rect=PaperAILayout.pixels(region,img.naturalWidth,img.naturalHeight),canvas=document.createElement('canvas');canvas.width=rect.w;canvas.height=rect.h;
-        canvas.getContext('2d').drawImage(img,rect.x,rect.y,rect.w,rect.h,0,0,rect.w,rect.h);
-        Object.assign(asset,{dataUrl:canvas.toDataURL('image/png'),w:rect.w,h:rect.h,region});
-        paperEdited(lastResult.text);openPaperLayout();
-    } catch(error){showErr(error.message);}
-}
-async function fillPaperPicture(index,file) {
-    if(!file)return;
-    const matches=[...lastResult.text.matchAll(/\[\[(PICTURE(?:_OPTION|_ROW)?):\s*([\s\S]*?)\]\]/gi)],m=matches[index];if(!m)return;
-    try {const dataUrl=await blobToDataURL(file),dim=await imageDataUrlSize(dataUrl),id='teacher-picture-'+(extractedMedia.length+1);
-        extractedMedia.push({id,dataUrl,w:dim.w,h:dim.h,widthTwips:2260});
-        let replacement='[[SOURCE_FIGURE: '+id+'| |'+(m[1]==='PICTURE_OPTION'?'box':'none')+']]';
-        if(m[1]==='PICTURE_ROW'){
-            const cells=worksheetCells(m[2],8),first=cells.shift();
-            replacement='[[SOURCE_FIGURE: '+id+'|'+(first.match(/^\d+[.)]/)?.[0]||' ')+'|none]]'+(cells.length?'\n[[PICTURE_ROW: '+cells.join(' || ')+']]':'');
-        }
-        paperEdited(lastResult.text.slice(0,m.index)+replacement+lastResult.text.slice(m.index+m[0].length));openPaperLayout();
-    } catch(error){showErr(error.message);}
+    if(lastResult){lastResult.native_docx_file=null;lastResult.native_pdf_pages=null;lastResult.native_pdf_preview=null;}
 }
 function docxRun(text, options = {}) {
+    text=String(text??'');
+    // Explicit Indic fonts/language tags prevent office apps from treating
+    // Hindi as an English run and substituting a different script font.
+    let scriptFont=options.scriptFont||'',language=options.language||'en-US';
+    if(!scriptFont&&/[\u0900-\u097F\u0C00-\u0C7F]/.test(text)){
+        if(/[A-Za-z]/.test(text)){
+            return (text.match(/[\u0900-\u097F\u0C00-\u0C7F\u200C\u200D]+|[^\u0900-\u097F\u0C00-\u0C7F\u200C\u200D]+/g)||[])
+                .map(part=>docxRun(part,options)).join('');
+        }
+        const telugu=/[\u0C00-\u0C7F]/.test(text);
+        scriptFont=telugu?'Noto Sans Telugu':'Noto Sans Devanagari';language=telugu?'te-IN':'hi-IN';
+    }
+    const family=xmlEscape(scriptFont||(options.monospace?'Courier New':options.font||paperLayoutOptions().font));
     const bold = options.bold ? '<w:b/><w:bCs/>' : '';
     const size = Math.round(options.actualSize||Number(options.size || PaperAILayout.profile.bodySize)*paperLayoutOptions().fontSize/12);
     const preserve = /^\s|\s$|\s{2,}/.test(String(text || '')) ? ' xml:space="preserve"' : '';
     return '<w:r><w:rPr>' +
-        '<w:rFonts w:ascii="'+(options.monospace?'Courier New':options.font||paperLayoutOptions().font)+'" w:hAnsi="'+(options.monospace?'Courier New':options.font||paperLayoutOptions().font)+'" w:eastAsia="Noto Sans Devanagari" w:cs="'+(paperLayoutOptions().font==='Noto Sans Telugu'?'Noto Sans Telugu':'Noto Sans Devanagari')+'"/>' +
+        '<w:rFonts w:ascii="'+family+'" w:hAnsi="'+family+'" w:eastAsia="Noto Sans Devanagari" w:cs="'+(scriptFont||'Noto Sans Devanagari')+'"/>' +
         bold +
         (options.underline?'<w:u w:val="'+options.underline+'"/>':'')+
         (options.strike?'<w:strike/>':'')+(options.doubleStrike?'<w:dstrike/>':'')+
         (options.highlight?'<w:highlight w:val="yellow"/>':'')+
         (options.boxed?'<w:bdr w:val="single" w:sz="4" w:space="1" w:color="000000"/>':'')+
         '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>' +
-        '<w:lang w:val="en-US" w:eastAsia="hi-IN"/>' +
+        '<w:lang w:val="'+language+'" w:eastAsia="'+language+'" w:bidi="'+language+'"/>' +
         '</w:rPr><w:t' + preserve + '>' + xmlEscape(text) + '</w:t></w:r>';
 }
 
@@ -6035,10 +5545,11 @@ function docxShapeRow(shapes) {
         docxEqualWidths(shapes.length),{bordered:false});
 }
 function docxGrid(columns, rows, cells = [], region=null) {
-    const widths = docxEqualWidths(columns,region?Math.round(region.w*DOCX_CONTENT_W/1000):DOCX_CONTENT_W);
+    const metric=region?PaperAILayout.measuredGrid(region,rows):null;
+    const widths = docxEqualWidths(columns,metric?metric.width:DOCX_CONTENT_W);
     const content = Array.from({length:rows},(_,r)=>
         Array.from({length:columns},(_,c)=>cells[r*columns+c] || ''));
-    return docxTableCells(content,widths,{bordered:true,minHeight:region?Math.max(120,Math.round(region.h*15398/1000/rows)):paperLayoutOptions().gridHeight,fontSize:24,center:true,grid:true});
+    return docxTableCells(content,widths,{bordered:true,minHeight:metric?metric.rowHeight:paperLayoutOptions().gridHeight,fontSize:24,center:true,grid:true});
 }
 function docxEmphasisRuns(raw,style,depth=0) {
     if(depth>8)return docxRun(docxVisibleText(raw),style);
@@ -6294,7 +5805,7 @@ async function recoverSourceFigures(text, blob) {
             ctx.drawImage(source,rect.x,rect.y,rect.w,rect.h,0,0,rect.w,rect.h);
             const id='source-'+(extractedMedia.length+1);
             extractedMedia.push({id,dataUrl:canvas.toDataURL('image/png'),w:rect.w,h:rect.h,
-                widthTwips:Math.round(region.w*10466/1000),region,sourceDataUrl:sourceDataUrl});
+                widthTwips:Math.min(DOCX_CONTENT_W,Math.round(region.w*PaperAILayout.profile.pageWidth/1000)),region,sourceDataUrl:sourceDataUrl});
             return {...region,id};
         };
         const cell = r => r.id+'|'+(r.caption||' ')+'|'+(r.answer?'box':'none');
@@ -6603,6 +6114,7 @@ async function makeExtractedDocx(structuredText) {
 
 async function downloadWord(btn) {
     if (!lastResult || showingRaw) return;
+    if(teachPanel.classList.contains('show'))renderTeachPreview();
 
     const structuredText = teachPanel.classList.contains('show')
         ? (lastResult.preview_layout_text || lastResult.text || '')
@@ -6610,10 +6122,9 @@ async function downloadWord(btn) {
 
     if (!structuredText.trim()) return;
 
-    const keepWord=lastResult.native_docx_file&&structuredText===lastResult.native_docx_text&&$('paperWordFormat')?.checked;
+    const keepWord=lastResult.native_docx_file&&structuredText===lastResult.native_docx_text;
     const missingSource=[...structuredText.matchAll(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi)].some(m=>worksheetCells(m[1],32).some(value=>!sourceAsset(PaperAILayout.source(value).id)));
-    if(!keepWord&&missingSource){showErr('An illustration crop needs review. Re-extract this page or supply its picture before exporting.');openPaperLayout();return;}
-    if(!keepWord&&/\[\[PICTURE(?:_OPTION|_ROW)?:/i.test(structuredText)){showErr('A picture was requested in the notes but was not drawn. Add that picture in Paper layout before exporting.');openPaperLayout();return;}
+    if(!keepWord&&(missingSource||/\[\[PICTURE(?:_ROW|_OPTION)?:/i.test(structuredText))){showErr('A source illustration could not be recovered. Please upload a clearer source page.');return;}
     const original = btn?.innerHTML || '';
     if (btn) {
         btn.disabled = true;
@@ -6636,26 +6147,6 @@ async function downloadWord(btn) {
             btn.disabled = false;
             btn.innerHTML = original;
         }
-    }
-}
-
-async function downloadPdfWord(btn) {
-    const source = lastResult?.source_file;
-    if (showingRaw || !source || !/\.pdf$/i.test(source.name)) return;
-    const original = btn.innerHTML;
-    btn.disabled = true;
-    try {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/document-worker.js';
-        const blob = await PaperAIPdfWord.makePdfWord(source, {
-            onProgress: (page, total) => { btn.textContent = 'Creating page ' + page + '/' + total + '…'; }
-        });
-        const base = source.name.replace(/\.pdf$/i, '').replace(/[^\p{L}\p{N}_-]+/gu, '-') || 'paperai';
-        dlBlob(blob, base + '-pdf-layout.docx');
-    } catch (error) {
-        showErr(error?.message || 'Could not create the PDF layout Word file.');
-    } finally {
-        btn.innerHTML = original;
-        updateResultActionsForTab();
     }
 }
 

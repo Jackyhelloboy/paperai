@@ -17,6 +17,9 @@ on:
       - 'functions/**'
       - '.github/scripts/build-pages.cjs'
       - 'frontend/vendor/paper-layout.js'
+      - 'frontend/vendor/paper-text.js'
+      - 'tests/exact-word-text.cjs'
+      - 'tests/mixed-language-suggestions.cjs'
       - 'worker/src/paper-layout-rules.js'
       - '.github/workflows/verify-worksheet.yml'
   workflow_dispatch:

@@ -12,13 +12,13 @@ fs.writeFileSync(homeFile,fs.readFileSync(homeFile,'utf8').replace('<head>','<he
 const gateway=fs.readFileSync(path.join(root,'functions/api/[[path]].js'),'utf8');
 fs.writeFileSync(path.join(out,'_worker.js'),gateway+`\nexport default {fetch(request, env) {
     const path = new URL(request.url).pathname;
-    if (path.startsWith('/vendor/local-runtime/') || ['/local-ocr-check','/local-ocr-check.html','/_worker.js','/vendor/local-ocr-worker.mjs','/vendor/local-reader-worker.js','/vendor/local-ocr.js','/vendor/local-ocr-layout.js'].includes(path))
+    if (path.startsWith('/vendor/local-runtime/') || ['/vendor/pdf-word-layout.js','/local-ocr-check','/local-ocr-check.html','/_worker.js','/vendor/local-ocr-worker.mjs','/vendor/local-reader-worker.js','/vendor/local-ocr.js','/vendor/local-ocr-layout.js'].includes(path))
         return new Response('Not found', {status: 404});
     if (path.startsWith('/api/')) return onRequest({request, env});
     return env.ASSETS.fetch(request);
 }};\n`);
 fs.writeFileSync(path.join(out,'_routes.json'),JSON.stringify({version:1,
-    include:['/api/*','/local-ocr-check','/local-ocr-check.html','/_worker.js','/vendor/local-ocr-worker.mjs','/vendor/local-runtime/*','/vendor/local-reader-worker.js','/vendor/local-ocr.js','/vendor/local-ocr-layout.js'],exclude:[]}));
+    include:['/api/*','/vendor/pdf-word-layout.js','/local-ocr-check','/local-ocr-check.html','/_worker.js','/vendor/local-ocr-worker.mjs','/vendor/local-runtime/*','/vendor/local-reader-worker.js','/vendor/local-ocr.js','/vendor/local-ocr-layout.js'],exclude:[]}));
 for(const [from,to] of [
     ['pdfjs-dist/build/pdf.min.js','document-reader.js'],
     ['pdfjs-dist/build/pdf.worker.min.js','document-worker.js'],

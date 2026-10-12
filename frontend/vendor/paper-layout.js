@@ -96,17 +96,24 @@
             s.match(new RegExp('^(.+[.?:।॥])\\s+(\\(\\s*'+number+'\\s*\\))\\s*$'));
         return m ? {title:m[1],marks:m[2]} : null;
     }
+    function measuredGrid(region,rows=1) {
+        const sourceWidth=region.w*profile.pageWidth/1000;
+        const width=Math.min(profile.contentWidth,Math.max(120,Math.round(sourceWidth)));
+        const scale=Math.min(1,width/sourceWidth);
+        return {width,rowHeight:Math.max(120,Math.round(region.h*profile.pageHeight/1000*scale/Math.max(1,rows)))};
+    }
     function tablePlacement(region, figureRegion) {
         if(!region)return null;
-        const tableWidth=Math.max(600,Math.round(region.w*profile.contentWidth/1000));
+        const sourceTableWidth=Math.max(600,Math.round(region.w*profile.pageWidth/1000));
+        const tableWidth=Math.min(profile.contentWidth,sourceTableWidth);
         const overlaps=figureRegion&&Math.min(region.y+region.h,figureRegion.y+figureRegion.h)-Math.max(region.y,figureRegion.y)>0;
         const right=figureRegion&&figureRegion.x>=region.x+region.w;
         const left=figureRegion&&figureRegion.x+figureRegion.w<=region.x;
         if(!overlaps||(!right&&!left))return {tableWidth};
-        const gap=Math.max(120,Math.round((right?figureRegion.x-region.x-region.w:region.x-figureRegion.x-figureRegion.w)*profile.contentWidth/1000));
-        const pictureWidth=Math.max(400,Math.round(figureRegion.w*profile.contentWidth/1000));
-        const scale=Math.min(1,profile.contentWidth/(tableWidth+gap+pictureWidth));
-        return {tableWidth:Math.floor(tableWidth*scale),gap:Math.floor(gap*scale),pictureWidth:Math.floor(pictureWidth*scale),pictureFirst:Boolean(left)};
+        const gap=Math.max(120,Math.round((right?figureRegion.x-region.x-region.w:region.x-figureRegion.x-figureRegion.w)*profile.pageWidth/1000));
+        const pictureWidth=Math.max(400,Math.round(figureRegion.w*profile.pageWidth/1000));
+        const scale=Math.min(1,profile.contentWidth/(sourceTableWidth+gap+pictureWidth));
+        return {tableWidth:Math.floor(sourceTableWidth*scale),gap:Math.floor(gap*scale),pictureWidth:Math.floor(pictureWidth*scale),pictureFirst:Boolean(left)};
     }
     function shape(value) {
         const [name, flag='box']=String(value||'').split('|').map(x=>x.trim());
@@ -394,6 +401,17 @@
             if(prose.trim())output.push(prose);
             return output.length?output:[''];
         });
+        // Detached roman labels and their following instruction are one heading.
+        for(let i=0;i<lines.length-1;i++){
+            const label=lines[i].trim();if(!/^(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)]?$/.test(label))continue;
+            let j=i+1;while(j<lines.length&&!lines[j].trim())j++;
+            const row=(lines[j]||'').match(/^\s*\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i);
+            if(!row||/^[0-9०-९]+[.)]/u.test(row[1]))continue;
+            const numeral=label.replace(/[.)]$/,'');
+            const existing=row[1].match(/^(I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+/);
+            if(existing&&existing[1]!==numeral)continue;
+            lines[j]='[[SECTION_ROW: '+(existing?'':label+' ')+row[1].trim()+' || '+row[2].trim()+']]';lines[i]='';
+        }
         for(let i=0;i<lines.length;i++){
             if(/^\s*\[\[QUESTION_ROW:\s*(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+\S/.test(lines[i]))lines[i]=lines[i].replace('QUESTION_ROW:','SECTION_ROW:');
             const marker=lines[i].match(/^\s*\[\[SECTION_ROW:\s*([^|]*?)\]\]\s*$/i);
@@ -507,5 +525,5 @@
         }
         return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,bannerRegion,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,figure,bannerRegion,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
 });

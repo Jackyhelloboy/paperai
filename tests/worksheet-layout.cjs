@@ -70,6 +70,7 @@ const fixture=[
     '[[PAGE_BREAK]]',
     'II. Next page',
 ].join('\n');
+wordCtx.configureAutomaticPaper(fixture,true);
 const xml=wordCtx.docxDocumentXml(fixture);
 assert(xml.includes('xmlns:pic=') && xml.includes('xmlns:r='));
 assert(!xml.includes('r:embed="rId2"'),'Missing illustrations must not become invented pictures');

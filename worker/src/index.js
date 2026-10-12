@@ -697,6 +697,18 @@ function candidateMatchesSuggestionScript(value, language) {
   return patterns[language]?.test(text) ?? true;
 }
 
+function candidateMatchesContextScripts(value, input, context) {
+  const scripts = [/[A-Za-z\u00C0-\u024F]/, /[\u0900-\u097F]/, /[\u0980-\u09FF]/,
+    /[\u0A00-\u0A7F]/, /[\u0A80-\u0AFF]/, /[\u0B00-\u0B7F]/,
+    /[\u0B80-\u0BFF]/, /[\u0C00-\u0C7F]/, /[\u0C80-\u0CFF]/,
+    /[\u0D00-\u0D7F]/, /[\u0600-\u06FF]/];
+  const evidence = input + ' ' + context;
+  const allowed = scripts.filter(pattern => pattern.test(evidence));
+  const letters = String(value || '').match(/\p{L}/gu) || [];
+  if (!letters.length) return false;
+  return letters.every(letter => allowed.some(pattern => pattern.test(letter)) || input.includes(letter));
+}
+
 function parseSuggestionJson(text) {
   const raw = String(text || '').trim();
   if (!raw) return [];
@@ -744,6 +756,14 @@ function suggestionPreservesNumbers(source, candidate) {
   return JSON.stringify(operators(source)) === JSON.stringify(operators(candidate));
 }
 
+function suggestionStaysWithinSelection(source, candidate) {
+  const words = value => String(value).match(/[\p{L}\p{M}\p{N}]+/gu) || [];
+  const count = words(source).length;
+  if (words(candidate).length > count + Math.max(2, Math.ceil(count * 0.2))) return false;
+  const answerLabel = /^(?:the answer is\b|answer\s*:|ans\s*:|solution\s*:|उत्तर\s*:|जवाब\s*:)/i;
+  return !answerLabel.test(candidate) || answerLabel.test(source);
+}
+
 async function handleWordSuggestion(request, env, corsHeaders) {
   const body = await request.json().catch(() => ({}));
   const input = String(body?.text ?? body?.word ?? '').replace(/\s+/g, ' ').trim();
@@ -754,13 +774,14 @@ async function handleWordSuggestion(request, env, corsHeaders) {
   const context = String(body?.context || '').replace(/[\r\n]+/g, ' ').slice(0, 600);
   const localSuggestions = cleanSuggestionArray(body?.local_suggestions || [], 5);
   const learnedSuggestions = cleanSuggestionArray(body?.learned_suggestions || [], 5);
+  const contextual = body?.mode === 'contextual' || body?.language === 'auto';
 
   if (!input || input.length > 600 || !/[\p{L}\p{N}]/u.test(input) || /[\x00-\x1f]/.test(input)) {
     return Response.json({ suggestions: [] }, { headers: corsHeaders });
   }
 
   // Keep the strong old offline path for common Romanized Telugu words.
-  const native = suggestionNativeRoman(input, language);
+  const native = contextual ? '' : suggestionNativeRoman(input, language);
   if (native) {
     return Response.json({
       suggestions: [native],
@@ -775,7 +796,18 @@ async function handleWordSuggestion(request, env, corsHeaders) {
   const isPhrase = wordCount >= 2;
 
   let targetInstruction;
-  if (sourceLanguage === language) {
+  if (contextual) {
+    targetInstruction = [
+      'Automatically identify the language of the selected text and the nearby question-paper context.',
+      'Proofread spelling, spacing, diacritics, Hindi matras and likely OCR confusions without changing the question meaning.',
+      'A document may mix English, Hindi and other languages. Preserve genuine English words in Latin script even inside Hindi questions.',
+      'Offer English spelling corrections for misspelled English words; do not force them into an Indian script.',
+      'If the selected Latin word is Romanized Hindi or another native language, use context to offer its natural spelling in that language.',
+      'When the language is ambiguous, offer plausible alternatives instead of assuming a translation.',
+      'Return the entire selected phrase, preserving names, question wording, source numbers and mathematical content.',
+      'Never translate an English question into another language. Never complete a blank, solve a question or add an answer.'
+    ].join('\n');
+  } else if (sourceLanguage === language) {
     targetInstruction = [
       'Source and target are both ' + meta.label + '.',
       'Act as a careful OCR proofreader for the selected text.',
@@ -822,8 +854,8 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     '- For same-language proofreading, output only plausible corrected alternatives.',
     '- Preserve pronunciation for transliteration and preserve meaning without translating.',
     '- Treat previously user-corrected candidates as strong personal evidence only when relevant.',
-    '- Prefer natural target-script spellings over letter-by-letter Roman spelling.',
-    '- Reject candidates written mainly in the wrong script.',
+    contextual ? '- Use only languages supported by the selected text and nearby context. English and native-script candidates may both be relevant.' : '- Prefer natural target-script spellings over letter-by-letter Roman spelling.',
+    contextual ? '- A correctly spelled English word does not need transliteration merely because the surrounding paper is Hindi.' : '- Reject candidates written mainly in the wrong script.',
     '- Do not explain your choice.',
     '- Do not add quotation marks around candidates.',
     '- Output strict JSON exactly like {"suggestions":["candidate1","candidate2"]}.',
@@ -833,7 +865,9 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     messages: [
       {
         role: 'system',
-        content: sourceLanguage === language
+        content: contextual
+          ? 'Return only compact JSON contextual multilingual spelling and OCR corrections. Preserve question meaning, names, numbers and equations. Keep English words in Latin script; use native script for Romanized native words only when context supports it. Never translate questions, solve them or supply answers.'
+          : sourceLanguage === language
           ? 'Return only compact JSON same-language OCR proofreading suggestions. Correct likely spelling, spacing, script, matra/diacritic, OCR-confusion, punctuation and simple grammar errors while preserving all numbers and meaning.'
           : 'Return only compact JSON pronunciation-based transliteration suggestions. Preserve the spoken words exactly and never semantically translate them.'
       },
@@ -846,20 +880,23 @@ async function handleWordSuggestion(request, env, corsHeaders) {
 
   try { await recordAiUsage(env, response?.usage || null); } catch (_) {}
 
+  const matchesScript = candidate => contextual
+    ? candidateMatchesContextScripts(candidate, input, context) && suggestionStaysWithinSelection(input, candidate)
+    : candidateMatchesSuggestionScript(candidate, language);
   const aiSuggestions = parseSuggestionJson(extractAiText(response))
     .filter(candidate =>
-      candidateMatchesSuggestionScript(candidate, language) &&
+      matchesScript(candidate) &&
       suggestionPreservesNumbers(input, candidate)
     );
 
   const suggestions = cleanSuggestionArray([
     ...learnedSuggestions.filter(candidate =>
-      candidateMatchesSuggestionScript(candidate, language) &&
+      matchesScript(candidate) &&
       suggestionPreservesNumbers(input, candidate)
     ),
     ...aiSuggestions,
     ...localSuggestions.filter(candidate =>
-      candidateMatchesSuggestionScript(candidate, language) &&
+      matchesScript(candidate) &&
       suggestionPreservesNumbers(input, candidate)
     ),
   ], 5);
@@ -868,7 +905,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
     suggestions,
     source_language: sourceLanguage,
     language,
-    mode: sourceLanguage === language ? 'ocr_proofread' : (isPhrase ? 'phonetic_phrase' : 'phonetic_word'),
+    mode: contextual ? 'contextual_proofread' : sourceLanguage === language ? 'ocr_proofread' : (isPhrase ? 'phonetic_phrase' : 'phonetic_word'),
     source: 'paperai',
   }, {
     headers: { ...corsHeaders, 'Cache-Control': 'no-store, max-age=0' },

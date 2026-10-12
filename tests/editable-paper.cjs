@@ -33,6 +33,7 @@ const fixture=[
     '[[PAGE_BREAK]]'
 ].join('\n');
 (async()=>{
+    ctx.configureAutomaticPaper(fixture,true);
     const blob=await ctx.makeExtractedDocx(fixture);
     const zip=await JSZip.loadAsync(await blob.arrayBuffer());
     const xml=await zip.file('word/document.xml').async('text');

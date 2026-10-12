@@ -82,10 +82,10 @@
     "requires_unchanged_content": true,
     "retains": "Original package parts, fonts, styles, image bytes, numbering, equations, links, headers, footers, native shapes and tables.",
     "a4_adjustments": "All section sizes/margins; fit oversized inline drawings/tables; keep section headings with their first question; put floating tables in page flow; avoid wrapping text beside wide anchored objects.",
-    "limits": "Original source composition defects can remain. Native fonts require availability in the opening application. Browser extraction preview is not an exact Word rendering. Any teacher edit switches to the selected paper formatter."
+    "limits": "Original source composition defects can remain. Native fonts require availability in the opening application. Browser extraction preview is not an exact Word rendering. Any teacher edit switches to the automatic paper formatter."
   },
   "verification": {
-    "suite_count": 15,
+    "suite_count": 16,
     "complete_reference_package_checks": 12,
     "handwriting_accuracy": "Not certified by layout tests. See training/LIVE_REVIEW.md.",
     "exact_pdf_word_pairs": "Do not pair different assessments simply because the subject/class matches.",
@@ -96,6 +96,8 @@
     "detail_views": "Up to three bounded enlarged overlapping image regions accompany the independent visual verifier; they are not additional pages. Crop coordinates remain on the full page.",
     "page_order": "Use unique printed page numbers when available, otherwise a sole real exam header followed by section I may precede continuation pages. Missing/duplicate evidence never invents a page number.",
     "rows": "Read each physical row left to right, retain original question numbering including source mistakes, and keep short question columns as native rows.",
-    "validation": "Do not count escaped blank rules or unreadable placeholders as source question content. Reject verification that turns a known question stem into a blank."
+    "validation": "Do not count escaped blank rules or unreadable placeholders as source question content. Reject verification that turns a known question stem into a blank.",
+    "export_text": "Download Word rebuilds the current optional text-editor snapshot. Token provenance prevents repeated Hindi edits from changing a different table cell or geometry/image metadata. Explicit Indic fonts and language tags retain script shaping.",
+    "suggestions": "Automatically use the selected text and nearby language context; allow English inside Hindi and context-supported Romanized native-language spelling. Preserve numbers/equations and never supply answers. Suggestions do not change wording until selected."
   }
 }
