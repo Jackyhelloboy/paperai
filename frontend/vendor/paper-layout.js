@@ -79,8 +79,13 @@
         // A tall divider at the right identifies a separate total-marks box.
         // Short text strokes and class-field borders cannot meet this span.
         for(let x=Math.floor(width*.7);x<Math.floor(width*.97);x++){
-            let ink=0;for(let y=0;y<bottom;y++)if(Math.min(luminance((y*width+x-1)*4),luminance((y*width+x)*4),luminance((y*width+x+1)*4))<background-30)ink++;
-            if(ink>bottom*.7){cutWidth=Math.max(1,x-2);break;}
+            let ink=0,run=0,longest=0,gap=0;
+            for(let y=0;y<bottom;y++){
+                const hit=Math.min(luminance((y*width+x-1)*4),luminance((y*width+x)*4),luminance((y*width+x+1)*4))<background-30;
+                if(hit){ink++;run++;gap=0;longest=Math.max(longest,run);}
+                else if(run&&gap<2){run++;gap++;}else{run=0;gap=0;}
+            }
+            if(ink>bottom*.7&&longest>bottom*.65){cutWidth=Math.max(1,x-2);break;}
         }
         return {w:cutWidth,h:bottom};
     }
