@@ -39,6 +39,7 @@ jobs:
           node tests/scan-resume.cjs
           node tests/docx-reference-layout.cjs
           node tests/reference-formats.cjs
+          node tests/score-row-contract.cjs
           node tests/exact-word-text.cjs
           node tests/mixed-language-suggestions.cjs
           node tests/clean-question-paper.cjs

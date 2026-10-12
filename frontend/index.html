@@ -5836,11 +5836,12 @@ async function recoverSourceFigures(text, blob) {
             if(kind.toUpperCase()==='BANNER') {
                 let region=PaperAILayout.bannerRegion(body,text);
                 if(region&&/\[\[TABLE_ROW:[^\n]*(?:class|time|marks|roll|name|signature|exam)/i.test(text)){
-                    const rect=PaperAILayout.pixels(region,sw,sh),probe=document.createElement('canvas');probe.width=rect.w;probe.height=rect.h;
+                    const searchRegion={...region,x:0,y:0,w:1000,h:Math.min(300,Math.max(120,region.y+region.h))};
+                    const rect=PaperAILayout.pixels(searchRegion,sw,sh),probe=document.createElement('canvas');probe.width=rect.w;probe.height=rect.h;
                     const context=probe.getContext('2d',{willReadFrequently:true});
                     if(context){context.drawImage(source,rect.x,rect.y,rect.w,rect.h,0,0,rect.w,rect.h);
                         const bounds=PaperAILayout.bannerInkBounds(context.getImageData(0,0,rect.w,rect.h).data,rect.w,rect.h);
-                        if(bounds)region={...region,w:region.w*bounds.w/rect.w,h:region.h*bounds.h/rect.h};
+                        if(bounds)region={...searchRegion,w:searchRegion.w*bounds.w/rect.w,h:searchRegion.h*bounds.h/rect.h};
                     }
                 }
                 const asset=crop(region); asset.caption='';

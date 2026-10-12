@@ -6,7 +6,7 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
 - Count PHYSICAL cell borders, not expected answer counts. A to Z does NOT imply 26 cells. Notebook ruling through a drawn box does NOT imply a second grid row. Ignore background notebook margins and ruled lines.
 - Never split matching columns into alternating lines. Emit MATCH_ROW with ALL visible columns, including the middle blank bracket column: [[MATCH_ROW: 1. visible item || (   ) || a. visible option]]. Keep original row order; never solve the match. Pictures may occupy individual matching cells using FIGURE markers.
 - When two or three separate short numbered questions share one unbordered horizontal row, use MATCH_ROW with each complete visible question and its blank answer space in its own cell. This marker represents physical columns, not solved matching. Preserve row-major reading order and the actual numbering, including source numbering mistakes. Do not stack the columns vertically or renumber them.
-- Every section and its right-aligned marks use SECTION_ROW even if handwritten. Preserve marks literally. Keep the grid or first question directly after its section.
+- Every section and its right-aligned marks use SECTION_ROW even if handwritten. Use exactly two fields: [[SECTION_ROW: I. full instruction including its section number || exact marks]]. Never split the Roman section number into a separate field. The literal flag none belongs only to geometry controls, never to question/section text or marks. Preserve marks literally. Keep the grid or first question directly after its section.
 - Reference scans contain easily confused Devanagari forms: श्र versus ज्ञ, the isolated vowel sign ू versus the digit २, and े versus ै. Inspect the actual strokes independently. A conventional alphabet endpoint or a familiar word is not evidence; do not substitute a conventional form, complete a sequence, or solve a word-building question.
 - Read the full page and keep intentional blank answer rules. Do not duplicate a source footer in the question body: use [[FOOTER: left text || center text]] for a clearly separate printed page footer, omitting its printed page number (the exporter supplies a live page field).
 - For an ACTUAL drawing, illustration, map, graph or complex diagram, preserve the original pixels using a crop marker. Coordinates are x,y,width,height integers on the exact displayed image, normalized to 0–1000, origin TOP LEFT. Bound ONLY the illustration, including its diagram labels; exclude surrounding question text. Do not replace it with a generic picture.
@@ -29,6 +29,30 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
 - These reference rules govern representation and layout only. Never copy questions, school identities, dates, marks or answers from a different training paper.
 `;
 
+    function canonicalPaperRow(kind,body) {
+        if(!/^(?:SECTION_ROW|QUESTION_ROW|MATCH_ROW)$/.test(kind))return '[['+kind+': '+body+']]';
+        const cells=[];let depth=0,start=0;
+        for(let i=0;i<body.length;i++){
+            if(body.slice(i,i+2)==='[['){depth++;i++;}
+            else if(body.slice(i,i+2)===']]'){depth--;i++;}
+            else if(!depth&&body.slice(i,i+2)==='||'){cells.push(body.slice(start,i).trim());start=i+2;i++;}
+        }
+        cells.push(body.slice(start).trim());
+        if(kind==='MATCH_ROW'){
+            if(cells.length>1&&/^none$/i.test(cells[cells.length-1])&&cells.slice(0,-1).some(cell=>/_{2,}|\[\[(?:GRID|ANSWER_LINES):/i.test(cell)))cells[cells.length-1]='';
+            return '[['+kind+': '+cells.join(' || ')+']]';
+        }
+        while(cells.length>1&&/^(?:none|null)?$/i.test(cells[cells.length-1]))cells.pop();
+        if(cells.length===1)return cells[0];
+        const n='(?:[0-9०-९]+(?:[./][0-9०-९]+)?[¼½¾]?|[¼½¾])';
+        const mark=new RegExp('^\\(?'+n+'(?:\\s*[x×X*]\\s*'+n+'\\s*=\\s*'+n+'\\s*(?:M|[Mm]arks?)?|\\s*(?:M|[Mm]arks?|अंक))?\\)?$');
+        const last=cells[cells.length-1];
+        if(mark.test(last))return '[['+kind+': '+cells.slice(0,-1).join(' ')+' || '+last+']]';
+        // A question row with no actual score is ordinary question text.
+        // Geometry flags are not printable marks or new question content.
+        return cells.join(' ');
+    }
+
 export function cleanQuestionPaper(value, depth=0) {
     if(depth>16)return '';
     const text=String(value||'').replace(/(?:\\_){2,}/g,run=>run.replace(/\\/g,''));let out='',cursor=0;
@@ -43,7 +67,7 @@ export function cleanQuestionPaper(value, depth=0) {
             if(/^(?:STRIKE|DOUBLE-STRIKE|ANSWER|SOLUTION|ANSWER_KEY|MARGIN|STAMP)$/.test(name)){}
             else if(name==='REPLACE'){const pieces=body.split(/\s*(?:->|→|=>|\|\|)\s*/);out+=pieces.length>1?cleanQuestionPaper(pieces.slice(1).join(' '),depth+1):'';}
             else if(/^(?:INSERT|HIGHLIGHT)$/.test(name))out+=cleanQuestionPaper(body,depth+1);
-            else {let content=cleanQuestionPaper(body,depth+1);if(/^(?:SECTION_ROW|QUESTION_ROW|TABLE_ROW|GRID_ROW|MATCH_ROW|CHOICE_ROW|OPTION_ROW|ARITHMETIC_ROW)$/.test(name))content=content.replace(/(?<!\|)\s+\|\s+(?!\|)/g,' || ');out+='[['+m[1]+': '+content+']]';}
+            else {let content=cleanQuestionPaper(body,depth+1);if(/^(?:SECTION_ROW|QUESTION_ROW|TABLE_ROW|GRID_ROW|MATCH_ROW|CHOICE_ROW|OPTION_ROW|ARITHMETIC_ROW)$/.test(name))content=content.replace(/(?<!\|)\s+\|\s+(?!\|)/g,' || ');out+=canonicalPaperRow(name,content);}
         }
         cursor=end;
     }

@@ -74,13 +74,13 @@
         // A large title, a smaller address and a later field row provide
         // measured evidence for the cut. No universal banner percentage is
         // used when that visual sequence is absent.
-        if(bands.length<3||bands[0].height<height*.18||bands[1].height>bands[0].height*.6||bands[2].start-bands[1].end<3)return null;
+        if(bands.length<3||bands[0].height<height*.08||bands[1].height>bands[0].height*.6||bands[2].start-bands[1].end<3)return null;
         const bottom=Math.floor((bands[1].end+bands[2].start)/2);let cutWidth=width;
         // A tall divider at the right identifies a separate total-marks box.
         // Short text strokes and class-field borders cannot meet this span.
         for(let x=Math.floor(width*.7);x<Math.floor(width*.97);x++){
-            let ink=0;for(let y=0;y<height;y++)if(dark((y*width+x)*4))ink++;
-            if(ink>height*.6){cutWidth=Math.max(1,x-2);break;}
+            let ink=0;for(let y=0;y<bottom;y++)if(Math.min(luminance((y*width+x-1)*4),luminance((y*width+x)*4),luminance((y*width+x+1)*4))<background-30)ink++;
+            if(ink>bottom*.7){cutWidth=Math.max(1,x-2);break;}
         }
         return {w:cutWidth,h:bottom};
     }
@@ -370,6 +370,30 @@
         }
         parts.push(text.slice(last));return parts.filter(Boolean);
     }
+    function canonicalPaperRow(kind,body) {
+        if(!/^(?:SECTION_ROW|QUESTION_ROW|MATCH_ROW)$/.test(kind))return '[['+kind+': '+body+']]';
+        const cells=[];let depth=0,start=0;
+        for(let i=0;i<body.length;i++){
+            if(body.slice(i,i+2)==='[['){depth++;i++;}
+            else if(body.slice(i,i+2)===']]'){depth--;i++;}
+            else if(!depth&&body.slice(i,i+2)==='||'){cells.push(body.slice(start,i).trim());start=i+2;i++;}
+        }
+        cells.push(body.slice(start).trim());
+        if(kind==='MATCH_ROW'){
+            if(cells.length>1&&/^none$/i.test(cells[cells.length-1])&&cells.slice(0,-1).some(cell=>/_{2,}|\[\[(?:GRID|ANSWER_LINES):/i.test(cell)))cells[cells.length-1]='';
+            return '[['+kind+': '+cells.join(' || ')+']]';
+        }
+        while(cells.length>1&&/^(?:none|null)?$/i.test(cells[cells.length-1]))cells.pop();
+        if(cells.length===1)return cells[0];
+        const n='(?:[0-9०-९]+(?:[./][0-9०-९]+)?[¼½¾]?|[¼½¾])';
+        const mark=new RegExp('^\\(?'+n+'(?:\\s*[x×X*]\\s*'+n+'\\s*=\\s*'+n+'\\s*(?:M|[Mm]arks?)?|\\s*(?:M|[Mm]arks?|अंक))?\\)?$');
+        const last=cells[cells.length-1];
+        if(mark.test(last))return '[['+kind+': '+cells.slice(0,-1).join(' ')+' || '+last+']]';
+        // A question row with no actual score is ordinary question text.
+        // Geometry flags are not printable marks or new question content.
+        return cells.join(' ');
+    }
+
     function cleanQuestionPaper(value, depth=0) {
     if(depth>16)return '';
     const text=String(value||'').replace(/(?:\\_){2,}/g,run=>run.replace(/\\/g,''));let out='',cursor=0;
@@ -384,7 +408,7 @@
             if(/^(?:STRIKE|DOUBLE-STRIKE|ANSWER|SOLUTION|ANSWER_KEY|MARGIN|STAMP)$/.test(name)){}
             else if(name==='REPLACE'){const pieces=body.split(/\s*(?:->|→|=>|\|\|)\s*/);out+=pieces.length>1?cleanQuestionPaper(pieces.slice(1).join(' '),depth+1):'';}
             else if(/^(?:INSERT|HIGHLIGHT)$/.test(name))out+=cleanQuestionPaper(body,depth+1);
-            else {let content=cleanQuestionPaper(body,depth+1);if(/^(?:SECTION_ROW|QUESTION_ROW|TABLE_ROW|GRID_ROW|MATCH_ROW|CHOICE_ROW|OPTION_ROW|ARITHMETIC_ROW)$/.test(name))content=content.replace(/(?<!\|)\s+\|\s+(?!\|)/g,' || ');out+='[['+m[1]+': '+content+']]';}
+            else {let content=cleanQuestionPaper(body,depth+1);if(/^(?:SECTION_ROW|QUESTION_ROW|TABLE_ROW|GRID_ROW|MATCH_ROW|CHOICE_ROW|OPTION_ROW|ARITHMETIC_ROW)$/.test(name))content=content.replace(/(?<!\|)\s+\|\s+(?!\|)/g,' || ');out+=canonicalPaperRow(name,content);}
         }
         cursor=end;
     }
