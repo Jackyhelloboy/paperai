@@ -76,11 +76,15 @@ export function cleanQuestionPaper(value, depth=0) {
     return depth===0?out.replace(/^(?:\s*)(?:Ans(?:wer)?|Solution|उत्तर|जवाब)\s*[:：]\s*[^\n]+$/gim,'____________________'):out;
 }
 
-    function nativeHeaderRows(value) {
+    function nativePipeRows(value) {
         let questionsStarted=false,previousHeaderCount=0;
         return String(value||'').split('\n').map(line=>{
             if(/^\s*\[\[PAPER_BREAK\]\]\s*$/i.test(line))questionsStarted=false;
             if(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|[0-9०-९]+[.)]\s|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)(?:[.)]?\s|[.)]?$))/i.test(line))questionsStarted=true;
+            if(!line.includes('[[')&&line.includes('||')){
+                const questions=line.split(/\s*\|\|\s*/).map(cell=>cell.trim());
+                if(questions.length>=2&&questions.length<=4&&questions.every(cell=>cell.length<=300&&/^[0-9०-९]+(?:[.)।]\s*|\s+)\S[\s\S]*(?:_{2,}|\(\s*\))\s*$/u.test(cell))){questionsStarted=true;previousHeaderCount=0;return '[[MATCH_ROW: '+questions.join(' || ')+']]';}
+            }
             if(questionsStarted||line.includes('[[')||!line.includes('||')||!/^\s*(?:class\s*:|subject\s*:|time\s*:|name\b[^|]{0,50}:|roll\b[^|]{0,15}:|invigilator\b|(?:total\s+)?marks\b)/i.test(line)){previousHeaderCount=0;return line;}
             const cells=line.split(/\s*\|\|\s*/).map(cell=>cell.trim());
             if(cells.length<2||cells.length>8||cells.some(cell=>cell.length>300)){previousHeaderCount=0;return line;}
@@ -89,7 +93,7 @@ export function cleanQuestionPaper(value, depth=0) {
         }).join('\n');
     }
 export function normaliseMarkerRows(text) {
-    text=nativeHeaderRows(cleanQuestionPaper(text));
+    text=nativePipeRows(cleanQuestionPaper(text));
     text=text.replace(/\[\[GRID:\s*(\d{1,2})\s*[x×]\s*(\d{1,2})\s*(?:\|\s*(?:\|\s*)?(?:none|box))?\s*\]\](?:[ \t]+(?:none|box)(?=[ \t]*(?:\n|$)))?/gi,(_,columns,rows)=>'[[GRID: '+columns+'x'+rows+']]');
     const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
     const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');
