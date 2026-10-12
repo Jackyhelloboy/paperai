@@ -13,6 +13,13 @@ assert(!clean.includes('|| none')&&clean.includes('[[CHOICE_ROW: All || None]]')
 assert.equal(worker.normaliseMarkerRows(source),clean,'Server and browser must agree on the row contract');
 const nested='[[SECTION_ROW: III || [[UNDERLINE: कहानी || शब्द]] || 2M]]';
 assert(Layout.normalise(nested).includes('[[SECTION_ROW: III [[UNDERLINE: कहानी || शब्द]] || 2M]]'),'Only top-level cells may be combined');
+const bareHeader='CLASS: II - HINDI || QUARTERLY EXAMINATIONS-2026 || TIME: 2h:30M || 100\nName of the Student:____________ || Roll No:______ || Invigilator Signature\n[[SECTION_ROW: I. अक्षर लिखो। || 25M]]';
+const nativeHeader=Layout.normalise(bareHeader);
+assert(nativeHeader.startsWith('[[TABLE_ROW: CLASS: II - HINDI ||'));
+assert(nativeHeader.includes('100]]\n\n[[TABLE_ROW: Name of the Student:'),'Field rows with different physical columns must not be stretched into one mismatched table');
+assert.equal(worker.normaliseMarkerRows(bareHeader),nativeHeader);
+assert.equal(Layout.nativeHeaderRows('I. A question.\nName: operand || data'),'I. A question.\nName: operand || data','Header detection must stop at question content');
+assert.equal(Layout.nativeHeaderRows('|x| || |y|'),'|x| || |y|','Mathematical delimiters are not school header fields');
 const continuation='[[GRID: 13x1]]\n5. न :—\n[[GRID: 13x1]]\n6. प :—\n[[SECTION_ROW: IV. शब्द लिखो। || 2M]]';
 const aligned=Layout.alignLeadingGridLabels(continuation,2);
 assert(aligned.indexOf('5. न')<aligned.indexOf('[[GRID:')&&aligned.indexOf('6. प')<aligned.lastIndexOf('[[GRID:'),'Real em-dash labels belong above their observed grids');
@@ -56,6 +63,13 @@ assert(!ctx.teachEditor.value.includes('[[')&&!ctx.teachEditor.value.includes('<
     const mark=Array.from(doc.getElementsByTagName('w:p')).find(p=>p.textContent==='25M');
     assert(mark&&mark.getElementsByTagName('w:jc')[0]?.getAttribute('w:val')==='right');
     assert.equal(doc.getElementsByTagName('w:tc').length,21,'Section cells, the source grid and genuine options must remain native');
+    const headerZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx(nativeHeader)).arrayBuffer()),headerXml=await headerZip.file('word/document.xml').async('text');
+    const headerDoc=new DOMParser().parseFromString(headerXml,'application/xml');
+    assert.equal(headerDoc.getElementsByTagName('w:tbl').length,3,'Both native field tables and the heading need distinct structures');
+    assert.equal(headerDoc.getElementsByTagName('w:tc').length,9);
+    assert(!headerXml.includes('||'));
+    const total=Array.from(headerDoc.getElementsByTagName('w:p')).find(p=>p.textContent==='100');
+    assert(total&&total.getElementsByTagName('w:jc')[0]?.getAttribute('w:val')==='right','The recognized total mark belongs on the right');
     assert(!ctx.docxVisibleText('[[MATCH_ROW: अ || इ || आ]]').includes('||'),'Three-column rows must not expose protocol separators in the editor');
     const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB9sAAAAASUVORK5CYII=';
     vm.runInContext(`extractedMedia=[{id:'school',dataUrl:'data:image/png;base64,${png}',w:800,h:100,widthTwips:9000}]; resolveHeaderBanner=async()=>null;`,ctx);

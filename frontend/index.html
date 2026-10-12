@@ -4478,7 +4478,7 @@ function publicPlainTextFromStructured(value) {
         i = j - 1;
     }
 
-    return portableText(docxVisibleText(out.join('\n')));
+    return portableText(docxVisibleText(PaperAILayout.nativeHeaderRows(out.join('\n'))));
 }
 
 function currentPlainText() {
