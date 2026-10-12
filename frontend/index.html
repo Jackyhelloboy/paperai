@@ -1863,6 +1863,8 @@ let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHist
 let smartComposition=null, phoneticSelectionLock=false;
 let aiSuggestionTimer=null, aiSuggestionSequence=0, aiSuggestionCalls=0;
 const aiSuggestionCache = new Map();
+const aiSuggestionInFlight = new Map();
+let activeAiButtonSequence = 0;
 const MAX_AI_SUGGESTIONS_PER_TEACH = 8;
 
 const fmtSize = b => b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
@@ -3854,8 +3856,10 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
 
     if (aiSuggestionCache.has(cacheKey)) return aiSuggestionCache.get(cacheKey);
 
+    if (aiSuggestionInFlight.has(cacheKey)) return aiSuggestionInFlight.get(cacheKey);
     aiSuggestionCalls++;
 
+    const pending = (async () => {
     try {
         const res = await fetchOcrEndpoint('/api/suggest-word', {
             method: 'POST',
@@ -3877,7 +3881,6 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
         if (!res.ok) {
             throw new Error(body?.error || 'AI suggestions are temporarily unavailable.');
         }
-        if (sequence !== aiSuggestionSequence) return [];
 
         if (body?.code === 'PROVIDER_AI_QUOTA_REACHED' || body?.code === 'FREE_AI_LIMIT_REACHED') {
             throw new Error('AI suggestion quota is temporarily unavailable. Local suggestions still work.');
@@ -3888,10 +3891,14 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
 
         const suggestions = uniqueStrings(Array.isArray(body?.suggestions) ? body.suggestions : []).slice(0, 5);
         aiSuggestionCache.set(cacheKey, suggestions);
+        if (aiSuggestionCache.size > 100) aiSuggestionCache.delete(aiSuggestionCache.keys().next().value);
         return suggestions;
-    } catch (error) {
-        throw error;
+    } finally {
+        aiSuggestionInFlight.delete(cacheKey);
     }
+    })();
+    aiSuggestionInFlight.set(cacheKey, pending);
+    return pending;
 }
 
 function selectedTeachSegment() {
@@ -3926,7 +3933,7 @@ async function requestAdvancedAiSuggestions() {
     }
 
     const sourceText = segment.source.replace(/\s+/g, ' ').trim();
-    smartComposition = { ...segment, source: sourceText };
+    smartComposition = { ...segment, source: sourceText, context: getTeachContext(segment.start) };
     const sourceLanguage = currentTeachSourceLanguage(sourceText);
     const targetLanguage = currentTeachLanguage();
     const learnedChoices = getLearnedCorrectionSuggestions(sourceText);
@@ -3937,6 +3944,7 @@ async function requestAdvancedAiSuggestions() {
     );
 
     const sequence = ++aiSuggestionSequence;
+    activeAiButtonSequence = sequence;
     teachAiBtn.disabled = true;
     const sourceLabel = TEACH_LANGUAGE_META[sourceLanguage]?.label || sourceLanguage;
     teachAiStatus.textContent = 'AI is checking ' + sourceLabel + ': “' + (sourceText.length > 70 ? sourceText.slice(0, 67) + '…' : sourceText) + '”';
@@ -3978,7 +3986,10 @@ async function requestAdvancedAiSuggestions() {
                 : 'AI suggestions are unavailable right now. Your text was not changed.';
         }
     } finally {
-        if (sequence === aiSuggestionSequence) teachAiBtn.disabled = false;
+        if (activeAiButtonSequence === sequence) {
+            activeAiButtonSequence = 0;
+            teachAiBtn.disabled = false;
+        }
     }
 }
 
@@ -4044,10 +4055,15 @@ function chooseSmartSuggestion(choice) {
         teachEditor.value.slice(selectedStart, selectedEnd).trim().normalize('NFC') ===
             String(smartComposition.source || '').trim().normalize('NFC');
 
-    const current = exactSelectionStillExists ? null : findInputSegmentAtCaret();
-    const start = exactSelectionStillExists ? selectedStart : (current?.start ?? smartComposition.start);
-    const end = exactSelectionStillExists ? selectedEnd : (current?.end ?? smartComposition.end);
-    const newEnd = replaceTeachRange(start, end, choice);
+    if (!exactSelectionStillExists) {
+        refreshSmartComposition();
+        teachAiStatus.textContent = 'Selection changed. Choose a suggestion for the current text.';
+        return;
+    }
+    const newEnd = replaceTeachRange(selectedStart, selectedEnd, choice);
+    aiSuggestionSequence++;
+    activeAiButtonSequence = 0;
+    teachAiBtn.disabled = false;
 
     pushTeachHistory(teachEditor.value);
     renderTeachPreview();
@@ -4141,8 +4157,14 @@ function replaceTeachRange(start, end, replacement) {
 }
 
 function refreshSmartComposition() {
-    smartComposition = selectedTeachSegment() || findInputSegmentAtCaret();
+    const segment = selectedTeachSegment() || findInputSegmentAtCaret();
+    const next = segment ? {...segment, context:getTeachContext(segment.start)} : null;
+    const same = next && smartComposition && next.start === smartComposition.start &&
+        next.end === smartComposition.end && next.source === smartComposition.source &&
+        next.context === smartComposition.context;
     updateTeachLanguageStatus();
+    if (same || (!next && !smartComposition)) return;
+    smartComposition = next;
     showSmartSuggestions();
 }
 

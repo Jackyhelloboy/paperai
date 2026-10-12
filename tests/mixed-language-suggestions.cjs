@@ -13,7 +13,40 @@ async function suggest(input,context,candidates){
         body:JSON.stringify({text:input,source_language:'en',language:'hi',mode:'contextual',context})}),env);
     assert.equal(response.status,200);return response.json();
 }
+async function checkEditorRequests(){
+    const html=fs.readFileSync('frontend/index.html','utf8');
+    const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m=>m[1].includes('function buildDocxBody'))[1];
+    const slice=(a,b)=>code.slice(code.indexOf(a),code.indexOf(b,code.indexOf(a)+1));
+    let submissions=0,complete;
+    const ui=vm.createContext({Map,AbortSignal,aiSuggestionCache:new Map(),aiSuggestionInFlight:new Map(),aiSuggestionCalls:0,
+        aiSuggestionSequence:1,activeAiButtonSequence:0,aiSuggestionTimer:null,smartComposition:{start:0},
+        teachEditor:{selectionStart:0,selectionEnd:6,value:'Gingre'},teachAiBtn:{disabled:false},teachAiStatus:{},
+        getTeachContext:()=> 'हिन्दी और English शब्द',uniqueStrings:a=>[...new Set(a)],
+        PaperAIQuota:{isDailyError:()=>false},fetchOcrEndpoint:()=>{submissions++;return new Promise(resolve=>complete=resolve);},
+        selectedTeachSegment:()=>({start:0,end:6,source:'Gingre'}),currentTeachSourceLanguage:()=> 'en',currentTeachLanguage:()=> 'hi',
+        getLearnedCorrectionSuggestions:()=>[],TEACH_LANGUAGE_META:{en:{label:'English'}},renderSuggestionChips:()=>{},clearTimeout});
+    vm.runInContext(slice('async function fetchAiTextSuggestions','function selectedTeachSegment'),ui);
+    const first=ui.fetchAiTextSuggestions('Gingre','en','hi',[],[],1);
+    ui.aiSuggestionSequence=2;
+    const second=ui.fetchAiTextSuggestions('Gingre','en','hi',[],[],2);
+    assert.equal(submissions,1,'Caret events and the AI button must share an identical pending request');
+    complete(Response.json({suggestions:['Ginger']}));
+    assert.deepEqual(Array.from(await first),['Ginger']);assert.deepEqual(Array.from(await second),['Ginger']);
+    assert.equal(ui.aiSuggestionInFlight.size,0);
+    vm.runInContext(slice('async function requestAdvancedAiSuggestions','function renderSuggestionChips'),ui);
+    ui.aiSuggestionCache.clear();
+    const advanced=ui.requestAdvancedAiSuggestions();assert.equal(ui.teachAiBtn.disabled,true);
+    ui.aiSuggestionSequence++; // A changed selection invalidates the result.
+    complete(Response.json({suggestions:['Ginger']}));await advanced;
+    assert.equal(ui.teachAiBtn.disabled,false,'Discarding a stale result must still release the AI button');
+    let refreshes=0;
+    ui.updateTeachLanguageStatus=()=>{};ui.showSmartSuggestions=()=>refreshes++;
+    vm.runInContext(slice('function refreshSmartComposition','function openTeachPanel'),ui);
+    ui.smartComposition=null;ui.refreshSmartComposition();ui.refreshSmartComposition();
+    assert.equal(refreshes,1,'An unchanged selection must not restart suggestion work');
+}
 (async()=>{
+    await checkEditorRequests();
     let result=await suggest('Gingre','हिन्दी शब्द से English शब्द जोड़ो।',['Ginger','जिंजर','中文','Ginger 9','The answer is Ginger']);
     assert.deepEqual(result.suggestions,['Ginger','जिंजर'],'English candidates must survive inside a Hindi document; unrelated scripts and extra answers must not');
     assert.equal(result.mode,'contextual_proofread');
@@ -26,5 +59,5 @@ async function suggest(input,context,candidates){
     result=await suggest('Gingre','Correct the English spelling.',['Ginger','जिंजर','中文']);
     assert.deepEqual(result.suggestions,['Ginger'],'An English-only selection/context must not force Hindi transliteration');
     assert.equal(queue.length,0);
-    console.log('Mixed-language suggestions: automatic contextual proofreading, English inside Hindi, Roman-Hindi alternatives, script boundaries and unchanged question numbers/equations pass.');
+    console.log('Mixed-language suggestions: contextual proofreading, English inside Hindi, Roman-Hindi alternatives, unchanged equations, deduplicated requests and released busy buttons pass.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
