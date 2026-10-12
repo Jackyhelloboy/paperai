@@ -9,6 +9,7 @@ assert(guardCtx.degenerateOcr('5. न :- '+ '_'.repeat(97500)),'Model answer-lin
 assert(!guardCtx.degenerateOcr('1. Write the answer. _________'));
 assert(guardCtx.shouldAcceptVerifiedText('5. न :- '+'_'.repeat(97500),'IV. शब्द बनाकर लिखो।\n1. अ - ______\n2. फ - ______'));
 assert(!guardCtx.shouldAcceptVerifiedText('5. न :- '+'_'.repeat(97500),'No text detected'));
+assert(guardCtx.shouldAcceptVerifiedText('1. अं - ______ 2. इ - ______ 3. आ - ______\n4. ए - ______ 5. ऊ - ______ 6. ओ - ______','[[MATCH_ROW: 1. अं - ______ || 2. इ - ______ || 3. आ - ______]]\n[[MATCH_ROW: 4. ए - ______ || 5. ऊ - ______ || 6. ओ - ______]]',{structuredLayout:true}),'Reference row formatting must not be mistaken for removed question text');
 assert(!guardCtx.shouldAcceptVerifiedText('I. A real question.','_'.repeat(1000)));
 assert(!guardCtx.invalidLayoutMarkers('[[TABLE_REGION: 100,200,450,100]]\n[[TABLE_ROW: Fruit || Name]]\n[[TABLE_ROW:  ||  ]]'),'Measured table geometry is a supported layout annotation');
 assert(guardCtx.invalidLayoutMarkers('[[TABLE_REGION: 900,200,450,100]]'),'Off-page table bounds must be rejected');

@@ -1717,8 +1717,9 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   if(degenerateOcr(a)||invalidLayoutMarkers(a))return true;
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
 
-  const usefulLength = s => s
-    .replace(/\[\[[\s\S]*?\]\]/g, 'X')
+  const comparableText = s => String(s||'').replace(/\[\[([A-Z_-]+):\s*([\s\S]*?)\]\]/gi,(_,kind,body)=>
+    /^(?:FIGURE(?:_ROW)?|BANNER|GRID|SHAPE_ROW|ANSWER_LINES|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER)$/i.test(kind)?' X ':body.replace(/\|\|/g,' '));
+  const usefulLength = s => comparableText(s)
     .replace(/\s+/g, '')
     .length;
 
@@ -1727,8 +1728,7 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   const lineCount = s => s.split(/\n+/).filter(line => line.trim()).length;
 
   const tokenAgreement = (x, y) => {
-    const tokenize = s => String(s || '')
-      .replace(/\[\[[\s\S]*?\]\]/g, ' ')
+    const tokenize = s => comparableText(s)
       .replace(/[|()[\]{}.,;:!?/\\]+/g, ' ')
       .split(/\s+/)
       .map(t => t.trim())
