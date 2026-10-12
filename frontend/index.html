@@ -3194,11 +3194,13 @@ async function prepareImageForOCR(source, forceSafe = false) {
         }
     }
 
-    const probe=document.createElement('canvas');
-    probe.width=Math.min(900,originalWidth);probe.height=Math.round(originalHeight*probe.width/originalWidth);
-    const probeCtx=probe.getContext('2d',{willReadFrequently:true});
-    let detectedGrids=[];
-    if(probeCtx&&probe.height<=2000){probeCtx.drawImage(workSource,0,0,probe.width,probe.height);detectedGrids=PaperAILayout.emptyGrids(probeCtx.getImageData(0,0,probe.width,probe.height));}
+    const evidence=[];
+    for(const width of new Set([600,900,595].map(w=>Math.min(w,originalWidth)))){
+        const probe=document.createElement('canvas');probe.width=width;probe.height=Math.round(originalHeight*width/originalWidth);
+        const probeCtx=probe.getContext('2d',{willReadFrequently:true});
+        if(probeCtx&&probe.height<=2000){probeCtx.drawImage(workSource,0,0,probe.width,probe.height);evidence.push(PaperAILayout.emptyGrids(probeCtx.getImageData(0,0,probe.width,probe.height)));}
+    }
+    const detectedGrids=PaperAILayout.mergeGridEvidence(evidence);
     const analysis = analyzeCanvasDifficulty(workSource, originalWidth, originalHeight);
     const layout = detectTextLineLayout(workSource, originalWidth, originalHeight);
     const hard = analysis.difficulty === 'hard';
@@ -3275,6 +3277,20 @@ async function prepareImageForOCR(source, forceSafe = false) {
     if (croppedSource?.close) croppedSource.close();
     if (decoded !== croppedSource && decoded.close) decoded.close();
 
+    // The full page remains the coordinate reference. Overlapping enlarged
+    // bands let the independent verifier read small letters without extra requests.
+    const detailViews=[];
+    if(hard||layout.structured||layout.lineCount>=10){
+        for(const top of [0,300,600]){
+            const y=Math.floor(targetHeight*top/1000),height=targetHeight-y;
+            const bandHeight=Math.min(height,Math.ceil(targetHeight*.4));
+            const detail=document.createElement('canvas');detail.width=Math.min(1800,targetWidth);detail.height=Math.max(1,Math.round(bandHeight*detail.width/targetWidth));
+            const dc=detail.getContext('2d',{alpha:false});if(!dc)continue;
+            dc.drawImage(canvas,0,y,targetWidth,bandHeight,0,0,detail.width,detail.height);
+            const url=detail.toDataURL('image/jpeg',.97);
+            if(url.length<=2*1024*1024)detailViews.push({url,region:{x:0,y:top,w:1000,h:Math.min(400,1000-top)}});
+        }
+    }
     const preferredType = hard && !forceSafe ? 'image/webp' : 'image/jpeg';
     const blob = await new Promise((resolve, reject) => {
         canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not optimize image')), preferredType, quality);
@@ -3286,6 +3302,7 @@ async function prepareImageForOCR(source, forceSafe = false) {
 
     return {
         blob,
+        detailViews,
         difficulty: forceSafe ? 'hard' : analysis.difficulty,
         meta: {
             originalWidth,
@@ -4648,6 +4665,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         formData.append('preprocessing', 'smart');
         formData.append('difficulty', prepared.difficulty);
         formData.append('image_meta', JSON.stringify(prepared.meta || {}));
+        if(prepared.detailViews?.length)formData.append('detail_views',JSON.stringify(prepared.detailViews));
         appendLearningHints(formData);
 
         let res;
@@ -4864,7 +4882,7 @@ function portableText(value) {
 
     out = out
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,32).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
-        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER):[\s\S]*?\]\]/gi,'')
+        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER|SOURCE_PAGE):[\s\S]*?\]\]/gi,'')
         .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
             (_,title,marks)=>title.trim()+'    '+marks.trim())
         .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
@@ -5471,6 +5489,7 @@ async function extractOneFile(f, onProgress, label) {
         allRaw = result.result.raw_text || allText;
     }
 
+    if(ext==='pdf'){allText=PaperAILayout.orderPages(allText);allPlain=portableText(docxVisibleText(allText));}
     if (!allPlain) allPlain = allText;
     return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages };
 }
@@ -5601,7 +5620,7 @@ function docxVisibleText(value) {
 
     out = out
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,32).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
-        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER):[\s\S]*?\]\]/gi,'')
+        .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER|SOURCE_PAGE):[\s\S]*?\]\]/gi,'')
         .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
             (_,title,marks)=>title.trim()+'    '+marks.trim())
         .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
@@ -6266,7 +6285,7 @@ async function recoverSourceFigures(text, blob) {
         const sw = source.width || source.naturalWidth, sh = source.height || source.naturalHeight;
         const sourceDataUrl=await blobToDataURL(blob);
         const crop = spec => {
-            const region = PaperAILayout.figure(spec);
+            const region = typeof spec==='object'?spec:PaperAILayout.figure(spec);
             if (!region) return {id:'missing',caption:'[source image needs review]',answer:false};
             const rect = PaperAILayout.pixels(region,sw,sh);
             const canvas = document.createElement('canvas'); canvas.width=rect.w; canvas.height=rect.h;
@@ -6281,7 +6300,7 @@ async function recoverSourceFigures(text, blob) {
         const cell = r => r.id+'|'+(r.caption||' ')+'|'+(r.answer?'box':'none');
         return String(text).replace(/\[\[(FIGURE_ROW|FIGURE|BANNER):\s*([\s\S]*?)\]\]/gi,(_,kind,body)=>{
             if(kind.toUpperCase()==='BANNER') {
-                const asset=crop(body); asset.caption='';
+                const asset=crop(PaperAILayout.bannerRegion(body,text)); asset.caption='';
                 const item=sourceAsset(asset.id); if(item) item.role='banner';
                 return '[[SOURCE_BANNER: '+asset.id+']]';
             }

@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const html=fs.readFileSync('frontend/index.html','utf8');
 const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m=>m[1].includes('function buildDocxBody'))[1];
 let requests=[],fail=true,renders=0,id=0;
-const ctx=vm.createContext({Map,WeakMap,AbortController,setTimeout,clearTimeout,
+const ctx=vm.createContext({Map,WeakMap,AbortController,setTimeout,clearTimeout,PaperAILayout:require('../frontend/vendor/paper-layout.js'),docxVisibleText:String,
  crypto:{randomUUID:()=>String(++id)},scanCancelled:false,languageSelect:{value:'auto'},extractedMedia:[],
  pdfToPages:async()=>{renders++;return [0,1,2].map(blob=>({type:'image',blob}));},
  sendToOCR:async(blob)=>{

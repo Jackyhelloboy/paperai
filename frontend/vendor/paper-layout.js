@@ -5,7 +5,7 @@
     else root.PaperAILayout = api;
 })(typeof globalThis === 'object' ? globalThis : this, function() {
     const profile = Object.freeze({
-        version: 7, pageWidth: 11906, pageHeight: 16838, margin: 720,
+        version: 8, pageWidth: 11906, pageHeight: 16838, margin: 720,
         font: 'Arial', scriptFont: 'Noto Sans Devanagari',
         bodySize: 24, sectionSize: 26, titleSize: 28, line: 270,
         gridHeight: 460, borderSize: 6, cellPadding: 90,
@@ -38,6 +38,23 @@
         if (x < 0 || y < 0 || w <= 0 || h <= 0 || x+w > 1001 || y+h > 1001 || w*h > 600000) return null;
         const caption=parts.length===2&&/^(?:none|box)$/.test(parts[1].trim()) ? '' : (parts[1]||'').trim();
         return {x,y,w,h,caption, answer:parts[parts.length-1]?.trim() === 'box'};
+    }
+    function bannerRegion(spec,text) {
+        const banner=figure(spec);if(!banner)return null;
+        const region={...banner},lines=String(text||'').split('\n');
+        const stop=lines.findIndex(line=>/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+\S|[0-9०-९]+[.)]\s)/i.test(line));
+        const header=lines.slice(0,stop<0?Math.min(lines.length,24):stop);
+        for(let i=0;i<header.length;i++){
+            const m=header[i].match(/^\s*\[\[TABLE_REGION:\s*([^\]]+)\]\]\s*$/i);if(!m)continue;
+            const field=figure(m[1]);if(!field)continue;
+            const rows=[];for(let j=i+1;j<header.length&&/^\s*\[\[(?:TABLE_ROW|TABLE_WIDTHS|TABLE_HEADER):/i.test(header[j]);j++)rows.push(header[j]);
+            if(!/\b(?:class|subject|time|marks|roll|name|signature|exam(?:ination)?s?)\b|कक्षा|नाम|अंक/i.test(rows.join(' ')))continue;
+            const overlapX=Math.min(region.x+region.w,field.x+field.w)-Math.max(region.x,field.x);
+            const overlapY=Math.min(region.y+region.h,field.y+field.h)-Math.max(region.y,field.y);
+            if(field.y>region.y&&overlapX>=region.w*.5&&overlapY>0&&field.y-region.y>=20)region.h=Math.min(region.h,field.y-region.y-2);
+            else if(field.x>region.x+region.w*.5&&overlapY>=Math.min(region.h,field.h)*.5&&field.w<region.w*.5)region.w=Math.min(region.w,field.x-region.x-2);
+        }
+        return region;
     }
     function pixels(region, width, height) {
         const x=Math.floor(region.x * width/1000), y=Math.floor(region.y * height/1000);
@@ -104,7 +121,21 @@
         if(/(?:^|\s)[\u093E-\u094C\u0C3E-\u0C4C]/u.test(text))return false;
         return true;
     }
+    function orderPages(text) {
+        // Sort only within one paper and only when every page has a unique
+        // explicitly printed page number. Missing/duplicate labels never guess order.
+        return String(text||'').split(/(\[\[PAPER_BREAK\]\])/i).map(paper=>{
+            if(/^\[\[PAPER_BREAK\]\]$/i.test(paper))return paper;
+            const pages=paper.split(/\[\[PAGE_BREAK\]\]/i).map((body,index)=>{
+                const labels=[...body.matchAll(/\[\[SOURCE_PAGE:\s*([1-9][0-9]{0,2})\s*\]\]/gi)];
+                return {body:body.replace(/\[\[SOURCE_PAGE:\s*[1-9][0-9]{0,2}\s*\]\]/gi,'').trim(),number:labels.length===1?+labels[0][1]:null,index};
+            }).filter(page=>page.body);
+            if(pages.length>1&&pages.every(p=>p.number)&&new Set(pages.map(p=>p.number)).size===pages.length)pages.sort((a,b)=>a.number-b.number);
+            return pages.map(p=>p.body).join('\n[[PAGE_BREAK]]\n');
+        }).join('\n');
+    }
     function compactPages(text, keepSourcePages=false) {
+        text=orderPages(text);
         const lines=String(text||'').split('\n');
         return lines.filter((line,i)=>{
             if(!/^\s*\[\[PAGE_BREAK\]\]\s*$/i.test(line))return true;
@@ -257,6 +288,25 @@
         }
         return results.sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,12);
     }
+    function mergeGridEvidence(samples=[]) {
+        const groups=[];
+        for(let sample=0;sample<samples.length;sample++)for(const grid of samples[sample]||[]){
+            const area=grid.w*grid.h;if(!area)continue;
+            const same=groups.find(group=>{const r=group[0].grid;
+                const overlap=Math.max(0,Math.min(r.x+r.w,grid.x+grid.w)-Math.max(r.x,grid.x))*Math.max(0,Math.min(r.y+r.h,grid.y+grid.h)-Math.max(r.y,grid.y));
+                return overlap/Math.min(area,r.w*r.h)>.55&&Math.abs(r.y+r.h/2-grid.y-grid.h/2)<Math.max(r.h,grid.h)*.6;
+            });
+            if(same)same.push({grid,sample});else groups.push([{grid,sample}]);
+        }
+        return groups.flatMap(group=>{
+            const variants=new Map();for(const entry of group){const key=entry.grid.columns+'x'+entry.grid.rows;if(!variants.has(key))variants.set(key,[]);variants.get(key).push(entry);}
+            const ranked=[...variants.values()].sort((a,b)=>new Set(b.map(e=>e.sample)).size-new Set(a.map(e=>e.sample)).size);
+            const votes=entries=>new Set(entries.map(e=>e.sample)).size;
+            if(ranked.length>1&&votes(ranked[0])===votes(ranked[1]))return [];
+            const best=ranked[0],result={...best[0].grid};for(const key of ['x','y','w','h'])result[key]=Math.round([...best].map(e=>e.grid[key]).sort((a,b)=>a-b)[Math.floor(best.length/2)]);
+            return [result];
+        }).sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,12);
+    }
     function inlineParts(value) {
         const text=String(value||''),parts=[];let cursor=0,last=0;
         while(cursor<text.length){
@@ -303,7 +353,7 @@
     }
     function normalise(text) {
         text=cleanQuestionPaper(text);
-        const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION';
+        const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
         text=String(text||'').replace(/\[\[TABLE_ROW:\s*(\[\[(?:FIGURE|SOURCE_FIGURE)_ROW:[\s\S]*?\]\])\s*((?:\|\|\s*_?\s*)*)\]\]/gi,'$1');
         text=text.replace(/\[\[REPLACE:\s*([^\[\]]*?)\s*\|\|\s*([^\[\]]*?)\]\]/gi,(_,oldText,newText)=>'[[REPLACE: '+oldText.trim()+' -> '+newText.trim()+']]');
@@ -320,7 +370,7 @@
             if(bareMarker)line='[['+bareMarker[1].toUpperCase()+': '+bareMarker[2].replace(/\]\]$/,'')+']]';
             const output=[];let prose='';
             for(const part of inlineParts(line)){
-                const marker=part.match(/^\[\[(SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|GRID|FIGURE_ROW|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):\s*([\s\S]*)\]\]$/i);
+                const marker=part.match(/^\[\[(SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|GRID|FIGURE_ROW|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER|SOURCE_PAGE):\s*([\s\S]*)\]\]$/i);
                 if(!marker){prose+=part;continue;}
                 // A repeated prose title plus its structured row is one heading.
                 const title=/^(?:SECTION_ROW|QUESTION_ROW)$/i.test(marker[1])?marker[2].split('||')[0]:null;
@@ -425,5 +475,5 @@
         }
         return lines.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,bannerRegion,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

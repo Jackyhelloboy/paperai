@@ -26,8 +26,8 @@ function environment(run){
   return {memory,env:{GEMINI_API_KEY:'fixture-credential',AI:{run:async(...args)=>{primaryCalls++;return run(...args);}},
     USAGE_TRACKER:{idFromName:s=>s,get:()=>({fetch:(url,options)=>tracker.fetch(new Request(url,options))})}}};
 }
-const image=(meta={})=>new Request('https://paperai.test/api/ocr',{method:'POST',headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({image:'AA==',mimeType:'image/png',filename:'page.png',language:'hi',image_meta:meta})});
+const image=(meta={},views=[])=>new Request('https://paperai.test/api/ocr',{method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({image:'AA==',mimeType:'image/png',filename:'page.png',language:'hi',image_meta:meta,detail_views:views})});
 const output=text=>Response.json({candidates:[{finishReason:'STOP',content:{parts:[{thought:true,text:'Do not expose reasoning.'},{text}]}}],
   usageMetadata:{promptTokenCount:1000,candidatesTokenCount:500}});
 const good={response:'1. Write your name. ______',usage:{prompt_tokens:100,completion_tokens:20}};
@@ -54,9 +54,13 @@ const limit=()=>{throw new Error('3036: daily free allocation reached');};
   const independent=environment(async()=>({response:'I. Write the letters. (5)\n1. अ से ज्ञ तक लिखो।',usage:{prompt_tokens:100,completion_tokens:20}}));
   queue.push(output('I. Write the letters. (5)\n1. अ से श्र तक लिखो।'));
   const beforeIndependent=primaryCalls;
-  response=await ctx.handler.fetch(image({structuredLayout:true}),independent.env);body=await response.json();
+  response=await ctx.handler.fetch(image({structuredLayout:true},[{url:'data:image/jpeg;base64,AA==',region:{x:0,y:0,w:1000,h:400}},{url:'https://untrusted.test/private.png',region:{x:0,y:0,w:1000,h:400}},{url:'data:image/jpeg;base64,AA==',region:{x:900,y:0,w:200,h:400}}]),independent.env);body=await response.json();
   assert.equal(response.status,200);assert.equal(primaryCalls,beforeIndependent+1,'The hard-page verifier should be independent instead of repeating the primary');
-  assert(!requests.at(-1).contents[0].parts[1].text.includes('---BEGIN FIRST OCR---'),'Independent verification must not be anchored to the primary draft');
+  const detailParts=requests.at(-1).contents[0].parts;
+  assert(!detailParts.filter(p=>p.text).map(p=>p.text).join(' ').includes('---BEGIN FIRST OCR---'),'Independent verification must not be anchored to the primary draft');
+  assert.equal(detailParts.filter(p=>p.inline_data).length,2,'One valid bounded detail image accompanies the full page');
+  assert(!JSON.stringify(detailParts).includes('untrusted.test'));
+  assert(detailParts.some(p=>p.text?.includes('FULL PAGE')),'Detail crops must keep full-page coordinates');
   assert(body.result.annotated_text.includes('श्र'),'A visually supported script correction should reach the output');
   assert.equal((await ctx.getUsageStatus(independent.env)).estimated_used>0,true,'Primary usage must still be counted');
   clock=Date.parse('2026-10-11T22:00:00Z');

@@ -885,6 +885,7 @@ async function handleOCR(request, env, corsHeaders) {
   let difficulty = 'auto';
   let imageMeta = {};
   let learningHints = [];
+  let detailViews = [];
 
   if (contentType.includes('multipart/form-data')) {
     const formData = await request.formData();
@@ -907,6 +908,7 @@ async function handleOCR(request, env, corsHeaders) {
     } catch (_) {
       learningHints = [];
     }
+    try { detailViews = sanitizeDetailViews(JSON.parse(formData.get('detail_views') || '[]')); } catch (_) {}
     const buffer = await file.arrayBuffer();
     fileBuffer = buffer;
     imageDataBase64 = arrayBufferToBase64(buffer);
@@ -919,6 +921,7 @@ async function handleOCR(request, env, corsHeaders) {
     difficulty = normalizeDifficulty(body.difficulty);
     imageMeta = body.image_meta || {};
     learningHints = sanitizeLearningHints(body.learning_hints || []);
+    detailViews = sanitizeDetailViews(body.detail_views || []);
     if (!imageDataBase64) {
       return Response.json({ error: 'No image data in JSON body. Send { "image": "base64..." }' }, { status: 400, headers: corsHeaders });
     }
@@ -1019,11 +1022,12 @@ async function handleOCR(request, env, corsHeaders) {
     return Response.json({ error: 'Image too large (max ~10MB base64)' }, { status: 400, headers: corsHeaders });
   }
 
+  detailViews=sanitizeDetailViews(detailViews,Math.max(0,18*1024*1024-imageDataBase64.length));
   let aiResult;
   try {
     // Both providers share the literal transcription and layout rules. A
     // request stays on the backup through verification after it switches.
-    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, request.signal);
+    aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, request.signal, detailViews);
   } catch (e) {
     if(e?.code==='OCR_OUTPUT_INVALID')return Response.json({error:'OCR returned repetitive or incomplete output. Please retry this page or review its source.',code:'OCR_OUTPUT_INVALID'}, {status:502,headers:corsHeaders});
     if (isDailyFreeLimitError(e)) {
@@ -1391,7 +1395,18 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], signal) {
+function sanitizeDetailViews(input, budget=5*1024*1024) {
+  let total=0;
+  return (Array.isArray(input)?input:[]).slice(0,3).flatMap(view=>{
+    if(!view||typeof view.url!=='string'||view.url.length>2*1024*1024)return [];
+    if(!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(view.url))return [];
+    const r=view.region;if(!r||![r.x,r.y,r.w,r.h].every(Number.isInteger)||r.x<0||r.y<0||r.w<=0||r.h<=0||r.x+r.w>1000||r.y+r.h>1000)return [];
+    total+=view.url.length;if(total>Math.min(5*1024*1024,budget))return [];
+    return [{url:view.url,region:{x:r.x,y:r.y,w:r.w,h:r.h}}];
+  });
+}
+
+async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], signal, detailViews = []) {
   const providerState = {};
   const scanStrategy = imageMeta?.scanStrategy || 'full-page';
   const scanMode = scanStrategy === 'line-mosaic'
@@ -1431,100 +1446,28 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
     ks: 'Main language: Kashmiri. Preserve English, numbers and mixed scripts exactly.'
   }[language] || 'Auto-detect every visible language and preserve the original scripts exactly.';
 
-  const prompt = `You are PaperAI. TASK: turn this page into a CLEAN UNSOLVED QUESTION PAPER automatically, suitable for reprinting. This takes priority over literal transcription of responses and annotations.
-FIRST identify question content versus completed responses. Remove student/teacher completed responses, solved equations, answer keys, corrections to ANSWERS, and grading comments. Restore blank answer spaces. For example, after "write the alphabet / वर्णमाला लिखो", a handwritten alphabet sequence is a completed RESPONSE: omit it, keeping the question and empty answer grid. After a maths question, an already written result is a RESPONSE: replace it with a blank. Preserve multiple-choice options, matching choices, examples explicitly included in the question and word banks. Do not solve any question.
-Resolve corrections to QUESTION wording into final natural text only; no editorial strike, insert or replacement annotations. Keep all genuinely empty source grids empty; never move a nearby written response into their cells.
-Before output, check every retained phrase: is it question content, a necessary paper field, an option or a diagram label? If it is a completed response or grading note, omit it. Use the exact defined row delimiters: || (two pipes), never a single pipe for structured metadata.
+  const prompt = `You are PaperAI. Create a clean, unsolved, editable question paper from THIS image. Never solve a question. Output only its question-paper text and the supported layout markers below, without explanations or suggestions.
 
-LANGUAGE INSTRUCTION:
 ${languageHint}
-${learningSection}
-${layoutSection}
 ${PAPER_LAYOUT_RULES}
 ${gridSection}
-SCAN MODE:
-${scanMode === 'line-by-line'
-  ? 'The image has been locally reorganized into horizontal text strips in original top-to-bottom order. Read ONE strip at a time, left-to-right, and output one corresponding text line per strip. Blank vertical gaps were removed only to reduce wasted vision work. Do not invent strip numbers or separators.'
-  : scanMode === 'fast-clear'
-    ? 'The image looks clear. Read it efficiently, but still verify every visible line before answering.'
-    : 'The image may contain structured layout, handwriting, symbols, or low contrast. Preserve layout and inspect character shapes carefully.'}
+${layoutSection}
+${learningSection}
 
-Your job is to READ the pixels, including difficult human handwriting, and transcribe what is actually visible.
-Use nearby visible context only to choose between visually plausible characters; NEVER change the writer's spelling, grammar, facts, calculations, or wording.
+READING CONTRACT:
+1. Inspect the complete page top to bottom. Read each physical row left to right before proceeding downward. For several short questions across a row, use MATCH_ROW with one cell per physical question; retain each ORIGINAL printed question number, including numbering mistakes. Do not collect the left column first and then renumber the right column.
+2. Distinguish QUESTION content from completed RESPONSES. Keep all question stems, operands, examples, options, word banks, matching choices and diagram labels. Remove completed responses, worked solutions, answer keys, grading comments and ticks. Restore blank answer positions. A handwritten alphabet after a request to write the alphabet is a response, not a word bank. Do not populate any empty answer grid from that response.
+3. Resolve visibly edited QUESTION wording to the final legible wording naturally. Omit cancelled drafts, replacement arrows and insertion highlighting. Preserve source spelling, dates, facts, punctuation and question numbers. An unreadable question fragment is [unclear]; do not replace a missing question stem with an answer blank or guessed textbook content.
+4. Keep marks literal in the RIGHT cell: [[SECTION_ROW: original section heading || original score]] and [[QUESTION_ROW: original question || original score]]. Never duplicate scores inside question text or cells. Do not move mathematical operands, coordinates or units into the marks cell.
+5. Use TABLE_ROW for bordered table cells; MATCH_ROW for physical multi-column question/choice rows; CHOICE_ROW for unboxed multiple-choice options; OPTION_ROW for visibly boxed options. Separate cells with exactly ||. Preserve empty first/last cells. Multiline cell content uses <br>.
+6. Empty grids use GRID: columnsxrows. A word-search or other populated QUESTION grid uses one GRID_ROW per physical row. Place each grid immediately AFTER its own question label, even on a continuation page. Every separately labelled grid must remain separate; never merge grids across labels.
+7. Stack arithmetic with ARITHMETIC_ROW: original line<br>original operator/operand<br>blank rule. Preserve fractions, signs and every operand; do not calculate results. Long blank answer rules use ANSWER_LINES: observed count. Use at most 28 underscores for an ordinary blank.
+8. Preserve actual drawings using FIGURE/FIGURE_ROW crops in FULL PAGE coordinates, x,y,width,height integer 0–1000, not endpoints. Crop only original illustrations and their internal labels; never redraw an uncertain figure or crop completed responses. Basic unlabelled circle/square/rectangle/triangle/cube outlines may use SHAPE_ROW. Branch relationships use BRANCH_ROOT, BRANCH_ITEM, BRANCH_END with literal labels and original connections.
+9. School BANNER includes ONLY school name, address and logos. Inspect the actual lower edge of the school/address block and the side edge before any separate marks column. EXCLUDE Class, exam title, Time, Marks, student name, Roll and Signature from the crop; these remain editable TABLE_ROW cells, with TABLE_REGION measured around each native field table. Preserve the separate Marks box as a native labelled table with its own TABLE_REGION, not part of the school crop. Do not repeat text inside the banner outside it. No guessed default crop rectangle.
+10. If an ORIGINAL printed page number is clearly visible, emit [[SOURCE_PAGE: original integer]] on its own line for automatic page ordering. This is control metadata, not printed question text. If absent or unreadable, omit it; never infer a page number from a question number. FOOTER contains other original footer text, excluding its page number.
+11. Preserve Devanagari strokes and separate vowel signs literally. Recheck श्र/ज्ञ, ू/२, े/ै against pixels, not expected words. Do not duplicate a question word because an insertion is above its printed occurrence.
+12. FINAL CHECK: count all question labels and physical cells in every section. Verify each left AND right column, the page bottom and its continuation grids. Ensure no question stem, option, score or real illustration was omitted and no completed response remains. Return No text detected only when no meaningful source content exists.`;
 
-Before answering, silently inspect the complete page from top-left to bottom-right. For difficult pages, do a second visual check of every number, operator, mark, unit, punctuation symbol, and short handwritten word before producing the final transcription.
-
-STRICT TRANSCRIPTION RULES:
-1. Output ONLY text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
-2. Preserve question facts, operands, dates, spelling and numbering literally. Resolve visible handwritten question edits to their final wording. Omit completed answers and worked solutions, restoring answer blanks. Do not correct or solve an equation.
-3. Preserve English, Hindi, Telugu, and every other visible script without transliteration. A Devanagari word must remain Devanagari; never output Roman spellings such as "rupaye" when the visible source is "रुपया". Legitimate printed/handwritten English words must remain English.
-4. Treat intentional handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
-5. Do NOT treat page show-through, reverse-side writing, paper embossing, shadows, ruled-line texture, erased graphite ghosts, compression artifacts, or background fabric as new text unless there is clear intentional ink/pencil evidence on the current page surface.
-6. Blank answer lines stay blank. Never fill a blank from the expected answer, nearby options, grammar, school subject knowledge, or faint erased/ghost writing.
-7. When a character is ambiguous, choose the closest visually supported character. Language context may break a tie only between characters that are BOTH visually plausible. Context must never override the pixels.
-8. Distinguish visually similar characters only from the image: 1/l/I, 0/O, 5/S, 2/Z, 6/G, x/×, +/t, -/−, ./,/:
-9. For Devanagari handwriting, verify each grapheme by its visible headline, stem, loop, lower stroke and matra. Re-check visually confusable forms such as द/स, ब/व, र/श, ड/ढ, म/भ, न/प, त/त्त, and short/long vowel marks. Do not choose the more common Hindi word unless its strokes support it.
-10. For Telugu and other Indic scripts, keep consonant+vowel signs and conjuncts attached to the visible base character. Never simplify a complex grapheme into a more common word.
-11. For bracketed answer choices such as "(word1 / word2)", read BOTH options independently from the pixels. Never replace an unclear option with a likely textbook answer.
-12. In matching exercises and two-column questions, preserve each visible row and column relationship. Do not pair an item with a nearby option just because it is semantically plausible.
-12A. For a branching word diagram, mind map, or one central item connected to several rows, NEVER fake branches with separator-only lines like "| |". Do not draw the branch with spaces. Instead output this exact machine-readable structure:
-[[BRANCH_ROOT: visible central text]]
-[[BRANCH_ITEM: visible branch label || visible right-side label]]
-[[BRANCH_ITEM: visible branch label || visible right-side label]]
-...one BRANCH_ITEM for each visible branch, strictly top-to-bottom...
-[[BRANCH_END]]
-Use only text actually visible in the image. If there is no right-side label, leave the text after || empty.
-12B. The central/root token is separate from every branch label. NEVER concatenate the root with a branch label just because together they form a meaningful word. Example rule: if the root is "बा" and a branch visibly contains only "दाम", the branch label must remain "दाम"; do not turn it into "बादाम".
-12C. The "|" symbol is reserved only for genuine table/column separation. Do not use it to simulate arrows or connector lines.
-12D. If a question number is visibly circled, prefer [[CIRCLED: 1]], [[CIRCLED: 2]], etc. instead of relying on special Unicode circled-number glyphs. Do not mark an ordinary uncircled number as circled.
-13. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
-14. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
-15. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
-16. Preserve meaningful question symbols, checkbox options, diagram arrows, punctuation and answer blanks. Omit grading ticks, crosses and editorial correction arrows.
-17. For diagrams, shapes, flowcharts, maps, or labelled drawings: preserve visible labels, numbers, arrows and shape relationships. Use visible symbols such as ○, □, →, ←, ↗, ↘, ↑, ↓ only when the corresponding shape/arrow is actually visible. Keep connected branches on separate lines when needed so the relationship remains readable. Do not invent a description of the drawing.
-17A. WRITTEN PICTURE REQUESTS WITHOUT AN ILLUSTRATION: a box with only a written request such as "tiger pic" uses [[PICTURE: tiger]]. This is flagged for review, not filled with a fabricated picture. Remove only the trailing word "pic/picture".
-17B. ACTUAL ILLUSTRATIONS: always use the FIGURE crop syntax in the reference layout rules above, even when the object name is not written. A blank caption is correct. Never replace actual pixels with an [unreadable] picture placeholder or guess an object name.
-17C. An actual picture with a separate answer box uses FIGURE with the box flag. A written picture request with no illustration and a visible checkbox uses PICTURE_OPTION.
-17D. EMPTY CHECKBOXES/SQUARE ANSWER BOXES: output [[CHECKBOX]] for each clearly visible empty square/rectangular selection box. Do not convert several boxes into one.
-17E. MULTIPLE-CHOICE ROWS: preserve all visible choices in their original order. Use CHOICE_ROW when there are no selection boxes. Use OPTION_ROW only when every choice has a visible box. Never add new checkboxes.
-17F. MATCH-THE-FOLLOWING: preserve ALL visible columns on each source row, including empty brackets and pictures, using [[MATCH_ROW: left text || (   ) || right text]] where three columns are present. Do not solve or rearrange the matching exercise. If the columns are not aligned enough to establish a row, keep the two columns as literal text instead of guessing a pair.
-17G. Picture rows, option rows, matching rows, tables, blanks and boxes are CONTENT. Never omit them just because they contain little text.
-17H. ACTUAL PICTURE ROWS: use FIGURE_ROW with a distinct normalized bounding box for EACH illustration. Preserve the exact visible count, left-to-right order, and any printed captions; use the box flag only where a blank answer box is visible. No object labels may be guessed. Keep surrounding questions outside the crop.
-17I. GEOMETRIC SHAPE IDENTIFICATION: use the SHAPE_ROW syntax above with explicit none, box or line answer-space flags based only on what is visible. Preserve shaded or labelled diagrams as original FIGURE crops.
-17J. LETTER/VOWEL BOX GRIDS: a simple straight row with N uniformly bordered squares is [[GRID: Nx1]], and a visible R-row C-column grid is [[GRID: CxR]] (for example [[GRID: 5x8]]). Only output these dimensions if the cell borders clearly show the counts. If individual cells contain visible characters, use [[GRID_ROW: अ || _ || आ || _]] for each row, using _ for a visibly empty cell. Do not make up letters in empty cells.
-17K. PRINTED TABLES: when a clearly bordered table has multiple column headers and data rows, output one [[TABLE_ROW: cell one || cell two || cell three]] for EACH visible row, keeping empty cells as empty values. Never use these markers for ordinary body paragraphs.
-17L. LONG EMPTY ANSWER LINES: when one or more horizontal blank answer rules are visible without text, output [[ANSWER_LINES: N]] for N consecutive visible blank rules (maximum 10). A question's spoken answer must NEVER be supplied.
-17M. PLAIN INLINE CHOICES: use [[CHOICE_ROW: A. first || B. second || C. third]] when the page displays a horizontal set of choices but DOES NOT show separate checkboxes. Use [[OPTION_ROW: ...]] ONLY if each choice has a visible selection box. Preserve exact spelling and choice labels; do not choose an answer.
-17N. Keep section headings, marks, whitespace, numbering, and reading order. One visual worksheet page should be complete and its geometry should be faithfully represented, not reduced to a list of words.
-17P. EXAM SECTION HEADINGS: when a bold/underlined section title appears at left and a short mark value such as "5x2=10M" appears aligned at right on the same row, output [[SECTION_ROW: IX. चित्र देखकर नाम लिखो। || 5x2=10M]]. Preserve the actual visible heading and actual mark value, do not invent them.
-17O. An image/drawing or an outline of a map is NOT text. Preserve it as a FIGURE crop even when unrecognizable; never hallucinate a map, body-part labels, or missing questions.
-
-18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
-18A. COMPLETENESS CHECK: before finalizing, confirm that you read the TOP, MIDDLE and BOTTOM of the visible paper. Preserve every visible section heading (for example IV, V, VI, VII), every numbered question and every option row. Do not stop after an easy lower section.
-19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
-20. Forms and tables: preserve physical rows as [[TABLE_ROW: first cell || second cell]]. Use MATCH_ROW for matching choices and QUESTION_ROW for a question with a separate right-hand score. Never emit plain pipe-separated table text.
-21. Empty answer grids use [[GRID: columnsxrows]] with the measured physical dimensions. Populated QUESTION grids such as word searches use one [[GRID_ROW: first cell || second cell]] per physical row. Completed responses do not belong in question grids. Keep grapheme clusters together, for example "बा" is one cell.
-22. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
-23. Never invent page markers, filenames, headings, or text that is not visibly present.
-24. Produce a clean, unsolved question paper automatically. Resolve visible corrections to QUESTION wording: omit cancelled drafts, use the final legible replacement, and insert intended words naturally. Never render editorial strikes, replacement arrows, insert highlights or grading comments.
-25. Remove completed responses, solutions, answer keys, ticks and grading feedback from answer positions and leave editable blanks. Never solve a question.
-26. Preserve operands, examples, multiple-choice options, matching choices and word banks as question content. Do not mistake these for completed responses.
-27. Preserve meaningful question boxes, diagrams, tables and blank answer spaces. Underlining that is part of the question cue may remain. Never invent unreadable replacement text; use [unclear] for an unreadable question fragment.
-28. Place every identifiable question/section score in the RIGHT marks cell of QUESTION_ROW/SECTION_ROW, even when it appears left or between words in the source. Remove that score from the question body. Do not move operands, option numbers or coordinates.
-34. Do not hallucinate text hidden by blur, glare, cropping, scribble, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
-35. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
-
-QUESTION PAPER FORMAT (the page is usually a school exam/question paper; reproduce its structure so it can be reprinted as an A4 paper):
-36. Preserve the actual visible school, exam and student fields in source order. No default banner, school name, exam heading or student field may be invented. Do not impose a typical heading order on a differently arranged paper.
-37. Questions are grouped under numbered section headings such as "I.", "II.", "III.", "IV.", "V.", "A.", "B." with heading text like "Answer the following questions.", "Fill in the blanks.", "Choose the correct answer.", "Match the following.", "Answer any ten of the following."
-38. A section heading and its marks equation belong on the SAME line exactly as visible, for example "IV Fill in the blanks.   (10 x 1 = 10)" or "Answer the following questions.   10 x 4 = 40". Never move the marks equation to its own line and never drop it.
-39. Keep question numbering exactly as visible: "1.", "2)", "11.", roman numerals "I", "II", and sub-questions "a)", "b)", "(i)", "ii)". Never merge two questions onto one line.
-40. Answer blanks (______, "(", ")", "[   ]", empty brackets) stay blank on their own line as visible answer space; do not collapse consecutive blank lines into one if the image shows a long answer gap.
-41. Preserve option letters (A), B), C), D)) with their choices. When several choices of one question sit in one horizontal row, output them as ONE CHOICE_ROW line, or OPTION_ROW only when visible boxes exist (rules 17E and 17M) or, if no markers are used, keep them on one line separated by wide visible spaces.
-42. Keep a blank line between sections, questions with long answer space, and the end of the paper, so the blocks stay separated when the text is reprinted.
-43. Never drop trailing section headings, marks equations, page-foot lines (e.g. "Page 1 of 2"), or the last questions at the bottom of the page.
-
-Return only the final transcription plus the allowed [[...]] edit markers when needed.`;
 
   const requestBody = {
     messages: [
@@ -1574,36 +1517,19 @@ Return only the final transcription plus the allowed [[...]] edit markers when n
     const rescuePrompt = prompt + `
 
 LITERAL VERIFICATION PASS:
-Below is the first OCR transcription. Re-check it against the image line-by-line and return the best literal transcription.
-
-FIRST OCR:
 ---BEGIN FIRST OCR---
 ${blankSafeDraft(text)}
 ---END FIRST OCR---
-
 VERIFICATION RULES:
-- Use only the explicitly defined layout and edit marker names. Unknown annotations such as [[कक]] are invalid. Read the source again: transcribe ordinary written text literally, resolve visibly edited question wording into clean final text without editorial markers. Never put a proposed answer inside invented brackets.
-- If the draft contains a repeated character loop or an incomplete first line, discard that defective draft and read the entire source page again. Never continue an underscore loop. A visible answer rule needs only a short blank or ANSWER_LINES marker.
-- Every FIGURE/BANNER crop must contain exactly four INTEGER coordinates x,y,WIDTH,HEIGHT on the 0–1000 page scale. Do not return x1,y1,x2,y2 endpoints or 0–1 fractions. Both x+width and y+height must fit within 1000. Recheck invalid crops against the actual image; never preserve an invalid draft crop.
-- Keep text unchanged when the pixels support it.
-- Resolve [unclear] only when the image gives enough visual evidence.
-- Output clean questions only. Resolve replacements and insertions naturally, omit cancelled drafts, completed responses and grading comments; retain question options, operands and blank answer spaces.
-- Do not turn faint erased writing, reverse-side show-through, indentation, shadows, or paper texture into readable text.
-- Do not fill answer blanks from context or options.
-- Correct a character only when the image itself supports that correction.
-- Preserve mathematics, marks, punctuation, spacing relationships, and mixed scripts exactly.
-- Re-check every Devanagari grapheme that changed between the first OCR and your proposed result. Only change it when the visible stroke pattern supports the new grapheme.
-- On Hindi-dominant pages, inspect every Latin-letter token again. Keep it Latin only when the source itself is visibly English; never romanize a Devanagari word during verification.
-- For branch diagrams, remove fake "| |" connector rows and return the exact [[BRANCH_ROOT]], [[BRANCH_ITEM]], [[BRANCH_END]] structure defined above.
-- Re-check each branch label independently. Never merge the root/prefix into a branch label; preserve only the characters visibly written on that branch.
-- Re-check every bracketed option pair and every two-column row independently from the image. Do not use story/context knowledge to complete an option.
-- Compare the FIRST OCR against the complete visual page from TOP to BOTTOM. If whole headings, sections, picture rows, questions, choices, checkboxes, matching rows, or the bottom of the page were omitted, restore those missing items from the image even when this makes the verified transcription much longer.
-- Recheck normalized crop bounds for every FIGURE and FIGURE_ROW; preserve real illustrations even without readable captions. Count actual grid borders, not expected answer counts. Background notebook ruling is not a grid row. Use SECTION_ROW for handwritten headings with right-aligned marks. Use MATCH_ROW instead of alternating column lines.
-- Use [[PICTURE: label]], [[PICTURE_OPTION: label]], [[PICTURE_ROW: ... || ...]], [[SHAPE_ROW: ... || ...]], [[GRID: 5x8]], [[GRID_ROW: ... || ...]], [[ANSWER_LINES: 2]], [[TABLE_ROW: ... || ...]], [[CHECKBOX]], [[CHOICE_ROW: ... || ...]], [[OPTION_ROW: ... || ...]], and [[MATCH_ROW: ... || ...]] when those visual structures are clearly present. Preserve the number and geometry of every visible cell, option, line and picture.
-- For question papers, re-check the structure rules 36-43: header block order (school name, address, exam title, Name/Class/Roll/Subject fields, Max. Marks), each section heading on its own line with its marks equation kept on that same line, question numbering and sub-question letters, and the blank lines that separate sections and answer space.
-- Do not keep a short first OCR merely because its existing words are correct; completeness of the visible page is mandatory.
-- When the first OCR and image disagree, the image wins. When the image is ambiguous, keep [unclear] instead of guessing.
-- If genuinely unreadable, keep [unclear] instead of guessing.`;
+- Recheck each physical row and its question numbers against the image. Do not reorder, renumber, drop stems or move choices to other questions.
+- Inspect the complete visual page including left/right columns, bottom questions and all continuation grids.
+- Compare the FIRST OCR to the image. Restore omitted source content and remove unsupported content. Resolve unreadable fragments only from visible pixels.
+- Completed responses must become blank spaces; question stems/options/operands must remain. Never solve or complete a question from context.
+- Recheck every crop against the FULL PAGE image. Banner excludes editable fields and separate marks boxes. Every crop uses four integer x,y,width,height coordinates on the full-page 0–1000 scale.
+- Use only the supported layout marker names. Keep multi-column questions in physical MATCH_ROW cells, separate grids after their labels, and marks in right cells.
+- If additional enlarged views follow the full-page image, they show overlapping parts of THE SAME page. Use them to read small characters, not to add duplicate questions. Output one transcription of the full page. All figure coordinates stay relative to the first full-page image.
+- When image evidence is ambiguous, use [unclear] rather than guessing.`;
+
 
     try {
       // Keep the primary reader as the first pass. An independent verifier
@@ -1623,11 +1549,15 @@ VERIFICATION RULES:
             role: 'user',
             content: [
               { type: 'image_url', image_url: { url: dataUrl } },
+              ...sanitizeDetailViews(detailViews).flatMap((view,index)=>[
+                {type:'text',text:'Enlarged detail '+(index+1)+' of the SAME page. Full-page rectangle: '+JSON.stringify(view.region)+'. Coordinates in your output remain relative to the FIRST image.'},
+                {type:'image_url',image_url:{url:view.url}}
+              ]),
               { type: 'text', text: verificationPrompt }
             ]
           }
         ],
-        max_completion_tokens: 4096,
+        max_completion_tokens: 6144,
         temperature: 0,
         chat_template_kwargs: {
           enable_thinking: false
@@ -1719,7 +1649,7 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
 
   const comparableText = s => String(s||'').replace(/\[\[([A-Z_-]+):\s*([\s\S]*?)\]\]/gi,(_,kind,body)=>
-    /^(?:FIGURE(?:_ROW)?|BANNER|GRID|SHAPE_ROW|ANSWER_LINES|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER)$/i.test(kind)?' X ':body.replace(/\|\|/g,' '));
+    /^(?:FIGURE(?:_ROW)?|BANNER|GRID|SHAPE_ROW|ANSWER_LINES|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER|SOURCE_PAGE)$/i.test(kind)?' X ':body.replace(/\|\|/g,' '));
   const usefulLength = s => comparableText(s)
     .replace(/\s+/g, '')
     .length;
@@ -1768,6 +1698,21 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
     Number(imageMeta?.longHorizontalRules || 0) >= 2 ||
     Number(imageMeta?.longVerticalRules || 0) >= 1 ||
     expectedLines >= 10;
+
+  // A verifier must not erase a known question stem into an answer blank.
+  // Match physical cells independently so a move to native row formatting is safe.
+  const blankStemCount = value => {
+    const cells=String(value||'').replace(/\[\[(?:QUESTION_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW):\s*/gi,'').replace(/\]\]/g,'').split(/\n|\|\|/);
+    let count=0;
+    for(const cell of cells){
+      const numbered=cell.match(/^\s*[0-9०-९]+[.)]\s*([\s\S]*)$/u);
+      if(!numbered||!/_{2,}/.test(numbered[1]))continue;
+      const stem=numbered[1].split(/=|[-–]\s*_{2,}|_{2,}/)[0].replace(/[^\p{L}\p{N}]/gu,'');
+      if(stem)count++;
+    }
+    return count;
+  };
+  if(blankStemCount(a)>blankStemCount(b))return false;
 
   if (bLen < Math.max(4, aLen * 0.68)) return false;
   if (!structuredPage && bLen > aLen * 1.55 && aLen > 20) return false;
@@ -1943,7 +1888,7 @@ function stripOcrMetadata(text) {
 
   return stripBranchMetadata(String(text))
     .replace(/\[\[(?:FIGURE|FIGURE_ROW):\s*([\s\S]*?)\]\]/gi,(_,body)=>String(body).split(/\s*\|\|\s*/).map(x=>x.split('|')[1]?.trim() || '[illustration]').join('    '))
-    .replace(/\[\[(?:BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER):[\s\S]*?\]\]/gi,'')
+    .replace(/\[\[(?:BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER|SOURCE_PAGE):[\s\S]*?\]\]/gi,'')
     .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
       (_,title,marks)=>title.trim()+'    '+marks.trim())
     .replace(/\[\[PICTURE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>

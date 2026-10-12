@@ -1,7 +1,7 @@
 // Reference-driven structure rules for training/*.docx and training/*.pdf.
 // Formatting adaptation, not model-weight fine-tuning. The current page wins.
 export const PAPER_LAYOUT_RULES = `
-REFERENCE QUESTION-PAPER LAYOUT RULES (version 7, reviewed across the complete training corpus):
+REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete training corpus):
 - Output editable text, native table/grid markers, and basic geometric shapes. Do not describe drawings as words or supply answers.
 - Count PHYSICAL cell borders, not expected answer counts. A to Z does NOT imply 26 cells. Notebook ruling through a drawn box does NOT imply a second grid row. Ignore background notebook margins and ruled lines.
 - Never split matching columns into alternating lines. Emit MATCH_ROW with ALL visible columns, including the middle blank bracket column: [[MATCH_ROW: 1. visible item || (   ) || a. visible option]]. Keep original row order; never solve the match. Pictures may occupy individual matching cells using FIGURE markers.
@@ -22,6 +22,7 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 7, reviewed across the complete t
 - Use [[TABLE_HEADER: 1]] before a table ONLY when its first row contains visible column headings. Ordinary exercise rows and partially filled comparison tables are not headers. Never fill missing comparative forms, missing letters, number grids, matching answers or arithmetic results.
 - Vertically stacked arithmetic is not ordinary prose. Emit [[ARITHMETIC_ROW: 34<br>+ 12<br>___ || 68<br>- 21<br>___]] with one cell per original problem and <br> between its observed lines. Preserve every operand, operator and visible answer rule; never calculate the answers. H/T/O labels above unbordered arithmetic stay in that arithmetic cell, not a bordered table. Use TABLE_ROW for a visibly bordered place-value chart; notebook ruling alone does not establish table borders.
 - An individual question with a separate right-side mark uses [[QUESTION_ROW: exact question || exact mark]]. Fractions such as ½ and equations such as 4×½=2 must remain literal.
+- A clearly visible original printed page number uses [[SOURCE_PAGE: integer]] control metadata. Never invent a page number. Read physical multi-column rows left to right; keep original question numbers, including mistakes. Never renumber column-major text into a new question order.
 - Repeated headers indicate a new question paper only when visibly present. Read continuous questions across scan pages in order. Do not invent exam titles or copy a school banner from another page or reference.
 - Output the question paper alone. Do not add assistant answers, solutions, answer keys, encouragement, formatting suggestions or explanatory introductions. Remove completed answers, worked solutions, answer keys and grading comments from answer positions; restore those spaces as blanks. Preserve question operands, examples, options, word banks and matching choices: these are question content, not completed answers. Resolve handwritten question corrections to the intended final wording automatically; omit cancelled drafts and insert the final replacement naturally. Do not emit editorial STRIKE, DOUBLE-STRIKE, REPLACE, INSERT or HIGHLIGHT markers.
 - Letter grids use GRID or consecutive GRID_ROW markers. Up to 52 columns, 32 rows, 600 cells. Use only observed counts; uncertain borders remain [unclear]. Never turn ordinary notebook lines into ANSWER_LINES.
@@ -51,7 +52,7 @@ export function cleanQuestionPaper(value, depth=0) {
 
 export function normaliseMarkerRows(text) {
     text=cleanQuestionPaper(text);
-    const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION';
+    const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
     const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');
     text=String(text||'').replace(/\[\[REPLACE:\s*([^\[\]]*?)\s*\|\|\s*([^\[\]]*?)\]\]/gi,(_,oldText,newText)=>'[[REPLACE: '+oldText.trim()+' -> '+newText.trim()+']]');
     const joined=[];let depth=0;
