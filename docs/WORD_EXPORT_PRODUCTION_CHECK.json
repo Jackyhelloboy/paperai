@@ -1,0 +1,167 @@
+{
+  "deployed_frontend_commit": "5b248adfba6a936dddfdca19825c6887831e8e7b",
+  "deployed_reader_commit": "eaddbc1f0dc26b4aa05ffd96158c7c6b3dca06ea",
+  "frontend_workflow_run": 38231223502,
+  "frontend_workflow_job": 114750906668,
+  "tests": [
+    "worksheet-layout",
+    "pdf-editable-layout",
+    "docx-import",
+    "editable-paper",
+    "question-paper-model",
+    "scan-resume",
+    "docx-reference-layout",
+    "reference-formats",
+    "ai-quota",
+    "automatic-upload",
+    "gemini-fallback",
+    "public-gateway",
+    "gemini-deployment",
+    "clean-question-paper",
+    "exact-word-text",
+    "mixed-language-suggestions"
+  ],
+  "bounded_load": {
+    "started_at": "2026-10-12T09:39:21.026Z",
+    "commit": "5b248adfba6a936dddfdca19825c6887831e8e7b",
+    "scope": "Public pages and API; synthetic text only. Maximum 20 concurrent requests. No image-model capacity claim.",
+    "groups": [
+      {
+        "name": "dashboard-5",
+        "requested": 40,
+        "completed": 40,
+        "concurrency": 5,
+        "failures": 0,
+        "statuses": {
+          "200": 40
+        },
+        "p50_ms": 45,
+        "p95_ms": 81,
+        "max_ms": 186,
+        "seconds": 8
+      },
+      {
+        "name": "dashboard-10",
+        "requested": 40,
+        "completed": 40,
+        "concurrency": 10,
+        "failures": 0,
+        "statuses": {
+          "200": 40
+        },
+        "p50_ms": 49,
+        "p95_ms": 76,
+        "max_ms": 85,
+        "seconds": 4
+      },
+      {
+        "name": "dashboard-20",
+        "requested": 40,
+        "completed": 40,
+        "concurrency": 20,
+        "failures": 0,
+        "statuses": {
+          "200": 40
+        },
+        "p50_ms": 83,
+        "p95_ms": 120,
+        "max_ms": 155,
+        "seconds": 2.01
+      },
+      {
+        "name": "usage",
+        "requested": 40,
+        "completed": 40,
+        "concurrency": 10,
+        "failures": 0,
+        "statuses": {
+          "200": 40
+        },
+        "p50_ms": 264,
+        "p95_ms": 311,
+        "max_ms": 374,
+        "seconds": 4
+      },
+      {
+        "name": "text-upload",
+        "requested": 20,
+        "completed": 20,
+        "concurrency": 5,
+        "failures": 0,
+        "statuses": {
+          "200": 20
+        },
+        "p50_ms": 26,
+        "p95_ms": 38,
+        "max_ms": 47,
+        "seconds": 4
+      }
+    ],
+    "checks": [
+      "Public dashboard contains no provider labels or backend hostname",
+      "Single Download Word export; layout and language controls removed",
+      "Current-editor text mapper loads",
+      "/vendor/pdf-word-layout.js is unavailable",
+      "/local-ocr-check is unavailable",
+      "/local-ocr-check.html is unavailable",
+      "/api/debug is unavailable",
+      "/api/train/export is unavailable",
+      "/vendor/local-ocr.js is unavailable",
+      "/vendor/local-ocr-layout.js is unavailable",
+      "/vendor/local-reader-worker.js is unavailable",
+      "/vendor/local-runtime/reader.js is unavailable",
+      "/vendor/local-runtime/manifest.json is unavailable",
+      "/vendor/local-runtime/hin.traineddata.gz is unavailable",
+      "/vendor/local-ocr-worker.mjs is unavailable",
+      "/vendor/document-reader.js loads",
+      "/vendor/document-worker.js loads",
+      "/vendor/archive-reader.js loads",
+      "/vendor/sheet-reader.js loads"
+    ],
+    "finished_at": "2026-10-12T09:39:47.898Z",
+    "result": "passed"
+  },
+  "live_word_checks": {
+    "runtime_commit": "ad9d81c43e2fa404c994b1fd454675467c184935",
+    "source": "training/class 2 hindi.pdf",
+    "pages_per_download": 2,
+    "automatic": {
+      "editor_word_number_tokens": 194,
+      "word_word_number_tokens": 194,
+      "equal": true
+    },
+    "edited": {
+      "editor_word_number_tokens": 194,
+      "word_word_number_tokens": 194,
+      "equal": true,
+      "changed_word": "अदरकक → अदरक",
+      "scope": "Deliberate optional-editor test; not an automatic OCR accuracy claim."
+    },
+    "measurement": "NFC-normalized visible word/number token streams from real browser downloads; geometry and whitespace are verified separately."
+  },
+  "live_suggestions": {
+    "runtime_commit": "ae3e5c5d62732afc561c6828537f0411666f2db6",
+    "source": "Hindi/English text fixture",
+    "selected": "Gingre",
+    "offered": "Ginger",
+    "only_selected_text_changed": true,
+    "button_released_after_request": true
+  },
+  "corpus_scope": {
+    "files_audited": 84,
+    "original_inputs_and_authored_references": 42,
+    "generated_qa_baselines": 42,
+    "authored_word_packages_checked": 12,
+    "fa2_pdf_pages_checked": 12
+  },
+  "final_visual_check": {
+    "completed": false,
+    "reason": "Browser transport disconnected and its reset timed out. Earlier real Word downloads were rendered and both pages inspected; the last decoder revision is covered by regression and deployment checks."
+  },
+  "limitations": [
+    "Some live handwriting readings still differ from source glyphs, including repeated consonants and separated vowel marks. Text-preservation fixes do not certify handwriting recognition.",
+    "The app uses measured reference rules, OCR instructions and deterministic layout; no hosted weight fine-tuning was performed.",
+    "Native Word display also depends on the opening application and installed fonts. Indic font/language tags are explicit; fonts are not embedded.",
+    "The 180-request load test covers public routes and synthetic text uploads, not simultaneous image inference capacity."
+  ]
+}
