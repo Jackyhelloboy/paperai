@@ -254,6 +254,28 @@
         }
         return results.sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,12);
     }
+    function inlineParts(value) {
+        const text=String(value||''),parts=[];let cursor=0,last=0;
+        while(cursor<text.length){
+            const start=text.indexOf('[[',cursor);if(start<0)break;
+            let depth=1,end=start+2;
+            while(end<text.length&&depth){
+                if(text.slice(end,end+2)==='[['){depth++;end+=2;}
+                else if(text.slice(end,end+2)===']]'){depth--;end+=2;}
+                else end++;
+            }
+            if(depth)break;
+            parts.push(text.slice(last,start),text.slice(start,end));last=end;cursor=end;
+        }
+        parts.push(text.slice(last));return parts.filter(Boolean);
+    }
+    function unwrapEmphasis(value,depth=0) {
+        if(depth>8)return String(value||'');
+        return inlineParts(value).map(part=>{
+            const m=part.match(/^\[\[(UNDERLINE|DOUBLE-UNDERLINE|STRIKE|DOUBLE-STRIKE|INSERT|REPLACE|HIGHLIGHT|BOXED):\s*([\s\S]*)\]\]$/i);
+            return m?unwrapEmphasis(m[2],depth+1):part;
+        }).join('');
+    }
     function normalise(text) {
         const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
@@ -370,5 +392,5 @@
         }
         return lines.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

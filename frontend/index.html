@@ -4860,7 +4860,7 @@ function collapsePortableAnswerBlankContinuations(value) {
 }
 
 function portableText(value) {
-    let out = String(value || '');
+    let out = PaperAILayout.unwrapEmphasis(value);
 
     out = out
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,32).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
@@ -5098,24 +5098,19 @@ function isOutputHeadingLine(line, index, firstNonEmptyIndex) {
     return false;
 }
 
-function formatOutputLine(line) {
-    const token = /\[\[(DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION|SOURCE_FIGURE|SHAPE_ROW|ANSWER_LINES):\s*([\s\S]*?)\]\]|\[\[(CHECKBOX)\]\]/g;
-    let html = '';
-    let last = 0;
-    let match;
-
-    while ((match = token.exec(line)) !== null) {
-        html += formatVisibleText(line.slice(last, match.index));
-        if (match[1] === 'SOURCE_FIGURE') html += sourceFigureHtml(match[2]);
-        else if(match[1]==='SHAPE_ROW') html+=worksheetCells(match[2],8).map(value=>'<svg viewBox="0 0 110 90" style="display:inline-block;width:1.5em;height:1.5em;vertical-align:middle" aria-label="blank comparison shape">'+worksheetShapeSvg(PaperAILayout.shape(value).name)+'</svg>').join('');
-        else if(match[1]==='ANSWER_LINES')html+='<span style="display:inline-block;border-bottom:1px solid;width:6em" aria-label="blank answer line"></span>';
-        else if (match[3] === 'CHECKBOX') html += formatOcrAnnotation('CHECKBOX', '');
-        else html += formatOcrAnnotation(match[1], match[2]);
-        last = token.lastIndex;
-    }
-
-    html += formatVisibleText(line.slice(last));
-    return html;
+function formatOutputLine(line, depth=0) {
+    if(depth>8)return formatVisibleText(line);
+    return PaperAILayout.inlineParts(line).map(part=>{
+        const m=part.match(/^\[\[([A-Z_-]+)(?::\s*([\s\S]*))?\]\]$/i);
+        if(!m)return formatVisibleText(part);
+        const kind=m[1].toUpperCase(),body=m[2]||'';
+        if(kind==='SOURCE_FIGURE')return sourceFigureHtml(body);
+        if(kind==='SHAPE_ROW')return worksheetCells(body,8).map(value=>'<svg viewBox="0 0 110 90" style="display:inline-block;width:1.5em;height:1.5em;vertical-align:middle" aria-label="blank comparison shape">'+worksheetShapeSvg(PaperAILayout.shape(value).name)+'</svg>').join('');
+        if(kind==='ANSWER_LINES')return '<span style="display:inline-block;border-bottom:1px solid;width:6em" aria-label="blank answer line"></span>';
+        if(/^(?:UNDERLINE|DOUBLE-UNDERLINE|STRIKE|DOUBLE-STRIKE|INSERT|HIGHLIGHT|BOXED)$/.test(kind)&&body.includes('[['))
+            return '<span class="ocr-'+kind.toLowerCase()+'">'+formatOutputLine(body,depth+1)+'</span>';
+        return formatOcrAnnotation(kind,body);
+    }).join('');
 }
 
 function formatSingleAnswerBlankLine(line) {
@@ -5601,7 +5596,7 @@ function circledWordNumber(n) {
 }
 
 function docxVisibleText(value) {
-    let out = String(value || '');
+    let out = PaperAILayout.unwrapEmphasis(value);
 
     out = out
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,32).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
@@ -6025,6 +6020,21 @@ function docxGrid(columns, rows, cells = [], region=null) {
         Array.from({length:columns},(_,c)=>cells[r*columns+c] || ''));
     return docxTableCells(content,widths,{bordered:true,minHeight:region?Math.max(120,Math.round(region.h*15398/1000/rows)):paperLayoutOptions().gridHeight,fontSize:24,center:true,grid:true});
 }
+function docxEmphasisRuns(raw,style,depth=0) {
+    if(depth>8)return docxRun(docxVisibleText(raw),style);
+    return PaperAILayout.inlineParts(raw).map(part=>{
+        const m=part.match(/^\[\[(UNDERLINE|DOUBLE-UNDERLINE|STRIKE|DOUBLE-STRIKE|INSERT|REPLACE|HIGHLIGHT|BOXED):\s*([\s\S]*)\]\]$/i);
+        if(!m)return docxRun(docxVisibleText(part),style);
+        const name=m[1].toUpperCase();
+        if(name==='REPLACE'){
+            const parts=m[2].split(/\s*(?:->|→|=>)\s*/);
+            if(parts.length===2)return docxEmphasisRuns(parts[0],{...style,strike:true},depth+1)+docxEmphasisRuns(' '+parts[1],{...style,underline:'single'},depth+1);
+        }
+        const combined={...style,underline:['UNDERLINE','INSERT'].includes(name)?'single':name==='DOUBLE-UNDERLINE'?'double':style.underline,
+            strike:style.strike||name==='STRIKE',doubleStrike:style.doubleStrike||name==='DOUBLE-STRIKE',highlight:style.highlight||name==='HIGHLIGHT',boxed:style.boxed||name==='BOXED'};
+        return docxEmphasisRuns(m[2],combined,depth+1);
+    }).join('');
+}
 function docxRichParagraph(raw, options = {}) {
     // Embedded pictures stay real replaceable Word drawings even when inline.
     const standalone=String(raw||'').trim().match(/^\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]$/i);
@@ -6036,17 +6046,14 @@ function docxRichParagraph(raw, options = {}) {
             (item.caption?docxParagraph(item.caption,{size:options.size||24,after:0}):'')+
             (item.answer?docxAnswerBoxParagraph():'');
     }
-    const tokens = String(raw || '').split(/(\[\[(?:PICTURE(?:_OPTION)?|SOURCE_FIGURE|SHAPE_ROW|ANSWER_LINES|UNDERLINE|DOUBLE-UNDERLINE|STRIKE|DOUBLE-STRIKE|INSERT|REPLACE|HIGHLIGHT|BOXED):\s*[\s\S]*?\]\])/gi);
-    if (tokens.length === 1) return docxParagraph(docxVisibleText(raw),options);
+    const tokens = PaperAILayout.inlineParts(raw);
+    if (tokens.length === 1 && !tokens[0].startsWith('[[')) return docxParagraph(docxVisibleText(raw),options);
     const runs = tokens.map(token => {
         const emphasis=token.match(/^\[\[(UNDERLINE|DOUBLE-UNDERLINE|STRIKE|DOUBLE-STRIKE|INSERT|REPLACE|HIGHLIGHT|BOXED):\s*([\s\S]*?)\]\]$/i);
         if(emphasis){
-            const name=emphasis[1].toUpperCase(),style={size:options.size||24,actualSize:options.actualSize,font:options.font,bold:!!options.bold};
-            if(name==='REPLACE'){
-                const parts=emphasis[2].split(/\s*(?:->|→|=>)\s*/);
-                return parts.length===2?docxRun(parts[0],{...style,strike:true})+docxRun(' '+parts[1],{...style,underline:'single'}):docxRun(emphasis[2],style);
-            }
-            return docxRun(emphasis[2],{...style,underline:['UNDERLINE','INSERT'].includes(name)?'single':name==='DOUBLE-UNDERLINE'?'double':null,strike:name==='STRIKE',doubleStrike:name==='DOUBLE-STRIKE',highlight:name==='HIGHLIGHT',boxed:name==='BOXED'});
+            const style={size:options.size||24,actualSize:options.actualSize,font:options.font,bold:!!options.bold};
+            return docxEmphasisRuns(token,style);
+
         }
         const shape=token.match(/^\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]$/i);
         if(shape)return worksheetCells(shape[1],8).map(value=>{

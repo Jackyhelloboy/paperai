@@ -91,6 +91,17 @@ const fixtures={
     vm.runInContext('extractedMedia.push({id:"side-test",dataUrl:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB9sAAAAASUVORK5CYII=",w:178,h:251,widthTwips:1465,region:{x:550,y:370,w:140,h:100}})',ctx);
     if(process.env.PAPERAI_IMAGE_FIXTURE)vm.runInContext('extractedMedia[extractedMedia.length-1].dataUrl='+JSON.stringify('data:image/png;base64,'+fs.readFileSync(process.env.PAPERAI_IMAGE_FIXTURE).toString('base64')),ctx);
     ctx.resolveHeaderBanner=async()=>null;
+    vm.runInContext(slice('function formatVisibleText','function repairLegacyBranchDiagram'),ctx);
+    vm.runInContext(slice('function formatOutputLine','function formatSingleAnswerBlankLine'),ctx);
+    const nested='[[HIGHLIGHT:[[BOXED: हिन्दी शब्द से अंग्रेजी शब्द जोड़ो।]]]]';
+    const nestedPreview=ctx.formatOutputLine(nested);
+    assert(nestedPreview.includes('ocr-highlight')&&nestedPreview.includes('ocr-boxed')&&!nestedPreview.includes('[['),'Nested visual edits must render in the preview without marker text');
+    const nestedZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx(nested)).arrayBuffer());
+    const nestedXml=await nestedZip.file('word/document.xml').async('text');
+    assert(!nestedXml.includes('[['),'Nested visible edits must not block Word export or leak annotation syntax');
+    assert(nestedXml.includes('<w:highlight')&&nestedXml.includes('<w:bdr'),'Nested box and highlight must stay native editable run properties');
+    assert.equal((nestedXml.match(/हिन्दी शब्द से अंग्रेजी शब्द जोड़ो।/g)||[]).length,1,'Nested formatting must not duplicate the source text');
+    assert.equal(Layout.unwrapEmphasis(nested),'हिन्दी शब्द से अंग्रेजी शब्द जोड़ो।');
     const groupedQuestions='[[MATCH_ROW: 1. अं - ______ || 2. इ - ______ || 3. आ - ______]]\n[[MATCH_ROW: 4. ए - ______ || 5. ऊ - ______ || 6. ओ - ______]]';
     const groupedZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx(groupedQuestions)).arrayBuffer());
     const groupedDoc=new DOMParser().parseFromString(await groupedZip.file('word/document.xml').async('text'),'application/xml');
