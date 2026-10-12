@@ -38,7 +38,7 @@ const fs=require('node:fs');
  const headerMeta=headerFixture.toString('ascii',0,50).match(/^P5\n(\d+) (\d+)\n255\n/),hw=+headerMeta[1],hh=+headerMeta[2],headerPixels=headerFixture.subarray(headerMeta[0].length),rgba=new Uint8ClampedArray(hw*hh*4);
  for(let i=0;i<headerPixels.length;i++){rgba[i*4]=rgba[i*4+1]=rgba[i*4+2]=headerPixels[i];rgba[i*4+3]=255;}
  const inkBounds=L.bannerInkBounds(rgba,hw,hh);assert(inkBounds&&inkBounds.h<hh*.82&&inkBounds.h>hh*.65,'Measured title/address must exclude the following editable field row');
- assert(inkBounds.w<hw*.92&&inkBounds.w>hw*.85,'The tall total-marks divider must stay outside the school banner');
+ assert(inkBounds.w<hw*.92&&inkBounds.w>hw*.85,'The tall total-marks divider must stay outside the school banner: '+JSON.stringify({inkBounds,hw,hh}));
  assert.equal(L.bannerInkBounds(new Uint8ClampedArray(hw*hh*4).fill(255),hw,hh),null,'An empty or unrelated crop must not receive a guessed banner cut');
  const mdHeader=L.normalise('| CLASS: || II - HINDI || TIME: 2h |\n| Name: ______ || Roll: ____ || 100 |');
  assert(mdHeader.includes('[[TABLE_ROW: CLASS: || II - HINDI || TIME: 2h]]'));
