@@ -20,6 +20,7 @@ function objects(text){
     if(c==='"')quoted=true;else if(c==='{')depth++;else if(c==='}'&&--depth===0){try{found.push(JSON.parse(text.slice(start,i+1)));}catch(_){}start=-1;}
   }return found;
 }
+function matchesSettings(body,expected){return body?.success===true&&Array.isArray(body.result?.bindings)&&body.result.bindings.some(binding=>binding.type==='plain_text'&&binding.name==='PAPERAI_RELEASE_SHA'&&binding.text===expected);}
 async function verifyProduction(){
   const expected=process.env.GITHUB_SHA;
   if(expected){
@@ -27,6 +28,12 @@ async function verifyProduction(){
     for(let attempt=0;attempt<20;attempt++){
       try{const response=await request('https://paperai-ocr.mdjawaadkhan57.workers.dev/health',{redirect:'error',signal:AbortSignal.timeout(5000)});
         const body=await response.json();active=body.revision===expected;lastHealth={http:response.status,revisionPresent:Boolean(body.revision),networkCode:null};}catch(error){lastHealth.networkCode=['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH'].includes(error.code)?error.code:['AbortError','TimeoutError','SyntaxError'].includes(error.name)?error.name:'REQUEST_FAILED';}
+      if(!active&&attempt===0&&lastHealth.http===200&&!lastHealth.revisionPresent&&/^[a-f0-9]{32}$/i.test(process.env.CLOUDFLARE_ACCOUNT_ID||'')&&process.env.CLOUDFLARE_API_TOKEN){
+        try{const settings=await request('https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/paperai-ocr/settings',{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(10000)});
+          active=settings.ok&&matchesSettings(await settings.json(),expected);
+          console.log(JSON.stringify({check:'private-deployment-revision',http:settings.status,matched:active}));
+        }catch(_){console.log(JSON.stringify({check:'private-deployment-revision',matched:false}));}
+      }
       if(active)break;await sleep(3000);
     }
     if(!active){console.error(JSON.stringify({check:'backend-revision',...lastHealth,matched:false}));throw new Error('Production backend revision did not become active.');}
@@ -67,5 +74,5 @@ async function verifyProduction(){
     }
   }
 }
-module.exports={request,objects,verifyProduction};
+module.exports={request,objects,verifyProduction,matchesSettings};
 if(require.main===module)verifyProduction().catch(()=>{console.error('Production image verification failed.');process.exitCode=1;});

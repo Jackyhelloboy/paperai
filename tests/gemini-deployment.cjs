@@ -35,7 +35,10 @@ const {check,requestJson}=require('../.github/scripts/check-gemini.cjs');
       error.message.includes('HTTP '+status)&&!error.message.includes(fixture)&&!error.message.includes('private')&&error.transient===(status===429||status>=500));
   }
   await assert.rejects(requestJson('https://example.test/',fixture,null,1000,transport(200,'private '+fixture)),/Invalid check response/);
-  const {request:productionRequest}=require('../.github/scripts/check-worker-scanning.cjs');
+  const {request:productionRequest,matchesSettings}=require('../.github/scripts/check-worker-scanning.cjs');
+  assert(matchesSettings({success:true,result:{bindings:[{type:'plain_text',name:'PAPERAI_RELEASE_SHA',text:'fixture-release'}]}},'fixture-release'));
+  assert(!matchesSettings({success:true,result:{bindings:[{type:'plain_text',name:'PAPERAI_RELEASE_SHA',text:'previous-release'}]}},'fixture-release'));
+  assert(!matchesSettings({success:true,result:{bindings:[{type:'secret_text',name:'PAPERAI_RELEASE_SHA',text:'fixture-release'}]}},'fixture-release'));
   const productionTransport=status=>(url,options,callback)=>{
     assert.equal(options.family,4,'Production check must use bounded IPv4 transport');
     assert(options.signal instanceof AbortSignal);
