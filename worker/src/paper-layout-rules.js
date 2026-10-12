@@ -42,11 +42,11 @@ export function cleanQuestionPaper(value, depth=0) {
             if(/^(?:STRIKE|DOUBLE-STRIKE|ANSWER|SOLUTION|ANSWER_KEY|MARGIN|STAMP)$/.test(name)){}
             else if(name==='REPLACE'){const pieces=body.split(/\s*(?:->|→|=>|\|\|)\s*/);out+=pieces.length>1?cleanQuestionPaper(pieces.slice(1).join(' '),depth+1):'';}
             else if(/^(?:INSERT|HIGHLIGHT)$/.test(name))out+=cleanQuestionPaper(body,depth+1);
-            else out+='[['+m[1]+': '+cleanQuestionPaper(body,depth+1)+']]';
+            else {let content=cleanQuestionPaper(body,depth+1);if(/^(?:SECTION_ROW|QUESTION_ROW|TABLE_ROW|GRID_ROW|MATCH_ROW|CHOICE_ROW|OPTION_ROW|ARITHMETIC_ROW)$/.test(name))content=content.replace(/(?<!\|)\s+\|\s+(?!\|)/g,' || ');out+='[['+m[1]+': '+content+']]';}
         }
         cursor=end;
     }
-    return out;
+    return depth===0?out.replace(/^(?:\s*)(?:Ans(?:wer)?|Solution|उत्तर|जवाब)\s*[:：]\s*[^\n]+$/gim,'____________________'):out;
 }
 
 export function normaliseMarkerRows(text) {

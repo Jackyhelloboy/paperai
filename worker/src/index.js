@@ -1431,7 +1431,10 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
     ks: 'Main language: Kashmiri. Preserve English, numbers and mixed scripts exactly.'
   }[language] || 'Auto-detect every visible language and preserve the original scripts exactly.';
 
-  const prompt = `You are PaperAI, a high-accuracy visual OCR and handwriting transcription engine.
+  const prompt = `You are PaperAI. TASK: turn this page into a CLEAN UNSOLVED QUESTION PAPER automatically, suitable for reprinting. This takes priority over literal transcription of responses and annotations.
+FIRST identify question content versus completed responses. Remove student/teacher completed responses, solved equations, answer keys, corrections to ANSWERS, and grading comments. Restore blank answer spaces. For example, after "write the alphabet / वर्णमाला लिखो", a handwritten alphabet sequence is a completed RESPONSE: omit it, keeping the question and empty answer grid. After a maths question, an already written result is a RESPONSE: replace it with a blank. Preserve multiple-choice options, matching choices, examples explicitly included in the question and word banks. Do not solve any question.
+Resolve corrections to QUESTION wording into final natural text only; no editorial strike, insert or replacement annotations. Keep all genuinely empty source grids empty; never move a nearby written response into their cells.
+Before output, check every retained phrase: is it question content, a necessary paper field, an option or a diagram label? If it is a completed response or grading note, omit it. Use the exact defined row delimiters: || (two pipes), never a single pipe for structured metadata.
 
 LANGUAGE INSTRUCTION:
 ${languageHint}

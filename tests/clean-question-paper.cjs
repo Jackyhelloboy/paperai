@@ -12,6 +12,9 @@ const fs=require('node:fs');
  for(const text of ['2 marks 1. Name a plant.','1. Name 2 marks a plant.','१. नाम लिखिए। २ अंक']){
   const row=L.normalise(text);assert(row.includes('[[QUESTION_ROW:'));assert(row.includes(' || '));
  }
+ assert.equal(L.normalise('[[SECTION_ROW: I. Write. | 2M]]'),'[[SECTION_ROW: I. Write. || 2M]]');
+ assert.equal(W.normaliseMarkerRows('[[QUESTION_ROW: 1. Add. | 2M]]'),'[[QUESTION_ROW: 1. Add. || 2M]]');
+ assert.equal(L.cleanQuestionPaper('Answer: 18\n1. Add 12 + 6.'),'____________________\n1. Add 12 + 6.');
  assert.equal(L.section('1. Evaluate f(5)'),null);
  assert.equal(L.section('1. Plot (2, 3)'),null);
  assert(!W.PAPER_LAYOUT_RULES.includes('transcribe it faithfully'));
