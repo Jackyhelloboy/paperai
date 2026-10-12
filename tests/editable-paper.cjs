@@ -88,6 +88,10 @@ const fixture=[
     assert(Layout.normalise('5. न:- [[TABLE_REGION: 121,50,767,34]] [[GRID: 13x1]]').includes('5. न:- \n[[TABLE_REGION:'),'Inline geometry hints must become hidden layout blocks');
     const curvedFixed=Layout.reconcileEmptyGrids('5. न:-\n[[GRID: 8x1]]\n6. प:-\n[[GRID: 11x1]]',curvedGrids);
     assert.equal((curvedFixed.match(/GRID: 13x1/g)||[]).length,2);
+    const interleaved='5. न:-\n[[TABLE_REGION: 119,50,769,35]]\n[[GRID: 13x1]]\n[[TABLE_REGION: 119,50,769,35]]\n[[GRID: 13x1]]\n6. प:-\n[[TABLE_REGION: 120,118,767,34]]\n[[GRID: 13x1]]\n[[TABLE_REGION: 120,118,767,34]]\n[[GRID: 13x1]]';
+    const withoutDuplicates=Layout.reconcileEmptyGrids(interleaved,curvedGrids);
+    assert.equal((withoutDuplicates.match(/GRID: 13x1/g)||[]).length,2,'Interleaved geometry must not duplicate each source grid');
+    assert.equal((withoutDuplicates.match(/TABLE_REGION/g)||[]).length,2,'Duplicate grid regions must not leak into the next question');
     const regionOnce=Layout.reconcileEmptyGrids('[[TABLE_REGION: 10,10,200,40]]\n[[GRID: 8x1]]\n6. प:-\n[[GRID: 11x1]]',curvedGrids);
     assert.equal((regionOnce.match(/TABLE_REGION/g)||[]).length,2,'Reconciliation must replace stale model bounds instead of duplicating them');
     assert(curvedGrids.every(g=>g.h<250),'Photo curvature must not inflate a blank row to the whole bounding-box height');

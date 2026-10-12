@@ -376,7 +376,7 @@
             const empty=/^\s*\[\[GRID:\s*\d+[x×]\d+\]\]\s*$/i.test(lines[i])||
                 /^\s*\[\[GRID_ROW:\s*(?:_|\s|\|)*\]\]\s*$/i.test(lines[i]);
             if(empty){if(!block){block={indexes:[]};blocks.push(block);}block.indexes.push(i);}
-            else if(lines[i].trim())block=null;
+            else if(lines[i].trim()&&!/^\s*\[\[(?:TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):/i.test(lines[i]))block=null;
         }
         const candidates=blocks.filter(b=>b.indexes.length);
         // Only reconcile when every observed source grid has one empty marker group.
@@ -389,6 +389,7 @@
             if(region&&previous>=0&&/^\s*\[\[TABLE_REGION:/i.test(lines[previous]))lines[previous]='';
             lines[indexes[0]]=(region?'[[TABLE_REGION: '+[grid.x,grid.y,grid.w,grid.h].join(',')+']]\n':'')+'[[GRID: '+grid.columns+'x'+grid.rows+']]';
             for(const i of indexes.slice(1))lines[i]='';
+            for(let i=indexes[0]+1;i<indexes[indexes.length-1];i++)if(/^\s*\[\[(?:TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):/i.test(lines[i]))lines[i]='';
         }
         return lines.join('\n');
     }

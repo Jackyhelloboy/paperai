@@ -1612,6 +1612,9 @@ VERIFICATION RULES:
       // reduces repeated transcription errors on the already-selected hard pages.
       const verificationState=providerState.provider==='gemini'||!String(env.GEMINI_API_KEY||'').trim()
         ? providerState : {provider:'gemini'};
+      const verificationPrompt=verificationState===providerState?rescuePrompt:
+        prompt+'\n\nLITERAL VERIFICATION PASS:\nRead the image independently from top to bottom. No earlier transcription is supplied. Return only the literal source question paper and its supported layout markers. Preserve every visible number, typo, blank and physical row; do not complete words from context.\n'+
+        rescuePrompt.slice(rescuePrompt.indexOf('VERIFICATION RULES:')).replace(/^- .*FIRST OCR.*$/gm,'- Inspect the complete visual page, including its bottom questions and all source figures.');
       const rescueResponse = await runInference(env, {
         messages: [
           {
@@ -1622,7 +1625,7 @@ VERIFICATION RULES:
             role: 'user',
             content: [
               { type: 'image_url', image_url: { url: dataUrl } },
-              { type: 'text', text: rescuePrompt }
+              { type: 'text', text: verificationPrompt }
             ]
           }
         ],

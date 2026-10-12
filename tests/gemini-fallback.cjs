@@ -56,6 +56,7 @@ const limit=()=>{throw new Error('3036: daily free allocation reached');};
   const beforeIndependent=primaryCalls;
   response=await ctx.handler.fetch(image({structuredLayout:true}),independent.env);body=await response.json();
   assert.equal(response.status,200);assert.equal(primaryCalls,beforeIndependent+1,'The hard-page verifier should be independent instead of repeating the primary');
+  assert(!requests.at(-1).contents[0].parts[1].text.includes('---BEGIN FIRST OCR---'),'Independent verification must not be anchored to the primary draft');
   assert(body.result.annotated_text.includes('श्र'),'A visually supported script correction should reach the output');
   assert.equal((await ctx.getUsageStatus(independent.env)).estimated_used>0,true,'Primary usage must still be counted');
   clock=Date.parse('2026-10-11T22:00:00Z');
