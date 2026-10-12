@@ -70,7 +70,7 @@
         const s=String(value||'').trim();
         const number='(?:[0-9०-९]+(?:[./][0-9०-९]+)?[¼½¾]?|[¼½¾])';
         // Explicit units identify marks safely even when OCR places them first or mid-sentence.
-        const labelled=s.match(new RegExp('(?:^|\\s)(\\(?'+number+'\\s*(?:marks?|अंक|M)\\)?)(?=\\s|$)','i'));
+        const labelled=s.match(new RegExp('(?:^|\\s)(\\(?'+number+'\\s*(?:marks?|Marks?|MARKS?|अंक|M)\\)?)(?=\\s|$)'));
         if(labelled){const title=(s.slice(0,labelled.index)+s.slice(labelled.index+labelled[0].length)).replace(/\s+/g,' ').trim();if(title)return {title,marks:labelled[1]};}
         const equation='\\(?'+number+'\\s*[x×X*]\\s*'+number+'\\s*=\\s*'+number+'\\s*(?:[mM]|[Mm]arks)?\\)?';
         // A bare parenthesized score is a mark only after an instruction's

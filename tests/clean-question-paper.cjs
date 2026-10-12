@@ -17,6 +17,7 @@ const fs=require('node:fs');
  assert.equal(L.cleanQuestionPaper('Answer: 18\n1. Add 12 + 6.'),'____________________\n1. Add 12 + 6.');
  assert.equal(L.section('1. Evaluate f(5)'),null);
  assert.equal(L.section('1. Plot (2, 3)'),null);
+ assert.equal(L.section('1. Draw a 2m line.'),null);
  assert(!W.PAPER_LAYOUT_RULES.includes('transcribe it faithfully'));
  console.log('Clean paper: final edits, omitted answer metadata, preserved question data and right marks pass.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

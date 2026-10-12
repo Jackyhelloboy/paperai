@@ -1502,8 +1502,8 @@ Use only text actually visible in the image. If there is no right-side label, le
 18. Preserve dates, names, capitalization, punctuation, question numbering, section numbering, and line order exactly.
 18A. COMPLETENESS CHECK: before finalizing, confirm that you read the TOP, MIDDLE and BOTTOM of the visible paper. Preserve every visible section heading (for example IV, V, VI, VII), every numbered question and every option row. Do not stop after an easy lower section.
 19. Preserve underscores/blanks such as ______ and empty answer brackets like ( ).
-20. Forms, tables, and two-column lists: keep each label beside the value visibly on the same row, using " | " only as a column separator.
-21. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
+20. Forms and tables: preserve physical rows as [[TABLE_ROW: first cell || second cell]]. Use MATCH_ROW for matching choices and QUESTION_ROW for a question with a separate right-hand score. Never emit plain pipe-separated table text.
+21. Empty answer grids use [[GRID: columnsxrows]] with the measured physical dimensions. Populated QUESTION grids such as word searches use one [[GRID_ROW: first cell || second cell]] per physical row. Completed responses do not belong in question grids. Keep grapheme clusters together, for example "बा" is one cell.
 22. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
 23. Never invent page markers, filenames, headings, or text that is not visibly present.
 24. Produce a clean, unsolved question paper automatically. Resolve visible corrections to QUESTION wording: omit cancelled drafts, use the final legible replacement, and insert intended words naturally. Never render editorial strikes, replacement arrows, insert highlights or grading comments.
