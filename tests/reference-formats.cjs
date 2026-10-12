@@ -93,6 +93,11 @@ const fixtures={
     ctx.resolveHeaderBanner=async()=>null;
     vm.runInContext(slice('function formatVisibleText','function repairLegacyBranchDiagram'),ctx);
     vm.runInContext(slice('function formatOutputLine','function formatSingleAnswerBlankLine'),ctx);
+    const inlineHeading='IV नीचे दिये अक्षरों से शब्द बनाकर लिखो। [[SECTION_ROW: IV नीचे दिये अक्षरों से शब्द बनाकर लिखो। || 5x1=5M]]';
+    const inlineHeadingXml=ctx.docxDocumentXml(Layout.normalise(inlineHeading));
+    assert.equal((inlineHeadingXml.match(/IV नीचे दिये अक्षरों से शब्द बनाकर लिखो।/g)||[]).length,1,'Inline row metadata must not duplicate an exam heading');
+    assert(inlineHeadingXml.includes('<w:jc w:val="right"/>'),'Inline heading marks must use the native right column');
+    assert(!inlineHeadingXml.includes('[['),'Structured headings must never print annotation syntax');
     const nested='[[HIGHLIGHT:[[BOXED: हिन्दी शब्द से अंग्रेजी शब्द जोड़ो।]]]]';
     const nestedPreview=ctx.formatOutputLine(nested);
     assert(nestedPreview.includes('ocr-highlight')&&nestedPreview.includes('ocr-boxed')&&!nestedPreview.includes('[['),'Nested visual edits must render in the preview without marker text');

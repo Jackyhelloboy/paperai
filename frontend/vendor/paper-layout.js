@@ -290,14 +290,20 @@
             depth=Math.max(0,depth+(line.match(/\[\[/g)||[]).length-(line.match(/\]\]/g)||[]).length);
         }
         const lines=joined.flatMap(line=>{
-            const m=line.match(bare);
-            if(m)line='[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]';
-            // A grid following its label is a native block, not printable marker text.
-            if(!/^\s*\[\[(?:TABLE_ROW|MATCH_ROW):/i.test(line)&&!/^\s*\[\[GRID(?:_ROW)?:[^\n]*\]\]\s*$/i.test(line))
-                line=line.replace(/\[\[GRID(?:_ROW)?:\s*[\s\S]*?\]\]/gi,marker=>'\n'+marker+'\n');
-            if(!/^\s*\[\[(?:TABLE_ROW|MATCH_ROW):/i.test(line))
-                line=line.replace(/\[\[(?:TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):\s*[^\n]*?\]\]/gi,marker=>'\n'+marker+'\n');
-            return line.split('\n');
+            const bareMarker=line.match(bare);
+            if(bareMarker)line='[['+bareMarker[1].toUpperCase()+': '+bareMarker[2].replace(/\]\]$/,'')+']]';
+            const output=[];let prose='';
+            for(const part of inlineParts(line)){
+                const marker=part.match(/^\[\[(SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|GRID|FIGURE_ROW|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):\s*([\s\S]*)\]\]$/i);
+                if(!marker){prose+=part;continue;}
+                // A repeated prose title plus its structured row is one heading.
+                const title=/^(?:SECTION_ROW|QUESTION_ROW)$/i.test(marker[1])?marker[2].split('||')[0]:null;
+                const compact=value=>unwrapEmphasis(value).replace(/\s+/g,'').trim();
+                if(prose.trim()&&!(title&&compact(prose)===compact(title)))output.push(prose);
+                prose='';output.push(part);
+            }
+            if(prose.trim())output.push(prose);
+            return output.length?output:[''];
         });
         for(let i=0;i<lines.length;i++){
             const marker=lines[i].match(/^\s*\[\[SECTION_ROW:\s*([^|]*?)\]\]\s*$/i);
