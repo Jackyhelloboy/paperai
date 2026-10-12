@@ -39,6 +39,12 @@ const multiline='[[TABLE_ROW: CLASS: || II - HINDI || QUARTERLY EXAMINATIONS-202
 for(const visible of [ctx.portableText(multiline),ctx.docxVisibleText(multiline)]){
     assert(!visible.includes('<br>')&&visible.includes('2026\nTIME:')&&visible.includes('100\nInvigilator\nSignature'),'Real multiline header cells must expose line breaks rather than HTML words');
 }
+vm.runInContext(slice('function publicPlainTextFromStructured','function updateResultActionsForTab'),ctx);
+vm.runInContext(slice('function openTeachPanel','function closeTeachPanel'),ctx);
+Object.assign(ctx,{lastResult:{text:multiline,plain_text:multiline},teachEditor:{focus:()=>{}},teachPanel:{classList:{add:()=>{}}},aiSuggestionSequence:0,
+    updateTeachLanguageStatus:()=>{},showSmartSuggestions:()=>{},updateTeachButtons:()=>{},renderTeachPreview:()=>{},teachAiStatus:{},teachAiBtn:{}});
+ctx.openTeachPanel();
+assert(!ctx.teachEditor.value.includes('[[')&&!ctx.teachEditor.value.includes('<br>'),'Opening the editor must normalize incoming structured plain-text snapshots too');
 (async()=>{
     const preview=ctx.formatStructuredWorksheetLine(clean.split('\n')[0]);
     assert(preview.includes('<span>I अ से श्र तक वर्णमाला लिखो।</span>'));

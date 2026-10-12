@@ -4170,7 +4170,7 @@ function refreshSmartComposition() {
 
 function openTeachPanel() {
     if (!lastResult) return;
-    teachOriginalText = lastResult.plain_text || lastResult.text || '';
+    teachOriginalText = publicPlainTextFromStructured(lastResult.plain_text || lastResult.text || '');
     teachOriginalLayoutText = lastResult.text || teachOriginalText;
     teachEditor.value = teachOriginalText;
     teachHistory = [teachOriginalText];
