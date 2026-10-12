@@ -1405,8 +1405,8 @@ async function runAI(base64Image, mimeType, env, language = 'auto', difficulty =
       '; long vertical rules: ' + (Number(imageMeta?.longVerticalRules) || 0) +
       (imageMeta?.branchingLayout ? '; possible branching/diagram layout detected. Preserve arrows and branch relationships.' : '.') + '\n'
     : '';
-  const grids=Array.isArray(imageMeta?.detectedGrids)?imageMeta.detectedGrids.filter(g=>Number.isInteger(g.columns)&&g.columns>=5&&g.columns<=52&&g.rows===1&&[g.x,g.y,g.w,g.h].every(v=>Number.isFinite(v)&&v>=0&&v<=1000)).slice(0,12):[];
-  const gridSection=grids.length ? '\nLOCAL BORDER EVIDENCE (recheck against pixels):\n'+grids.map(g=>`Visually detected EMPTY one-row grid at normalized x=${g.x}, y=${g.y}, width=${g.w}, height=${g.h}: ${g.columns} columns, ONE row. Use [[GRID: ${g.columns}x1]] here. Notebook lines passing through it are background. Do not substitute an expected alphabet or number count.`).join('\n')+'\n' : '';
+  const grids=Array.isArray(imageMeta?.detectedGrids)?imageMeta.detectedGrids.filter(g=>g&&Number.isInteger(g.columns)&&g.columns>=2&&g.columns<=52&&Number.isInteger(g.rows)&&g.rows>=1&&g.rows<=32&&g.columns*g.rows<=600&&[g.x,g.y,g.w,g.h].every(v=>Number.isFinite(v)&&v>=0&&v<=1000)&&g.w>0&&g.h>0&&g.x+g.w<=1000&&g.y+g.h<=1000).slice(0,12):[];
+  const gridSection=grids.length ? '\nLOCAL BORDER EVIDENCE (recheck against pixels):\n'+grids.map(g=>`Visually detected EMPTY grid at normalized x=${g.x}, y=${g.y}, width=${g.w}, height=${g.h}: ${g.columns} columns, ${g.rows} rows. Recheck these physical borders against the current pixels. Preserve its measured size with [[TABLE_REGION: ${g.x},${g.y},${g.w},${g.h}]] followed by [[GRID: ${g.columns}x${g.rows}]] here. Notebook lines passing through it are background. Do not substitute an expected alphabet or number count.`).join('\n')+'\n' : '';
   const learnedConfusions = sanitizeLearningHints(learningHints);
   const learningSection = learnedConfusions.length
     ? '\nVISUAL CONFUSION MEMORY (human-corrected examples from this browser):\n' +

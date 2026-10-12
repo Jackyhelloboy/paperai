@@ -75,6 +75,21 @@ const fixture=[
     assert(!ctx.docxFooterXml('Name: Formative Assessment - I Class: UKG\nSub: English MARKS').includes('Formative Assessment'),'Body metadata must not be guessed into the footer');
     assert(ctx.docxFooterXml('[[FOOTER: FA - I || English]]').includes('FA - I'),'Explicit source footer must be retained');
     assert.equal(Layout.normalise('SECTION_ROW: I. Count || 5M'),'[[SECTION_ROW: I. Count || 5M]]');
+    // Exact pixels from the two curved blank strips in the Hindi training PDF.
+    const curvedBytes=fs.readFileSync('tests/fixtures/hindi-curved-grids.pgm');
+    const pgm=curvedBytes.toString('ascii',0,64).match(/^P5\s+(\d+)\s+(\d+)\s+255\s/);
+    assert(pgm,'Training grid fixture must be an 8-bit PGM');
+    const curved={width:Number(pgm[1]),height:Number(pgm[2]),data:new Uint8Array(Number(pgm[1])*Number(pgm[2])*4)};
+    for(let i=0;i<curved.width*curved.height;i++){
+        curved.data[4*i]=curved.data[4*i+1]=curved.data[4*i+2]=curvedBytes[pgm[0].length+i];curved.data[4*i+3]=255;
+    }
+    const curvedGrids=Layout.emptyGrids(curved);
+    assert.deepEqual(curvedGrids.map(g=>[g.columns,g.rows]),[[13,1],[13,1]],'Curved source strips must not become eight-cell or eleven-cell OCR guesses');
+    const curvedFixed=Layout.reconcileEmptyGrids('5. न:-\n[[GRID: 8x1]]\n6. प:-\n[[GRID: 11x1]]',curvedGrids);
+    assert.equal((curvedFixed.match(/GRID: 13x1/g)||[]).length,2);
+    const regionOnce=Layout.reconcileEmptyGrids('[[TABLE_REGION: 10,10,200,40]]\n[[GRID: 8x1]]\n6. प:-\n[[GRID: 11x1]]',curvedGrids);
+    assert.equal((regionOnce.match(/TABLE_REGION/g)||[]).length,2,'Reconciliation must replace stale model bounds instead of duplicating them');
+    assert(curvedGrids.every(g=>g.h<250),'Photo curvature must not inflate a blank row to the whole bounding-box height');
     const multi={width:600,height:400,data:new Uint8Array(600*400*4).fill(255)};
     const dot=(x,y)=>{const n=(y*600+x)*4;multi.data[n]=multi.data[n+1]=multi.data[n+2]=0;};
     for(let x=50;x<=250;x+=40)for(let y=40;y<=280;y++)dot(x,y);

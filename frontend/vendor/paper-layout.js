@@ -5,7 +5,7 @@
     else root.PaperAILayout = api;
 })(typeof globalThis === 'object' ? globalThis : this, function() {
     const profile = Object.freeze({
-        version: 6, pageWidth: 11906, pageHeight: 16838, margin: 720,
+        version: 7, pageWidth: 11906, pageHeight: 16838, margin: 720,
         font: 'Arial', scriptFont: 'Noto Sans Devanagari',
         bodySize: 24, sectionSize: 26, titleSize: 28, line: 270,
         gridHeight: 460, borderSize: 6, cellPadding: 90,
@@ -120,8 +120,8 @@
         return m ? {question:m[1].replace(/[ \t]{2,}/g,' '),answer:'(        )'} : null;
     }
     function emptyGrids(image) {
-        // Conservative border check for small, empty, one-row handwriting grids.
-        // Larger tables, populated grids and incomplete boundaries are left to OCR.
+        // Follow physical borders, including curved photographed paper.
+        // Populated cells and incomplete boundaries remain with recognition.
         const {width:w,height:h,data}=image;
         if(w>1000||h>2000) return [];
         const dark=new Uint8Array(w*h), expanded=new Uint8Array(w*h);
@@ -142,7 +142,7 @@
         const segments=[];
         for(let x=15;x<w-15;x++) {
             let start=-1,last=-1,count=0;
-            const finish=()=>{if(start>=0&&last-start>=28&&count/(last-start+1)>=.7)segments.push({x,y:start,z:last});};
+            const finish=()=>{if(start>=0&&last-start>=20&&count/(last-start+1)>=.7)segments.push({x,y:start,z:last});};
             for(let y=0;y<h;y++)if(expanded[y*w+x]) {
                 if(start<0||y-last>6){finish();start=y;count=0;}
                 last=y;count++;
@@ -163,7 +163,23 @@
         }
         const results=[];
         for(const g of groups){
-            const ls=g.lines.sort((a,b)=>a.x-b.x), n=ls.length;
+            const ls=g.lines.sort((a,b)=>a.x-b.x);
+            // Page-edge strokes can share the grid's vertical range. Remove an
+            // uneven outer gap only when both horizontal borders do not connect it.
+            const initialGaps=ls.slice(1).map((p,i)=>p.x-ls[i].x).sort((a,b)=>a-b);
+            const typical=initialGaps[Math.floor(initialGaps.length/2)];
+            const connects=(left,right)=>['y','z'].every(end=>{
+                let ink=0,total=0;
+                for(let x=Math.ceil(left.x)+4;x<right.x-4;x++){
+                    const t=(x-left.x)/(right.x-left.x),yy=Math.round(left[end]*(1-t)+right[end]*t);
+                    let hit=0;for(let dy=-8;dy<=8;dy++)if(yy+dy>=0&&yy+dy<h)hit|=dark[(yy+dy)*w+x];
+                    ink+=hit;total++;
+                }
+                return total&&ink/total>.65;
+            });
+            if(ls.length>5&&ls[ls.length-1].x-ls[ls.length-2].x>typical*1.4&&!connects(ls[ls.length-2],ls[ls.length-1]))ls.pop();
+            if(ls.length>5&&ls[1].x-ls[0].x>typical*1.4&&!connects(ls[0],ls[1]))ls.shift();
+            const n=ls.length;
             if(n<3||n>53||g.z-g.y>Math.min(700,h*.8))continue;
             const gaps=ls.slice(1).map((p,i)=>p.x-ls[i].x).sort((a,b)=>a-b),median=gaps[Math.floor(gaps.length/2)];
             if(median<10||median>100||gaps.some(x=>x<median*.65||x>median*1.55))continue;
@@ -185,8 +201,9 @@
             for(let yy=Math.ceil(g.y);yy<=Math.floor(g.z);yy++){
                 let ink=0,total=0;
                 for(let xx=Math.ceil(leftEdge.x)+4;xx<rightEdge.x-4;xx++){
-                    const t=(xx-leftEdge.x)/(rightEdge.x-leftEdge.x);
-                    const row=Math.round(yy+(leftEdge.y-g.y)*(1-t)+(rightEdge.y-g.y)*t);
+                    const index=Math.max(0,Math.min(ls.length-2,ls.findIndex(p=>p.x>=xx)-1));
+                    const left=ls[index],right=ls[index+1],t=(xx-left.x)/(right.x-left.x);
+                    const row=Math.round(yy+(left.y-g.y)*(1-t)+(right.y-g.y)*t);
                     let hit=0;for(let dy=-2;dy<=2;dy++)if(row+dy>=0&&row+dy<h)hit|=dark[(row+dy)*w+xx];
                     ink+=hit;total++;
                 }
@@ -206,7 +223,7 @@
                 let ink=0,total=0;
                 const left=ls[i],right=ls[i+1],padding=Math.max(5,Math.round((right.x-left.x)*.15));
                 for(let x=Math.ceil(left.x)+padding;x<right.x-padding;x++){
-                    const t=(x-leftEdge.x)/(rightEdge.x-leftEdge.x),shift=(leftEdge.y-g.y)*(1-t)+(rightEdge.y-g.y)*t;
+                    const t=(x-left.x)/(right.x-left.x),shift=(left.y-g.y)*(1-t)+(right.y-g.y)*t;
                     const top=Math.round(rowEdges[r]+shift)+6,bottom=Math.round(rowEdges[r+1]+shift)-6;
                     for(let y=top;y<bottom;y++){if(y>=0&&y<h){ink+=dark[y*w+x]||0;total++;}}
                 }
@@ -215,7 +232,7 @@
             if(populated)continue;
             const x=ls[0].x,z=ls[n-1].x;
             const y=Math.min(...ls.map(p=>p.y)),bottom=Math.max(...ls.map(p=>p.z));
-            results.push({columns:n-1,rows:rowEdges.length-1,x:Math.round(x/w*1000),y:Math.round(y/h*1000),w:Math.round((z-x)/w*1000),h:Math.round((bottom-y)/h*1000)});
+            results.push({columns:n-1,rows:rowEdges.length-1,x:Math.round(x/w*1000),y:Math.round(y/h*1000),w:Math.round((z-x)/w*1000),h:Math.round((rowEdges[rowEdges.length-1]-rowEdges[0]+3)/h*1000)});
         }
         return results.sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,12);
     }
@@ -326,6 +343,7 @@
         for(let n=0;n<candidates.length;n++){
             const indexes=candidates[n].indexes;
             const grid=grids[n],region=figure([grid.x,grid.y,grid.w,grid.h].join(','));
+            if(region&&indexes[0]>0&&/^\s*\[\[TABLE_REGION:/i.test(lines[indexes[0]-1]))lines[indexes[0]-1]='';
             lines[indexes[0]]=(region?'[[TABLE_REGION: '+[grid.x,grid.y,grid.w,grid.h].join(',')+']]\n':'')+'[[GRID: '+grid.columns+'x'+grid.rows+']]';
             for(const i of indexes.slice(1))lines[i]='';
         }

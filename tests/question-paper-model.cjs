@@ -10,6 +10,8 @@ assert(!guardCtx.degenerateOcr('1. Write the answer. _________'));
 assert(guardCtx.shouldAcceptVerifiedText('5. न :- '+'_'.repeat(97500),'IV. शब्द बनाकर लिखो।\n1. अ - ______\n2. फ - ______'));
 assert(!guardCtx.shouldAcceptVerifiedText('5. न :- '+'_'.repeat(97500),'No text detected'));
 assert(!guardCtx.shouldAcceptVerifiedText('I. A real question.','_'.repeat(1000)));
+assert(!guardCtx.invalidLayoutMarkers('[[TABLE_REGION: 100,200,450,100]]\n[[TABLE_ROW: Fruit || Name]]\n[[TABLE_ROW:  ||  ]]'),'Measured table geometry is a supported layout annotation');
+assert(guardCtx.invalidLayoutMarkers('[[TABLE_REGION: 900,200,450,100]]'),'Off-page table bounds must be rejected');
 assert(guardCtx.invalidLayoutMarkers('[[FIGURE: 100,900,100,200| |none]]'));
 assert(guardCtx.invalidLayoutMarkers('[[FIGURE: .1,.2,.3,.4| |none]]'));
 assert(!guardCtx.invalidLayoutMarkers('[[FIGURE_ROW: 100,200,300,100| |none || 450,200,300,100| |box]]'));

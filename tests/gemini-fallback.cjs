@@ -34,12 +34,15 @@ const good={response:'1. Write your name. ______',usage:{prompt_tokens:100,compl
 const limit=()=>{throw new Error('3036: daily free allocation reached');};
 (async()=>{
   const test=environment(limit);queue.push(output('१. अपना नाम लिखिए। ______'));
-  let response=await ctx.handler.fetch(image(),test.env),body=await response.json();
+  let response=await ctx.handler.fetch(image({detectedGrids:[{columns:5,rows:8,x:317,y:277,w:329,h:254},{columns:9999,rows:1,x:0,y:0,w:20,h:20},{columns:5,rows:1,x:990,y:0,w:40,h:20},null]}),test.env),body=await response.json();
   assert.equal(response.status,200);assert(body.result.full_text.includes('अपना नाम'));assert(!body.result.full_text.includes('reasoning'));
   assert.equal(primaryCalls,1);assert.equal(requests.length,1);
   const request=requests[0];assert.deepEqual(request.contents[0].parts[0],{inline_data:{mime_type:'image/png',data:'AA=='}});
   assert(request.contents[0].parts[1].text.includes('Never solve'));assert(request.contents[0].parts[1].text.includes('FIGURE'));
   assert(request.contents[0].parts[1].text.includes('TABLE_ROW'));assert(request.contents[0].parts[1].text.includes('marks'));
+  assert(request.contents[0].parts[1].text.includes('[[GRID: 5x8]]'),'Measured multi-row grid evidence must reach the backup model');
+  assert(!request.contents[0].parts[1].text.includes('9999'),'Invalid geometry must never enter the model prompt');
+  assert(!request.contents[0].parts[1].text.includes('x=990'),'Off-page geometry must never enter the model prompt');
   assert(request.systemInstruction.parts[0].text.includes('literal OCR'));assert.equal(request.generationConfig.temperature,0);
   assert(!(JSON.stringify(request).includes('fixture-credential')),'Credential belongs only in the request header');
   let status=await ctx.getUsageStatus(test.env);assert(status.provider_limit_reached);assert.equal(status.estimated_used,0);
