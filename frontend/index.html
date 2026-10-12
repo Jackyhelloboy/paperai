@@ -4593,7 +4593,7 @@ function portableText(value) {
             worksheetCells(body,52).map(x=>x==='_'?'□':x).join(' | '))
         .replace(/\[\[ARITHMETIC_ROW:\s*([\s\S]*?)\]\]/gi, (_,body)=>String(body).split(/\s*\|\|\s*/).map(cell=>cell.replace(/<br>/gi,'\n')).join('\n\n'))
         .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
-            worksheetCells(body,32).join(' | '))
+            worksheetCells(body,32).map(cell=>cell.replace(/<br>/gi,'\n')).join(' | '))
         .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,12).join('    '))
         .replace(/\[\[ANSWER_LINES:\s*(\d{1,2})\]\]/gi, (_,n) =>
@@ -4602,7 +4602,7 @@ function portableText(value) {
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' [ ]').join('   '))
         .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
-            worksheetCells(body,32).join(' | '))
+            worksheetCells(body,32).map(cell=>cell.replace(/<br>/gi,'\n')).join(' | '))
         .replace(/\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]/gi, (_, label) =>
             '[' + String(label || '').trim() + ' picture] [ ]')
         .replace(/\[\[PICTURE:\s*([\s\S]*?)\]\]/gi, (_, label) =>
@@ -5331,7 +5331,7 @@ function docxVisibleText(value) {
             worksheetCells(body,52).map(x=>x==='_'?'□':x).join(' | '))
         .replace(/\[\[ARITHMETIC_ROW:\s*([\s\S]*?)\]\]/gi, (_,body)=>String(body).split(/\s*\|\|\s*/).map(cell=>cell.replace(/<br>/gi,'\n')).join('\n\n'))
         .replace(/\[\[TABLE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
-            worksheetCells(body,32).join(' | '))
+            worksheetCells(body,32).map(cell=>cell.replace(/<br>/gi,'\n')).join(' | '))
         .replace(/\[\[CHOICE_ROW:\s*([\s\S]*?)\]\]/gi, (_,body) =>
             worksheetCells(body,12).join('    '))
         .replace(/\[\[ANSWER_LINES:\s*(\d{1,2})\]\]/gi, (_,n) =>
@@ -5340,7 +5340,7 @@ function docxVisibleText(value) {
         .replace(/\[\[OPTION_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
             String(body || '').split(/\s*\|\|\s*/).map(x => x.trim() + ' ☐').join('    '))
         .replace(/\[\[MATCH_ROW:\s*([\s\S]*?)\]\]/gi, (_, body) =>
-            worksheetCells(body,32).join('    '))
+            worksheetCells(body,32).map(cell=>cell.replace(/<br>/gi,'\n')).join('    '))
         .replace(/\[\[PICTURE_OPTION:\s*([\s\S]*?)\]\]/gi, (_, label) =>
             '[' + String(label || '').trim() + ' picture] ☐')
         .replace(/\[\[PICTURE:\s*([\s\S]*?)\]\]/gi, (_, label) =>

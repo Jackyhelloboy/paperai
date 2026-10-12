@@ -34,6 +34,11 @@ const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,repairLegacyBranchDi
     fetch:async()=>({ok:false}),setTimeout,clearTimeout,esc:String,formatOutputLine:String});
 vm.runInContext(slice('function xmlEscape','async function downloadWord'),ctx);
 vm.runInContext(slice('function worksheetCells','function formatOutput(text)'),ctx);
+vm.runInContext(slice('function collapsePortableAnswerBlankContinuations','function formatOcrAnnotation'),ctx);
+const multiline='[[TABLE_ROW: CLASS: || II - HINDI || QUARTERLY EXAMINATIONS-2026<br>TIME: 2h:30M<br>Name of the Student: _____ || 100<br>Invigilator<br>Signature]]';
+for(const visible of [ctx.portableText(multiline),ctx.docxVisibleText(multiline)]){
+    assert(!visible.includes('<br>')&&visible.includes('2026\nTIME:')&&visible.includes('100\nInvigilator\nSignature'),'Real multiline header cells must expose line breaks rather than HTML words');
+}
 (async()=>{
     const preview=ctx.formatStructuredWorksheetLine(clean.split('\n')[0]);
     assert(preview.includes('<span>I अ से श्र तक वर्णमाला लिखो।</span>'));
