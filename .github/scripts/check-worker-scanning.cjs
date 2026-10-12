@@ -1,6 +1,16 @@
 // One synthetic image check through the real production backend, not a provider-only check.
 // Tail data stays in memory; print only our fixed, sanitized transport records.
-const fs=require('node:fs'),{spawn}=require('node:child_process');
+const fs=require('node:fs'),https=require('node:https'),{spawn}=require('node:child_process');
+function request(url,options={},requestImpl=https.request){
+  return new Promise((resolve,reject)=>{
+    const req=requestImpl(url,{method:options.method||'GET',family:4,headers:options.headers||{},signal:options.signal},res=>{
+      if(res.statusCode>=300&&res.statusCode<400){res.resume();reject(new Error('Redirect rejected.'));return;}
+      const chunks=[];let size=0;res.on('data',chunk=>{size+=chunk.length;if(size>1024*1024){req.destroy();reject(new Error('Response too large.'));}else chunks.push(chunk);});
+      res.on('error',reject);res.on('end',()=>resolve({status:res.statusCode,ok:res.statusCode>=200&&res.statusCode<300,json:async()=>JSON.parse(Buffer.concat(chunks).toString('utf8'))}));
+    });req.on('error',reject);req.end(options.body||null);
+  });
+}
+
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function objects(text){
   const found=[];let start=-1,depth=0,quoted=false,escaped=false;
@@ -10,16 +20,16 @@ function objects(text){
     if(c==='"')quoted=true;else if(c==='{')depth++;else if(c==='}'&&--depth===0){try{found.push(JSON.parse(text.slice(start,i+1)));}catch(_){}start=-1;}
   }return found;
 }
-(async()=>{
+async function verifyProduction(){
   const expected=process.env.GITHUB_SHA;
   if(expected){
-    let active=false;
+    let active=false,lastHealth={http:null,revisionPresent:false,networkCode:null};
     for(let attempt=0;attempt<20;attempt++){
-      try{const response=await fetch('https://paperai-ocr.mdjawaadkhan57.workers.dev/health',{redirect:'error',signal:AbortSignal.timeout(5000)});
-        active=(await response.json()).revision===expected;}catch(_){}
+      try{const response=await request('https://paperai-ocr.mdjawaadkhan57.workers.dev/health',{redirect:'error',signal:AbortSignal.timeout(5000)});
+        const body=await response.json();active=body.revision===expected;lastHealth={http:response.status,revisionPresent:Boolean(body.revision),networkCode:null};}catch(error){lastHealth.networkCode=['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH'].includes(error.code)?error.code:['AbortError','TimeoutError','SyntaxError'].includes(error.name)?error.name:'REQUEST_FAILED';}
       if(active)break;await sleep(3000);
     }
-    if(!active)throw new Error('Production backend revision did not become active.');
+    if(!active){console.error(JSON.stringify({check:'backend-revision',...lastHealth,matched:false}));throw new Error('Production backend revision did not become active.');}
     console.log('Production backend revision matches the deployment commit.');
   }
   const tail=spawn('npx',['--yes','wrangler@4','tail','paperai-ocr','--format=json'],
@@ -29,7 +39,7 @@ function objects(text){
   try{
     await sleep(6000);
     const image=fs.readFileSync('tests/fixtures/scanning-smoke.png').toString('base64');
-    const response=await fetch('https://paperai-ocr.mdjawaadkhan57.workers.dev/api/ocr',{
+    const response=await request('https://paperai-ocr.mdjawaadkhan57.workers.dev/api/ocr',{
       method:'POST',redirect:'error',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({image,mimeType:'image/png',filename:'synthetic-smoke.png',language:'en'}),signal:AbortSignal.timeout(140000)});
     const body=await response.json();
@@ -56,4 +66,6 @@ function objects(text){
       else if(m[2]==='exception'&&['TypeError','AbortError','TimeoutError','Error'].includes(m[3]))console.log(JSON.stringify({transport:m[1],exception:m[3]}));
     }
   }
-})().catch(()=>{console.error('Production image verification failed.');process.exitCode=1;});
+}
+module.exports={request,objects,verifyProduction};
+if(require.main===module)verifyProduction().catch(()=>{console.error('Production image verification failed.');process.exitCode=1;});

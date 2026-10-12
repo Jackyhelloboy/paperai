@@ -255,6 +255,8 @@
             // A grid following its label is a native block, not printable marker text.
             if(!/^\s*\[\[(?:TABLE_ROW|MATCH_ROW):/i.test(line)&&!/^\s*\[\[GRID(?:_ROW)?:[^\n]*\]\]\s*$/i.test(line))
                 line=line.replace(/\[\[GRID(?:_ROW)?:\s*[\s\S]*?\]\]/gi,marker=>'\n'+marker+'\n');
+            if(!/^\s*\[\[(?:TABLE_ROW|MATCH_ROW):/i.test(line))
+                line=line.replace(/\[\[(?:TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):\s*[^\n]*?\]\]/gi,marker=>'\n'+marker+'\n');
             return line.split('\n');
         });
         for(let i=0;i<lines.length;i++){
@@ -343,7 +345,8 @@
         for(let n=0;n<candidates.length;n++){
             const indexes=candidates[n].indexes;
             const grid=grids[n],region=figure([grid.x,grid.y,grid.w,grid.h].join(','));
-            if(region&&indexes[0]>0&&/^\s*\[\[TABLE_REGION:/i.test(lines[indexes[0]-1]))lines[indexes[0]-1]='';
+            let previous=indexes[0]-1;while(previous>=0&&!lines[previous].trim())previous--;
+            if(region&&previous>=0&&/^\s*\[\[TABLE_REGION:/i.test(lines[previous]))lines[previous]='';
             lines[indexes[0]]=(region?'[[TABLE_REGION: '+[grid.x,grid.y,grid.w,grid.h].join(',')+']]\n':'')+'[[GRID: '+grid.columns+'x'+grid.rows+']]';
             for(const i of indexes.slice(1))lines[i]='';
         }

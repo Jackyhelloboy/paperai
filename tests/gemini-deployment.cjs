@@ -35,5 +35,17 @@ const {check,requestJson}=require('../.github/scripts/check-gemini.cjs');
       error.message.includes('HTTP '+status)&&!error.message.includes(fixture)&&!error.message.includes('private')&&error.transient===(status===429||status>=500));
   }
   await assert.rejects(requestJson('https://example.test/',fixture,null,1000,transport(200,'private '+fixture)),/Invalid check response/);
+  const {request:productionRequest}=require('../.github/scripts/check-worker-scanning.cjs');
+  const productionTransport=status=>(url,options,callback)=>{
+    assert.equal(options.family,4,'Production check must use bounded IPv4 transport');
+    assert(options.signal instanceof AbortSignal);
+    const req=new EventEmitter();req.end=body=>queueMicrotask(()=>{
+      const res=new EventEmitter();res.statusCode=status;res.resume=()=>{};callback(res);
+      res.emit('data',Buffer.from('{"status":"healthy","revision":"fixture-release"}'));res.emit('end');
+    });req.destroy=()=>{};return req;
+  };
+  const productionResponse=await productionRequest('https://example.test/health',{signal:AbortSignal.timeout(1000)},productionTransport(200));
+  assert.equal(productionResponse.status,200);assert.equal((await productionResponse.json()).revision,'fixture-release');
+  await assert.rejects(productionRequest('https://example.test/health',{signal:AbortSignal.timeout(1000)},productionTransport(302)),/Redirect rejected/);
   console.log('Deployment check: bounded IPv4 metadata/generation checks, secret-header isolation, redirect rejection, sanitized failures and incomplete-output detection verified.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
