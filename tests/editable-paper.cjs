@@ -86,7 +86,7 @@ const fixture=[
     }
     const curvedGrids=Layout.emptyGrids(curved);
     assert.deepEqual(curvedGrids.map(g=>[g.columns,g.rows]),[[13,1],[13,1]],'Curved source strips must not become eight-cell or eleven-cell OCR guesses');
-    assert(Layout.normalise('5. न:- [[TABLE_REGION: 121,50,767,34]] [[GRID: 13x1]]').includes('5. न:- \n[[TABLE_REGION:'),'Inline geometry hints must become hidden layout blocks');
+    assert(Layout.normalise('5. न:- [[TABLE_REGION: 121,50,767,34]] [[GRID: 13x1]]').includes('5. न:-\n[[TABLE_REGION:'),'Inline geometry hints must become hidden layout blocks');
     const curvedFixed=Layout.reconcileEmptyGrids('5. न:-\n[[GRID: 8x1]]\n6. प:-\n[[GRID: 11x1]]',curvedGrids);
     assert.equal((curvedFixed.match(/GRID: 13x1/g)||[]).length,2);
     const interleaved='5. न:-\n[[TABLE_REGION: 119,50,769,35]]\n[[GRID: 13x1]]\n[[TABLE_REGION: 119,50,769,35]]\n[[GRID: 13x1]]\n6. प:-\n[[TABLE_REGION: 120,118,767,34]]\n[[GRID: 13x1]]\n[[TABLE_REGION: 120,118,767,34]]\n[[GRID: 13x1]]';
