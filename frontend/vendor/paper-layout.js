@@ -69,6 +69,9 @@
         // A marks equation is moved only geometrically, never calculated or changed.
         const s=String(value||'').trim();
         const number='(?:[0-9०-९]+(?:[./][0-9०-९]+)?[¼½¾]?|[¼½¾])';
+        // Explicit units identify marks safely even when OCR places them first or mid-sentence.
+        const labelled=s.match(new RegExp('(?:^|\\s)(\\(?'+number+'\\s*(?:marks?|अंक|M)\\)?)(?=\\s|$)','i'));
+        if(labelled){const title=(s.slice(0,labelled.index)+s.slice(labelled.index+labelled[0].length)).replace(/\s+/g,' ').trim();if(title)return {title,marks:labelled[1]};}
         const equation='\\(?'+number+'\\s*[x×X*]\\s*'+number+'\\s*=\\s*'+number+'\\s*(?:[mM]|[Mm]arks)?\\)?';
         // A bare parenthesized score is a mark only after an instruction's
         // closing punctuation. Do not reinterpret operands such as f(5).
@@ -269,7 +272,29 @@
         }
         parts.push(text.slice(last));return parts.filter(Boolean);
     }
+    function cleanQuestionPaper(value, depth=0) {
+    if(depth>16)return '';
+    const text=String(value||'');let out='',cursor=0;
+    while(cursor<text.length){
+        const start=text.indexOf('[[',cursor);if(start<0){out+=text.slice(cursor);break;}
+        out+=text.slice(cursor,start);let end=start+2,level=1;
+        while(end<text.length&&level){if(text.slice(end,end+2)==='[['){level++;end+=2;}else if(text.slice(end,end+2)===']]'){level--;end+=2;}else end++;}
+        if(level){out+=text.slice(start);break;}
+        const token=text.slice(start,end),m=token.match(/^\[\[([A-Z_-]+):\s*([\s\S]*)\]\]$/i);
+        if(!m)out+=token;
+        else {const name=m[1].toUpperCase(),body=m[2];
+            if(/^(?:STRIKE|DOUBLE-STRIKE|ANSWER|SOLUTION|ANSWER_KEY|MARGIN|STAMP)$/.test(name)){}
+            else if(name==='REPLACE'){const pieces=body.split(/\s*(?:->|→|=>|\|\|)\s*/);out+=pieces.length>1?cleanQuestionPaper(pieces.slice(1).join(' '),depth+1):'';}
+            else if(/^(?:INSERT|HIGHLIGHT)$/.test(name))out+=cleanQuestionPaper(body,depth+1);
+            else out+='[['+m[1]+': '+cleanQuestionPaper(body,depth+1)+']]';
+        }
+        cursor=end;
+    }
+    return out;
+}
+
     function unwrapEmphasis(value,depth=0) {
+        value=cleanQuestionPaper(value);
         if(depth>8)return String(value||'');
         return inlineParts(value).map(part=>{
             const m=part.match(/^\[\[(UNDERLINE|DOUBLE-UNDERLINE|STRIKE|DOUBLE-STRIKE|INSERT|REPLACE|HIGHLIGHT|BOXED):\s*([\s\S]*)\]\]$/i);
@@ -277,6 +302,7 @@
         }).join('');
     }
     function normalise(text) {
+        text=cleanQuestionPaper(text);
         const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
         text=String(text||'').replace(/\[\[TABLE_ROW:\s*(\[\[(?:FIGURE|SOURCE_FIGURE)_ROW:[\s\S]*?\]\])\s*((?:\|\|\s*_?\s*)*)\]\]/gi,'$1');
@@ -399,5 +425,5 @@
         }
         return lines.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,questionAnswer,emptyGrids,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,reconcileEmptyGrids};
 });

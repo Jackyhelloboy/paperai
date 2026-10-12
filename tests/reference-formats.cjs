@@ -38,7 +38,7 @@ const fixtures={
         if(name==='humanities'){
             const run=Array.from(doc.getElementsByTagName('w:r')).find(r=>r.textContent==='passage');
             assert.equal(run.getElementsByTagName('w:u')[0].getAttribute('w:val'),'single','Underlined question cues were lost');
-            assert(xml.includes('w:val="double"')&&xml.includes('<w:strike/>')&&xml.includes('<w:bdr'));
+            assert(xml.includes('w:val="double"')&&!xml.includes('<w:strike/>')&&xml.includes('<w:bdr'));
             assert(xml.indexOf('Leaf')<xml.indexOf('Root')&&xml.indexOf('Stem')<xml.indexOf('Flower'),'Matching choices were reordered or solved');
         }
         if(name==='worksheet')assert(xml.includes('w:trHeight w:val="454"'),'Teacher grid height was ignored');
@@ -100,11 +100,11 @@ const fixtures={
     assert(!inlineHeadingXml.includes('[['),'Structured headings must never print annotation syntax');
     const nested='[[HIGHLIGHT:[[BOXED: हिन्दी शब्द से अंग्रेजी शब्द जोड़ो।]]]]';
     const nestedPreview=ctx.formatOutputLine(nested);
-    assert(nestedPreview.includes('ocr-highlight')&&nestedPreview.includes('ocr-boxed')&&!nestedPreview.includes('[['),'Nested visual edits must render in the preview without marker text');
+    assert(!nestedPreview.includes('ocr-highlight')&&nestedPreview.includes('ocr-boxed')&&!nestedPreview.includes('[['),'Nested visual edits must render in the preview without marker text');
     const nestedZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx(nested)).arrayBuffer());
     const nestedXml=await nestedZip.file('word/document.xml').async('text');
     assert(!nestedXml.includes('[['),'Nested visible edits must not block Word export or leak annotation syntax');
-    assert(nestedXml.includes('<w:highlight')&&nestedXml.includes('<w:bdr'),'Nested box and highlight must stay native editable run properties');
+    assert(!nestedXml.includes('<w:highlight')&&nestedXml.includes('<w:bdr'),'Nested box and highlight must stay native editable run properties');
     assert.equal((nestedXml.match(/हिन्दी शब्द से अंग्रेजी शब्द जोड़ो।/g)||[]).length,1,'Nested formatting must not duplicate the source text');
     assert.equal(Layout.unwrapEmphasis(nested),'हिन्दी शब्द से अंग्रेजी शब्द जोड़ो।');
     const groupedQuestions='[[MATCH_ROW: 1. अं - ______ || 2. इ - ______ || 3. आ - ______]]\n[[MATCH_ROW: 4. ए - ______ || 5. ऊ - ______ || 6. ओ - ______]]';

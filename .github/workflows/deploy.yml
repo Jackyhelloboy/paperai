@@ -40,6 +40,7 @@ jobs:
           node tests/scan-resume.cjs
           node tests/docx-reference-layout.cjs
           node tests/reference-formats.cjs
+          node tests/clean-question-paper.cjs
           node tests/ai-quota.cjs
           node tests/automatic-upload.cjs
           node tests/gemini-fallback.cjs

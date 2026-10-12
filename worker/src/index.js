@@ -1453,7 +1453,7 @@ Before answering, silently inspect the complete page from top-left to bottom-rig
 
 STRICT TRANSCRIPTION RULES:
 1. Output ONLY text and clearly meaningful written symbols visible in the image. No explanations, summaries, Markdown wrappers, or commentary.
-2. Preserve the source exactly even when it contains mistakes. Do not correct an equation, date, spelling, answer, or fact.
+2. Preserve question facts, operands, dates, spelling and numbering literally. Resolve visible handwritten question edits to their final wording. Omit completed answers and worked solutions, restoring answer blanks. Do not correct or solve an equation.
 3. Preserve English, Hindi, Telugu, and every other visible script without transliteration. A Devanagari word must remain Devanagari; never output Roman spellings such as "rupaye" when the visible source is "रुपया". Legitimate printed/handwritten English words must remain English.
 4. Treat intentional handwriting as primary content, not as noise. Carefully inspect connected cursive strokes, faint pencil, overwritten characters, Devanagari matras/conjuncts, and Telugu vowel signs/conjuncts.
 5. Do NOT treat page show-through, reverse-side writing, paper embossing, shadows, ruled-line texture, erased graphite ghosts, compression artifacts, or background fabric as new text unless there is clear intentional ink/pencil evidence on the current page surface.
@@ -1477,7 +1477,7 @@ Use only text actually visible in the image. If there is no right-side label, le
 13. Preserve mathematics and arithmetic EXACTLY. Examples of symbols to verify include +, -, −, ×, x, *, ÷, /, =, ≠, ≈, <, >, ≤, ≥, ±, √, ∑, ∫, π, %, °, ^, superscripts, subscripts, fractions, decimals, and brackets.
 14. Never solve or normalize calculations. If the image says "2x2=4", output "2x2=4". If it visibly says "2×2=4", preserve the multiplication sign as "×".
 15. Preserve marks/score notation exactly, including forms such as "2 marks", "[2]", "(2)", "2M", "2×2=4", "5×2=10", fractions, percentages, currency, measurements, and units.
-16. Preserve meaningful visible symbols such as ✓, ✗, ☑, ☐, ○, ●, →, ←, ↔, ↑, ↓, bullets, colons, semicolons, quotes, apostrophes, underscores, and answer blanks when clearly present.
+16. Preserve meaningful question symbols, checkbox options, diagram arrows, punctuation and answer blanks. Omit grading ticks, crosses and editorial correction arrows.
 17. For diagrams, shapes, flowcharts, maps, or labelled drawings: preserve visible labels, numbers, arrows and shape relationships. Use visible symbols such as ○, □, →, ←, ↗, ↘, ↑, ↓ only when the corresponding shape/arrow is actually visible. Keep connected branches on separate lines when needed so the relationship remains readable. Do not invent a description of the drawing.
 17A. WRITTEN PICTURE REQUESTS WITHOUT AN ILLUSTRATION: a box with only a written request such as "tiger pic" uses [[PICTURE: tiger]]. This is flagged for review, not filled with a fabricated picture. Remove only the trailing word "pic/picture".
 17B. ACTUAL ILLUSTRATIONS: always use the FIGURE crop syntax in the reference layout rules above, even when the object name is not written. A blank caption is correct. Never replace actual pixels with an [unreadable] picture placeholder or guess an object name.
@@ -1503,16 +1503,11 @@ Use only text actually visible in the image. If there is no right-side label, le
 21. Grids/word-search/crossword boxes: ONE visual grid row per line and one cell per " | ". Keep grapheme clusters together, for example "बा" is one cell.
 22. Anything visibly OUTSIDE a grid boundary must stay outside the grid. Never insert side labels, answer numbers, or marks into grid cells.
 23. Never invent page markers, filenames, headings, or text that is not visibly present.
-24. Detect human editing marks instead of throwing them away. Cross-outs, repeated mistakes, overwriting, caret insertions, circles, underlines, boxes, highlights, margin notes, ticks, crosses, and teacher corrections are part of the document.
-25. For a single legible strike-through use exactly: [[STRIKE: text]]
-26. If the same legible text has two or more clear strike lines or a heavy double-cancel mark, use exactly: [[DOUBLE-STRIKE: text]]
-27. If both the original and replacement are legible, use exactly: [[REPLACE: old -> new]]. Never guess an unreadable old word.
-28. For a clearly inserted word/number written with a caret or insertion mark, use exactly: [[INSERT: text]]
-29. For visible formatting/annotation use only when visually clear: [[CIRCLED: text]], [[UNDERLINE: text]], [[DOUBLE-UNDERLINE: text]], [[BOXED: text]], [[HIGHLIGHT: text]], [[MARGIN: text]], [[STAMP: text]]. Use [[SIGNATURE: text]] only when signature letters are actually readable; otherwise use [[SIGNATURE: [unreadable]]].
-30. If a writer makes multiple sequential mistakes, keep every visible stage in reading order. Example: [[STRIKE: first]] [[STRIKE: second]] final. Do not collapse them into only the final answer.
-31. If struck or overwritten text is partly readable, preserve the readable characters and use [unclear] only for the unreadable portion, for example [[STRIKE: ans[unclear]]].
-32. The [[...]] edit markers above are OCR metadata, not source text. Use them ONLY when the corresponding visual mark is genuinely present. Never invent a strike, correction, underline, circle, box, highlight, margin note, stamp, or signature from low image quality.
-33. Preserve teacher marks and grading notation such as ✓, ✗, ticks, crosses, circles around marks, "2/5", "+1", "-1", "Good", "Wrong", initials, and correction arrows when visible.
+24. Produce a clean, unsolved question paper automatically. Resolve visible corrections to QUESTION wording: omit cancelled drafts, use the final legible replacement, and insert intended words naturally. Never render editorial strikes, replacement arrows, insert highlights or grading comments.
+25. Remove completed responses, solutions, answer keys, ticks and grading feedback from answer positions and leave editable blanks. Never solve a question.
+26. Preserve operands, examples, multiple-choice options, matching choices and word banks as question content. Do not mistake these for completed responses.
+27. Preserve meaningful question boxes, diagrams, tables and blank answer spaces. Underlining that is part of the question cue may remain. Never invent unreadable replacement text; use [unclear] for an unreadable question fragment.
+28. Place every identifiable question/section score in the RIGHT marks cell of QUESTION_ROW/SECTION_ROW, even when it appears left or between words in the source. Remove that score from the question body. Do not move operands, option numbers or coordinates.
 34. Do not hallucinate text hidden by blur, glare, cropping, scribble, or low resolution. Use [unclear] only for the unreadable portion instead of inventing a word.
 35. Write "No text detected" only when the image truly contains no readable text or meaningful written symbols.
 
@@ -1584,12 +1579,12 @@ ${blankSafeDraft(text)}
 ---END FIRST OCR---
 
 VERIFICATION RULES:
-- Use only the explicitly defined layout and edit marker names. Unknown annotations such as [[कक]] are invalid. Read the source again: transcribe ordinary written text literally, or use STRIKE/INSERT/REPLACE only when the corresponding edit is visibly present. Never put a proposed answer inside invented brackets.
+- Use only the explicitly defined layout and edit marker names. Unknown annotations such as [[कक]] are invalid. Read the source again: transcribe ordinary written text literally, resolve visibly edited question wording into clean final text without editorial markers. Never put a proposed answer inside invented brackets.
 - If the draft contains a repeated character loop or an incomplete first line, discard that defective draft and read the entire source page again. Never continue an underscore loop. A visible answer rule needs only a short blank or ANSWER_LINES marker.
 - Every FIGURE/BANNER crop must contain exactly four INTEGER coordinates x,y,WIDTH,HEIGHT on the 0–1000 page scale. Do not return x1,y1,x2,y2 endpoints or 0–1 fractions. Both x+width and y+height must fit within 1000. Recheck invalid crops against the actual image; never preserve an invalid draft crop.
 - Keep text unchanged when the pixels support it.
 - Resolve [unclear] only when the image gives enough visual evidence.
-- Remove [[INSERT]], [[REPLACE]], [[STRIKE]], [[CIRCLED]], [[UNDERLINE]], or other edit markers if the corresponding visual mark is not clearly present.
+- Output clean questions only. Resolve replacements and insertions naturally, omit cancelled drafts, completed responses and grading comments; retain question options, operands and blank answer spaces.
 - Do not turn faint erased writing, reverse-side show-through, indentation, shadows, or paper texture into readable text.
 - Do not fill answer blanks from context or options.
 - Correct a character only when the image itself supports that correction.

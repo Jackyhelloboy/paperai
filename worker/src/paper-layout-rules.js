@@ -23,12 +23,34 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 7, reviewed across the complete t
 - Vertically stacked arithmetic is not ordinary prose. Emit [[ARITHMETIC_ROW: 34<br>+ 12<br>___ || 68<br>- 21<br>___]] with one cell per original problem and <br> between its observed lines. Preserve every operand, operator and visible answer rule; never calculate the answers. H/T/O labels above unbordered arithmetic stay in that arithmetic cell, not a bordered table. Use TABLE_ROW for a visibly bordered place-value chart; notebook ruling alone does not establish table borders.
 - An individual question with a separate right-side mark uses [[QUESTION_ROW: exact question || exact mark]]. Fractions such as ½ and equations such as 4×½=2 must remain literal.
 - Repeated headers indicate a new question paper only when visibly present. Read continuous questions across scan pages in order. Do not invent exam titles or copy a school banner from another page or reference.
-- Output the question paper alone. Do not add assistant answers, solutions, answer keys, encouragement, formatting suggestions or explanatory introductions. If an answer is actually written in the source, transcribe it faithfully; do not silently erase source content.
+- Output the question paper alone. Do not add assistant answers, solutions, answer keys, encouragement, formatting suggestions or explanatory introductions. Remove completed answers, worked solutions, answer keys and grading comments from answer positions; restore those spaces as blanks. Preserve question operands, examples, options, word banks and matching choices: these are question content, not completed answers. Resolve handwritten question corrections to the intended final wording automatically; omit cancelled drafts and insert the final replacement naturally. Do not emit editorial STRIKE, DOUBLE-STRIKE, REPLACE, INSERT or HIGHLIGHT markers.
 - Letter grids use GRID or consecutive GRID_ROW markers. Up to 52 columns, 32 rows, 600 cells. Use only observed counts; uncertain borders remain [unclear]. Never turn ordinary notebook lines into ANSWER_LINES.
 - These reference rules govern representation and layout only. Never copy questions, school identities, dates, marks or answers from a different training paper.
 `;
 
+export function cleanQuestionPaper(value, depth=0) {
+    if(depth>16)return '';
+    const text=String(value||'');let out='',cursor=0;
+    while(cursor<text.length){
+        const start=text.indexOf('[[',cursor);if(start<0){out+=text.slice(cursor);break;}
+        out+=text.slice(cursor,start);let end=start+2,level=1;
+        while(end<text.length&&level){if(text.slice(end,end+2)==='[['){level++;end+=2;}else if(text.slice(end,end+2)===']]'){level--;end+=2;}else end++;}
+        if(level){out+=text.slice(start);break;}
+        const token=text.slice(start,end),m=token.match(/^\[\[([A-Z_-]+):\s*([\s\S]*)\]\]$/i);
+        if(!m)out+=token;
+        else {const name=m[1].toUpperCase(),body=m[2];
+            if(/^(?:STRIKE|DOUBLE-STRIKE|ANSWER|SOLUTION|ANSWER_KEY|MARGIN|STAMP)$/.test(name)){}
+            else if(name==='REPLACE'){const pieces=body.split(/\s*(?:->|→|=>|\|\|)\s*/);out+=pieces.length>1?cleanQuestionPaper(pieces.slice(1).join(' '),depth+1):'';}
+            else if(/^(?:INSERT|HIGHLIGHT)$/.test(name))out+=cleanQuestionPaper(body,depth+1);
+            else out+='[['+m[1]+': '+cleanQuestionPaper(body,depth+1)+']]';
+        }
+        cursor=end;
+    }
+    return out;
+}
+
 export function normaliseMarkerRows(text) {
+    text=cleanQuestionPaper(text);
     const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION';
     const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');
     text=String(text||'').replace(/\[\[REPLACE:\s*([^\[\]]*?)\s*\|\|\s*([^\[\]]*?)\]\]/gi,(_,oldText,newText)=>'[[REPLACE: '+oldText.trim()+' -> '+newText.trim()+']]');

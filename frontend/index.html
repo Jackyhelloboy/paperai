@@ -5099,6 +5099,7 @@ function isOutputHeadingLine(line, index, firstNonEmptyIndex) {
 }
 
 function formatOutputLine(line, depth=0) {
+    if(typeof PaperAILayout!=='undefined')line=PaperAILayout.cleanQuestionPaper(line);
     if(depth>8)return formatVisibleText(line);
     return PaperAILayout.inlineParts(line).map(part=>{
         const m=part.match(/^\[\[([A-Z_-]+)(?::\s*([\s\S]*))?\]\]$/i);
@@ -6036,6 +6037,7 @@ function docxEmphasisRuns(raw,style,depth=0) {
     }).join('');
 }
 function docxRichParagraph(raw, options = {}) {
+    if(typeof PaperAILayout!=='undefined')raw=PaperAILayout.cleanQuestionPaper(raw);
     // Embedded pictures stay real replaceable Word drawings even when inline.
     const standalone=String(raw||'').trim().match(/^\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]$/i);
     if(standalone){
