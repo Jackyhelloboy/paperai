@@ -22,5 +22,9 @@ export function invalidLayoutMarkers(text) {
         }
     }
     for(const m of String(text||'').matchAll(/\[\[SOURCE_PAGE:\s*([^\]]*)\]\]/gi))if(!/^[1-9][0-9]{0,2}$/.test(m[1].trim()))return true;
+    for(const m of String(text||'').matchAll(/\[\[GRID:\s*([^\]]*)\]\]/gi)){
+        const dimensions=m[1].trim().match(/^(\d{1,2})x(\d{1,2})$/i);
+        if(!dimensions||+dimensions[1]<1||+dimensions[1]>52||+dimensions[2]<1||+dimensions[2]>32||+dimensions[1]*+dimensions[2]>600)return true;
+    }
     return false;
 }

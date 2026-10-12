@@ -16,6 +16,9 @@ assert(!guardCtx.shouldAcceptVerifiedText('V. Write the meanings.\n1. Bird = ___
 assert(!guardCtx.invalidLayoutMarkers('[[SOURCE_PAGE: 2]]'));
 assert(guardCtx.invalidLayoutMarkers('[[SOURCE_PAGE: 0]]'));
 assert(guardCtx.invalidLayoutMarkers('[[SOURCE_PAGE: guess]]'));
+assert(guardCtx.invalidLayoutMarkers('[[GRID: 99x99]]'));
+assert(guardCtx.invalidLayoutMarkers('[[GRID: 13x1|unknown]]'));
+assert(!guardCtx.invalidLayoutMarkers('[[GRID: 13x1]]'));
 assert(!guardCtx.invalidLayoutMarkers('[[TABLE_REGION: 100,200,450,100]]\n[[TABLE_ROW: Fruit || Name]]\n[[TABLE_ROW:  ||  ]]'),'Measured table geometry is a supported layout annotation');
 assert(guardCtx.invalidLayoutMarkers('[[TABLE_REGION: 900,200,450,100]]'),'Off-page table bounds must be rejected');
 assert(guardCtx.invalidLayoutMarkers('[[FIGURE: 100,900,100,200| |none]]'));

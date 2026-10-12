@@ -401,6 +401,7 @@
     }
     function normalise(text) {
         text=cleanQuestionPaper(text);
+        text=text.replace(/\[\[GRID:\s*(\d{1,2})\s*[x×]\s*(\d{1,2})\s*(?:\|\s*(?:\|\s*)?(?:none|box))?\s*\]\](?:[ \t]+(?:none|box)(?=[ \t]*(?:\n|$)))?/gi,(_,columns,rows)=>'[[GRID: '+columns+'x'+rows+']]');
         const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
         text=String(text||'').replace(/\[\[TABLE_ROW:\s*(\[\[(?:FIGURE|SOURCE_FIGURE)_ROW:[\s\S]*?\]\])\s*((?:\|\|\s*_?\s*)*)\]\]/gi,'$1');
@@ -458,6 +459,11 @@
             lines[j]='[[SECTION_ROW: '+(existing?'':label+' ')+row[1].trim()+' || '+row[2].trim()+']]';lines[i]='';
         }
         for(let i=0;i<lines.length;i++){
+            const separated=lines[i].match(/^\s*((?:(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+|[0-9०-९]+[.)।]\s*)[^|]+?)\s*\|\|\s*([^|]+)\s*$/);
+            if(separated){
+                const score=section(separated[1].trim()+' '+separated[2].trim());
+                if(score&&score.marks.replace(/\s/g,'')===separated[2].replace(/\s/g,''))lines[i]='[['+(/^[0-9०-९]/.test(separated[1].trim())?'QUESTION_ROW':'SECTION_ROW')+': '+separated[1].trim()+' || '+separated[2].trim()+']]';
+            }
             if(/^\s*\[\[QUESTION_ROW:\s*(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+\S/.test(lines[i]))lines[i]=lines[i].replace('QUESTION_ROW:','SECTION_ROW:');
             const marker=lines[i].match(/^\s*\[\[SECTION_ROW:\s*([^|]*?)\]\]\s*$/i);
             const split=marker&&section(marker[1]);
@@ -489,7 +495,7 @@
                 lines[i].match(/^(.+?)\s{3,}(\S.*?)\s*$/);
             if(pair)lines[i]='[[MATCH_ROW: '+pair[1].trim()+' || '+pair[2].trim()+']]';
         }
-        return lines.join('\n');
+        return lines.map(line=>line.trimEnd()).join('\n');
     }
     function overlap(a,b) {
         const area=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x))*

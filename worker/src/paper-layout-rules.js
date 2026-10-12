@@ -52,6 +52,7 @@ export function cleanQuestionPaper(value, depth=0) {
 
 export function normaliseMarkerRows(text) {
     text=cleanQuestionPaper(text);
+    text=text.replace(/\[\[GRID:\s*(\d{1,2})\s*[x×]\s*(\d{1,2})\s*(?:\|\s*(?:\|\s*)?(?:none|box))?\s*\]\](?:[ \t]+(?:none|box)(?=[ \t]*(?:\n|$)))?/gi,(_,columns,rows)=>'[[GRID: '+columns+'x'+rows+']]');
     const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
     const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');
     text=String(text||'').replace(/\[\[REPLACE:\s*([^\[\]]*?)\s*\|\|\s*([^\[\]]*?)\]\]/gi,(_,oldText,newText)=>'[[REPLACE: '+oldText.trim()+' -> '+newText.trim()+']]');
