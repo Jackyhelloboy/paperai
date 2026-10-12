@@ -1,5 +1,5 @@
 // Read every audited Word/PDF. This verifies parsers/layout, not OCR character accuracy.
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
 const JSZip=require('../frontend/node_modules/jszip');
 const pdfjs=require('../frontend/node_modules/pdfjs-dist/legacy/build/pdf.js');
 const Edit=require('../frontend/vendor/pdf-editable-layout.js');
@@ -9,8 +9,12 @@ class DOMParser {parseFromString(...args){const d=new Parser().parseFromString(.
 const html=fs.readFileSync('frontend/index.html','utf8'),a=html.indexOf('function docxStructuredXml('),b=html.indexOf('async function extractOfficeZipFile(',a);
 const ctx=vm.createContext({DOMParser});vm.runInContext(html.slice(a,b),ctx);
 const corpus=JSON.parse(fs.readFileSync('training/corpus-review.json','utf8')),records=[];
+function inventory(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(entry=>entry.isDirectory()?inventory(path.join(dir,entry.name)):/\.(?:docx|pdf)$/i.test(entry.name)?[path.relative('training',path.join(dir,entry.name))]:[]);}
+const files=inventory('training').sort(),known=new Map(corpus.records.map(record=>[record.file,record]));
+const sources=files.map(file=>known.get(file)||{file,kind:'generated-qa',visual_review:'generated-output-baseline-not-a-training-reference'});
+assert(corpus.records.every(record=>files.includes(record.file)),'An audited source file is missing');
 (async()=>{
-    for(const source of corpus.records){
+    for(const source of sources){
         const bytes=fs.readFileSync('training/'+source.file);
         const record={file:source.file,kind:source.kind,visual_review:source.visual_review};
         if(source.file.toLowerCase().endsWith('.docx')){
@@ -38,7 +42,7 @@ const corpus=JSON.parse(fs.readFileSync('training/corpus-review.json','utf8')),r
         }
         records.push(record);console.log(source.file+': '+record.status);
     }
-    assert.equal(records.length,corpus.records.length);
-    const report={scope:'Every audited Word and PDF, including exact duplicates and prior outputs. Parser results are not a certificate of OCR or visual export accuracy.',records};
+    assert.equal(records.length,files.length);
+    const report={scope:'Every Word and PDF in the training folder, including original audited sources, duplicates and generated QA baselines. Generated outputs are not new training references. Parser results do not certify OCR or visual accuracy.',original_audited_sources:corpus.records.length,records};
     fs.writeFileSync('training/corpus-parser-results.json',JSON.stringify(report,null,2)+'\n');
 })().catch(e=>{console.error(e);process.exitCode=1;});

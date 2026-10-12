@@ -573,6 +573,7 @@ async function runGemini(env, requestBody, signal, state = {}) {
     ...(system.length ? {systemInstruction: {parts: system}} : {}),
     generationConfig: {temperature: 0, maxOutputTokens: Math.max(256, Math.min(16384, Number(requestBody.max_completion_tokens) || 6144))},
   };
+  const detailedRead=Number(requestBody.max_completion_tokens)>=8192&&contents.some(content=>content.parts.filter(part=>part.inline_data).length>1);
   const models = state.geminiModel ? [state.geminiModel] : [GEMINI_MODEL, GEMINI_CAPACITY_MODEL];
   for (let attempt = 0; attempt < models.length; attempt++) {
     const model = models[attempt], canContinue = attempt + 1 < models.length;
@@ -581,7 +582,7 @@ async function runGemini(env, requestBody, signal, state = {}) {
     const cancel = () => controller.abort();
     if (signal?.aborted) cancel();
     else signal?.addEventListener('abort', cancel, {once: true});
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, canContinue ? 25000 : 90000);
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, canContinue ? (detailedRead ? 75000 : 25000) : 90000);
     let response, result;
     try {
       response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
@@ -1557,7 +1558,7 @@ VERIFICATION RULES:
             ]
           }
         ],
-        max_completion_tokens: 6144,
+        max_completion_tokens: 12288,
         temperature: 0,
         chat_template_kwargs: {
           enable_thinking: false

@@ -1,5 +1,6 @@
 {
-  "scope": "Every audited Word and PDF, including exact duplicates and prior outputs. Parser results are not a certificate of OCR or visual export accuracy.",
+  "scope": "Every Word and PDF in the training folder, including original audited sources, duplicates and generated QA baselines. Generated outputs are not new training references. Parser results do not certify OCR or visual accuracy.",
+  "original_audited_sources": 42,
   "records": [
     {
       "file": "1Class_1_Science_Annual.docx",
@@ -1516,6 +1517,34 @@
       "status": "measured-parser-pass"
     },
     {
+      "file": "out/PaperAI-UKG-Maths-Reviewed.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 1136,
+      "visible_runs": 38,
+      "runs_not_contiguous": 0,
+      "native_tables": 1,
+      "illustrations_needing_asset_resolution": 5,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/PaperAI-UKG-Maths-Reviewed.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 51,
+          "pictures": 5,
+          "editable_paths": 17,
+          "shapes": 17
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
       "file": "out/Social 7.docx",
       "kind": "export-under-review",
       "visual_review": "reviewed-all-rendered-page-overviews",
@@ -1538,6 +1567,115 @@
       "status": "text-parser-pass"
     },
     {
+      "file": "out/model-qa/Hindi-Class-1-Automatic.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 2553,
+      "visible_runs": 98,
+      "runs_not_contiguous": 0,
+      "native_tables": 12,
+      "illustrations_needing_asset_resolution": 17,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/model-qa/Hindi-Class-2-Automatic.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 1755,
+      "visible_runs": 73,
+      "runs_not_contiguous": 0,
+      "native_tables": 6,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/model-qa/Hindi-Class-3-Automatic.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 725,
+      "visible_runs": 24,
+      "runs_not_contiguous": 0,
+      "native_tables": 5,
+      "illustrations_needing_asset_resolution": 0,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/model-qa/Maths-Automatic.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 11306,
+      "visible_runs": 329,
+      "runs_not_contiguous": 0,
+      "native_tables": 36,
+      "illustrations_needing_asset_resolution": 20,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/model-qa/Question-Paper-Layout-Check.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 506,
+      "visible_runs": 23,
+      "runs_not_contiguous": 0,
+      "native_tables": 2,
+      "illustrations_needing_asset_resolution": 0,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/model-qa/Question-Paper-Layout-Check.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 22,
+          "pictures": 0,
+          "editable_paths": 20,
+          "shapes": 23
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 2,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/model-qa/UKG-Maths-Production-Roundtrip.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 1136,
+      "visible_runs": 38,
+      "runs_not_contiguous": 0,
+      "native_tables": 1,
+      "illustrations_needing_asset_resolution": 5,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/model-qa/UKG-Maths-Production-Roundtrip.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 51,
+          "pictures": 5,
+          "editable_paths": 17,
+          "shapes": 17
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
       "file": "out/multi_sample.docx",
       "kind": "export-under-review",
       "visual_review": "reviewed-all-rendered-page-overviews",
@@ -1558,6 +1696,607 @@
       "native_tables": 10,
       "illustrations_needing_asset_resolution": 4,
       "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/01-1Class-1-Science-Annual.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 4111,
+      "visible_runs": 127,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/01-1Class-1-Science-Annual.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 78,
+          "pictures": 1,
+          "editable_paths": 3,
+          "shapes": 8
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 87,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/02-1Class-2-Science-Annual.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 3910,
+      "visible_runs": 122,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 2,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/02-1Class-2-Science-Annual.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 80,
+          "pictures": 1,
+          "editable_paths": 3,
+          "shapes": 7
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 77,
+          "pictures": 1,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/03-Class-3-Science-Annual.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 4683,
+      "visible_runs": 142,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/03-Class-3-Science-Annual.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 75,
+          "pictures": 1,
+          "editable_paths": 3,
+          "shapes": 3
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 104,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 3
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/04-Class-4-Science-Annual.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 4320,
+      "visible_runs": 139,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/04-Class-4-Science-Annual.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 79,
+          "pictures": 1,
+          "editable_paths": 3,
+          "shapes": 3
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 90,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/05-Class-5-Science-Annual.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 4904,
+      "visible_runs": 142,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/05-Class-5-Science-Annual.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 76,
+          "pictures": 1,
+          "editable_paths": 3,
+          "shapes": 3
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 109,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/06-English-6.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 3369,
+      "visible_runs": 128,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/06-English-6.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 84,
+          "pictures": 1,
+          "editable_paths": 6,
+          "shapes": 6
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 30,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/13-New-Microsoft-Office-Word-Document-3.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 8512,
+      "visible_runs": 445,
+      "runs_not_contiguous": 0,
+      "native_tables": 7,
+      "illustrations_needing_asset_resolution": 8,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/13-New-Microsoft-Office-Word-Document-3.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 49,
+          "pictures": 4,
+          "editable_paths": 41,
+          "shapes": 41
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 33,
+          "pictures": 1,
+          "editable_paths": 24,
+          "shapes": 24
+        },
+        {
+          "page": 3,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 41,
+          "pictures": 3,
+          "editable_paths": 12,
+          "shapes": 12
+        },
+        {
+          "page": 4,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 25,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 5,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 59,
+          "pictures": 0,
+          "editable_paths": 14,
+          "shapes": 14
+        },
+        {
+          "page": 6,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 62,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        },
+        {
+          "page": 7,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 17,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/14-Social-10.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 3470,
+      "visible_runs": 131,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/14-Social-10.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 62,
+          "pictures": 1,
+          "editable_paths": 2,
+          "shapes": 2
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 75,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/15-Social-6.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 3048,
+      "visible_runs": 107,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/15-Social-6.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 65,
+          "pictures": 1,
+          "editable_paths": 2,
+          "shapes": 2
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 37,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/16-Social-7.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 3332,
+      "visible_runs": 165,
+      "runs_not_contiguous": 0,
+      "native_tables": 3,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/16-Social-7.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 64,
+          "pictures": 1,
+          "editable_paths": 10,
+          "shapes": 10
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 80,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/17-Social-8.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 3795,
+      "visible_runs": 177,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/17-Social-8.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 46,
+          "pictures": 1,
+          "editable_paths": 2,
+          "shapes": 2
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 78,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/18-Social-9.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 3340,
+      "visible_runs": 139,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 1,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/18-Social-9.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 166,
+          "pictures": 1,
+          "editable_paths": 2,
+          "shapes": 2
+        },
+        {
+          "page": 2,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 162,
+          "pictures": 0,
+          "editable_paths": 0,
+          "shapes": 0
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/Format-humanities.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 286,
+      "visible_runs": 18,
+      "runs_not_contiguous": 0,
+      "native_tables": 0,
+      "illustrations_needing_asset_resolution": 0,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/Format-humanities.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 20,
+          "pictures": 0,
+          "editable_paths": 9,
+          "shapes": 9
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/Format-science.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 421,
+      "visible_runs": 11,
+      "runs_not_contiguous": 0,
+      "native_tables": 1,
+      "illustrations_needing_asset_resolution": 0,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/Format-science.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 11,
+          "pictures": 0,
+          "editable_paths": 6,
+          "shapes": 7
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/Format-worksheet.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 245,
+      "visible_runs": 9,
+      "runs_not_contiguous": 0,
+      "native_tables": 3,
+      "illustrations_needing_asset_resolution": 0,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/Format-worksheet.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 7,
+          "pictures": 0,
+          "editable_paths": 33,
+          "shapes": 35
+        }
+      ],
+      "status": "measured-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/PaperAI-Production-Layout-Check.docx",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "imported_characters": 720,
+      "visible_runs": 27,
+      "runs_not_contiguous": 0,
+      "native_tables": 4,
+      "illustrations_needing_asset_resolution": 0,
+      "status": "text-parser-pass"
+    },
+    {
+      "file": "out/reference-qa/PaperAI-Production-Layout-Check.pdf",
+      "kind": "generated-qa",
+      "visual_review": "generated-output-baseline-not-a-training-reference",
+      "pages": [
+        {
+          "page": 1,
+          "measured_layout_supported": true,
+          "text_layer_reliable": true,
+          "text_objects": 32,
+          "pictures": 0,
+          "editable_paths": 29,
+          "shapes": 29
+        }
+      ],
+      "status": "measured-parser-pass"
     },
     {
       "file": "sci fa-2.pdf",

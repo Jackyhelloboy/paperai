@@ -133,7 +133,7 @@
             if(pages.length>1&&pages.every(p=>p.number)&&new Set(pages.map(p=>p.number)).size===pages.length)pages.sort((a,b)=>a.number-b.number);
             else if(pages.length>1){
                 const headerPages=pages.filter(page=>{
-                    const first=page.body.match(/(?:^|\n)\s*(?:\[\[SECTION_ROW:\s*)?(I)[.)\s]+\S/i);
+                    const first=page.body.match(/(?:^|\n)\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW|MATCH_ROW|TABLE_ROW):\s*)?(I)[.)\s]+\S/i);
                     if(!first)return false;
                     const prefix=page.body.slice(0,first.index);
                     return /\[\[(?:SOURCE_BANNER|BANNER):/i.test(prefix)||(/class\s*[:.\-]|कक्षा/i.test(prefix)&&/exam(?:ination)?s?|assessment|परीक्षा/i.test(prefix));
@@ -395,6 +395,7 @@
             return output.length?output:[''];
         });
         for(let i=0;i<lines.length;i++){
+            if(/^\s*\[\[QUESTION_ROW:\s*(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+\S/.test(lines[i]))lines[i]=lines[i].replace('QUESTION_ROW:','SECTION_ROW:');
             const marker=lines[i].match(/^\s*\[\[SECTION_ROW:\s*([^|]*?)\]\]\s*$/i);
             const split=marker&&section(marker[1]);
             if(split)lines[i]='[[SECTION_ROW: '+split.title+' || '+split.marks+']]';
@@ -463,6 +464,23 @@
         for(const row of rows)row.sort((a,b)=>(a.x||0)-(b.x||0));
         return rows;
     }
+    function alignLeadingGridLabels(text,observedCount=0) {
+        const lines=String(text||'').split('\n'),pairs=[],prefix=[];let i=0;
+        while(i<lines.length&&(!lines[i].trim()||/^\s*\[\[SOURCE_PAGE:/.test(lines[i]))){prefix.push(lines[i]);i++;}
+        while(i<lines.length){
+            const blockStart=i,block=[];
+            while(i<lines.length&&(!lines[i].trim()||/^\s*\[\[(?:TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):/i.test(lines[i])))block.push(lines[i++]);
+            if(!/^\s*\[\[GRID:\s*\d+[x×]1\]\]\s*$/i.test(lines[i]||'')){i=blockStart;break;}
+            block.push(lines[i++]);while(i<lines.length&&!lines[i].trim())block.push(lines[i++]);
+            const label=lines[i]||'';
+            if(!/^\s*[0-9०-९]+[.)]?\s+[^|\n]{1,32}[:：]\s*-?\s*$/u.test(label))return text;
+            pairs.push({block,label});i++;
+        }
+        if(pairs.length<2||pairs.length!==observedCount)return text;
+        const rest=lines.slice(i);
+        if(rest.some(line=>line.trim())&&!/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+\S)/i.test(rest.find(line=>line.trim())))return text;
+        return [...prefix,...pairs.flatMap(pair=>[pair.label,...pair.block]),...rest].join('\n');
+    }
     function reconcileEmptyGrids(text,grids=[]) {
         if(!grids.length)return text;
         const lines=normalise(text).split('\n'), blocks=[];
@@ -487,7 +505,7 @@
             for(const i of indexes.slice(1))lines[i]='';
             for(let i=indexes[0]+1;i<indexes[indexes.length-1];i++)if(/^\s*\[\[(?:TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):/i.test(lines[i]))lines[i]='';
         }
-        return lines.join('\n');
+        return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,bannerRegion,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,tablePlacement,figure,bannerRegion,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
 });

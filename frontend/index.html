@@ -1747,7 +1747,7 @@
             <div class="quota-head" style="margin-bottom:0">
                 <div>
                     <div class="quota-title">Ready to scan</div>
-                    <div class="quota-subtitle" id="quotaDescription">Upload your paper. Review the text, then export editable Word.</div>
+                    <div class="quota-subtitle" id="quotaDescription">Upload your paper. PaperAI formats it automatically for editable Word.</div>
                 </div>
                 <div class="quota-live" id="quotaBadge">
                     <span class="quota-live-dot"></span>
@@ -1841,7 +1841,7 @@
                 </button>
             </div>
 
-            <p id="pdfWordNote" style="display:none;font-size:0.82rem;color:var(--text2)">Word matching PDF preserves the original pages as images. Use Editable Word to edit extracted text and Teach corrections.</p>
+            <p id="pdfWordNote" style="display:none;font-size:0.82rem;color:var(--text2)">Word matching PDF preserves the original pages as images. Editable Word contains the automatically formatted question paper.</p>
             <button class="action-btn" onclick="openPaperLayout()" style="margin-bottom:.75rem">Review layout (optional)</button>
             <div class="teach-panel" id="paperLayoutPanel">
               <div class="teach-title">Detected A4 layout</div>
@@ -1945,7 +1945,7 @@
     </main>
 
     <footer class="footer">
-        <div class="footer-text">PaperAI — Upload, review and export editable Word</div>
+        <div class="footer-text">PaperAI — Automatic question papers · Editable Word</div>
     </footer>
 
 <script>
@@ -2019,7 +2019,7 @@ function renderUsage() {
     const view = PaperAIQuota.model(null, quotaLiveStatus, quotaLocalBlock);
     quotaResetAt = view.resetAt;
     quotaBadgeText.textContent = 'Automatic';
-    $('quotaDescription').textContent = 'Upload your paper. Review the text, then export editable Word.';
+    $('quotaDescription').textContent = 'Upload your paper. PaperAI formats it automatically for editable Word.';
     return view;
 }
 

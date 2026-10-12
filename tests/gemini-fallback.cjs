@@ -3,9 +3,9 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 let clock=Date.parse('2026-10-11T22:00:00Z'),primaryCalls=0;
 class Clock extends Date {constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}}
-const requests=[],queue=[],endpoints=[];
+const requests=[],queue=[],endpoints=[],timers=[];
 // Model a runtime without AbortSignal.any/timeout; standard AbortController is sufficient.
-const ctx=vm.createContext({Date:Clock,URL,Request,Response,Headers,TextDecoder,Uint8Array,btoa,AbortSignal:{},AbortController,setTimeout,clearTimeout,
+const ctx=vm.createContext({Date:Clock,URL,Request,Response,Headers,TextDecoder,Uint8Array,btoa,AbortSignal:{},AbortController,setTimeout:(fn,ms)=>{timers.push(ms);return setTimeout(fn,ms);},clearTimeout,
   console:{log(){}},DurableObject:class{constructor(c,e){this.ctx=c;this.env=e;}},
   PAPER_LAYOUT_RULES:fs.readFileSync('worker/src/paper-layout-rules.js','utf8'),normaliseMarkerRows:s=>s,
   DICTIONARY:{},getDictionaryWords:()=>[],isInDictionary:()=>false,autoCorrect:s=>s,
@@ -59,6 +59,8 @@ const limit=()=>{throw new Error('3036: daily free allocation reached');};
   const detailParts=requests.at(-1).contents[0].parts;
   assert(!detailParts.filter(p=>p.text).map(p=>p.text).join(' ').includes('---BEGIN FIRST OCR---'),'Independent verification must not be anchored to the primary draft');
   assert.equal(detailParts.filter(p=>p.inline_data).length,2,'One valid bounded detail image accompanies the full page');
+  assert.equal(requests.at(-1).generationConfig.maxOutputTokens,12288,'A detailed verification needs room for complete output');
+  assert(timers.includes(75000),'Do not cut the preferred enlarged-image verifier off after the short easy-scan budget');
   assert(!JSON.stringify(detailParts).includes('untrusted.test'));
   assert(detailParts.some(p=>p.text?.includes('FULL PAGE')),'Detail crops must keep full-page coordinates');
   assert(body.result.annotated_text.includes('श्र'),'A visually supported script correction should reach the output');
