@@ -1649,7 +1649,8 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
 
   const comparableText = s => String(s||'').replace(/\[\[([A-Z_-]+):\s*([\s\S]*?)\]\]/gi,(_,kind,body)=>
-    /^(?:FIGURE(?:_ROW)?|BANNER|GRID|SHAPE_ROW|ANSWER_LINES|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER|SOURCE_PAGE)$/i.test(kind)?' X ':body.replace(/\|\|/g,' '));
+    /^(?:FIGURE(?:_ROW)?|BANNER|GRID|SHAPE_ROW|ANSWER_LINES|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER|SOURCE_PAGE)$/i.test(kind)?' X ':body.replace(/\|\|/g,' '))
+    .replace(/\\_/g,'_').replace(/[_─]{2,}/g,' ').replace(/\[unclear(?::[^\]\n]{0,80})?\]?/gi,' ');
   const usefulLength = s => comparableText(s)
     .replace(/\s+/g, '')
     .length;
@@ -1702,7 +1703,7 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   // A verifier must not erase a known question stem into an answer blank.
   // Match physical cells independently so a move to native row formatting is safe.
   const blankStemCount = value => {
-    const cells=String(value||'').replace(/\[\[(?:QUESTION_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW):\s*/gi,'').replace(/\]\]/g,'').split(/\n|\|\|/);
+    const cells=String(value||'').replace(/\\_/g,'_').replace(/\[\[(?:QUESTION_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW):\s*/gi,'').replace(/\]\]/g,'').split(/\n|\|\|/);
     let count=0;
     for(const cell of cells){
       const numbered=cell.match(/^\s*[0-9०-९]+[.)]\s*([\s\S]*)$/u);

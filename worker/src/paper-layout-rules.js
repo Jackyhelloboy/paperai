@@ -31,7 +31,7 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
 
 export function cleanQuestionPaper(value, depth=0) {
     if(depth>16)return '';
-    const text=String(value||'');let out='',cursor=0;
+    const text=String(value||'').replace(/(?:\\_){2,}/g,run=>run.replace(/\\/g,''));let out='',cursor=0;
     while(cursor<text.length){
         const start=text.indexOf('[[',cursor);if(start<0){out+=text.slice(cursor);break;}
         out+=text.slice(cursor,start);let end=start+2,level=1;

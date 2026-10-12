@@ -11,6 +11,7 @@ assert(guardCtx.shouldAcceptVerifiedText('5. न :- '+'_'.repeat(97500),'IV. श
 assert(!guardCtx.shouldAcceptVerifiedText('5. न :- '+'_'.repeat(97500),'No text detected'));
 assert(guardCtx.shouldAcceptVerifiedText('1. अं - ______ 2. इ - ______ 3. आ - ______\n4. ए - ______ 5. ऊ - ______ 6. ओ - ______','[[MATCH_ROW: 1. अं - ______ || 2. इ - ______ || 3. आ - ______]]\n[[MATCH_ROW: 4. ए - ______ || 5. ऊ - ______ || 6. ओ - ______]]',{structuredLayout:true}),'Reference row formatting must not be mistaken for removed question text');
 assert(!guardCtx.shouldAcceptVerifiedText('I. A real question.','_'.repeat(1000)));
+assert(guardCtx.shouldAcceptVerifiedText('V. Write meanings.\n1. Bird = '+String.raw`\_`.repeat(60)+'\n2. Duck = '+String.raw`\_`.repeat(60)+'\n[[GRID_ROW: '+Array(13).fill('[unclear]').join(' || ')+']]','V. Write meanings.\n[[MATCH_ROW: 1. Bird = ______ || 2. Duck = ______]]\n[[GRID: 13x1]]',{structuredLayout:true}),'Blank escaping and unreadable empty cells must not make a cleaner complete verification look too short');
 assert(!guardCtx.shouldAcceptVerifiedText('V. Write the meanings.\n1. Bird = ______\n2. Duck = ______','V. Write the meanings.\n1. Bird = ______\n2. ______ = ______',{structuredLayout:true}),'Verification must not erase a source question stem into blanks');
 assert(!guardCtx.invalidLayoutMarkers('[[SOURCE_PAGE: 2]]'));
 assert(guardCtx.invalidLayoutMarkers('[[SOURCE_PAGE: 0]]'));

@@ -131,6 +131,19 @@
                 return {body:body.replace(/\[\[SOURCE_PAGE:\s*[1-9][0-9]{0,2}\s*\]\]/gi,'').trim(),number:labels.length===1?+labels[0][1]:null,index};
             }).filter(page=>page.body);
             if(pages.length>1&&pages.every(p=>p.number)&&new Set(pages.map(p=>p.number)).size===pages.length)pages.sort((a,b)=>a.number-b.number);
+            else if(pages.length>1){
+                const headerPages=pages.filter(page=>{
+                    const first=page.body.match(/(?:^|\n)\s*(?:\[\[SECTION_ROW:\s*)?(I)[.)\s]+\S/i);
+                    if(!first)return false;
+                    const prefix=page.body.slice(0,first.index);
+                    return /\[\[(?:SOURCE_BANNER|BANNER):/i.test(prefix)||(/class\s*[:.\-]|कक्षा/i.test(prefix)&&/exam(?:ination)?s?|assessment|परीक्षा/i.test(prefix));
+                });
+                const known=pages.filter(page=>page.number).map(page=>page.number);
+                // A unique exam header followed by section I identifies its
+                // first page; continuation pages never obtain invented numbers.
+                if(headerPages.length===1&&new Set(known).size===known.length){const header=headerPages[0];pages.splice(pages.indexOf(header),1);pages.unshift(header);}
+            }
+
             return pages.map(p=>p.body).join('\n[[PAGE_BREAK]]\n');
         }).join('\n');
     }
@@ -324,7 +337,7 @@
     }
     function cleanQuestionPaper(value, depth=0) {
     if(depth>16)return '';
-    const text=String(value||'');let out='',cursor=0;
+    const text=String(value||'').replace(/(?:\\_){2,}/g,run=>run.replace(/\\/g,''));let out='',cursor=0;
     while(cursor<text.length){
         const start=text.indexOf('[[',cursor);if(start<0){out+=text.slice(cursor);break;}
         out+=text.slice(cursor,start);let end=start+2,level=1;
@@ -455,8 +468,9 @@
         const lines=normalise(text).split('\n'), blocks=[];
         let block=null;
         for(let i=0;i<lines.length;i++){
+            const cells=lines[i].match(/^\s*\[\[(?:GRID_ROW|TABLE_ROW):\s*([\s\S]*)\]\]\s*$/i);
             const empty=/^\s*\[\[GRID:\s*\d+[x×]\d+\]\]\s*$/i.test(lines[i])||
-                /^\s*\[\[GRID_ROW:\s*(?:_|\s|\|)*\]\]\s*$/i.test(lines[i]);
+                Boolean(cells&&/^(?:_|\s|\|)*$/.test(cells[1].replace(/\[unclear(?::[^\]\n]{0,80})?\]?/gi,'')));
             if(empty){if(!block){block={indexes:[]};blocks.push(block);}block.indexes.push(i);}
             else if(lines[i].trim()&&!/^\s*\[\[(?:TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):/i.test(lines[i]))block=null;
         }
