@@ -47,6 +47,10 @@ const fixtures={
     vm.runInContext(slice('function formatOutput(text)','// Successful scanned pages'),ctx);
     const preview=ctx.formatOutput('I. Answer the questions. 4×½=2\n1. Read the question.');
     assert(preview.includes('class="ocr-section-marks">4×½=2'),'Plain section marks must also be on the right in the teacher preview');
+    const headerFields=Layout.normalise('| CLASS: || II - HINDI || TIME: 2h |\n| Name: ______ || Roll: ____ || 100 |');
+    const headerWord=ctx.docxDocumentXml(headerFields);assert(!headerWord.replace(/<[^>]+>/g,'').includes('||'),'Header separators must not print in Word');
+    assert(headerWord.includes('<w:jc w:val="right"/>'),'Total marks must align in the final header cell');
+    assert(ctx.formatOutput(headerFields).includes('text-align:right'),'Header total marks must align in the preview');
     const shortMarks='II. Match the following. (5)\nSun                 Water\nRain                Light\nIII. Fill in the blanks. (5)\n1. There are ______ days in a week.';
     const shortPreview=ctx.formatOutput(shortMarks);
     assert.equal((shortPreview.match(/class="ocr-section-marks">\(5\)/g)||[]).length,2,'Bare parenthesized section marks must align right in preview');

@@ -4866,7 +4866,7 @@ function worksheetRenderTable(rows, widths=null, header=false) {
     const content = rows.map((row, index) => {
         const cells = worksheetCells(row, columns);
         return '<tr>' + Array.from({length: columns}, (_, col) =>
-            '<' + (header && index === 0 ? 'th' : 'td') + '>' + String(cells[col]||'').split(/<br>/i).map(formatOutputLine).join('<br>') +
+            '<' + (header && index === 0 ? 'th' : 'td') + (col===columns-1&&/\b(?:class|name|roll|signature|marks)\b|कक्षा|नाम|अंक/i.test(cells.join(' '))&&/^\d+(?:\s*M)?$/i.test(cells[col]||'')?' style="text-align:right"':'') + '>' + String(cells[col]||'').split(/<br>/i).map(formatOutputLine).join('<br>') +
             '</' + (header && index === 0 ? 'th' : 'td') + '>'
         ).join('') + '</tr>';
     }).join('');
@@ -5454,8 +5454,9 @@ function docxTableCells(rows, widths, options = {}) {
     const tableRows=rows.map((row,rowIndex)=>{
         const cells=widths.map((width,index)=>{
             const content=row[index]??'';
+            const fieldMarks=index===widths.length-1&&/\b(?:class|name|roll|signature|marks)\b|कक्षा|नाम|अंक/i.test(row.filter(cell=>typeof cell==='string').join(' '))&&/^\d+(?:\s*M)?$/i.test(String(content));
             const inner=typeof content==='string' ? String(content).split(/<br>/i).map(value=>docxRichParagraph(value,{
-                size:options.fontSize||24, after:0, center:options.center, right:options.right,
+                size:options.fontSize||24, after:0, center:options.center&&!fieldMarks, right:options.right||fieldMarks,
                 bold:options.repeatHeader&&rowIndex===0,
                 keepNext:options.keepNext, available:Math.max(1,width-2*pad)
             })).join('') : String(content.xml||docxParagraph('',{after:0}));
@@ -5811,7 +5812,16 @@ async function recoverSourceFigures(text, blob) {
         const cell = r => r.id+'|'+(r.caption||' ')+'|'+(r.answer?'box':'none');
         return String(text).replace(/\[\[(FIGURE_ROW|FIGURE|BANNER):\s*([\s\S]*?)\]\]/gi,(_,kind,body)=>{
             if(kind.toUpperCase()==='BANNER') {
-                const asset=crop(PaperAILayout.bannerRegion(body,text)); asset.caption='';
+                let region=PaperAILayout.bannerRegion(body,text);
+                if(region&&/\[\[TABLE_ROW:[^\n]*(?:class|time|marks|roll|name|signature|exam)/i.test(text)){
+                    const rect=PaperAILayout.pixels(region,sw,sh),probe=document.createElement('canvas');probe.width=rect.w;probe.height=rect.h;
+                    const context=probe.getContext('2d',{willReadFrequently:true});
+                    if(context){context.drawImage(source,rect.x,rect.y,rect.w,rect.h,0,0,rect.w,rect.h);
+                        const bounds=PaperAILayout.bannerInkBounds(context.getImageData(0,0,rect.w,rect.h).data,rect.w,rect.h);
+                        if(bounds)region={...region,w:region.w*bounds.w/rect.w,h:region.h*bounds.h/rect.h};
+                    }
+                }
+                const asset=crop(region); asset.caption='';
                 const item=sourceAsset(asset.id); if(item) item.role='banner';
                 return '[[SOURCE_BANNER: '+asset.id+']]';
             }

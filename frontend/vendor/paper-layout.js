@@ -56,6 +56,34 @@
         }
         return region;
     }
+    function bannerInkBounds(rgba,width,height) {
+        if(width<80||height<35||rgba.length<width*height*4)return null;
+        const left=Math.floor(width*.15),right=Math.floor(width*.88),hist=new Uint32Array(256);
+        const luminance=p=>Math.round((rgba[p]*299+rgba[p+1]*587+rgba[p+2]*114)/1000);
+        let total=0;
+        for(let y=0;y<height;y+=2)for(let x=left;x<right;x+=2){hist[luminance((y*width+x)*4)]++;total++;}
+        let count=0,background=255;for(let n=0;n<256;n++){count+=hist[n];if(count>=total*.85){background=n;break;}}
+        if(background<70)return null;
+        const dark=p=>luminance(p)<background-45,bands=[];let start=-1;
+        for(let y=0;y<=height;y++){
+            let ink=0;if(y<height)for(let x=left;x<right;x++)if(dark((y*width+x)*4))ink++;
+            const active=y<height&&ink/(right-left)>.11;
+            if(active&&start<0)start=y;
+            if(!active&&start>=0){if(y-start>=2)bands.push({start,end:y-1,height:y-start});start=-1;}
+        }
+        // A large title, a smaller address and a later field row provide
+        // measured evidence for the cut. No universal banner percentage is
+        // used when that visual sequence is absent.
+        if(bands.length<3||bands[0].height<height*.18||bands[1].height>bands[0].height*.6||bands[2].start-bands[1].end<3)return null;
+        const bottom=Math.floor((bands[1].end+bands[2].start)/2);let cutWidth=width;
+        // A tall divider at the right identifies a separate total-marks box.
+        // Short text strokes and class-field borders cannot meet this span.
+        for(let x=Math.floor(width*.7);x<Math.floor(width*.97);x++){
+            let ink=0;for(let y=0;y<height;y++)if(dark((y*width+x)*4))ink++;
+            if(ink>height*.6){cutWidth=Math.max(1,x-2);break;}
+        }
+        return {w:cutWidth,h:bottom};
+    }
     function pixels(region, width, height) {
         const x=Math.floor(region.x * width/1000), y=Math.floor(region.y * height/1000);
         return {x,y,w:Math.max(1,Math.min(width-x,Math.ceil(region.w*width/1000))),
@@ -401,6 +429,23 @@
             if(prose.trim())output.push(prose);
             return output.length?output:[''];
         });
+        // Providers occasionally return a Markdown header table even though
+        // the question-paper protocol requests native rows. Convert a real
+        // multi-row table without printing its decorative pipes/separators.
+        const pipeCells=line=>{
+            const m=String(line).match(/^\s*\|\s+(.+?)\s+\|\s*$/);
+            return m?m[1].split(/\s*\|{1,2}\s*/).map(cell=>cell.trim()):null;
+        };
+        for(let i=0;i<lines.length;i++){
+            const first=pipeCells(lines[i]);if(!first||first.length<2)continue;
+            let j=i+1;while(j<lines.length&&pipeCells(lines[j])?.length===first.length)j++;
+            if(j-i<2)continue;
+            for(let k=i;k<j;k++){
+                const cells=pipeCells(lines[k]);
+                lines[k]=cells.every(cell=>/^:?-{3,}:?$/.test(cell))?'':'[[TABLE_ROW: '+cells.join(' || ')+']]';
+            }
+            i=j-1;
+        }
         // Detached roman labels and their following instruction are one heading.
         for(let i=0;i<lines.length-1;i++){
             const label=lines[i].trim();if(!/^(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)]?$/.test(label))continue;
@@ -525,5 +570,5 @@
         }
         return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,figure,bannerRegion,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,figure,bannerRegion,bannerInkBounds,pixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
 });
