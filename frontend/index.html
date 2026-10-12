@@ -6219,7 +6219,7 @@ function buildDocxBody(structuredText) {
         const heading=isOutputHeadingLine(raw,i,firstNonEmptyIndex);
         const split=heading && PaperAILayout.section(raw);
         if(split) body.push(docxSectionRow(split.title,split.marks));
-        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,font:heading?paperLayoutOptions().headingFont:null,actualSize:heading?paperLayoutOptions().heading*2:null,question:!heading&&/^\s*\d+[.)]/.test(raw),after:paperLayoutOptions().after??(paperLayoutOptions().compact?(heading?55:25):(heading?100:70)),keepNext:heading||/^\[\[(?:GRID|GRID_ROW):/i.test(String(lines.slice(i+1).find(x=>x.trim())||'').trim()),center:heading&&i===firstNonEmptyIndex}));
+        else body.push(docxRichParagraph(raw,{bold:heading,size:heading?26:24,font:heading?paperLayoutOptions().headingFont:null,actualSize:heading?paperLayoutOptions().heading*2:null,question:!heading&&/^\s*\d+[.)]/.test(raw),after:paperLayoutOptions().after??(paperLayoutOptions().compact?(heading?55:25):(heading?100:70)),keepNext:heading||/^\[\[(?:GRID|GRID_ROW|TABLE_ROW):/i.test(String(lines.slice(i+1).find(x=>x.trim()&&!/^\s*\[\[(?:TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):/i.test(x))||'').trim()),center:heading&&i===firstNonEmptyIndex}));
         i++;
     }
     return body.join('');

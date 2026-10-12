@@ -85,6 +85,7 @@ const fixture=[
     }
     const curvedGrids=Layout.emptyGrids(curved);
     assert.deepEqual(curvedGrids.map(g=>[g.columns,g.rows]),[[13,1],[13,1]],'Curved source strips must not become eight-cell or eleven-cell OCR guesses');
+    assert(Layout.normalise('5. न:- [[TABLE_REGION: 121,50,767,34]] [[GRID: 13x1]]').includes('5. न:- \n[[TABLE_REGION:'),'Inline geometry hints must become hidden layout blocks');
     const curvedFixed=Layout.reconcileEmptyGrids('5. न:-\n[[GRID: 8x1]]\n6. प:-\n[[GRID: 11x1]]',curvedGrids);
     assert.equal((curvedFixed.match(/GRID: 13x1/g)||[]).length,2);
     const regionOnce=Layout.reconcileEmptyGrids('[[TABLE_REGION: 10,10,200,40]]\n[[GRID: 8x1]]\n6. प:-\n[[GRID: 11x1]]',curvedGrids);
@@ -99,6 +100,8 @@ const fixture=[
     assert.equal(geometry[0]?.rows,8,'A multi-row answer grid must not become four long strips');
     assert(Layout.reconcileEmptyGrids('[[GRID: 13x4]]',geometry).includes('[[GRID: 5x8]]'));
     assert(Layout.reconcileEmptyGrids('[[GRID: 13x4]]',geometry).includes('TABLE_REGION'),'Detected answer grids must retain source size');
+    for(let x=251;x<280;x++){dot(x,40);dot(x,280);}
+    assert.equal(Layout.emptyGrids(multi).length,0,'An incomplete subset of a wider grid must not force an incorrect cell count');
     for(let x=63;x<78;x++)for(let y=52;y<65;y++)dot(x,y);
     assert.equal(Layout.emptyGrids(multi).length,0,'Populated cells must not be cleared by grid reconstruction');
     const duplicate='[[FIGURE_ROW: 100,200,200,100|1.|none]]\n1. [[FIGURE: 100,200,200,100| |none]] = _____';

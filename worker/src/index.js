@@ -1608,6 +1608,10 @@ VERIFICATION RULES:
 - If genuinely unreadable, keep [unclear] instead of guessing.`;
 
     try {
+      // Keep the primary reader as the first pass. An independent verifier
+      // reduces repeated transcription errors on the already-selected hard pages.
+      const verificationState=providerState.provider==='gemini'||!String(env.GEMINI_API_KEY||'').trim()
+        ? providerState : {provider:'gemini'};
       const rescueResponse = await runInference(env, {
         messages: [
           {
@@ -1627,7 +1631,7 @@ VERIFICATION RULES:
         chat_template_kwargs: {
           enable_thinking: false
         }
-      }, providerState, signal);
+      }, verificationState, signal);
 
       const rescueText = normaliseMarkerRows(extractAiText(rescueResponse));
       usage = mergeAiUsage(usage, rescueResponse.usage || null);

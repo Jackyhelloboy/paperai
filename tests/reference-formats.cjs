@@ -91,6 +91,12 @@ const fixtures={
     vm.runInContext('extractedMedia.push({id:"side-test",dataUrl:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB9sAAAAASUVORK5CYII=",w:178,h:251,widthTwips:1465,region:{x:550,y:370,w:140,h:100}})',ctx);
     if(process.env.PAPERAI_IMAGE_FIXTURE)vm.runInContext('extractedMedia[extractedMedia.length-1].dataUrl='+JSON.stringify('data:image/png;base64,'+fs.readFileSync(process.env.PAPERAI_IMAGE_FIXTURE).toString('base64')),ctx);
     ctx.resolveHeaderBanner=async()=>null;
+    const groupedQuestions='[[MATCH_ROW: 1. अं - ______ || 2. इ - ______ || 3. आ - ______]]\n[[MATCH_ROW: 4. ए - ______ || 5. ऊ - ______ || 6. ओ - ______]]';
+    const groupedZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx(groupedQuestions)).arrayBuffer());
+    const groupedDoc=new DOMParser().parseFromString(await groupedZip.file('word/document.xml').async('text'),'application/xml');
+    assert.equal(groupedDoc.getElementsByTagName('w:tc').length,6,'Short question columns must stay editable cells in two physical rows');
+    const attachedXml=ctx.docxDocumentXml('3. ड :-\n[[TABLE_REGION: 100,800,700,30]]\n[[GRID: 13x1]]');
+    assert(/<w:keepNext\/>[\s\S]*?3\. ड/.test(attachedXml),'Measured grid bounds must not detach the preceding question label');
     const sizedGridZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx('[[TABLE_REGION: 317,277,329,254]]\n[[GRID: 5x8]]')).arrayBuffer());
     if(process.env.PAPERAI_FORMAT_OUT)fs.writeFileSync(path.join(process.env.PAPERAI_FORMAT_OUT,'Format-measured-grid.docx'),Buffer.from(await sizedGridZip.generateAsync({type:'nodebuffer'})));
     const sizedGridXml=await sizedGridZip.file('word/document.xml').async('text');

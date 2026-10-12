@@ -218,6 +218,24 @@
             const rowGaps=rowEdges.slice(1).map((y,i)=>y-rowEdges[i]);
             const rowMedian=[...rowGaps].sort((a,b)=>a-b)[Math.floor(rowGaps.length/2)];
             if(rowMedian<15||rowGaps.some(gap=>gap<rowMedian*.6||gap>rowMedian*1.6))continue;
+            // A detected subset of a faint grid is not its physical cell count.
+            // Reject it when both outer horizontal rules continue past the
+            // measured end; leave the uncertain count to visual recognition.
+            const continues=side=>{
+                const index=side<0?0:ls.length-2,left=ls[index],right=ls[index+1];
+                const edge=side<0?left:right;
+                return [rowEdges[0],rowEdges[rowEdges.length-1]].every(yy=>{
+                    let ink=0,total=0;
+                    for(let d=Math.ceil(median*.25);d<median*.8;d++){
+                        const x=Math.round(edge.x+side*d);if(x<0||x>=w)continue;
+                        const t=(x-left.x)/(right.x-left.x),row=Math.round(yy+(left.y-g.y)*(1-t)+(right.y-g.y)*t);
+                        let hit=0;for(let dy=-3;dy<=3;dy++)if(row+dy>=0&&row+dy<h)hit|=dark[(row+dy)*w+x];
+                        ink+=hit;total++;
+                    }
+                    return total>5&&ink/total>.7;
+                });
+            };
+            if(continues(-1)||continues(1))continue;
             let populated=false;
             for(let i=0;i<n-1;i++)for(let r=0;r<rowEdges.length-1;r++){
                 let ink=0,total=0;
