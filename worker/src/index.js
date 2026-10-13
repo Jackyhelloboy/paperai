@@ -1435,7 +1435,7 @@ function sleep(ms) {
 
 function sanitizeDetailViews(input, budget=5*1024*1024) {
   let total=0;
-  return (Array.isArray(input)?input:[]).slice(0,3).flatMap(view=>{
+  return (Array.isArray(input)?input:[]).slice(0,6).flatMap(view=>{
     if(!view||typeof view.url!=='string'||view.url.length>2*1024*1024)return [];
     if(!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(view.url))return [];
     const r=view.region;if(!r||![r.x,r.y,r.w,r.h].every(Number.isInteger)||r.x<0||r.y<0||r.w<=0||r.h<=0||r.x+r.w>1000||r.y+r.h>1000)return [];
@@ -1548,6 +1548,7 @@ READING CONTRACT:
   if (!response) throw lastError || new Error('AI OCR unavailable');
 
   let text = normaliseMarkerRows(extractAiText(response));
+  let model = response.model || (providerState.provider === 'gemini' ? providerState.geminiModel : PRIMARY_MODEL);
   let usage = mergeAiUsage(response.usage || null, null);
   let rescued = false;
 
@@ -1574,14 +1575,17 @@ VERIFICATION RULES:
       // reduces repeated transcription errors on the already-selected hard pages.
       const verificationState=providerState.provider==='gemini'||!String(env.GEMINI_API_KEY||'').trim()
         ? providerState : {provider:'gemini'};
-      const verificationPrompt=verificationState===providerState?rescuePrompt:
+      const independentRead=verificationState.provider==='gemini';
+      const verificationPrompt=!independentRead?rescuePrompt:
         prompt+'\n\nLITERAL VERIFICATION PASS:\nRead the image independently from top to bottom. No earlier transcription is supplied. Return only the literal source question paper and its supported layout markers. Preserve every visible number, typo, blank and physical row; do not complete words from context.\n'+
         rescuePrompt.slice(rescuePrompt.indexOf('VERIFICATION RULES:')).replace(/^- .*FIRST OCR.*$/gm,'- Inspect the complete visual page, including its bottom questions and all source figures.');
       const rescueResponse = await runInference(env, {
         messages: [
           {
             role: 'system',
-            content: 'You are a forensic literal OCR verifier. Your job is to compare the first transcription to the image and remove hallucinations while recovering only visually supported characters.'
+            content: independentRead
+              ? 'You are a forensic literal OCR verifier. Read the current image independently and recover only visually supported characters. No earlier transcription is supplied.'
+              : 'You are a forensic literal OCR verifier. Your job is to compare the first transcription to the image and remove hallucinations while recovering only visually supported characters.'
           },
           {
             role: 'user',
@@ -1607,6 +1611,7 @@ VERIFICATION RULES:
 
       if (shouldAcceptVerifiedText(text, rescueText, imageMeta)) {
         text = rescueText;
+        model = rescueResponse.model || (verificationState.provider === 'gemini' ? verificationState.geminiModel : PRIMARY_MODEL);
         rescued = true;
       }
     } catch (e) {
@@ -1622,7 +1627,7 @@ VERIFICATION RULES:
   }
 
   if(degenerateOcr(text)||invalidLayoutMarkers(text)){const error=new Error('Invalid OCR output or illustration bounds');error.code='OCR_OUTPUT_INVALID';throw error;}
-  return { text, raw: text, model: providerState.provider === 'gemini' ? GEMINI_MODEL : PRIMARY_MODEL, usage, scanMode, rescued };
+  return { text, raw: text, model, usage, scanMode, rescued };
 }
 
 function shouldVerifyOcr(text, imageMeta = {}) {

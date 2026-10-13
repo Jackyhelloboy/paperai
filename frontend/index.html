@@ -1142,7 +1142,7 @@
         .ocr-figure-cell .ocr-picture-placeholder img { width:min(65%,48px); height:40px; }
         .ocr-figure-number { align-self:flex-start; font-size:.7rem; }
         .ocr-figure-answer { display:block; width:90%; max-width:120px; height:20px; border:1px solid var(--text3); box-sizing:border-box; }
-        .ocr-shape-icon { width:min(100%,100px); height:72px; color:var(--text); }
+        .ocr-shape-icon { width:min(100%,100px); max-width:100%; height:auto; color:var(--text); }
         .ocr-layout-scroll { width:100%; overflow-x:auto; margin:.42rem 0 .7rem; }
         .ocr-worksheet-grid { display:grid; grid-template-columns:repeat(var(--grid-cols),minmax(0,1fr)); width:100%; max-width:540px; border-left:1px solid var(--text3); border-top:1px solid var(--text3); box-sizing:border-box; }
         .ocr-grid-cell { min-height:23px; display:flex; justify-content:center; align-items:center; border-right:1px solid var(--text3); border-bottom:1px solid var(--text3); box-sizing:border-box; font-size:.9em; }
@@ -3179,17 +3179,15 @@ async function prepareImageForOCR(source, forceSafe = false) {
     // bands let the independent verifier read small letters without extra requests.
     const detailViews=[];
     if(hard||layout.structured||layout.lineCount>=10){
-        for(const top of [0,300,600]){
-            const y=Math.floor(targetHeight*top/1000),height=targetHeight-y;
-            const bandHeight=Math.min(height,Math.ceil(targetHeight*.4));
-            const detail=document.createElement('canvas');detail.width=Math.min(2000,Math.round(targetWidth*1.5));detail.height=Math.max(1,Math.round(bandHeight*detail.width/targetWidth));
+        for(const view of PaperAILayout.detailViewPlan(targetWidth,targetHeight)){
+            const detail=document.createElement('canvas');detail.width=view.width;detail.height=view.height;
             const dc=detail.getContext('2d',{alpha:false});if(!dc)continue;
             dc.imageSmoothingEnabled=true;dc.imageSmoothingQuality='high';
-            dc.drawImage(canvas,0,y,targetWidth,bandHeight,0,0,detail.width,detail.height);
+            dc.drawImage(canvas,view.crop.x,view.crop.y,view.crop.w,view.crop.h,0,0,detail.width,detail.height);
             const detailPixels=dc.getImageData(0,0,detail.width,detail.height);
             detailPixels.data.set(PaperAILayout.enhanceDetailPixels(detailPixels.data));dc.putImageData(detailPixels,0,0);
             const url=detail.toDataURL('image/jpeg',.97);
-            if(url.length<=2*1024*1024)detailViews.push({url,region:{x:0,y:top,w:1000,h:Math.min(400,1000-top)}});
+            if(url.length<=2*1024*1024)detailViews.push({url,region:view.region});
         }
     }
     const preferredType = hard && !forceSafe ? 'image/webp' : 'image/jpeg';
@@ -4941,7 +4939,7 @@ function formatStructuredWorksheetLine(line, columnWidths=null) {
     if (found) {
         const cells = worksheetCells(found[1], 8).filter(Boolean);
         return '<div class="ocr-figure-row" style="--figure-cols:' + cells.length + '">' +
-            cells.map(cell => '<div class="ocr-figure-cell"><svg class="ocr-shape-icon" preserveAspectRatio="none" style="width:'+(/rectangle|आयत|cube/.test(PaperAILayout.shape(cell).name)?68:51)/523.3*100+'cqw;height:'+51/523.3*100+'cqw" viewBox="0 0 110 90" aria-label="' +
+            cells.map(cell => '<div class="ocr-figure-cell"><svg class="ocr-shape-icon" preserveAspectRatio="none" style="width:'+(/rectangle|आयत|cube/.test(PaperAILayout.shape(cell).name)?68:51)/523.3*100+'cqw;aspect-ratio:'+(/rectangle|आयत|cube/.test(PaperAILayout.shape(cell).name)?68:51)+'/51" viewBox="0 0 110 90" aria-label="' +
                 esc(PaperAILayout.shape(cell).name) + '">' + worksheetShapeSvg(PaperAILayout.shape(cell).name) + '</svg>'+ (PaperAILayout.shape(cell).answer?'<span class="ocr-figure-answer"></span>':PaperAILayout.shape(cell).line?'<div class="ocr-answer-rule"></div>':'')+'</div>'
             ).join('') + '</div>';
     }
@@ -5476,19 +5474,24 @@ function docxBranchTable(root, items) {
 }
 
 // The same worksheet markers are used by the on-screen preview and Word.
+function docxCellPadding(width, options = {}) {
+    return Math.min(options.padding??(options.grid ? 25 : paperLayoutOptions().compact ? 50 : 90),Math.max(0,Math.floor(width/4)));
+}
+function docxCellContentWidth(width, options = {}) {
+    return Math.max(1,width-2*docxCellPadding(width,options));
+}
 function docxTableCells(rows, widths, options = {}) {
     const bordered=options.bordered!==false, total=widths.reduce((a,b)=>a+b,0);
     const borders='<w:tblBorders>'+['top','bottom','left','right','insideH','insideV'].map(side=>
         '<w:'+side+' w:val="'+(bordered?'single':'nil')+'"'+(bordered?' w:sz="6" w:color="333333"':'')+'/>').join('')+'</w:tblBorders>';
-    const pad=options.padding??(options.grid ? 25 : paperLayoutOptions().compact ? 50 : 90);
     const tableRows=rows.map((row,rowIndex)=>{
         const cells=widths.map((width,index)=>{
-            const content=row[index]??'';
+            const content=row[index]??'',pad=docxCellPadding(width,options);
             const fieldMarks=index===widths.length-1&&/\b(?:class|name|roll|signature|marks)\b|कक्षा|नाम|अंक/i.test(row.filter(cell=>typeof cell==='string').join(' '))&&/^\d+(?:\s*M)?$/i.test(String(content));
             const inner=typeof content==='string' ? String(content).split(/<br>/i).map(value=>docxRichParagraph(value,{
                 size:options.fontSize||24, after:0, center:options.center&&!fieldMarks, right:options.right||fieldMarks,
                 bold:options.repeatHeader&&rowIndex===0,
-                keepNext:options.keepNext, available:Math.max(1,width-2*pad)
+                keepNext:options.keepNext, available:docxCellContentWidth(width,options)
             })).join('') : String(content.xml||docxParagraph('',{after:0}));
             return '<w:tc><w:tcPr><w:tcW w:w="'+width+'" w:type="dxa"/><w:vAlign w:val="'+(options.grid||options.centerVertically?'center':'top')+'"/>'+
                 '<w:tcMar>'+['top','bottom','left','right'].map(side=>'<w:'+side+' w:w="'+pad+'" w:type="dxa"/>').join('')+'</w:tcMar></w:tcPr>'+inner+'</w:tc>';
@@ -5504,7 +5507,7 @@ function docxTableCells(rows, widths, options = {}) {
 }
 function docxSectionRow(title,marks,bold=true) {
     const markWidth=Math.min(2800,Math.max(1600,String(marks).length*155));
-    return docxTableCells([[{xml:docxRichParagraph(title,{bold,size:bold?26:24,font:bold?paperLayoutOptions().headingFont:null,actualSize:bold?paperLayoutOptions().heading*2:null,after:0,keepNext:true})},
+    return docxTableCells([[{xml:docxRichParagraph(title,{bold,size:bold?26:24,font:bold?paperLayoutOptions().headingFont:null,actualSize:bold?paperLayoutOptions().heading*2:null,after:0,keepNext:true,available:docxCellContentWidth(10466-markWidth)})},
         {xml:docxParagraph(marks,{bold,size:bold?26:24,font:bold?paperLayoutOptions().headingFont:null,actualSize:bold?paperLayoutOptions().heading*2:null,right:true,after:0,keepNext:true})}]],
         [10466-markWidth,markWidth],{bordered:false,keepNext:true});
 }
@@ -5531,9 +5534,9 @@ function docxDrawingParagraph(label, width = 800000, height = 575000) {
     return '<w:p><w:pPr><w:spacing w:after="35"/></w:pPr>' + docxPictureRun(width,height) + '</w:p>' +
         docxParagraph(label, {size:16,after:45});
 }
-function docxAnswerBoxParagraph() {
+function docxAnswerBoxParagraph(available = 1440) {
     // A native one-cell table is a stable editable box in Word and LibreOffice.
-    return docxTableCells([['']], [1440], {bordered:true,minHeight:340,grid:true});
+    return docxTableCells([['']], [Math.max(1,Math.min(1440,Math.floor(available)))], {bordered:true,minHeight:340,grid:true});
 }
 function docxAnswerRule() {
     return '<w:p><w:pPr><w:spacing w:before="170" w:after="110"/>' +
@@ -5542,17 +5545,16 @@ function docxAnswerRule() {
 }
 function docxPictureRow(labels) {
     const widths = docxEqualWidths(labels.length);
-    const maxDrawingWidth = Math.min(810000, Math.floor((widths[0]-150) * 635));
-    const rows = [labels.map(raw => {
+    const rows = [labels.map((raw,index) => {
         const number = String(raw).match(/^\d+[.)]/)?.[0] || '';
         const label = String(raw).replace(/^\d+[.)]\s*/, '').trim() || 'Picture';
         return {xml:(number ? docxParagraph(number,{size:17,after:0}) : '') +
             docxParagraph('[picture needs review]',{size:18,after:40}) + docxParagraph(label,{size:20,after:40}) +
-            docxAnswerBoxParagraph()};
+            docxAnswerBoxParagraph(docxCellContentWidth(widths[index]))};
     })];
     return docxTableCells(rows,widths,{bordered:false});
 }
-function docxShapeParagraph(shape, inline=false) {
+function docxShapeParagraph(shape, inline=false, available=DOCX_CONTENT_W) {
     const value=String(shape||'').toLowerCase();
     let preset='rect',width=68,height=51;
     if(/circle|वृत्त/.test(value)){preset='ellipse';width=51;}
@@ -5560,7 +5562,8 @@ function docxShapeParagraph(shape, inline=false) {
     else if(/cube/.test(value))preset='cube';
     else if(/square|वर्ग/.test(value))width=51;
     if(inline){width=14;height=14;}
-    const cx=width*12700,cy=height*12700,id=++docxPictureCounter;
+    const scale=Math.min(1,Math.max(1,available)/(width*20));
+    const cx=Math.round(width*12700*scale),cy=Math.round(height*12700*scale),id=++docxPictureCounter;
     // An inline DrawingML shape has no page-relative positioning and stays editable.
     return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="75"/></w:pPr><w:r><w:drawing>'+
         '<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="'+cx+'" cy="'+cy+'"/>'+
@@ -5573,8 +5576,9 @@ function docxShapeParagraph(shape, inline=false) {
         '<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
 }
 function docxShapeRow(shapes) {
-    return docxTableCells([shapes.map(value=>{const shape=PaperAILayout.shape(value);return {xml:docxShapeParagraph(shape.name)+(shape.answer?docxAnswerBoxParagraph():shape.line?docxAnswerRule():'')};})],
-        docxEqualWidths(shapes.length),{bordered:false});
+    const widths=docxEqualWidths(shapes.length);
+    return docxTableCells([shapes.map((value,index)=>{const shape=PaperAILayout.shape(value),available=docxCellContentWidth(widths[index]);return {xml:docxShapeParagraph(shape.name,false,available)+(shape.answer?docxAnswerBoxParagraph(available):shape.line?docxAnswerRule():'')};})],
+        widths,{bordered:false});
 }
 function docxGrid(columns, rows, cells = [], region=null) {
     const metric=region?PaperAILayout.measuredGrid(region,rows):null;
@@ -5608,7 +5612,7 @@ function docxRichParagraph(raw, options = {}) {
             (options.keepNext?'<w:keepNext/>':'')+'<w:spacing w:after="'+(options.after??70)+'"/></w:pPr>'+
             docxSourceRun(item.id,options.available||DOCX_CONTENT_W,4400)+'</w:p>'+
             (item.caption?docxParagraph(item.caption,{size:options.size||24,after:0}):'')+
-            (item.answer?docxAnswerBoxParagraph():'');
+            (item.answer?docxAnswerBoxParagraph(options.available||DOCX_CONTENT_W):'');
     }
     const tokens = PaperAILayout.inlineParts(raw);
     if (tokens.length === 1 && !tokens[0].startsWith('[[')) return docxParagraph(docxVisibleText(raw),options);
@@ -5620,8 +5624,8 @@ function docxRichParagraph(raw, options = {}) {
 
         }
         const shape=token.match(/^\[\[SHAPE_ROW:\s*([\s\S]*?)\]\]$/i);
-        if(shape)return worksheetCells(shape[1],8).map(value=>{
-            const xml=docxShapeParagraph(PaperAILayout.shape(value).name,true);
+        if(shape)return worksheetCells(shape[1],8).map((value,index,shapes)=>{
+            const xml=docxShapeParagraph(PaperAILayout.shape(value).name,true,(options.available||DOCX_CONTENT_W)/shapes.length);
             return xml.slice(xml.indexOf('<w:r>'),xml.lastIndexOf('</w:r>')+6);
         }).join('');
         if(/^\[\[ANSWER_LINES:/i.test(token))return docxRun('________',{size:options.size||24});
@@ -5890,10 +5894,10 @@ function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400, descrip
 function docxSourceRow(values) {
     const widths=docxEqualWidths(values.length);
     return docxTableCells([values.map((value,i)=>{
-        const item=PaperAILayout.source(value);
-        return {xml:'<w:p><w:pPr><w:jc w:val="'+(sourceAsset(item.id)?.align||'center')+'"/><w:spacing w:after="60"/></w:pPr>'+docxSourceRun(item.id,widths[i]-180)+'</w:p>'+
-            (item.caption ? docxRichParagraph(item.caption,{center:true,size:22,after:40}) : '')+
-            (item.answer ? docxAnswerBoxParagraph() : '')};
+        const item=PaperAILayout.source(value),available=docxCellContentWidth(widths[i]);
+        return {xml:'<w:p><w:pPr><w:jc w:val="'+(sourceAsset(item.id)?.align||'center')+'"/><w:spacing w:after="60"/></w:pPr>'+docxSourceRun(item.id,available)+'</w:p>'+
+            (item.caption ? docxRichParagraph(item.caption,{center:true,size:22,after:40,available}) : '')+
+            (item.answer ? docxAnswerBoxParagraph(available) : '')};
     })],widths,{bordered:false});
 }
 

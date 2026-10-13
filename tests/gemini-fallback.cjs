@@ -32,6 +32,20 @@ const output=text=>Response.json({candidates:[{finishReason:'STOP',content:{part
   usageMetadata:{promptTokenCount:1000,candidatesTokenCount:500}});
 const good={response:'1. Write your name. ______',usage:{prompt_tokens:100,completion_tokens:20}};
 const limit=()=>{throw new Error('3036: daily free allocation reached');};
+const Layout=require('../frontend/vendor/paper-layout.js');
+for(const [width,height] of [[1200,1800],[2000,3000],[2545,3600],[3600,1800]]){
+  const plan=Layout.detailViewPlan(width,height);
+  assert.equal(plan.length,width*1.5<=2000?3:6);
+  for(const view of plan){
+    assert(view.width>=view.crop.w,'A close-up must never reduce the source text');
+    assert(view.width<=2000);
+    assert(Math.abs(view.height/view.width-view.crop.h/view.crop.w)<=1/view.width,'Detail images must retain their aspect ratio');
+    assert(view.crop.x+view.crop.w<=width&&view.crop.y+view.crop.h<=height);
+  }
+  for(let y=0;y<1000;y+=25)for(let x=0;x<1000;x+=25)
+    assert(plan.some(v=>x>=v.region.x&&x<v.region.x+v.region.w&&y>=v.region.y&&y<v.region.y+v.region.h),'Close-ups must cover every part of the page');
+}
+assert.deepEqual(Layout.detailViewPlan(0,1),[]);
 (async()=>{
   const test=environment(limit);queue.push(output('१. अपना नाम लिखिए। ______'));
   let response=await ctx.handler.fetch(image({detectedGrids:[{columns:5,rows:8,x:317,y:277,w:329,h:254},{columns:9999,rows:1,x:0,y:0,w:20,h:20},{columns:5,rows:1,x:990,y:0,w:40,h:20},null]}),test.env),body=await response.json();
@@ -71,7 +85,17 @@ const limit=()=>{throw new Error('3036: daily free allocation reached');};
   response=await ctx.handler.fetch(image({structuredLayout:true}),structured.env);body=await response.json();
   assert.equal(response.status,200);assert(body.result.annotated_text.includes('TABLE_ROW'));assert.equal(primaryCalls,before+1);
   assert(requests.at(-1).contents[0].parts[1].text.includes('LITERAL VERIFICATION PASS'));
+  assert(!requests.at(-1).contents[0].parts.some(p=>p.text?.includes('---BEGIN FIRST OCR---')),'Verification must also be independent after the initial Gemini fallback');
   assert.equal((await ctx.getUsageStatus(structured.env)).estimated_used,0,'Backup verification does not add primary neurons');
+  const views=Layout.detailViewPlan(2545,3600).map(view=>({url:'data:image/jpeg;base64,AA==',region:view.region}));
+  assert.equal(ctx.sanitizeDetailViews([...views,...views]).length,6,'Allow all six bounded close-ups without an unbounded image list');
+  assert.equal(ctx.sanitizeDetailViews(views,0).length,0,'The total request budget must still apply');
+  queue.push(new Response('',{status:503}),output('5. क + ण + ू = ______'),output('5. क + न + ू = ______'));
+  const reread=await ctx.runAI('AA==','image/png',{GEMINI_API_KEY:'fixture-credential'},'hi','auto',{structuredLayout:true},[],undefined,views);
+  assert.equal(reread.model,'gemini-3.5-flash-lite','Report the model that actually supplied the accepted transcription');
+  assert.equal(reread.text,'5. क + न + ू = ______');assert.equal(reread.rescued,true);
+  assert.equal(requests.at(-1).contents[0].parts.filter(p=>p.inline_data).length,7,'Full page and all close-ups must reach one verification request');
+  assert(!JSON.stringify(requests.at(-1)).includes('क + ण'),'The first draft must not bias an independent letter-building reread');
   let verifierCalls=0;const verification=environment(()=>++verifierCalls===1?{...good,response:'1. Name the [unclear] object. ______'}:limit());
   queue.push(output('1. Name the [unclear] object. ______'));
   response=await ctx.handler.fetch(image(),verification.env);assert.equal(response.status,200);assert.equal(verifierCalls,1);

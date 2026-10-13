@@ -35,6 +35,7 @@ jobs:
           node tests/pdf-editable-layout.cjs
           node tests/docx-import.cjs
           node tests/editable-paper.cjs
+          node tests/dense-word-layout.cjs
           node tests/question-paper-model.cjs
           node tests/scan-resume.cjs
           node tests/docx-reference-layout.cjs

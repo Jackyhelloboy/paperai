@@ -101,6 +101,17 @@
         return {x,y,w:Math.max(1,Math.min(width-x,Math.ceil(region.w*width/1000))),
             h:Math.max(1,Math.min(height-y,Math.ceil(region.h*height/1000)))};
     }
+    function detailViewPlan(width, height) {
+        if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1)return [];
+        // A full-width band above 1333 pixels would be reduced by the 2000px
+        // limit. Split wide pages into overlapping left/right crops instead.
+        const columns=width*1.5<=2000?[[0,1000]]:[[0,550],[450,550]];
+        return [0,300,600].flatMap(y=>columns.map(([x,w])=>{
+            const region={x,y,w,h:400},crop=pixels(region,width,height);
+            const outputWidth=Math.min(2000,Math.round(crop.w*1.5));
+            return {region,crop,width:outputWidth,height:Math.max(1,Math.round(crop.h*outputWidth/crop.w))};
+        }));
+    }
     function enhanceDetailPixels(rgba) {
         const output=new Uint8ClampedArray(rgba),hist=new Uint32Array(256);
         const luminance=i=>Math.round((rgba[i]*299+rgba[i+1]*587+rgba[i+2]*114)/1000);
@@ -665,5 +676,5 @@
         }
         return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
 });
