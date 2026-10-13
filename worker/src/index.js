@@ -610,9 +610,13 @@ async function runGemini(env, requestBody, signal, state = {}) {
     ...(system.length ? {systemInstruction: {parts: system}} : {}),
     generationConfig: {temperature: 0, maxOutputTokens: Math.max(256, Math.min(16384, Number(requestBody.max_completion_tokens) || 6144))},
   };
-  const models = state.geminiModel ? [state.geminiModel] : [GEMINI_MODEL, GEMINI_CAPACITY_MODEL];
+  const models = state.geminiModel ? [state.geminiModel] : state.fastScan
+    ? [GEMINI_CAPACITY_MODEL, GEMINI_MODEL] : [GEMINI_MODEL, GEMINI_CAPACITY_MODEL];
   for (let attempt = 0; attempt < models.length; attempt++) {
     const model = models[attempt], canContinue = attempt + 1 < models.length;
+    // OCR is literal extraction. Avoid spending the output/time budget on a
+    // long reasoning pass before emitting the page's characters.
+    body.generationConfig.thinkingConfig={thinkingLevel:model===GEMINI_CAPACITY_MODEL?'MINIMAL':'LOW'};
     const remaining = (state.deadline || Date.now() + PAGE_SCAN_BUDGET_MS) - Date.now();
     if (remaining <= 0 || signal?.aborted) throw scanServiceError('AI_TIMEOUT', 'This scan took too long.');
     const controller = new AbortController();
@@ -1485,7 +1489,7 @@ function sanitizeDetailViews(input, budget=5*1024*1024) {
 }
 
 async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], signal, detailViews = []) {
-  const providerState = {deadline: Date.now() + PAGE_SCAN_BUDGET_MS};
+  const providerState = {deadline: Date.now() + PAGE_SCAN_BUDGET_MS,fastScan:true};
   const scanStrategy = imageMeta?.scanStrategy || 'full-page';
   const scanMode = scanStrategy === 'line-mosaic'
     ? 'line-by-line'
@@ -1568,16 +1572,9 @@ READING CONTRACT:
     }
   };
 
-  // Send the enlarged source evidence on the first backup read. A successful
-  // detailed read does not need another full transcription just for tables.
-  const detailParts = sanitizeDetailViews(detailViews).flatMap((view,index)=>[
-    {type:'text',text:'Enlarged detail '+(index+1)+' of the SAME page. Full-page rectangle: '+JSON.stringify(view.region)+'. Output one complete page; all coordinates remain relative to the FIRST image.'},
-    {type:'image_url',image_url:{url:view.url}}
-  ]);
-  if (detailParts.length) providerState.geminiBody = {...requestBody,
-    max_completion_tokens: 12288,
-    messages: requestBody.messages.map(message => message.role === 'user'
-      ? {...message,content:[message.content[0],...detailParts,...message.content.slice(1)]} : message)};
+  // The first read uses one full-resolution page. Sending that same page plus
+  // six overlapping enlargements on every call adds substantial latency and
+  // capacity pressure. Enlargements are reserved for the repair pass below.
 
   let response;
   let lastError;
