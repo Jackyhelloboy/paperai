@@ -5776,7 +5776,8 @@ function buildDocxBody(structuredText) {
         }
         if(matchRows.length){
             const count=Math.max(...matchRows.map(row=>row.length));
-            body.push(docxTableCells(matchRows,pendingWidths?.length===count?pendingWidths:PaperAILayout.tableWidths(matchRows),{bordered:false,fontSize:24,minHeight:paperLayoutOptions().compact?300:400,centerVertically:matchRows.some(row=>row.some(cell=>/\[\[SOURCE_FIGURE:/i.test(cell)))}));
+            const following=lines.slice(i).find(value=>value.trim()&&!/^\s*\[\[(?:TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER):/i.test(value))||'';
+            body.push(docxTableCells(matchRows,pendingWidths?.length===count?pendingWidths:PaperAILayout.tableWidths(matchRows),{bordered:false,fontSize:24,minHeight:paperLayoutOptions().compact?300:400,keepNext:/^\s*\[\[GRID(?:_ROW)?:/i.test(following),centerVertically:matchRows.some(row=>row.some(cell=>/\[\[SOURCE_FIGURE:/i.test(cell)))}));
             pendingWidths=null;pendingHeader=false;
             continue;
         }

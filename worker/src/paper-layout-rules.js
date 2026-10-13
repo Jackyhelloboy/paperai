@@ -85,8 +85,9 @@ export function cleanQuestionPaper(value, depth=0) {
                 const questions=line.split(/\s*\|\|\s*/).map(cell=>cell.trim());
                 if(questions.length>=2&&questions.length<=4&&questions.every(cell=>cell.length<=300&&/^[0-9०-९]+(?:[.)।]\s*|\s+)\S[\s\S]*(?:_{2,}|\(\s*\))\s*$/u.test(cell))){questionsStarted=true;previousHeaderCount=0;return '[[MATCH_ROW: '+questions.join(' || ')+']]';}
             }
-            if(questionsStarted||line.includes('[[')||!line.includes('||')||!/^\s*(?:class\s*:|subject\s*:|time\s*:|name\b[^|]{0,50}:|roll\b[^|]{0,15}:|invigilator\b|(?:total\s+)?marks\b)/i.test(line)){previousHeaderCount=0;return line;}
-            const cells=line.split(/\s*\|\|\s*/).map(cell=>cell.trim());
+            const wrapped=line.match(/^\s*\[\[TABLE_ROW:\s*([\s\S]*)\]\]\s*$/i),fields=wrapped?wrapped[1]:line;
+            if(questionsStarted||fields.includes('[[')||!fields.includes('||')||!/^\s*(?:class\s*:|subject\s*:|time\s*:|name\b[^|]{0,50}:|roll\b[^|]{0,15}:|invigilator\b|(?:total\s+)?marks\b)/i.test(fields)){previousHeaderCount=0;return line;}
+            const cells=fields.split(/\s*\|\|\s*/).map(cell=>cell.trim());
             if(cells.length<2||cells.length>8||cells.some(cell=>cell.length>300)){previousHeaderCount=0;return line;}
             const separate=previousHeaderCount&&previousHeaderCount!==cells.length;previousHeaderCount=cells.length;
             return (separate?'\n':'')+'[[TABLE_ROW: '+cells.join(' || ')+']]';
