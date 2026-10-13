@@ -13,7 +13,9 @@ Live application: https://paperai-5up.pages.dev/
 | Image recognition, verification and spelling suggestions | `worker/src/` | Cloudflare Worker |
 | Reference inputs and export checks | `training/`, `tests/` | GitHub Actions and local verification |
 
-The Worker uses its primary AI binding and automatically falls back to Gemini when the primary service is unavailable or its daily allowance is exhausted. Difficult pages receive a verification pass with enlarged, overlapping source crops. Gemini verification reads the source independently rather than receiving the earlier draft. Crops retain full-page coordinates and original exported picture pixels.
+The Worker uses its primary AI binding and automatically falls back to Gemini when the primary service is unavailable or its daily allowance is exhausted. With a backup key, the primary has a ten-second wait budget. Gemini receives enlarged, overlapping source crops on its first read; a valid complete backup read is not repeated merely because the page has tables. Difficult primary readings can receive an independent verification within the remaining time budget. Crops retain full-page coordinates and original exported picture pixels.
+
+Image uploads are acknowledged promptly and the browser polls a random scan ID with short requests. A dropped connection resumes that same job instead of starting another inference. Completed PDF pages remain in the open browser's cache. Individual inference chains have a 70-second budget, with optional verification capped at 18 seconds. Temporary results are isolated by scan ID and expire after ten minutes; source images are not written to job storage. A closed or refreshed browser tab still requires reopening the source file.
 
 Word output uses A4 pages, editable text, native tables and shapes, blank answer boxes, and original illustration crops. Shapes and nested answer boxes fit their containing columns. Literal source spelling, irregular numbering, isolated Indic vowel signs and mathematical operands are preserved; the scanner does not solve questions. Handwriting recognition can still differ from the source, so review the extracted text.
 

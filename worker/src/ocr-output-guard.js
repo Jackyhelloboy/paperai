@@ -11,7 +11,13 @@ export function invalidLayoutMarkers(text) {
     if(/\[\[(?:TABLE_ROW|GRID_ROW|MATCH_ROW|ARITHMETIC_ROW):[^\n]*\[\[(?:TABLE_ROW|GRID_ROW|FIGURE_ROW|MATCH_ROW|ARITHMETIC_ROW|GRID):/i.test(text))return true;
     if(/\[\[(?:QUESTION_ROW|SECTION_ROW):[^\]|]*\]\]/i.test(text))return true;
     const allowed=/^(?:(?:SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|SOURCE_PAGE|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|BRANCH_ROOT|BRANCH_ITEM|DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION|PICTURE_ROW):|CHECKBOX$|BRANCH_END$)/i;
-    if([...String(text||'').matchAll(/\[\[([^\]]*?)\]\]/g)].some(m=>!allowed.test(m[1].trim())))return true;
+    const value=String(text||'');
+    if((value.match(/\[\[/g)||[]).length!==(value.match(/\]\]/g)||[]).length)return true;
+    // Check every opening, including nested controls inside a valid table row.
+    for(const match of value.matchAll(/\[\[/g)){
+        const body=value.slice(match.index+2),end=body.indexOf(']]');
+        if(end<0||!allowed.test(body.slice(0,end).trim()))return true;
+    }
     for(const m of String(text||'').matchAll(/\[\[(FIGURE(?:_ROW)?|BANNER|TABLE_REGION):\s*([\s\S]*?)\]\]/gi)){
         const specs=m[1].toUpperCase()==='FIGURE_ROW'?m[2].split(/\s*\|\|\s*/):[m[2]];
         for(const spec of specs){

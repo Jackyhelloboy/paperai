@@ -193,6 +193,8 @@
             if(!line||/^\[\[TABLE_(?:WIDTHS|HEADER):/i.test(line)){i++;continue;}
             break;
         }
+        const boxed=String(lines[i]||'').trim().match(/^\[\[BOXED:\s*([0-9०-९]{1,4})\s*\]\]$/u);
+        if(boxed)return {id:banner[1].trim(),rows:[[boxed[1]]],width:region?Math.min(2600,Math.max(1100,Math.round(region.w*profile.pageWidth/1000))):1100,nextIndex:i+1};
         const rows=[];
         while(i<lines.length){
             const row=String(lines[i]).trim().match(/^\[\[TABLE_ROW:\s*([^|\]]+)\]\]$/i);
@@ -463,7 +465,7 @@
         while(end<text.length&&level){if(text.slice(end,end+2)==='[['){level++;end+=2;}else if(text.slice(end,end+2)===']]'){level--;end+=2;}else end++;}
         if(level){out+=text.slice(start);break;}
         const token=text.slice(start,end),m=token.match(/^\[\[([A-Z_-]+):\s*([\s\S]*)\]\]$/i);
-        if(!m)out+=token;
+        if(!m){const boxed=token.match(/^\[\[\s*([0-9०-९]+)\s*\]\]$/u);out+=boxed?'[[BOXED: '+boxed[1]+']]':token;}
         else {const name=m[1].toUpperCase(),body=m[2];
             if(/^(?:STRIKE|DOUBLE-STRIKE|ANSWER|SOLUTION|ANSWER_KEY|MARGIN|STAMP)$/.test(name)){}
             else if(name==='REPLACE'){const pieces=body.split(/\s*(?:->|→|=>|\|\|)\s*/);out+=pieces.length>1?cleanQuestionPaper(pieces.slice(1).join(' '),depth+1):'';}

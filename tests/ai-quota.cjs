@@ -29,7 +29,7 @@ const ctx = vm.createContext({ Date: Clock, URL, Request, Response, Headers, Tex
     console: { log() {} }, DurableObject: class { constructor(context, env) { this.ctx = context; this.env = env; } },
     PAPER_LAYOUT_RULES: '', normaliseMarkerRows: s => s, DICTIONARY: {},
     getDictionaryWords: () => [], isInDictionary: () => false, autoCorrect: s => s,
-    verifyWord: () => ({}), getSuggestions: () => [], CONFUSION_PAIRS: {}, setTimeout });
+    verifyWord: () => ({}), getSuggestions: () => [], CONFUSION_PAIRS: {}, setTimeout, clearTimeout });
 vm.runInContext(fs.readFileSync('worker/src/ocr-output-guard.js', 'utf8').replace(/export /g, ''), ctx);
 const worker = fs.readFileSync('worker/src/index.js', 'utf8').replace(/^import .*;\n/gm, '')
     .replace('export default {', 'const workerHandler = {').replace('export class UsageTracker', 'class UsageTracker');
@@ -99,7 +99,7 @@ async function frontend() {
     const ui = vm.createContext({ PaperAIQuota: Quota, Blob, FormData, languageSelect: { value: 'auto' },
         rememberQuotaBlock(){}, loadUsage: async () => ({ blocked: true, resetAt: report.reset_at }), quotaFailure: () => Object.assign(new Error('Scanning unavailable'), { code: 'FREE_AI_LIMIT_REACHED' }),
         prepareImageForOCR: async () => { prepares++; return { blob: new Blob(['page']), meta: {} }; },
-        fetchOcrEndpoint: async () => { requests++; return response; }, appendLearningHints() {}, setProg() {}, wait: async () => {},
+        scanClient:{request:async()=>{requests++;return response.clone();}}, appendLearningHints() {}, setProg() {}, wait: async () => {},
         PaperAILayout:{normalise:s=>s,reconcileEmptyGrids:s=>s},recoverSourceFigures:async s=>s,portableText:s=>s,docxVisibleText:s=>s });
     vm.runInContext(slice('async function sendToOCR', 'function publicPlainTextFromStructured'), ui);
     response=Response.json({status:'completed',result:{full_text:'1. Name the planet.'}});
@@ -107,14 +107,14 @@ async function frontend() {
     assert.equal(prepares, 1);assert.equal(requests, 1, 'Cached primary-provider limits must still upload to the backend backup');
     response = Response.json({ code: 'AI_BUSY' }, { status: 429 });
     await assert.rejects(() => ui.sendToOCR(originalPhoto), /temporarily busy/);
-    assert.equal(requests, 2);
+    assert.equal(requests, 3);
     response = Response.json({ code: 'FREE_AI_LIMIT_REACHED' }, { status: 429 });
     await assert.rejects(() => ui.sendToOCR(originalPhoto), /Scanning unavailable/);
-    assert.equal(requests, 3, 'A final service rejection does not invoke a removed browser reader or duplicate the upload');
+    assert.equal(requests, 4, 'A final service rejection does not invoke a removed browser reader or duplicate the upload');
     ui.loadUsage = async () => ({ blocked: false });
     response=Response.json({status:'completed',result:{full_text:'1. Name the planet.'}});
     assert.equal((await ui.sendToOCR(originalPhoto)).result.full_text,'1. Name the planet.');
-    assert.equal(requests,4,'The backend chooses the primary after its reset');
+    assert.equal(requests,5,'The backend chooses the primary after its reset');
     let urls = [];
     const proxy = vm.createContext({ API_LOCAL: 'https://paperai.test',
         fetch: async url => { urls.push(url); return Response.json({ code: 'AI_BUSY' }, { status: 503 }); } });
@@ -125,8 +125,8 @@ async function frontend() {
     urls=[]; proxy.fetch=async url=>{urls.push(url);throw new Error('network interrupted');};
     await assert.rejects(()=>proxy.fetchOcrEndpoint('/api/ocr',{}),/network interrupted/);
     assert.equal(urls.length,1,'Ambiguous network failures must never resubmit an upload');
-    let networkCalls=0;ui.fetchOcrEndpoint=async()=>{networkCalls++;throw new Error('offline');};
-    await assert.rejects(()=>ui.sendToOCR(originalPhoto),/Could not reach/);
+    let networkCalls=0;ui.scanClient.request=async()=>{networkCalls++;throw new Error('The connection to PaperAI was interrupted.');};
+    await assert.rejects(()=>ui.sendToOCR(originalPhoto),/connection to PaperAI/);
     assert.equal(networkCalls,1);
 
     const fields = {};

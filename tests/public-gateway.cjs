@@ -16,7 +16,14 @@ async function gateway(path,upstream,options={}){
   assert.deepEqual(body.result.metadata,{language:'en'});assert(!body.result.model);assert.equal(upstreamRequest.headers.get('Authorization'),null);
   assert.equal(await upstreamRequest.text(),'{"image":"AA=="}');
   assert.equal(new URL(upstreamRequest.url).pathname,'/api/ocr');
-  for(const code of ['AI_BUSY','AI_TIMEOUT','FREE_AI_LIMIT_REACHED','AI_OCR_FAILED','UNKNOWN_INTERNAL_ERROR']){
+  const scanId='12345678-1234-4234-8234-123456789abc';
+  res=await gateway('/api/ocr',Response.json({status:'processing'},{status:202}),{method:'POST',headers:{'X-PaperAI-Request-ID':scanId},body:'image'});
+  assert.equal(res.status,202);assert.equal(res.headers.get('Retry-After'),'2');
+  assert.equal(upstreamRequest.headers.get('X-PaperAI-Request-ID'),scanId);
+  res=await gateway('/api/ocr-status',Response.json({status:'completed',result:{full_text:paper,metadata:{model:'private-model'}}}),{headers:{'X-PaperAI-Request-ID':scanId}});
+  assert.equal((await res.json()).result.full_text,paper);
+  assert.equal(new URL(upstreamRequest.url).pathname,'/api/ocr-status');
+  for(const code of ['AI_BUSY','AI_TIMEOUT','FREE_AI_LIMIT_REACHED','AI_OCR_FAILED','SCAN_NOT_FOUND','UNKNOWN_INTERNAL_ERROR']){
     res=await gateway('/api/ocr',Response.json({code,error:'Cloudflare Gemma stack trace private-backend.workers.dev',
       detail:'private-model',reset_at:'2026-10-12T00:00:00Z'},{status:code==='FREE_AI_LIMIT_REACHED'?429:503,
       headers:{'Retry-After':'5','X-Model':'secret','Server':'private-host'}}),{method:'POST',body:'test'});

@@ -2,6 +2,7 @@ import { PAPER_LAYOUT_RULES, normaliseMarkerRows } from './paper-layout-rules.js
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
 import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers } from './ocr-output-guard.js';
+import { handleScanJob } from './scan-jobs.js';
 
 const DAILY_FREE_NEURONS = 10000;
 const GEMMA4_INPUT_NEURONS_PER_MILLION = 9091;
@@ -12,7 +13,7 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-PaperAI-Request-ID',
       'Access-Control-Expose-Headers': 'Retry-After',
     };
 
@@ -54,8 +55,17 @@ export default {
       }
     }
 
-    if (url.pathname === '/api/ocr' && request.method === 'POST') {
+    if ((url.pathname === '/api/ocr' && request.method === 'POST') ||
+        (url.pathname === '/api/ocr-status' && request.method === 'GET')) {
       try {
+        const requestId = request.headers.get('X-PaperAI-Request-ID');
+        if (requestId || url.pathname === '/api/ocr-status') {
+          if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(requestId || ''))
+            return Response.json({code:'OCR_FAILED',error:'Invalid scan request.'},{status:400,headers:corsHeaders});
+          const stub = env.USAGE_TRACKER.get(env.USAGE_TRACKER.idFromName('paperai-scan-' + requestId));
+          const response = await stub.fetch(request);
+          return new Response(response.body,{status:response.status,headers:{...Object.fromEntries(response.headers),...corsHeaders}});
+        }
         return await handleOCR(request, env, corsHeaders);
       } catch (e) {
         return Response.json({ error: 'This file could not be read. Please try again.', code: 'OCR_FAILED' }, { status: 500, headers: corsHeaders });
@@ -348,6 +358,9 @@ export class UsageTracker extends DurableObject {
   async fetch(request) {
     const url = new URL(request.url);
 
+    if (url.pathname === '/api/ocr' || url.pathname === '/api/ocr-status')
+      return handleScanJob(this, request, input => withinScanBudget(() => handleOCR(input, this.env, {}), 80000));
+
     if (url.pathname === '/api/live') {
       if ((request.headers.get('Upgrade') || '').toLowerCase() !== 'websocket') {
         return Response.json({ active: this.ctx.getWebSockets().length }, {
@@ -452,6 +465,16 @@ export class UsageTracker extends DurableObject {
     try { ws.send(JSON.stringify({ type: 'presence', active })); } catch (_) {}
   }
 
+  async alarm() {
+    // Scan objects contain only a short-lived result. Global usage/presence
+    // objects never schedule this alarm and must never be cleared here.
+    const job = await this.ctx.storage.get('scan-result');
+    if (job && job.expiresAt <= Date.now()) {
+      await this.ctx.storage.deleteAll();
+      this.scanResult = null;
+    } else if (job) await this.ctx.storage.setAlarm(job.expiresAt);
+  }
+
   webSocketClose(ws) {
     this.broadcastPresence(ws);
   }
@@ -534,7 +557,7 @@ function freeLimitResponse(corsHeaders, extra = {}) {
 async function confirmedFreeLimit(env) {
   // Do not reject scans based on a token estimate or an unavailable tracker.
   try {
-    const status = await getUsageStatus(env);
+    const status = await withinScanBudget(() => getUsageStatus(env), 2000);
     return status.provider_limit_reached === true;
   } catch (_) { return false; }
 }
@@ -542,6 +565,19 @@ async function confirmedFreeLimit(env) {
 const PRIMARY_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 const GEMINI_MODEL = 'gemini-flash-latest';
 const GEMINI_CAPACITY_MODEL = 'gemini-3.5-flash-lite';
+const PAGE_SCAN_BUDGET_MS = 70000;
+
+async function withinScanBudget(task, milliseconds, signal) {
+  if (signal?.aborted || milliseconds <= 0) throw scanServiceError('AI_TIMEOUT', 'This scan took too long.');
+  let timer, cancel;
+  const limit = new Promise((_, reject) => {
+    cancel = () => reject(scanServiceError('AI_TIMEOUT', 'This scan took too long.'));
+    timer = setTimeout(cancel, milliseconds);
+    signal?.addEventListener('abort', cancel, {once:true});
+  });
+  try { return await Promise.race([Promise.resolve().then(task), limit]); }
+  finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
+}
 
 function scanServiceError(code, message) {
   const error = new Error(message);
@@ -554,6 +590,7 @@ async function runGemini(env, requestBody, signal, state = {}) {
   // upstream error body, which may contain request details or document text.
   const apiKey = String(env.GEMINI_API_KEY || '').trim();
   if (!apiKey) throw scanServiceError('SCAN_SERVICE_UNAVAILABLE', 'Scanning is temporarily unavailable.');
+  requestBody = state.geminiBody || requestBody;
   const system = [], contents = [];
   for (const message of requestBody.messages || []) {
     const parts = [];
@@ -573,16 +610,17 @@ async function runGemini(env, requestBody, signal, state = {}) {
     ...(system.length ? {systemInstruction: {parts: system}} : {}),
     generationConfig: {temperature: 0, maxOutputTokens: Math.max(256, Math.min(16384, Number(requestBody.max_completion_tokens) || 6144))},
   };
-  const detailedRead=Number(requestBody.max_completion_tokens)>=8192&&contents.some(content=>content.parts.filter(part=>part.inline_data).length>1);
   const models = state.geminiModel ? [state.geminiModel] : [GEMINI_MODEL, GEMINI_CAPACITY_MODEL];
   for (let attempt = 0; attempt < models.length; attempt++) {
     const model = models[attempt], canContinue = attempt + 1 < models.length;
+    const remaining = (state.deadline || Date.now() + PAGE_SCAN_BUDGET_MS) - Date.now();
+    if (remaining <= 0 || signal?.aborted) throw scanServiceError('AI_TIMEOUT', 'This scan took too long.');
     const controller = new AbortController();
     let timedOut = false;
     const cancel = () => controller.abort();
     if (signal?.aborted) cancel();
     else signal?.addEventListener('abort', cancel, {once: true});
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, canContinue ? (detailedRead ? 75000 : 25000) : 90000);
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, Math.min(remaining, canContinue ? 25000 : 35000));
     let response, result;
     try {
       response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
@@ -625,6 +663,7 @@ async function runGemini(env, requestBody, signal, state = {}) {
 }
 
 async function runInference(env, body, state = {}, signal) {
+  if (signal?.aborted) throw scanServiceError('AI_TIMEOUT', 'Scan cancelled.');
   const hasBackup = Boolean(String(env.GEMINI_API_KEY || '').trim());
   console.log('[Scan routing] credential '+(hasBackup?'present':'absent'));
   if (state.provider === 'gemini') return runGemini(env, body, signal, state);
@@ -635,11 +674,12 @@ async function runInference(env, body, state = {}, signal) {
   }
   try {
     if (!env.AI) throw scanServiceError('SCAN_SERVICE_UNAVAILABLE', 'Scanning is temporarily unavailable.');
-    return await env.AI.run(PRIMARY_MODEL, body, {rejectIfBusy: true});
+    return await withinScanBudget(() => env.AI.run(PRIMARY_MODEL, body, {rejectIfBusy: true}),
+      Math.min(hasBackup ? 10000 : 45000, (state.deadline || Date.now() + PAGE_SCAN_BUDGET_MS) - Date.now()), signal);
   } catch (error) {
     const dailyLimit = isDailyFreeLimitError(error);
     if (dailyLimit) { try { await markUsageExhausted(env); } catch (_) {} }
-    if (hasBackup && (dailyLimit || isPaidModelRequiredError(error) || isTransientAiError(error) || isAiTimeoutError(error) || !env.AI)) {
+    if (!signal?.aborted && hasBackup && (dailyLimit || isPaidModelRequiredError(error) || isTransientAiError(error) || isAiTimeoutError(error) || error?.code === 'AI_TIMEOUT' || !env.AI)) {
       state.provider = 'gemini';
       return runGemini(env, body, signal, state);
     }
@@ -1100,7 +1140,7 @@ async function handleOCR(request, env, corsHeaders) {
   // Record successful primary-provider usage for the private daily ledger.
   // Failure to write analytics must never block the OCR result.
   try {
-    await recordAiUsage(env, aiResult.usage || null);
+    await withinScanBudget(() => recordAiUsage(env, aiResult.usage || null), 2000);
   } catch (e) {
     console.log('[Usage tracker] Could not record usage:', e.message);
   }
@@ -1445,7 +1485,7 @@ function sanitizeDetailViews(input, budget=5*1024*1024) {
 }
 
 async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], signal, detailViews = []) {
-  const providerState = {};
+  const providerState = {deadline: Date.now() + PAGE_SCAN_BUDGET_MS};
   const scanStrategy = imageMeta?.scanStrategy || 'full-page';
   const scanMode = scanStrategy === 'line-mosaic'
     ? 'line-by-line'
@@ -1528,6 +1568,17 @@ READING CONTRACT:
     }
   };
 
+  // Send the enlarged source evidence on the first backup read. A successful
+  // detailed read does not need another full transcription just for tables.
+  const detailParts = sanitizeDetailViews(detailViews).flatMap((view,index)=>[
+    {type:'text',text:'Enlarged detail '+(index+1)+' of the SAME page. Full-page rectangle: '+JSON.stringify(view.region)+'. Output one complete page; all coordinates remain relative to the FIRST image.'},
+    {type:'image_url',image_url:{url:view.url}}
+  ]);
+  if (detailParts.length) providerState.geminiBody = {...requestBody,
+    max_completion_tokens: 12288,
+    messages: requestBody.messages.map(message => message.role === 'user'
+      ? {...message,content:[message.content[0],...detailParts,...message.content.slice(1)]} : message)};
+
   let response;
   let lastError;
 
@@ -1552,7 +1603,10 @@ READING CONTRACT:
   let usage = mergeAiUsage(response.usage || null, null);
   let rescued = false;
 
-  if (shouldVerifyOcr(text, imageMeta)) {
+  const needsRepair = degenerateOcr(text) || invalidLayoutMarkers(text) || !text.trim() ||
+    /^no\s+(?:readable\s+)?text\s+(?:detected|found)[.!]?$/i.test(text.trim());
+  if ((providerState.provider !== 'gemini' || needsRepair) && shouldVerifyOcr(text, imageMeta) &&
+      providerState.deadline - Date.now() >= 5000 && !signal?.aborted) {
     const rescuePrompt = prompt + `
 
 LITERAL VERIFICATION PASS:
@@ -1573,8 +1627,9 @@ VERIFICATION RULES:
     try {
       // Keep the primary reader as the first pass. An independent verifier
       // reduces repeated transcription errors on the already-selected hard pages.
-      const verificationState=providerState.provider==='gemini'||!String(env.GEMINI_API_KEY||'').trim()
-        ? providerState : {provider:'gemini'};
+      const verificationState={...providerState, geminiBody:undefined,
+        deadline:Math.min(providerState.deadline,Date.now()+18000),
+        ...(String(env.GEMINI_API_KEY||'').trim()?{provider:'gemini'}:{})};
       const independentRead=verificationState.provider==='gemini';
       const verificationPrompt=!independentRead?rescuePrompt:
         prompt+'\n\nLITERAL VERIFICATION PASS:\nRead the image independently from top to bottom. No earlier transcription is supplied. Return only the literal source question paper and its supported layout markers. Preserve every visible number, typo, blank and physical row; do not complete words from context.\n'+

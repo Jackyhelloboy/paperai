@@ -19,6 +19,7 @@
 <script src="./vendor/pdf-editable-layout.js"></script>
 <script src="./vendor/docx-reference-layout.js"></script>
 <script src="./vendor/ai-quota.js"></script>
+<script src="./vendor/scan-client.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -4351,6 +4352,8 @@ async function sendFileToWorker(inputFile, signal) {
     return body;
 }
 
+const scanClient = PaperAIScanClient.create({fetcher:fetchOcrEndpoint});
+
 async function sendToOCR(sourceBlob, signal, progressText = '') {
     // Provider selection belongs to the backend. A cached primary-provider
     // block must never prevent uploading a page to the automatic backup.
@@ -4376,14 +4379,13 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
 
         let res;
         try {
-            res = await fetchOcrEndpoint('/api/ocr', {
-                method: 'POST',
-                body: formData,
-                signal
+            res = await scanClient.request({
+                source:sourceBlob,language:languageSelect.value || 'auto',body:formData,signal,
+                onProgress:message=>setProg(22,(progressText?progressText.replace('Preparing','Reading')+' · ':'')+message)
             });
         } catch (e) {
             if (signal?.aborted) throw e;
-            throw new Error('Could not reach PaperAI OCR. Check your internet and try again.');
+            throw new Error(e.message || 'PaperAI is temporarily unreachable. Retry / resume to collect this page.');
         }
 
         let body = null;
@@ -4402,6 +4404,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
             throw quotaFailure(body);
         }
         if (res.status === 429 || body?.code === 'AI_BUSY') {
+            if(attempt===0){setProg(22,'Service is busy · retrying this page once…');await wait(1500);continue;}
             throw new Error('PaperAI is temporarily busy. Please try again shortly.');
         }
 
@@ -5128,7 +5131,7 @@ async function extractOneFile(f, onProgress, label) {
             report('Reading page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
             const ctrl = new AbortController();
             activeScanController=ctrl;
-            const tid = setTimeout(() => ctrl.abort(), 900000);
+            const tid = setTimeout(() => ctrl.abort(), 210000);
             let result;
             const firstMedia=extractedMedia.length;
             try { result = await sendToOCR(pages[i].blob, ctrl.signal, label + 'Preparing page ' + (i+1) + '/' + pages.length); }
@@ -5161,7 +5164,7 @@ async function extractOneFile(f, onProgress, label) {
         report('Analyzing image...', 12);
         const ctrl = new AbortController();
         activeScanController=ctrl;
-        const tid = setTimeout(() => ctrl.abort(), 900000);
+        const tid = setTimeout(() => ctrl.abort(), 210000);
         let result;
         try { result = await sendToOCR(f, ctrl.signal, label + 'Preparing image'); }
         finally { clearTimeout(tid); }

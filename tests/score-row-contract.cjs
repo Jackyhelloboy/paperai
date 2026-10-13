@@ -31,6 +31,8 @@ assert.equal(Layout.normalise('4. द :-\n| | | | |\n| | | | |'),'4. द :-\n[[G
 assert(Layout.normalise('I. वर्णमाला लिखो।\n| अ | आ | इ | ई |').includes('[[GRID_ROW: अ || आ || इ || ई]]'),'A visible alphabet strip retains its literal letters in native cells');
 assert.equal(Layout.normalise('|x| || |y|'),'|x| || |y|','Absolute-value bars must remain literal');
 assert.equal(Layout.normalise('Use the || operator.'),'Use the || operator.');
+assert.equal(Layout.normalise('[[100]]'),'[[BOXED: 100]]','A numeric box must remain literal editable text rather than unsupported control syntax');
+assert.equal(worker.normaliseMarkerRows('[[100]]'),Layout.normalise('[[100]]'));
 assert.equal(Layout.nativePipeRows('I. A question.\nName: operand || data'),'I. A question.\nName: operand || data','Header detection must stop at question content');
 assert.equal(Layout.nativePipeRows('|x| || |y|'),'|x| || |y|','Mathematical delimiters are not school header fields');
 const bareQuestions='II. मात्राएँ लिखो। 6x1=6M\n1. अं - ______ || 2. इ - ______ || 3. आ - ______\n4. ए - ______ || 5. ऊ - ______ || 6. ओ - ______';
@@ -113,5 +115,14 @@ assert(!ctx.teachEditor.value.includes('[[')&&!ctx.teachEditor.value.includes('<
     const outerCells=Array.from(outerRow.childNodes).filter(n=>n.nodeName==='w:tc');
     assert.equal(outerCells.length,2,'Banner and the real total-marks box need adjacent editable cells');
     assert(outerCells[0].getElementsByTagName('w:drawing').length&&outerCells[1].textContent.includes('MARKS100'));
+    const boxedSchool='[[SOURCE_BANNER: school]]\n[[100]]\nCLASS: II - HINDI';
+    const boxedZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx(boxedSchool)).arrayBuffer());
+    const boxedXml=await boxedZip.file('word/document.xml').async('text');
+    const boxedDoc=new DOMParser().parseFromString(boxedXml,'application/xml');
+    const boxedOuter=boxedDoc.getElementsByTagName('w:tbl')[0],boxedRow=Array.from(boxedOuter.childNodes).find(n=>n.nodeName==='w:tr');
+    const boxedCells=Array.from(boxedRow.childNodes).filter(n=>n.nodeName==='w:tc');
+    assert.equal(boxedCells.length,2);
+    assert.equal(boxedCells[1].textContent,'100','A recognized numeric box following the banner belongs in its own right-side native cell');
+    assert(!boxedXml.includes('[[100]]'));
     console.log('Row contract: Hindi headings/right marks, empty flags, intact options, school-banner/marks placement, three-column text and continuation grid labels pass.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

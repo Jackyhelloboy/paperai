@@ -30,6 +30,7 @@ jobs:
         run: |
           node tests/ai-quota.cjs
           node tests/gemini-fallback.cjs
+          node tests/scan-transport.cjs
           node tests/gemini-deployment.cjs
 
       - name: Verify backup credential and model access securely

@@ -1,6 +1,6 @@
 // One synthetic image check through the real production backend, not a provider-only check.
 // Tail data stays in memory; print only our fixed, sanitized transport records.
-const fs=require('node:fs'),https=require('node:https'),{spawn}=require('node:child_process');
+const fs=require('node:fs'),https=require('node:https'),{spawn}=require('node:child_process'),{randomUUID}=require('node:crypto');
 function request(url,options={},requestImpl=https.request){
   return new Promise((resolve,reject)=>{
     const req=requestImpl(url,{method:options.method||'GET',family:4,headers:options.headers||{},signal:options.signal},res=>{
@@ -46,10 +46,25 @@ async function verifyProduction(){
   try{
     await sleep(6000);
     const image=fs.readFileSync('tests/fixtures/scanning-smoke.png').toString('base64');
-    const response=await request('https://paperai-ocr.mdjawaadkhan57.workers.dev/api/ocr',{
-      method:'POST',redirect:'error',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({image,mimeType:'image/png',filename:'synthetic-smoke.png',language:'en'}),signal:AbortSignal.timeout(140000)});
-    const body=await response.json();
+    const started=Date.now(),scanId=randomUUID();
+    const headers={'Content-Type':'application/json','X-PaperAI-Request-ID':scanId};
+    let response=await request('https://paperai-ocr.mdjawaadkhan57.workers.dev/api/ocr',{
+      method:'POST',redirect:'error',headers,
+      body:JSON.stringify({image,mimeType:'image/png',filename:'synthetic-smoke.png',language:'en'}),signal:AbortSignal.timeout(30000)});
+    const acknowledgementMs=Date.now()-started;
+    if(response.status!==202)throw new Error('Scan upload was not acknowledged.');
+    let body=await response.json(),polls=0;
+    while(response.status===202&&Date.now()-started<95000){
+      await sleep(1500);polls++;
+      response=await request('https://paperai-ocr.mdjawaadkhan57.workers.dev/api/ocr-status',{
+        headers:{'X-PaperAI-Request-ID':scanId},signal:AbortSignal.timeout(12000)});
+      body=await response.json();
+    }
+    console.log(JSON.stringify({check:'resumable-scan',acknowledgement_ms:acknowledgementMs,elapsed_ms:Date.now()-started,polls}));
+    const collected=await request('https://paperai-ocr.mdjawaadkhan57.workers.dev/api/ocr-status',{
+      headers:{'X-PaperAI-Request-ID':scanId},signal:AbortSignal.timeout(12000)});
+    const saved=await collected.json();
+    if(collected.status!==response.status||saved.result?.full_text!==body.result?.full_text)throw new Error('Saved page result changed.');
     const text=String(body.result?.full_text||'');
     console.log(JSON.stringify({check:'production-image',http:response.status,completed:body.status==='completed',
       code:['AI_BUSY','AI_TIMEOUT','OCR_OUTPUT_INVALID','FREE_AI_LIMIT_REACHED','SCAN_SERVICE_UNAVAILABLE'].includes(body.code)?body.code:null,

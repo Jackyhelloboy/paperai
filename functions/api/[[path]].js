@@ -1,7 +1,7 @@
 // Server-only gateway. Never copy the backend address into browser assets.
 const API_BACKEND = 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
 const ROUTES = Object.freeze({
-  '/api/ocr': 'POST', '/api/suggest-word': 'POST',
+  '/api/ocr': 'POST', '/api/ocr-status': 'GET', '/api/suggest-word': 'POST',
   '/api/usage': 'GET', '/api/live': 'GET', '/api/health': 'GET',
 });
 const ERRORS = Object.freeze({
@@ -14,6 +14,7 @@ const ERRORS = Object.freeze({
   AI_OCR_FAILED: 'This page could not be scanned. Please try again.',
   OCR_FAILED: 'This file could not be read. Please check the file and try again.',
   OCR_PROXY_UNREACHABLE: 'PaperAI is temporarily unreachable. Please try again shortly.',
+  SCAN_NOT_FOUND: 'This page has not been submitted.',
 });
 function json(body, status = 200, extra = {}) {
   return Response.json(body, {status, headers: {'Cache-Control': 'no-store', ...extra}});
@@ -40,7 +41,7 @@ export async function onRequest({request, env = {}, fetcher = fetch}) {
   const target = new URL(url.pathname === '/api/health' ? '/health' : url.pathname,
     env.PAPERAI_BACKEND_URL || API_BACKEND);
   const headers = new Headers();
-  for (const name of ['Content-Type','Upgrade','Sec-WebSocket-Key','Sec-WebSocket-Version','Sec-WebSocket-Protocol']) {
+  for (const name of ['Content-Type','X-PaperAI-Request-ID','Upgrade','Sec-WebSocket-Key','Sec-WebSocket-Version','Sec-WebSocket-Protocol']) {
     if (request.headers.has(name)) headers.set(name, request.headers.get(name));
   }
   try {
@@ -66,7 +67,7 @@ export async function onRequest({request, env = {}, fetcher = fetch}) {
       reset_at: body.reset_at,
     });
     if (url.pathname === '/api/suggest-word') return json({suggestions: body.suggestions || []});
-    return json(publicResult(body));
+    return json(publicResult(body),upstream.status,upstream.status===202?{'Retry-After':'2'}:{});
   } catch (_) {
     return json({error: ERRORS.OCR_PROXY_UNREACHABLE, code: 'OCR_PROXY_UNREACHABLE'}, 502);
   }
