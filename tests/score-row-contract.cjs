@@ -22,6 +22,15 @@ const wrappedHeader='[[TABLE_ROW: CLASS: || II - HINDI || QUARTERLY EXAMINATIONS
 const separatedHeader=Layout.normalise(wrappedHeader);
 assert(separatedHeader.includes('100]]\n\n[[TABLE_ROW: Name'),'Explicit header markers also need distinct physical tables');
 assert.equal(worker.normaliseMarkerRows(wrappedHeader),separatedHeader);
+const markdownHeader='| CLASS: || II - HINDI || QUARTERLY EXAMINATIONS-2026 || TIME: 2h:30M |\n|---|---|---|---|\n[[TABLE_ROW: Name of the Student: || Roll No: || 100]]\n[[TABLE_ROW: Invigilator Signature]]';
+const nativeMarkdown=Layout.normalise(markdownHeader);
+assert(!nativeMarkdown.includes('|---|')&&nativeMarkdown.includes('[[TABLE_ROW: CLASS: || II - HINDI'));
+assert(nativeMarkdown.includes('100]]\n\n[[TABLE_ROW: Invigilator Signature]]'));
+assert.equal(worker.normaliseMarkerRows(markdownHeader),nativeMarkdown);
+assert.equal(Layout.normalise('4. द :-\n| | | | |\n| | | | |'),'4. द :-\n[[GRID: 4x2]]','Empty pipe borders become counted native cells');
+assert(Layout.normalise('I. वर्णमाला लिखो।\n| अ | आ | इ | ई |').includes('[[GRID_ROW: अ || आ || इ || ई]]'),'A visible alphabet strip retains its literal letters in native cells');
+assert.equal(Layout.normalise('|x| || |y|'),'|x| || |y|','Absolute-value bars must remain literal');
+assert.equal(Layout.normalise('Use the || operator.'),'Use the || operator.');
 assert.equal(Layout.nativePipeRows('I. A question.\nName: operand || data'),'I. A question.\nName: operand || data','Header detection must stop at question content');
 assert.equal(Layout.nativePipeRows('|x| || |y|'),'|x| || |y|','Mathematical delimiters are not school header fields');
 const bareQuestions='II. मात्राएँ लिखो। 6x1=6M\n1. अं - ______ || 2. इ - ______ || 3. आ - ______\n4. ए - ______ || 5. ऊ - ______ || 6. ओ - ______';
@@ -80,6 +89,12 @@ assert(!ctx.teachEditor.value.includes('[[')&&!ctx.teachEditor.value.includes('<
     const explicitDoc=new DOMParser().parseFromString(await explicitZip.file('word/document.xml').async('text'),'application/xml');
     assert.equal(explicitDoc.getElementsByTagName('w:tbl').length,3);
     assert.equal(explicitDoc.getElementsByTagName('w:tc').length,10,'A three-field row must not grow empty fourth/fifth columns');
+    const markdownZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx(markdownHeader)).arrayBuffer());
+    const markdownXml=await markdownZip.file('word/document.xml').async('text');
+    const markdownDoc=new DOMParser().parseFromString(markdownXml,'application/xml');
+    assert.equal(markdownDoc.getElementsByTagName('w:tbl').length,3);
+    assert.equal(markdownDoc.getElementsByTagName('w:tc').length,8);
+    assert(!markdownXml.includes('|---|')&&!markdownXml.includes('||'),'Markdown framing must not print in Word');
     const gridLabel=ctx.buildDocxBody('[[MATCH_ROW: 4. द :- || (   ) || (   )]]\n[[TABLE_REGION: 120,650,760,35]]\n[[GRID: 13x1]]');
     const gridLabelDoc=new DOMParser().parseFromString('<root xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'+gridLabel+'</root>','application/xml');
     const labelTable=gridLabelDoc.getElementsByTagName('w:tbl')[0];

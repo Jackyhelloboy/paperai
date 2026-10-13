@@ -76,6 +76,46 @@ export function cleanQuestionPaper(value, depth=0) {
     return depth===0?out.replace(/^(?:\s*)(?:Ans(?:wer)?|Solution|उत्तर|जवाब)\s*[:：]\s*[^\n]+$/gim,'____________________'):out;
 }
 
+    function pipeTableRows(value) {
+        const lines=String(value||'').split('\n'),out=[];
+        const cells=line=>{
+            const raw=String(line||'').trim();
+            if(!/^\|.*\|$/.test(raw)||raw.includes('[['))return null;
+            const body=raw.slice(1,-1);
+            const parts=body.split(body.includes('||')&&/\S/.test(body.replace(/\|/g,''))?/\s*\|\|\s*/:/\s*\|\s*/).map(cell=>cell.trim());
+            return parts.length>=2&&parts.length<=52&&!parts.some(cell=>cell.includes('|'))?parts:null;
+        };
+        const divider=row=>row&&row.every(cell=>/^:?-{3,}:?$/.test(cell));
+        for(let i=0;i<lines.length;i++){
+            const row=cells(lines[i]),next=cells(lines[i+1]);
+            if(row&&next&&row.length===next.length&&divider(next)){
+                out.push('[[TABLE_ROW: '+row.join(' || ')+']]');i++;
+                while(i+1<lines.length){
+                    const following=cells(lines[i+1]);
+                    if(!following||following.length!==row.length||divider(following))break;
+                    out.push('[[TABLE_ROW: '+following.join(' || ')+']]');i++;
+                }
+                continue;
+            }
+            if(row&&row.every(cell=>!cell)){
+                let rows=1;
+                while(i+1<lines.length&&rows<32&&(rows+1)*row.length<=600){
+                    const following=cells(lines[i+1]);
+                    if(!following||following.length!==row.length||following.some(Boolean))break;
+                    rows++;i++;
+                }
+                out.push('[[GRID: '+row.length+'x'+rows+']]');continue;
+            }
+            // A standalone Indic letter strip following an alphabet instruction
+            // represents visible cells, not mathematical absolute-value bars.
+            const previous=out.slice().reverse().find(line=>line.trim())||'';
+            if(row&&row.length>=4&&/वर्णमाला/.test(previous)&&row.every(cell=>/^[\p{L}\p{M}]{1,4}$/u.test(cell))){
+                out.push('[[GRID_ROW: '+row.join(' || ')+']]');continue;
+            }
+            out.push(lines[i]);
+        }
+        return out.join('\n');
+    }
     function nativePipeRows(value) {
         let questionsStarted=false,previousHeaderCount=0;
         return String(value||'').split('\n').map(line=>{
@@ -86,15 +126,15 @@ export function cleanQuestionPaper(value, depth=0) {
                 if(questions.length>=2&&questions.length<=4&&questions.every(cell=>cell.length<=300&&/^[0-9०-९]+(?:[.)।]\s*|\s+)\S[\s\S]*(?:_{2,}|\(\s*\))\s*$/u.test(cell))){questionsStarted=true;previousHeaderCount=0;return '[[MATCH_ROW: '+questions.join(' || ')+']]';}
             }
             const wrapped=line.match(/^\s*\[\[TABLE_ROW:\s*([\s\S]*)\]\]\s*$/i),fields=wrapped?wrapped[1]:line;
-            if(questionsStarted||fields.includes('[[')||!fields.includes('||')||!/^\s*(?:class\s*:|subject\s*:|time\s*:|name\b[^|]{0,50}:|roll\b[^|]{0,15}:|invigilator\b|(?:total\s+)?marks\b)/i.test(fields)){previousHeaderCount=0;return line;}
+            if(questionsStarted||fields.includes('[[')||(!wrapped&&!fields.includes('||'))||!/^\s*(?:class\s*:|subject\s*:|time\s*:|name\b[^|]{0,50}:|roll\b[^|]{0,15}:|invigilator\b|(?:total\s+)?marks\b)/i.test(fields)){previousHeaderCount=0;return line;}
             const cells=fields.split(/\s*\|\|\s*/).map(cell=>cell.trim());
-            if(cells.length<2||cells.length>8||cells.some(cell=>cell.length>300)){previousHeaderCount=0;return line;}
+            if(cells.length<(wrapped?1:2)||cells.length>8||cells.some(cell=>cell.length>300)){previousHeaderCount=0;return line;}
             const separate=previousHeaderCount&&previousHeaderCount!==cells.length;previousHeaderCount=cells.length;
             return (separate?'\n':'')+'[[TABLE_ROW: '+cells.join(' || ')+']]';
         }).join('\n');
     }
 export function normaliseMarkerRows(text) {
-    text=nativePipeRows(cleanQuestionPaper(text));
+    text=nativePipeRows(pipeTableRows(cleanQuestionPaper(text)));
     text=text.replace(/\[\[GRID:\s*(\d{1,2})\s*[x×]\s*(\d{1,2})\s*(?:\|\s*(?:\|\s*)?(?:none|box))?\s*\]\](?:[ \t]+(?:none|box)(?=[ \t]*(?:\n|$)))?/gi,(_,columns,rows)=>'[[GRID: '+columns+'x'+rows+']]');
     const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
     const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');
