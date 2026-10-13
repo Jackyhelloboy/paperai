@@ -17,6 +17,8 @@ The Worker uses its primary AI binding and automatically falls back to Gemini wh
 
 Image uploads are acknowledged promptly and the browser polls a random scan ID with short requests. A dropped connection resumes that same job instead of starting another inference. Completed PDF pages remain in the open browser's cache. Individual inference chains have a 70-second budget, with optional verification capped at 18 seconds. Temporary results are isolated by scan ID and expire after ten minutes; source images are not written to job storage. A closed or refreshed browser tab still requires reopening the source file.
 
+When the initial reader exceeds its short wait, its existing request remains eligible to finish alongside the backup. The first usable result wins; a backup outage does not throw away an already-running primary scan. This also avoids a second optional verification after accepting a slow primary result.
+
 Word output uses A4 pages, editable text, native tables and shapes, blank answer boxes, and original illustration crops. Shapes and nested answer boxes fit their containing columns. Literal source spelling, irregular numbering, isolated Indic vowel signs and mathematical operands are preserved; the scanner does not solve questions. Handwriting recognition can still differ from the source, so review the extracted text.
 
 The `backend/` Python server and Vercel/Render workflows remain alternative implementations. Production uses the Pages and Worker workflows.

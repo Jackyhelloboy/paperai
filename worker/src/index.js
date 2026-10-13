@@ -676,14 +676,48 @@ async function runInference(env, body, state = {}, signal) {
     state.provider = 'gemini';
     return runGemini(env, body, signal, state);
   }
+  let primary;
   try {
     if (!env.AI) throw scanServiceError('SCAN_SERVICE_UNAVAILABLE', 'Scanning is temporarily unavailable.');
-    return await withinScanBudget(() => env.AI.run(PRIMARY_MODEL, body, {rejectIfBusy: true}),
+    primary = Promise.resolve().then(() => env.AI.run(PRIMARY_MODEL, body, {rejectIfBusy: true}));
+    return await withinScanBudget(() => primary,
       Math.min(hasBackup ? 10000 : 45000, (state.deadline || Date.now() + PAGE_SCAN_BUDGET_MS) - Date.now()), signal);
   } catch (error) {
     const dailyLimit = isDailyFreeLimitError(error);
     if (dailyLimit) { try { await markUsageExhausted(env); } catch (_) {} }
     if (!signal?.aborted && hasBackup && (dailyLimit || isPaidModelRequiredError(error) || isTransientAiError(error) || isAiTimeoutError(error) || error?.code === 'AI_TIMEOUT' || !env.AI)) {
+      if (primary && !dailyLimit && !isPaidModelRequiredError(error) &&
+          (error?.code === 'AI_TIMEOUT' || isTransientAiError(error))) {
+        // The binding does not expose cancellation. Its original request may
+        // still finish successfully after the short wait budget. Race that
+        // existing work with the backup; never discard it or resubmit it.
+        // A known busy rejection did not accept work, so one short retry is
+        // safe. Daily/account failures never enter this retry branch.
+        if(error?.code!=='AI_TIMEOUT') primary=sleep(500).then(()=>{
+          if(signal?.aborted)throw scanServiceError('AI_TIMEOUT','Scan cancelled.');
+          return env.AI.run(PRIMARY_MODEL,body,{rejectIfBusy:true});
+        });
+        const backupState={...state,provider:'gemini'},controller=new AbortController();
+        const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});
+        try {
+          const winner=await withinScanBudget(() => Promise.any([
+            primary.then(response=>{
+              if(state.fastScan){
+                const text=normaliseMarkerRows(extractAiText(response));
+                if(degenerateOcr(text)||invalidLayoutMarkers(text)||!text.trim())
+                  throw scanServiceError('OCR_OUTPUT_INVALID','This page could not be read completely.');
+              }
+              return {response,primary:true};
+            }),
+            runGemini(env,body,controller.signal,backupState).then(response=>({response,primary:false}))
+          ]), (state.deadline || Date.now()+PAGE_SCAN_BUDGET_MS)-Date.now(), signal);
+          if(winner.primary){state.provider='primary';state.slowPrimaryAccepted=true;}
+          else Object.assign(state,backupState);
+          return winner.response;
+        } catch(failure) {
+          throw failure.errors?.at(-1) || failure;
+        } finally {controller.abort();signal?.removeEventListener('abort',cancel);}
+      }
       state.provider = 'gemini';
       return runGemini(env, body, signal, state);
     }
@@ -1602,7 +1636,7 @@ READING CONTRACT:
 
   const needsRepair = degenerateOcr(text) || invalidLayoutMarkers(text) || !text.trim() ||
     /^no\s+(?:readable\s+)?text\s+(?:detected|found)[.!]?$/i.test(text.trim());
-  if ((providerState.provider !== 'gemini' || needsRepair) && shouldVerifyOcr(text, imageMeta) &&
+  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair) && shouldVerifyOcr(text, imageMeta) &&
       providerState.deadline - Date.now() >= 5000 && !signal?.aborted) {
     const rescuePrompt = prompt + `
 
