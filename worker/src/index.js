@@ -380,6 +380,11 @@ export class UsageTracker extends DurableObject {
       });
     }
 
+    // Receive the body before reading shared state. Awaiting request input
+    // after storage.get() opens a gap where another page can update the ledger.
+    // Keep the storage read/modify/write contiguous under Durable Object gates.
+    const addition = request.method === 'POST' && url.pathname === '/add'
+      ? await request.json() : null;
     const now = new Date();
     const utcDay = now.toISOString().slice(0, 10);
 
@@ -396,8 +401,7 @@ export class UsageTracker extends DurableObject {
     }
 
     if (request.method === 'POST' && url.pathname === '/add') {
-      const body = await request.json();
-      const neurons = Number(body.neurons) || 0;
+      const neurons = Number(addition.neurons) || 0;
 
       if (Number.isFinite(neurons) && neurons > 0) {
         state.used = Math.min(DAILY_FREE_NEURONS, state.used + neurons);

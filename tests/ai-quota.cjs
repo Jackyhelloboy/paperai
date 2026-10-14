@@ -46,7 +46,7 @@ function environment(run) {
         put: async (k, v) => memory.set(k, structuredClone(v)) } }, {});
     const env = { AI: { run }, USAGE_TRACKER: { idFromName: s => s, get: () => ({
         fetch: (url, options) => tracker.fetch(new Request(url, options)) }) } };
-    return { env, memory };
+    return { env, memory, tracker };
 }
 const imageRequest = () => new Request('https://paperai.test/api/ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ image: 'AA==', mimeType: 'image/jpeg', filename: 'page.jpg' }) });
@@ -55,6 +55,30 @@ const cors = { 'Access-Control-Allow-Origin': '*' };
 async function backend() {
     let calls = 0;
     const good = { response: '1. Write your name. ______', usage: { prompt_tokens: 100, completion_tokens: 20 } };
+    const heldAddition = neurons => {
+        let release, received;
+        const body = new Promise(resolve => { release = () => resolve({ neurons }); });
+        const started = new Promise(resolve => { received = resolve; });
+        return { started, release, request: { url: 'https://usage.internal/add', method: 'POST',
+            json: () => { received(); return body; } } };
+    };
+    // A slow request body lets another page update the same Durable Object.
+    // Once its input arrives, the delayed addition must read the latest state.
+    const parallel = environment(async () => good), delayed = heldAddition(1);
+    const firstAddition = parallel.tracker.fetch(delayed.request);
+    await delayed.started;
+    await parallel.tracker.fetch(new Request('https://usage.internal/add', { method: 'POST',
+        body: JSON.stringify({ neurons: 2 }) }));
+    delayed.release(); await firstAddition;
+    assert.equal(parallel.memory.get('daily').used, 3, 'Parallel page completions must retain both usage additions');
+    assert.equal(parallel.memory.get('daily').requests, 2);
+    const exhausted = environment(async () => good), inFlight = heldAddition(1);
+    const finalAddition = exhausted.tracker.fetch(inFlight.request);
+    await inFlight.started;
+    await exhausted.tracker.fetch(new Request('https://usage.internal/exhausted', { method: 'POST' }));
+    inFlight.release(); await finalAddition;
+    assert(exhausted.memory.get('daily').exhausted, 'A page finishing later must not erase a confirmed provider limit');
+
     let test = environment(async () => { calls++; throw new Error('3036: daily free allocation reached'); });
     let res = await ctx.handler.fetch(imageRequest(), test.env), body = await res.json();
     assert.equal(res.status, 429); assert.equal(body.code, 'FREE_AI_LIMIT_REACHED');

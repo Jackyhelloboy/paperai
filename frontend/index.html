@@ -20,6 +20,7 @@
 <script src="./vendor/docx-reference-layout.js"></script>
 <script src="./vendor/ai-quota.js"></script>
 <script src="./vendor/scan-client.js"></script>
+<script src="./vendor/page-pipeline.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -2193,18 +2194,23 @@ function reconstructPdfText(textContent, pageWidth) {
     return output.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-async function pdfToPages(pdfFile) {
-    const arrayBuffer = await pdfFile.arrayBuffer();
+async function pdfToPages(pdfFile, signal, onProgress = message => setProg(10,message)) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/document-worker.js';
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false, fontExtraProperties: true }).promise;
+    let documentPromise=null;
+    const open=()=>documentPromise||=(async()=>pdfjsLib.getDocument({data:await pdfFile.arrayBuffer(),isEvalSupported:false,fontExtraProperties:true}).promise)();
+    const close=async()=>{const pending=documentPromise;documentPromise=null;if(pending){try{await(await pending).destroy();}catch(_){}}};
+    const checkCancelled=()=>{if(signal?.aborted)throw new DOMException('Scan cancelled.','AbortError');};
+    checkCancelled();
+    const pdf = await open();
     const pages = [];
     const nativeScenes=[];
     let nativeSupported=true;
-
+    try {
     for (let i = 1; i <= pdf.numPages; i++) {
-        setProg(10 + Math.round((i / pdf.numPages) * 35), 'Reading PDF page ' + i + '/' + pdf.numPages + '...');
+        checkCancelled();
+        onProgress('Preparing PDF page ' + i + '/' + pdf.numPages + '...');
         const page = await pdf.getPage(i);
-
+        try {
         const textContent = await page.getTextContent();
         const baseViewport = page.getViewport({ scale: 1 });
         const embedded = reconstructPdfText(textContent, baseViewport.width);
@@ -2233,24 +2239,40 @@ async function pdfToPages(pdfFile) {
             pages.push({ type: 'text', text: embedded });
             continue;
         }
-
-        const scale = 2.5;
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.ceil(viewport.width);
-        canvas.height = Math.ceil(viewport.height);
-        const ctx = canvas.getContext('2d', { alpha: false });
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        const blob = await new Promise((resolve, reject) => {
-            canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not render PDF page')), 'image/jpeg', 0.94);
-        });
-        pages.push({ type: 'image', blob });
+        // Keep descriptors, not a full-document collection of large bitmaps.
+        // A worker renders its next page only when an OCR slot becomes free.
+        pages.push({type:'image',render:async pageSignal=>{
+            if(pageSignal?.aborted)throw new DOMException('Scan cancelled.','AbortError');
+            const sourcePage=await(await open()).getPage(i);
+            const viewport=sourcePage.getViewport({scale:2.5});
+            const canvas=document.createElement('canvas');
+            canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+            let task;
+            const cancel=()=>task?.cancel();
+            try {
+                const ctx=canvas.getContext('2d',{alpha:false});
+                ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+                if(pageSignal?.aborted)throw new DOMException('Scan cancelled.','AbortError');
+                task=sourcePage.render({canvasContext:ctx,viewport});
+                pageSignal?.addEventListener('abort',cancel,{once:true});
+                await task.promise;
+                if(pageSignal?.aborted)throw new DOMException('Scan cancelled.','AbortError');
+                return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not render PDF page')),'image/jpeg',0.94));
+            } catch(error) {
+                if(pageSignal?.aborted)throw new DOMException('Scan cancelled.','AbortError');
+                throw error;
+            } finally {pageSignal?.removeEventListener('abort',cancel);canvas.width=canvas.height=0;sourcePage.cleanup?.();}
+        }});
+        } finally {page.cleanup?.();}
     }
-    await pdf.destroy();
-    if(nativeSupported&&nativeScenes.length===pages.length)return nativeScenes.map(native=>({type:'text',text:nativePdfFlowText(native),nativeScene:native}));
+    checkCancelled();
+    if(nativeSupported&&nativeScenes.length===pages.length){
+        await close();
+        return nativeScenes.map(native=>({type:'text',text:nativePdfFlowText(native),nativeScene:native}));
+    }
+    pages.release=close;
     return pages;
+    } catch(error) {await close();throw error;}
 }
 
 function nativePdfFlowText(scene) {
@@ -4354,7 +4376,9 @@ async function sendFileToWorker(inputFile, signal) {
 
 const scanClient = PaperAIScanClient.create({fetcher:fetchOcrEndpoint});
 
-async function sendToOCR(sourceBlob, signal, progressText = '') {
+async function sendToOCR(sourceBlob, signal, progressText = '', options = {}) {
+    const progress=options.onProgress||((message,percent)=>setProg(percent,message));
+    if(signal?.aborted)throw new DOMException('Scan cancelled.','AbortError');
     // Provider selection belongs to the backend. A cached primary-provider
     // block must never prevent uploading a page to the automatic backup.
     let prepared = await prepareImageForOCR(sourceBlob, false);
@@ -4364,7 +4388,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         const lineInfo = lines > 0 ? ' · ' + lines + ' lines' : '';
         const strategy = prepared.meta?.scanStrategy === 'line-mosaic' ? ' · line-by-line scan' :
             (prepared.difficulty === 'hard' ? ' · detailed layout scan' : ' · fast clear scan');
-        setProg(18, progressText + lineInfo + strategy);
+        progress(progressText + lineInfo + strategy,18);
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -4380,8 +4404,8 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         let res;
         try {
             res = await scanClient.request({
-                source:sourceBlob,language:languageSelect.value || 'auto',body:formData,signal,
-                onProgress:message=>setProg(22,(progressText?progressText.replace('Preparing','Reading')+' · ':'')+message)
+                source:options.sourceKey||sourceBlob,language:languageSelect.value || 'auto',body:formData,signal,
+                onProgress:message=>progress((progressText?progressText.replace('Preparing','Reading')+' · ':'')+message,22)
             });
         } catch (e) {
             if (signal?.aborted) throw e;
@@ -4394,7 +4418,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
         if (res.ok) {
             if (!body || body.status !== 'completed' || !body.result) throw new Error('OCR returned an incomplete page.');
             body.result.annotated_text = await recoverSourceFigures(
-                PaperAILayout.reconcileEmptyGrids(PaperAILayout.normalise(body.result.annotated_text || body.result.full_text || ''), prepared.meta?.detectedGrids || []), prepared.blob);
+                PaperAILayout.reconcileEmptyGrids(PaperAILayout.normalise(body.result.annotated_text || body.result.full_text || ''), prepared.meta?.detectedGrids || []), prepared.blob, options.media);
             body.result.full_text=portableText(docxVisibleText(body.result.annotated_text));
             return body;
         }
@@ -4404,18 +4428,18 @@ async function sendToOCR(sourceBlob, signal, progressText = '') {
             throw quotaFailure(body);
         }
         if (res.status === 429 || body?.code === 'AI_BUSY') {
-            if(attempt===0){setProg(22,'Service is busy · retrying this page once…');await wait(1500);continue;}
+            if(attempt===0){progress('Service is busy · retrying this page once…',22);await wait(1500);continue;}
             throw new Error('PaperAI is temporarily busy. Please try again shortly.');
         }
 
         if ((res.status === 408 || body?.code === 'AI_TIMEOUT') && attempt === 0) {
-            setProg(22, 'Scan was slow · retrying a lighter page...');
+            progress('Scan was slow · retrying a lighter page...',22);
             await wait(250);
             prepared = await prepareImageForOCR(sourceBlob, true);
             continue;
         }
         if(body?.code==='OCR_OUTPUT_INVALID'&&attempt===0){
-            setProg(22,'Rechecking an incomplete scan...');
+            progress('Rechecking an incomplete scan...',22);
             prepared=await prepareImageForOCR(sourceBlob,true);
             continue;
         }
@@ -5107,53 +5131,66 @@ async function extractOneFile(f, onProgress, label) {
         let languages=scannedPageCache.get(f);
         if(!languages){languages=new Map();scannedPageCache.set(f,languages);}
         let cached=languages.get(language);
-        if(!cached){cached={pages:await pdfToPages(f),results:[]};if(cached.pages.some(p=>p.type==='image'))languages.set(language,cached);}
-        const pages=cached.pages;
-        if(pages.every(p=>p.nativeScene))nativePdfPages=pages.map(p=>p.nativeScene);
-        for (let i = 0; i < pages.length; i++) {
-            const prefix = allText ? '\n[[PAGE_BREAK]]\n' : '';
-            const plainPrefix = allPlain ? '\n\n' : '';
-            if (pages[i].type === 'text') {
-                report('Reading text page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
-                allText += prefix + pages[i].text;
-                allPlain += plainPrefix + portableText(pages[i].text);
-                allRaw += plainPrefix + pages[i].text;
-                continue;
+        const controller=new AbortController(),started=Date.now();
+        activeScanController=controller;
+        let state=null;
+        const updateProgress=()=>{
+            if(!state||scanCancelled||controller.signal.aborted)return;
+            const seconds=Math.floor((Date.now()-started)/1000),active=state.active.length;
+            report(label+state.completed+'/'+state.total+' pages complete · '+active+' '+(active===1?'page':'pages')+' processing · '+seconds+'s',
+                12+Math.round(state.completed/Math.max(1,state.total)*80));
+        };
+        const ticker=setInterval(updateProgress,1000);
+        try {
+            if(!cached){
+                cached={pages:await pdfToPages(f,controller.signal,message=>report(label+message,10)),results:[]};
+                if(cached.pages.some(p=>p.type==='image'))languages.set(language,cached);
             }
-            if(cached.results[i]){
+            const pages=cached.pages;
+            for(let i=0;i<pages.length;i++)if(pages[i].type==='text'&&!cached.results[i]){
+                cached.results[i]={text:pages[i].text,plain:portableText(pages[i].text),raw:pages[i].text,media:[],nativeScene:pages[i].nativeScene||null};
+            }
+            const outcome=await PaperAIPagePipeline.run({items:pages,results:cached.results,signal:controller.signal,
+                onProgress:value=>{state=value;updateProgress();},
+                process:async(page,index)=>{
+                    const ctrl=new AbortController(),cancel=()=>ctrl.abort();
+                    controller.signal.addEventListener('abort',cancel,{once:true});
+                    if(controller.signal.aborted)ctrl.abort();
+                    const tid=setTimeout(cancel,210000),media=[];
+                    try {
+                        if(!('blob' in page))page.blob=await page.render(ctrl.signal);
+                        const result=await sendToOCR(page.blob,ctrl.signal,label+'Preparing page '+(index+1)+'/'+pages.length,
+                            {sourceKey:page,media,onProgress:updateProgress});
+                        if(result.status!=='completed'||!result.result)throw new Error('OCR failed on page '+(index+1)+'.');
+                        const annotated=result.result.annotated_text||result.result.full_text||'';
+                        page.ocrScene=result.result.native_scene||null;
+                        // The stable page descriptor retains the request identity; a
+                        // finished source bitmap can now be released immediately.
+                        if(page.render)delete page.blob;
+                        return {text:annotated,plain:result.result.full_text||annotated,raw:result.result.raw_text||annotated,media,nativeScene:page.ocrScene};
+                    } finally {clearTimeout(tid);controller.signal.removeEventListener('abort',cancel);}
+                }});
+            if(outcome.cancelled||scanCancelled)throw new DOMException('Scan cancelled.','AbortError');
+            if(outcome.errors.length){
+                const error=outcome.errors[0].error;
+                const message=error.name==='AbortError'?'The page request timed out.':error.message;
+                const stopped=new Error(message+' Completed '+outcome.completed+'/'+pages.length+' pages are kept while this file stays open. Use Retry / resume processing when the service is available. Do not upload the completed pages again.');
+                stopped.code=error.code;throw stopped;
+            }
+            // Completion order never determines document order or image ownership.
+            for(let i=0;i<pages.length;i++){
                 const saved=restoreScannedPage(cached.results[i]);
                 pages[i].ocrScene=saved.nativeScene||null;
-                allText+=prefix+saved.text;allPlain+=plainPrefix+saved.plain;allRaw+=plainPrefix+saved.raw;
-                report('Restored completed page '+(i+1)+'/'+pages.length+'...',48+Math.round((i/pages.length)*45));
-                continue;
+                allText+=(allText?'\n[[PAGE_BREAK]]\n':'')+saved.text;
+                allPlain+=(allPlain?'\n\n':'')+saved.plain;
+                allRaw+=(allRaw?'\n\n':'')+saved.raw;
             }
-
-            report('Reading page ' + (i+1) + '/' + pages.length + '...', 48 + Math.round((i / pages.length) * 45));
-            const ctrl = new AbortController();
-            activeScanController=ctrl;
-            const tid = setTimeout(() => ctrl.abort(), 210000);
-            let result;
-            const firstMedia=extractedMedia.length;
-            try { result = await sendToOCR(pages[i].blob, ctrl.signal, label + 'Preparing page ' + (i+1) + '/' + pages.length); }
-            catch(error){
-                const message=error.name==='AbortError'?'The page request timed out.':error.message;
-                const stopped = new Error(message+' Completed '+i+'/'+pages.length+' pages are kept while this file stays open. Use Retry / resume processing when the service is available. Do not upload the completed pages again.');
-                stopped.code = error.code;
-                throw stopped;
-            }
-            finally { clearTimeout(tid); }
-            if (result.status !== 'completed' || !result.result) throw new Error('OCR failed on page ' + (i+1) + '.');
-            if (result.status === 'completed' && result.result) {
-                const annotated = result.result.annotated_text || result.result.full_text || '';
-                const plain = result.result.full_text || annotated;
-                pages[i].ocrScene=result.result.native_scene||null;
-                cached.results[i]={text:annotated,plain,raw:result.result.raw_text||annotated,media:extractedMedia.slice(firstMedia),nativeScene:pages[i].ocrScene};
-                allText += prefix + annotated;
-                allPlain += plainPrefix + plain;
-                allRaw += plainPrefix + (result.result.raw_text || annotated);
-            }
+            if(pages.every(p=>p.nativeScene||p.ocrScene))nativePdfPages=pages.map(p=>p.nativeScene||p.ocrScene);
+        } finally {
+            clearInterval(ticker);
+            await cached?.pages.release?.();
+            if(activeScanController===controller)activeScanController=null;
         }
-        if(pages.every(p=>p.nativeScene||p.ocrScene))nativePdfPages=pages.map(p=>p.nativeScene||p.ocrScene);
     } else if (XLS_EXTS.includes(ext)) {
         report('Reading spreadsheet...', 20);
         allText = await extractSpreadsheetFile(f);
@@ -5836,7 +5873,7 @@ let defaultBannerPngPromise = null;
 let extractedMedia = [];
 let docxMediaUsed = new Map();
 function sourceAsset(id) { return extractedMedia.find(item => item.id === id); }
-async function recoverSourceFigures(text, blob) {
+async function recoverSourceFigures(text, blob, media = extractedMedia) {
     text=PaperAILayout.deduplicateFigures(text);
     if (!/\[\[(?:FIGURE(?:_ROW)?|BANNER):/i.test(text)) return text;
     const source = await decodeImageSource(blob);
@@ -5851,8 +5888,8 @@ async function recoverSourceFigures(text, blob) {
             const ctx=canvas.getContext('2d');
             if (!ctx) throw new Error('Image crop could not be created.');
             ctx.drawImage(source,rect.x,rect.y,rect.w,rect.h,0,0,rect.w,rect.h);
-            const id='source-'+(extractedMedia.length+1);
-            extractedMedia.push({id,dataUrl:canvas.toDataURL('image/png'),w:rect.w,h:rect.h,
+            const id='source-'+crypto.randomUUID();
+            media.push({id,dataUrl:canvas.toDataURL('image/png'),w:rect.w,h:rect.h,
                 widthTwips:Math.min(DOCX_CONTENT_W,Math.round(region.w*PaperAILayout.profile.pageWidth/1000)),region,sourceDataUrl:sourceDataUrl});
             return {...region,id};
         };
@@ -5870,7 +5907,7 @@ async function recoverSourceFigures(text, blob) {
                     }
                 }
                 const asset=crop(region); asset.caption='';
-                const item=sourceAsset(asset.id); if(item) item.role='banner';
+                const item=media.find(item=>item.id===asset.id); if(item) item.role='banner';
                 return '[[SOURCE_BANNER: '+asset.id+']]';
             }
             const specs=kind.toUpperCase()==='FIGURE_ROW' ? worksheetCells(body,32) : [body];

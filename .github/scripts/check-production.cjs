@@ -58,6 +58,9 @@ async function runGroup(name,count,concurrency,operation){
   checks.push('Single Download Word export; layout and language controls removed');
   const textMapper=await read('/vendor/paper-text.js');assert.equal(textMapper.status,200);assert(textMapper.body.includes('PaperAIText'));
   checks.push('Current-editor text mapper loads');
+  const pagePipeline=await read('/vendor/page-pipeline.js');assert.equal(pagePipeline.status,200);assert(pagePipeline.body.includes('PaperAIPagePipeline'));
+  assert(home.body.includes('vendor/page-pipeline.js?v='+(process.env.GITHUB_SHA||'')));
+  checks.push('Versioned parallel PDF page scheduler loads');
   for(const path of ['/vendor/pdf-word-layout.js','/local-ocr-check','/local-ocr-check.html','/api/debug','/api/train/export','/vendor/local-ocr.js','/vendor/local-ocr-layout.js','/vendor/local-reader-worker.js','/vendor/local-runtime/reader.js','/vendor/local-runtime/manifest.json','/vendor/local-runtime/hin.traineddata.gz','/vendor/local-ocr-worker.mjs']){
     assert.equal((await read(path)).status,404,path);checks.push(path+' is unavailable');
   }

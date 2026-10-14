@@ -9,6 +9,8 @@ on:
       - 'tests/worksheet-layout.cjs'
       - 'tests/question-paper-model.cjs'
       - 'tests/scan-resume.cjs'
+      - 'tests/pdf-page-pipeline.cjs'
+      - 'frontend/vendor/page-pipeline.js'
       - 'tests/ai-quota.cjs'
       - 'tests/automatic-upload.cjs'
       - 'frontend/vendor/ai-quota.js'
@@ -45,5 +47,6 @@ jobs:
           node tests/ai-quota.cjs
           node tests/automatic-upload.cjs
           node tests/scan-resume.cjs
+          node tests/pdf-page-pipeline.cjs
           node tests/gemini-fallback.cjs
           node tests/public-gateway.cjs
