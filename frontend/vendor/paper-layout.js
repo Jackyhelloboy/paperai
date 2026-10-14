@@ -46,6 +46,13 @@
         const caption=parts.length===2&&/^(?:none|box)$/.test(parts[1].trim()) ? '' : (parts[1]||'').trim();
         return {x,y,w,h,caption, answer:parts[parts.length-1]?.trim() === 'box'};
     }
+    function literalPictureCaption(value) {
+        const item=figure(value);
+        if(!item)return '';
+        const caption=item.caption.trim();
+        // A handwritten “horse picture” label is editable text, not a drawing.
+        return /^(?:[\p{L}\p{M}][\p{L}\p{M}\s-]{0,45}\s+)?picture$/iu.test(caption)?caption:'';
+    }
     function bannerRegion(spec,text) {
         const banner=figure(spec);if(!banner)return null;
         const region={...banner},lines=String(text||'').split('\n');
@@ -160,16 +167,18 @@
     function section(value) {
         // A marks equation is moved only geometrically, never calculated or changed.
         const s=String(value||'').trim();
-        const number='(?:[0-9०-९]+(?:[./][0-9०-९]+)?[¼½¾]?|[¼½¾])';
-        // Explicit units identify marks safely even when OCR places them first or mid-sentence.
-        const labelled=s.match(new RegExp('(?:^|\\s)(\\(?'+number+'\\s*(?:marks?|Marks?|MARKS?|अंक|M)\\)?)(?=\\s|$)'));
-        if(labelled){const title=(s.slice(0,labelled.index)+s.slice(labelled.index+labelled[0].length)).replace(/\s+/g,' ').trim();if(title)return {title,marks:labelled[1]};}
-        const equation='\\(?'+number+'\\s*[x×X*]\\s*'+number+'\\s*=\\s*'+number+'\\s*(?:[mM]|[Mm]arks)?\\)?';
+        const number='(?:\\p{Nd}+(?:[./]\\p{Nd}+)?[¼½¾]?|[¼½¾])';
+        const unit='(?:M|[mM]arks?|अंक|নম্বর|નંબર|ਮਾਰਕਸ?|ନମ୍ବର|மதிப்பெண்கள்|మార్కులు|ಅಂಕಗಳು|മാർക്ക്|مارکس?|نمبر)';
+        const equation='\\(?'+number+'\\s*[x×X*]\\s*'+number+'\\s*=\\s*'+number+'\\s*(?:'+unit+')?\\)?[.।॥]?';
         // A bare parenthesized score is a mark only after an instruction's
         // closing punctuation. Do not reinterpret operands such as f(5).
-        const m=s.match(new RegExp('^(.+?)\\s+('+equation+'|'+number+'\\s*(?:[mM]|[Mm]arks))\\s*$')) ||
-            s.match(new RegExp('^(.+[.?:।॥])\\s+(\\(\\s*'+number+'\\s*\\))\\s*$'));
-        return m ? {title:m[1],marks:m[2]} : null;
+        const m=s.match(new RegExp('^(.+?)\\s+('+equation+'|'+number+'\\s*'+unit+'[.।॥]?)\\s*$','u')) ||
+            s.match(new RegExp('^(.+[.?:।॥])\\s+(\\(\\s*'+number+'\\s*\\))\\s*$','u'));
+        if(m)return {title:m[1],marks:m[2]};
+        // A clearly labelled mark can appear before or inside an instruction.
+        const labelled=s.match(new RegExp('(?:^|\\s)(\\(?'+number+'\\s*'+unit+'\\)?[.।॥]?)(?=\\s|$)','u'));
+        if(labelled){const title=(s.slice(0,labelled.index)+s.slice(labelled.index+labelled[0].length)).replace(/\s+/g,' ').trim();if(title)return {title,marks:labelled[1]};}
+        return null;
     }
     function measuredGrid(region,rows=1) {
         const sourceWidth=region.w*profile.pageWidth/1000;
@@ -522,6 +531,14 @@
         const lines=String(value||'').split('\n');
         const words=s=>String(s||'').replace(/^\s*\[\[SECTION_ROW:\s*/i,'').split(/\s*\|\|/)[0]
             .replace(/^\s*[IVX]{1,6}[.)\s]+/i,'').replace(/[\W_]+/g,' ').trim().toLowerCase();
+        for(let i=0;i<lines.length;i++){
+            const row=lines[i].match(/^\s*\[\[SECTION_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i);
+            const repeated=(row?row[1]:lines[i]).match(/^\s*(.{10,}?)[:：.]\s+([IVX]{1,6}[.)]\s+)(.+)$/i);
+            if(!repeated)continue;
+            const second=row?repeated[3]:section(repeated[3])?.title;
+            if(second&&words(repeated[1])===words(second))lines[i]=row?
+                '[[SECTION_ROW: '+repeated[2]+repeated[3]+' || '+row[2]+']]':repeated[2]+repeated[3];
+        }
         for(let i=1;i<lines.length;i++){
             if(!sectionOrdinal(lines[i])||!/^\s*\[\[SECTION_ROW:/i.test(lines[i]))continue;
             let previous=i-1;while(previous>=0&&!lines[previous].trim())previous--;
@@ -754,8 +771,11 @@
             else if(marker)lines[i]=marker[1].trim();
             if(!/^\s*\[\[/.test(lines[i])){
                 const mark=section(lines[i]);
-                if(mark&&/^\s*[0-9०-९]+[.)।]\s*/u.test(mark.title))
-                    lines[i]='[[QUESTION_ROW: '+mark.title+' || '+mark.marks+']]';
+                if(mark){
+                    const question=/^\s*\p{Nd}+[.)।]\s*/u.test(mark.title);
+                    if(question||mark.title.length>=8)
+                        lines[i]='[['+(question?'QUESTION_ROW':'SECTION_ROW')+': '+mark.title+' || '+mark.marks+']]';
+                }
             }
             const question=lines[i].match(/^\s*\[\[QUESTION_ROW:\s*([^|]*?)\]\]\s*$/i);
             if(question)lines[i]=question[1].trim();
@@ -904,5 +924,5 @@
         }
         return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
 });

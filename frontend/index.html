@@ -5460,24 +5460,40 @@ function invalidateOriginalWord() {
 }
 function docxRun(text, options = {}) {
     text=String(text??'');
-    // Explicit Indic fonts/language tags prevent office apps from treating
-    // Hindi as an English run and substituting a different script font.
     let scriptFont=options.scriptFont||'',language=options.language||'en-US';
-    if(!scriptFont&&/[\u0900-\u097F\u0C00-\u0C7F]/.test(text)){
-        if(/[A-Za-z]/.test(text)){
-            return (text.match(/[\u0900-\u097F\u0C00-\u0C7F\u200C\u200D]+|[^\u0900-\u097F\u0C00-\u0C7F\u200C\u200D]+/g)||[])
-                .map(part=>docxRun(part,options)).join('');
+    if(!scriptFont){
+        const scripts=[
+            [/\p{Script=Devanagari}/u,'Noto Sans Devanagari','hi-IN'],
+            [/\p{Script=Bengali}/u,'Noto Sans Bengali','bn-IN'],
+            [/\p{Script=Gurmukhi}/u,'Noto Sans Gurmukhi','pa-IN'],
+            [/\p{Script=Gujarati}/u,'Noto Sans Gujarati','gu-IN'],
+            [/\p{Script=Oriya}/u,'Noto Sans Oriya','or-IN'],
+            [/\p{Script=Tamil}/u,'Noto Sans Tamil','ta-IN'],
+            [/\p{Script=Telugu}/u,'Noto Sans Telugu','te-IN'],
+            [/\p{Script=Kannada}/u,'Noto Sans Kannada','kn-IN'],
+            [/\p{Script=Malayalam}/u,'Noto Sans Malayalam','ml-IN'],
+            [/\p{Script=Arabic}/u,'Noto Naskh Arabic','ur-PK']
+        ];
+        const blocks=[];let block='',current='';
+        for(const ch of text){
+            const next=scripts.findIndex(([pattern])=>pattern.test(ch));
+            const kind=next>=0?String(next):/[A-Za-z]/.test(ch)?'latin':'';
+            if(kind&&current&&kind!==current){blocks.push(block);block='';}
+            block+=ch;if(kind)current=kind;
         }
-        const telugu=/[\u0C00-\u0C7F]/.test(text);
-        scriptFont=telugu?'Noto Sans Telugu':'Noto Sans Devanagari';language=telugu?'te-IN':'hi-IN';
+        if(block)blocks.push(block);
+        if(blocks.length>1)return blocks.map(part=>docxRun(part,options)).join('');
+        const found=scripts.find(([pattern])=>pattern.test(text));
+        if(found){scriptFont=found[1];language=found[2];}
     }
     const family=xmlEscape(scriptFont||(options.monospace?'Courier New':options.font||paperLayoutOptions().font));
     const bold = options.bold ? '<w:b/><w:bCs/>' : '';
     const size = Math.round(options.actualSize||Number(options.size || PaperAILayout.profile.bodySize)*paperLayoutOptions().fontSize/12);
     const preserve = /^\s|\s$|\s{2,}/.test(String(text || '')) ? ' xml:space="preserve"' : '';
     return '<w:r><w:rPr>' +
-        '<w:rFonts w:ascii="'+family+'" w:hAnsi="'+family+'" w:eastAsia="Noto Sans Devanagari" w:cs="'+(scriptFont||'Noto Sans Devanagari')+'"/>' +
+        '<w:rFonts w:ascii="'+family+'" w:hAnsi="'+family+'" w:eastAsia="'+family+'" w:cs="'+family+'"/>' +
         bold +
+        (language==='ur-PK'?'<w:rtl/>':'')+
         (options.underline?'<w:u w:val="'+options.underline+'"/>':'')+
         (options.strike?'<w:strike/>':'')+(options.doubleStrike?'<w:dstrike/>':'')+
         (options.highlight?'<w:highlight w:val="yellow"/>':'')+
@@ -5494,13 +5510,14 @@ function docxParagraph(text, options = {}) {
     const after = Number(options.after ?? paperLayoutOptions().after ?? 40);
     const left = Number(options.left || (options.question?paperLayoutOptions().indent:0));
     const keep = '<w:keepLines/><w:widowControl/>' + (options.keepNext ? '<w:keepNext/>' : '');
-    const jc = options.center ? '<w:jc w:val="center"/>' : options.right ? '<w:jc w:val="right"/>' : '';
+    const rtl=(String(text).match(/\p{Script=Arabic}/gu)||[]).length>(String(text).match(/[A-Za-z]/g)||[]).length;
+    const jc = options.center ? '<w:jc w:val="center"/>' : options.right||rtl ? '<w:jc w:val="right"/>' : '';
     const indent = left ? '<w:ind w:left="' + left + '"'+(options.question?' w:hanging="'+Math.min(left,240)+'"':'')+'/>' : '';
     const tabs = options.answerLeader
         ? '<w:tabs><w:tab w:val="right" w:leader="underscore" w:pos="10466"/></w:tabs>'
         : '';
 
-    return '<w:p><w:pPr>' + keep + jc + indent + tabs +
+    return '<w:p><w:pPr>' + keep + (rtl?'<w:bidi/>':'') + jc + indent + tabs +
         '<w:spacing w:before="' + before + '" w:after="' + after + '" w:line="'+Math.round(paperLayoutOptions().line*240)+'" w:lineRule="auto"/>' +
         '</w:pPr>' +
         docxRun(text, { bold, size:options.size || PaperAILayout.profile.bodySize, actualSize:options.actualSize,font:options.font,monospace:options.monospace }) +
@@ -5719,9 +5736,10 @@ function docxRichParagraph(raw, options = {}) {
         return docxRun('[picture needs review] ' + picture[2].trim() +
             (picture[1].toUpperCase() === 'PICTURE_OPTION' ? '  ☐' : ''),{size:18});
     }).join('');
-    return '<w:p><w:pPr><w:keepLines/>'+(options.keepNext?'<w:keepNext/>':'')+
+    const rtl=(String(raw).match(/\p{Script=Arabic}/gu)||[]).length>(String(raw).match(/[A-Za-z]/g)||[]).length;
+    return '<w:p><w:pPr><w:keepLines/>'+(options.keepNext?'<w:keepNext/>':'')+(rtl?'<w:bidi/>':'')+
         (options.question&&paperLayoutOptions().indent?'<w:ind w:left="'+paperLayoutOptions().indent+'" w:hanging="'+Math.min(paperLayoutOptions().indent,240)+'"/>':'')+
-        (options.center?'<w:jc w:val="center"/>':options.right?'<w:jc w:val="right"/>':'')+'<w:spacing w:after="'+(options.after??paperLayoutOptions().after??70)+'" w:line="'+Math.round(paperLayoutOptions().line*240)+'" w:lineRule="auto"/></w:pPr>'+runs+'</w:p>';
+        (options.center?'<w:jc w:val="center"/>':options.right||rtl?'<w:jc w:val="right"/>':'')+'<w:spacing w:after="'+(options.after??paperLayoutOptions().after??70)+'" w:line="'+Math.round(paperLayoutOptions().line*240)+'" w:lineRule="auto"/></w:pPr>'+runs+'</w:p>';
 }
 function buildDocxBody(structuredText) {
     docxPictureCounter = 0;
@@ -5954,6 +5972,10 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
                 return '[[SOURCE_BANNER: '+asset.id+']]';
             }
             const specs=kind.toUpperCase()==='FIGURE_ROW' ? worksheetCells(body,32) : [body];
+            const labels=specs.map(spec=>PaperAILayout.literalPictureCaption(spec));
+            if(labels.every(Boolean))return labels.length===1?
+                labels[0]+(PaperAILayout.figure(specs[0])?.answer?' ______':''):
+                '[[MATCH_ROW: '+labels.map((label,index)=>label+(PaperAILayout.figure(specs[index])?.answer?' ______':'')).join(' || ')+']]';
             const regions=specs.map(x=>crop(x));
             const rows=PaperAILayout.figureRows(regions);
             return rows.map(row=>'[[SOURCE_FIGURE'+(row.length>1?'_ROW':'')+': '+row.map(cell).join(' || ')+']]').join('\n');

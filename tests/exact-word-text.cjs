@@ -46,6 +46,23 @@ vm.runInContext(slice('async function downloadWord','function copyText'),ctx);
     assert.equal(doc.getElementsByTagName('w:tc').length,17,'Native table and blank answer-grid cells were lost');
     assert(!xml.includes('[[')&&!xml.includes('<w:strike')&&!/<w:ins(?:\s|>)/.test(xml));
     assert.equal(ctx.lastResult.preview_layout_text,expected,'Downloading must rebuild the current editor preview');
+    const english='Class: I\nSubject: English\nAnswer the following questions: I. Answer the following questions: 10x4=40 M.\n1. Where does Manu live?\nII. Unscramble these words. 4x1=4M.';
+    const englishZip=await JSZip.loadAsync(await (await ctx.makeExtractedDocx(english)).arrayBuffer());
+    const englishXml=await englishZip.file('word/document.xml').async('text');
+    const englishDoc=new DOMParser().parseFromString(englishXml,'application/xml');
+    const sectionTables=Array.from(englishDoc.getElementsByTagName('w:tbl')).filter(table=>
+        table.textContent.includes('Answer the following questions')||table.textContent.includes('Unscramble these words'));
+    assert.equal(sectionTables.length,2,'Both English bits need section tables');
+    for(const table of sectionTables){
+        const cells=table.getElementsByTagName('w:tc');
+        assert.equal(cells.length,2,'Instruction and mark belong in separate cells');
+        assert(cells[1].getElementsByTagName('w:jc')[0]?.getAttribute('w:val')==='right');
+    }
+    assert.equal((englishXml.match(/Answer the following questions/g)||[]).length,1,'Do not repeat the bit instruction');
+    for(const [word,font] of [['தமிழ்','Noto Sans Tamil'],['ಕನ್ನಡ','Noto Sans Kannada'],['മലയാളം','Noto Sans Malayalam'],['বাংলা','Noto Sans Bengali'],['ગુજરાતી','Noto Sans Gujarati'],['ਪੰਜਾਬੀ','Noto Sans Gurmukhi'],['ଓଡ଼ିଆ','Noto Sans Oriya'],['اردو','Noto Naskh Arabic']])
+        assert(ctx.docxRun('English '+word).includes('w:ascii="'+font+'"'),'Script-specific Word font missing for '+word);
+    assert(ctx.docxParagraph('اردو سوال').includes('<w:bidi/>'),'Urdu paragraphs need right-to-left direction');
+    if(process.env.PAPERAI_LAYOUT_QA_OUTPUT)fs.writeFileSync(process.env.PAPERAI_LAYOUT_QA_OUTPUT,Buffer.from(await (await ctx.makeExtractedDocx(english)).arrayBuffer()));
     if(process.env.PAPERAI_TEXT_QA_OUTPUT)fs.writeFileSync(process.env.PAPERAI_TEXT_QA_OUTPUT,Buffer.from(await downloaded.blob.arrayBuffer()));
     console.log('Exact Word text: current editor snapshot, repeated Hindi cells, matras/nukta, phrase insertion/deletion, punctuation, protected image IDs and native right-aligned marks pass.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
