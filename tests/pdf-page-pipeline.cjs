@@ -69,6 +69,8 @@ function setup(specs){
  assert.equal(Pipeline.recommendedConcurrency({deviceMemory:8,hardwareConcurrency:4}),3,'Capable devices can overlap three full-quality pages');
  assert.equal(Pipeline.recommendedConcurrency({deviceMemory:8,hardwareConcurrency:4,connection:{saveData:true}}),2,'Respect reduced-data devices');
  assert.equal(Pipeline.recommendedConcurrency({deviceMemory:4,hardwareConcurrency:16}),2,'Many CPU cores do not imply sufficient bitmap memory');
+ const isolated=await Pipeline.run({items:[0,1,2,3],concurrency:1,process:async(_,i)=>{if(i===1)throw new Error('This page is taking longer than expected.');return {page:i};}});
+ assert.equal(isolated.completed,3);assert.equal(isolated.errors.length,1);assert.deepEqual(isolated.results.filter(Boolean).map(r=>r.page),[0,2,3]);
  const fastGates=Array.from({length:5},deferred),fastStarted=[];
  const fastRun=Pipeline.run({items:[0,1,2,3,4],concurrency:Pipeline.recommendedConcurrency({deviceMemory:8,hardwareConcurrency:8}),
   process:async(_,index)=>{fastStarted.push(index);await fastGates[index].promise;return {page:index};}});

@@ -18,12 +18,12 @@
     const limit=Math.max(1,Math.min(4,Math.floor(Number(concurrency)||DEFAULT_CONCURRENCY)));
     const pending=items.map((_,index)=>index).filter(index=>!results[index]);
     const active=new Set(),errors=[];
-    let next=0;
+    let next=0,blocked=false;
     const snapshot=()=>({total:items.length,completed:results.filter(Boolean).length,active:[...active],failed:errors.length});
     const report=()=>onProgress(snapshot());
     report();
     async function worker(){
-      while(next<pending.length&&!signal?.aborted&&!errors.length){
+      while(next<pending.length&&!signal?.aborted&&!blocked){
         const index=pending[next++];
         active.add(index);report();
         try {
@@ -32,7 +32,12 @@
           // failed or the user cancelled. Save it before stopping this worker.
           if(result==null)throw new Error('A page returned no result.');
           results[index]=result;
-        } catch(error) { errors.push({index,error}); }
+        } catch(error) {
+          errors.push({index,error});
+          // Slow or interrupted OCR must not strand unrelated queued pages.
+          // Local render errors and quota failures still stop the queue.
+          blocked=blocked||!(/taking longer|interrupted|unreachable|temporarily busy|took too long/i.test(error?.message||''));
+        }
         finally { active.delete(index);report(); }
       }
     }

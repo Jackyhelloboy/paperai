@@ -61,6 +61,9 @@ const completed=()=>Response.json({status:'completed',result:{full_text:'1. Writ
   const cancel=new AbortController();cancel.abort();
   const bounded=Client.create({now:()=>clock,pause:async ms=>{clock+=ms;},randomId:()=>String(++id),fetcher:async()=>{network++;return Response.json({status:'processing'},{status:202});}});
   await assert.rejects(()=>bounded.request({source,language:'hi',body:'image',signal:cancel.signal}),{name:'AbortError'});assert.equal(network,0);
-  await assert.rejects(()=>bounded.request({source,language:'hi',body:'image'}),/taking longer/);assert(clock<=102000,'Polling cannot continue indefinitely');
+  await assert.rejects(()=>bounded.request({source,language:'hi',body:'image'}),/taking longer/);assert(clock<=182000,'Polling cannot continue indefinitely');
+  clock=0;uploads=0;polls=0;
+  const slow=Client.create({now:()=>clock,pause:async ms=>{clock+=ms;},fetcher:async path=>{if(path==='/api/ocr')uploads++;else polls++;return clock<120000?Response.json({status:'processing'},{status:202}):completed();}});
+  assert.equal((await slow.request({source:{},language:'auto',body:'image'})).status,200);assert.equal(uploads,1);assert(polls>0);
   console.log('Scan transport: immediate acknowledgement, one inference per ID, durable result recovery, expiry, network reconnect, resume, bounded polling and cancellation passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

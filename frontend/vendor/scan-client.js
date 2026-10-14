@@ -16,7 +16,7 @@
       let job=languages.get(language);
       let submit=!job;
       if(!job){job={id:randomId()};languages.set(language,job);}
-      const started=now(),deadline=started+100000;
+      const started=now(),deadline=started+180000;
       let failures=0,submissions=0;
       while(now()<deadline){
         if(signal?.aborted)throw new DOMException('Scan cancelled.','AbortError');
