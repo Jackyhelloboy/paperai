@@ -763,9 +763,9 @@
     }
     function cleanExamContent(value) {
         const pages=String(value||'').split(/(\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\])/i),out=[];
-        let identity={className:'',subject:''},started=false,forced=false;
+        let identity={className:'',subject:''},started=false,forced=false,modified=false;
         const field=/^\s*(?:name\s*[:：-]|class(?:\s*[:：.-]|\s+(?=[IVX0-9_]))|roll\s*(?:no\.?|number)?\s*[:：.-]|sub(?:ject)?(?:\.?\s*[:：-]|\.\s+|\s+(?=English|Social|Science|Math|Hindi|Telugu|_))|date\s*[:：-]|time\s*[:：-]|(?:total\s*)?marks\s*[:：-]?\s*$|(?:total\s*)?marks\s*[:：-]|name\s+of\s+(?:the\s+)?examination\s*[:：-])/i;
-        const isField=cell=>field.test(cell)||/^(?:Name|Class|Roll\s*(?:No\.?|Number)|Sub\.?|Subject|Date|Time|Name of (?:the )?Examination)$/i.test(cell);
+        const isField=cell=>field.test(cell);
         for(const page of pages){
             if(/^\[\[PAPER_BREAK\]\]$/i.test(page)){forced=true;continue;}
             if(/^\[\[PAGE_BREAK\]\]$/i.test(page))continue;
@@ -773,14 +773,14 @@
             const kept=[],metadata=[],lines=page.split('\n');let controls=[],exerciseFields=false;
             for(const line of lines){
                 if(sectionOrdinal(line))exerciseFields=/\b(?:complete|fill)\b.*\b(?:card|form|personal details)\b/i.test(line);
-                if(/^\s*\[\[(?:SOURCE_BANNER|BANNER):/i.test(line)||/^\s*BRILLIANT\s+MODEL\s+SCHOOLS?\b/i.test(line))continue;
+                if(/^\s*\[\[(?:SOURCE_BANNER|BANNER):/i.test(line)||/^\s*BRILLIANT\s+MODEL\s+SCHOOLS?\b/i.test(line)){modified=true;continue;}
                 if(/^\s*\[\[TABLE_(?:REGION|WIDTHS|HEADER):/i.test(line)){controls.push(line);continue;}
                 const row=line.match(/^\s*\[\[TABLE_ROW:\s*([\s\S]*?)\]\]\s*$/i);
                 const cells=row?row[1].split(/\s*\|\|\s*/).map(c=>c.replace(/<br>/gi,' ').trim()):[line.trim()];
                 // Anchored administrative labels only: questions such as
                 // "1. What is your school name?" and real exercise tables survive.
                 const furniture=!exerciseFields&&cells.some(c=>isField(c))&&cells.every(c=>isField(c)||/^(?:Summative|Formative)\s+Assessment\b/i.test(c)||!c||/^[_ .:—-]+$/.test(c)||/^(?:[IVX]{1,6}|[1-9]|1[0-2]|social(?: studies| science)?|english|science|maths?|hindi|telugu|\d{1,3})$/i.test(c));
-                if(furniture){metadata.push(cells.join(' || '));controls=[];continue;}
+                if(furniture){modified=true;metadata.push(cells.join(' || '));controls=[];continue;}
                 kept.push(...controls,line);controls=[];
             }
             kept.push(...controls);
@@ -801,7 +801,7 @@
             }else if(started)out.push('[[PAGE_BREAK]]');
             out.push(...kept);started=true;forced=false;
         }
-        return out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+        return modified?out.join('\n').replace(/\n{3,}/g,'\n\n').trim():String(value||'');
     }
     function overlap(a,b) {
         const area=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x))*
