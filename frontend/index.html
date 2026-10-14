@@ -5320,6 +5320,12 @@ goBtn.onclick = async () => {
         allText = PaperAILayout.cleanExamContent(repairLegacyBranchDiagram(allText));
         if(typeof PaperAIProfessionalPaper!=='undefined'){const formatted=PaperAIProfessionalPaper.format(allText);if(formatted!==allText)nativePdfPages=null;allText=formatted;}
         allPlain = repairLegacyBranchDiagram(allPlain);
+        // The preview and editable export must share the same paper-boundary
+        // cleanup; keep the unmodified model response in raw_text for review.
+        if(batch.every(part=>/\.pdf$/i.test(part.name))){
+            allText=PaperAILayout.normalise(allText);
+            allPlain=portableText(docxVisibleText(allText));
+        }
 
         if (file !== sourceFile) return;
         const nativeWord=batch.length===1&&/\.docx$/i.test(sourceFile.name);

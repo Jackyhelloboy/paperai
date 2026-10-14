@@ -20,7 +20,7 @@
     function automaticFormat(text, nativeSource=false) {
         // Detect only labels in the paper header, never a subject mentioned in a question.
         const lines=String(text||'').split('\n').map(s=>s.trim()).filter(Boolean);
-        const firstQuestion=lines.findIndex(s=>/^(?:\d+[.)]\s|\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)]\s)/i.test(s));
+        const firstQuestion=lines.findIndex(s=>/^(?:\d+[.)]\s|\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:[IVX]{1,6})[.)]\s)/i.test(s));
         const header=lines.slice(0,firstQuestion<0?20:Math.min(20,firstQuestion)).join('\n');
         const identity=paperIdentity(header);
         const subject='(?:subject\\s*[:=\\-]\\s*|(?:class\\s*)?(?:[IVX]+|[1-9]|10)\\s*[-:]\\s*)';
@@ -49,7 +49,7 @@
     function bannerRegion(spec,text) {
         const banner=figure(spec);if(!banner)return null;
         const region={...banner},lines=String(text||'').split('\n');
-        const stop=lines.findIndex(line=>/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+\S|[0-9०-९]+[.)]\s)/i.test(line));
+        const stop=lines.findIndex(line=>/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:[IVX]{1,6})[.)\s]+\S|[0-9०-९]+[.)]\s)/i.test(line));
         const header=lines.slice(0,stop<0?Math.min(lines.length,24):stop);
         for(let i=0;i<header.length;i++){
             const m=header[i].match(/^\s*\[\[TABLE_REGION:\s*([^\]]+)\]\]\s*$/i);if(!m)continue;
@@ -259,7 +259,7 @@
             if(keepSourcePages)return true;
             // New papers remain separate; a scan boundary within one paper reflows.
             const following=lines.slice(i+1).filter(x=>x.trim()).slice(0,5);
-            const boundary=following.findIndex(x=>/^\s*(?:\[\[(?:PAPER_BREAK|PAGE_BREAK|SECTION_ROW|QUESTION_ROW)\b|\d+[.)]\s|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)]\s)/i.test(x));
+            const boundary=following.findIndex(x=>/^\s*(?:\[\[(?:PAPER_BREAK|PAGE_BREAK|SECTION_ROW|QUESTION_ROW)\b|\d+[.)]\s|(?:[IVX]{1,6})[.)]\s)/i.test(x));
             const next=(boundary<0?following:following.slice(0,boundary)).join('\n');
             return /(?:class\s*[:.\-]?\s*(?:[IVX]+|[1-9]|UKG|LKG)\b|(?:annual|entrance)\s+examination|summative\s+assessment|formative\s+assessment|कक्षा\s*[:.\-]?\s*\S)/i.test(next);
         }).join('\n');
@@ -511,8 +511,25 @@
         return new Set(found);
     }
     function sectionOrdinal(value) {
-        const hit=String(value||'').match(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):\s*)?(I|II|III|IV|V|VI|VII|VIII|IX|X)(?:[.)\s]|$)/i);
-        return hit?['I','II','III','IV','V','VI','VII','VIII','IX','X'].indexOf(hit[1].toUpperCase())+1:0;
+        const hit=String(value||'').match(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):\s*)?([IVX]{1,6})(?:[.)\s]|$)/i);
+        if(!hit)return 0;
+        const numeral=hit[1].toUpperCase(),valueMap={I:1,V:5,X:10};
+        const total=[...numeral].reduce((sum,char,index)=>sum+(valueMap[numeral[index+1]]>valueMap[char]?-valueMap[char]:valueMap[char]),0);
+        const canonical=n=>['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'][n];
+        return total>0&&total<=20&&canonical(total)===numeral?total:0;
+    }
+    function dedupeSectionPrelude(value) {
+        const lines=String(value||'').split('\n');
+        const words=s=>String(s||'').replace(/^\s*\[\[SECTION_ROW:\s*/i,'').split(/\s*\|\|/)[0]
+            .replace(/^\s*[IVX]{1,6}[.)\s]+/i,'').replace(/[\W_]+/g,' ').trim().toLowerCase();
+        for(let i=1;i<lines.length;i++){
+            if(!sectionOrdinal(lines[i])||!/^\s*\[\[SECTION_ROW:/i.test(lines[i]))continue;
+            let previous=i-1;while(previous>=0&&!lines[previous].trim())previous--;
+            if(previous<0||/^\s*\[\[/.test(lines[previous])||sectionOrdinal(lines[previous]))continue;
+            const before=words(lines[previous]),heading=words(lines[i]);
+            if(before.length>=12&&before===heading)lines[previous]='';
+        }
+        return lines.join('\n');
     }
     function suppressContinuationHeaders(value) {
         const lines=String(value||'').split('\n'),out=[];
@@ -539,18 +556,20 @@
                 const block=[];let maxColumns=0,rows=0,j=i;
                 while(j<lines.length&&(control(lines[j])||row(lines[j]))){if(rows&&control(lines[j]))break;block.push(lines[j]);const found=row(lines[j]);if(found){rows++;maxColumns=Math.max(maxColumns,found[1].split(/\s*\|\|\s*/).length);}j++;}
                 const labels=paperFieldLabels(block.join(' '));
-                if(labels.size>=3){
+                if(labels.size>=2&&((labels.has('name')&&(labels.has('marks')||labels.has('roll')||labels.has('class')||labels.has('subject')))||labels.size>=3)){
                     const ordinal=sectionOrdinal(nextContent(j));
                     if(questionsStarted&&ordinal===1){questionsStarted=false;headerSeen=false;}
-                    const continuation=questionsStarted&&ordinal!==1;
+                    const continuation=questionsStarted&&ordinal>1;
                     const malformedDuplicate=!questionsStarted&&(maxColumns>5||(rows===1&&labels.size>=5))&&laterCleaner(j,labels,maxColumns,rows);
                     if(!continuation&&!malformedDuplicate){out.push(...block);headerSeen=true;}
                     i=j;continue;
                 }
             }
-            out.push(line);if(question(line))questionsStarted=true;i++;
+            out.push(line);
+            if(!questionsStarted&&paperFieldLabels(line).has('class')&&/^\s*(?:class\b|\[\[TABLE_ROW:\s*class\b)/i.test(line))headerSeen=true;
+            if(question(line))questionsStarted=true;i++;
         }
-        return out.join('\n').replace(/\n{3,}/g,'\n\n');
+        return dedupeSectionPrelude(out.join('\n').replace(/\n{3,}/g,'\n\n'));
     }
     function canonicalPaperRow(kind,body) {
         if(!/^(?:SECTION_ROW|QUESTION_ROW|MATCH_ROW)$/.test(kind))return '[['+kind+': '+body+']]';
@@ -650,7 +669,7 @@
         let questionsStarted=false,previousHeaderCount=0;
         return String(value||'').split('\n').map(line=>{
             if(/^\s*\[\[PAPER_BREAK\]\]\s*$/i.test(line))questionsStarted=false;
-            if(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|[0-9०-९]+[.)]\s|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)(?:[.)]?\s|[.)]?$))/i.test(line))questionsStarted=true;
+            if(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|[0-9०-९]+[.)]\s|(?:[IVX]{1,6})(?:[.)]?\s|[.)]?$))/i.test(line))questionsStarted=true;
             if(!line.includes('[[')&&line.includes('||')){
                 const questions=line.split(/\s*\|\|\s*/).map(cell=>cell.trim());
                 if(questions.length>=2&&questions.length<=4&&questions.every(cell=>cell.length<=300&&/^[0-9०-९]+(?:[.)।]\s*|\s+)\S[\s\S]*(?:_{2,}|\(\s*\))\s*$/u.test(cell))){questionsStarted=true;previousHeaderCount=0;return '[[MATCH_ROW: '+questions.join(' || ')+']]';}
@@ -713,22 +732,22 @@
         }
         // Detached roman labels and their following instruction are one heading.
         for(let i=0;i<lines.length-1;i++){
-            const label=lines[i].trim();if(!/^(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)]?$/.test(label))continue;
+            const label=lines[i].trim();if(!/^(?:[IVX]{1,6})[.)]?$/.test(label))continue;
             let j=i+1;while(j<lines.length&&!lines[j].trim())j++;
             const row=(lines[j]||'').match(/^\s*\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]\s*$/i);
             if(!row||/^[0-9०-९]+[.)]/u.test(row[1]))continue;
             const numeral=label.replace(/[.)]$/,'');
-            const existing=row[1].match(/^(I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+/);
+            const existing=row[1].match(/^([IVX]{1,6})[.)\s]+/);
             if(existing&&existing[1]!==numeral)continue;
             lines[j]='[[SECTION_ROW: '+(existing?'':label+' ')+row[1].trim()+' || '+row[2].trim()+']]';lines[i]='';
         }
         for(let i=0;i<lines.length;i++){
-            const separated=lines[i].match(/^\s*((?:(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+|[0-9०-९]+[.)।]\s*)[^|]+?)\s*\|\|\s*([^|]+)\s*$/);
+            const separated=lines[i].match(/^\s*((?:(?:[IVX]{1,6})[.)\s]+|[0-9०-९]+[.)।]\s*)[^|]+?)\s*\|\|\s*([^|]+)\s*$/);
             if(separated){
                 const score=section(separated[1].trim()+' '+separated[2].trim());
                 if(score&&score.marks.replace(/\s/g,'')===separated[2].replace(/\s/g,''))lines[i]='[['+(/^[0-9०-९]/.test(separated[1].trim())?'QUESTION_ROW':'SECTION_ROW')+': '+separated[1].trim()+' || '+separated[2].trim()+']]';
             }
-            if(/^\s*\[\[QUESTION_ROW:\s*(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+\S/.test(lines[i]))lines[i]=lines[i].replace('QUESTION_ROW:','SECTION_ROW:');
+            if(/^\s*\[\[QUESTION_ROW:\s*(?:[IVX]{1,6})[.)\s]+\S/.test(lines[i]))lines[i]=lines[i].replace('QUESTION_ROW:','SECTION_ROW:');
             const marker=lines[i].match(/^\s*\[\[SECTION_ROW:\s*([^|]*?)\]\]\s*$/i);
             const split=marker&&section(marker[1]);
             if(split)lines[i]='[[SECTION_ROW: '+split.title+' || '+split.marks+']]';
@@ -747,7 +766,7 @@
         }
         let matching=false;
         for(let i=0;i<lines.length;i++){
-            if(/^\s*(?:\[\[SECTION_ROW:\s*)?(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[. )\s]+\S/.test(lines[i]))
+            if(/^\s*(?:\[\[SECTION_ROW:\s*)?(?:[IVX]{1,6})[. )\s]+\S/.test(lines[i]))
                 matching=/match(?:ing| the following)|जोड़ी|मिलान|शब्द.*शब्द.*जोड़[ोिी]/i.test(lines[i]);
             if(!matching||/^\s*\[\[/.test(lines[i]))continue;
             const pipeCells=lines[i].split(/\s*\|\|\s*|\s+\|\s+/);
@@ -856,7 +875,7 @@
         }
         if(pairs.length<2||pairs.length!==observedCount)return text;
         const rest=lines.slice(i);
-        if(rest.some(line=>line.trim())&&!/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)\s]+\S)/i.test(rest.find(line=>line.trim())))return text;
+        if(rest.some(line=>line.trim())&&!/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:[IVX]{1,6})[.)\s]+\S)/i.test(rest.find(line=>line.trim())))return text;
         return [...prefix,...pairs.flatMap(pair=>[pair.label,...pair.block]),...rest].join('\n');
     }
     function reconcileEmptyGrids(text,grids=[]) {

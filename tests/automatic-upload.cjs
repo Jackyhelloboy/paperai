@@ -19,7 +19,7 @@ function setup(){
   ...Object.fromEntries(['dropZone','fileInput','goBtn','languageSelect','filePreview','fileThumb','fileTypeIcon','fileName','fileMeta','clearBtn','prog','pFill','pPct','pMsg','resBox','teachPanel','textOut'].map(k=>[k,field(k)])),
   IMAGE_EXTS:['png','jpg'],PDF_EXTS:['pdf'],DOC_EXTS:['docx'],PPT_EXTS:[],XLS_EXTS:[],TXT_EXTS:['txt'],ALLOWED_EXTS:['png','jpg','pdf','docx','txt'],BLOCKED_EXTS:['mp4'],
   FileReader:class{readAsDataURL(f){this.onload({target:{result:'data:image/png;base64,test'}});}},fmtSize:n=>String(n),hideErr(){ctx.error=null;},showErr:m=>{ctx.error=m;},
-  setTimeout:()=>{},repairLegacyBranchDiagram:s=>s,formatOutput:s=>'<paper>'+s+'</paper>',updateResultActionsForTab(){},loadUsage:async()=>{},
+  setTimeout:()=>{},repairLegacyBranchDiagram:s=>s,formatOutput:s=>'<paper>'+s+'</paper>',docxVisibleText:s=>s,portableText:s=>s,updateResultActionsForTab(){},loadUsage:async()=>{},
   PaperAIPdfEditable:{preview:()=>'<native>original layout</native>'},window:{matchMedia:()=>({matches:false})},
   extractOneFile:async f=>{files.push(f);reading++;return new Promise((resolve,reject)=>{finish={resolve,reject};});}
  });

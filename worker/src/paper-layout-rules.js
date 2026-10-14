@@ -1,7 +1,11 @@
 // Reference-driven structure rules for training/*.docx and training/*.pdf.
 // Formatting adaptation, not model-weight fine-tuning. The current page wins.
 export const PAPER_LAYOUT_RULES = `
-REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete training corpus):
+REFERENCE QUESTION-PAPER LAYOUT RULES (version 9, reviewed against scanned multi-class papers):
+- Treat each Roman-numbered bit/section as one source unit. Transcribe its printed Roman label, instruction, marks, questions, options, word bank and answer spaces exactly once, in physical order. A repeated heading paraphrase is an OCR duplicate, not an extra bit. Never merge adjacent bits or move an item across their boundary. If the source repeats a number or has a marks/count inconsistency, preserve it and never repair it from expectation.
+- A scanned page is not necessarily a new paper. A new paper begins only when the visible source starts a fresh title/Class/Subject and first bit (normally I); continuation pages retain the preceding paper identity. Keep Class and Subject exactly as written on the actual new-paper header, including Roman numerals. If either is unreadable, leave it blank or [unclear]; do not borrow it from another page, another class or the training corpus. Discard repeated student-field forms on continuation pages from the clean question body.
+- Decide layout by visible borders and alignment. Ruled notebook background never creates a table. Multiple-choice a/b/c options and true/false brackets are question content, not a bordered table. Keep each option with its own question; make a table only when actual cell borders are drawn. Never invent an extra name/roll/marks table inside a bit.
+- For each bit, cross-check the first and last physical item, numbering and any mark against this page before returning it. Do not supply answers, fill word blanks, infer a missing question, correct source spelling, or replace a difficult word with a likely textbook phrase. Use [unclear] for unreadable source strokes.
 - Output editable text, native table/grid markers, and basic geometric shapes. Do not describe drawings as words or supply answers.
 - Count PHYSICAL cell borders, not expected answer counts. A to Z does NOT imply 26 cells. Notebook ruling through a drawn box does NOT imply a second grid row. Ignore background notebook margins and ruled lines.
 - Never split matching columns into alternating lines. Emit MATCH_ROW with ALL visible columns, including the middle blank bracket column: [[MATCH_ROW: 1. visible item || (   ) || a. visible option]]. Keep original row order; never solve the match. Pictures may occupy individual matching cells using FIGURE markers.
@@ -105,8 +109,25 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
         return new Set(found);
     }
     function sectionOrdinal(value) {
-        const hit=String(value||'').match(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):\s*)?(I|II|III|IV|V|VI|VII|VIII|IX|X)(?:[.)\s]|$)/i);
-        return hit?['I','II','III','IV','V','VI','VII','VIII','IX','X'].indexOf(hit[1].toUpperCase())+1:0;
+        const hit=String(value||'').match(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):\s*)?([IVX]{1,6})(?:[.)\s]|$)/i);
+        if(!hit)return 0;
+        const numeral=hit[1].toUpperCase(),valueMap={I:1,V:5,X:10};
+        const total=[...numeral].reduce((sum,char,index)=>sum+(valueMap[numeral[index+1]]>valueMap[char]?-valueMap[char]:valueMap[char]),0);
+        const canonical=n=>['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'][n];
+        return total>0&&total<=20&&canonical(total)===numeral?total:0;
+    }
+    function dedupeSectionPrelude(value) {
+        const lines=String(value||'').split('\n');
+        const words=s=>String(s||'').replace(/^\s*\[\[SECTION_ROW:\s*/i,'').split(/\s*\|\|/)[0]
+            .replace(/^\s*[IVX]{1,6}[.)\s]+/i,'').replace(/[\W_]+/g,' ').trim().toLowerCase();
+        for(let i=1;i<lines.length;i++){
+            if(!sectionOrdinal(lines[i])||!/^\s*\[\[SECTION_ROW:/i.test(lines[i]))continue;
+            let previous=i-1;while(previous>=0&&!lines[previous].trim())previous--;
+            if(previous<0||/^\s*\[\[/.test(lines[previous])||sectionOrdinal(lines[previous]))continue;
+            const before=words(lines[previous]),heading=words(lines[i]);
+            if(before.length>=12&&before===heading)lines[previous]='';
+        }
+        return lines.join('\n');
     }
     function suppressContinuationHeaders(value) {
         const lines=String(value||'').split('\n'),out=[];
@@ -133,18 +154,20 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
                 const block=[];let maxColumns=0,rows=0,j=i;
                 while(j<lines.length&&(control(lines[j])||row(lines[j]))){if(rows&&control(lines[j]))break;block.push(lines[j]);const found=row(lines[j]);if(found){rows++;maxColumns=Math.max(maxColumns,found[1].split(/\s*\|\|\s*/).length);}j++;}
                 const labels=paperFieldLabels(block.join(' '));
-                if(labels.size>=3){
+                if(labels.size>=2&&((labels.has('name')&&(labels.has('marks')||labels.has('roll')||labels.has('class')||labels.has('subject')))||labels.size>=3)){
                     const ordinal=sectionOrdinal(nextContent(j));
                     if(questionsStarted&&ordinal===1){questionsStarted=false;headerSeen=false;}
-                    const continuation=questionsStarted&&ordinal!==1;
+                    const continuation=questionsStarted&&ordinal>1;
                     const malformedDuplicate=!questionsStarted&&(maxColumns>5||(rows===1&&labels.size>=5))&&laterCleaner(j,labels,maxColumns,rows);
                     if(!continuation&&!malformedDuplicate){out.push(...block);headerSeen=true;}
                     i=j;continue;
                 }
             }
-            out.push(line);if(question(line))questionsStarted=true;i++;
+            out.push(line);
+            if(!questionsStarted&&paperFieldLabels(line).has('class')&&/^\s*(?:class\b|\[\[TABLE_ROW:\s*class\b)/i.test(line))headerSeen=true;
+            if(question(line))questionsStarted=true;i++;
         }
-        return out.join('\n').replace(/\n{3,}/g,'\n\n');
+        return dedupeSectionPrelude(out.join('\n').replace(/\n{3,}/g,'\n\n'));
     }
     function canonicalPaperRow(kind,body) {
         if(!/^(?:SECTION_ROW|QUESTION_ROW|MATCH_ROW)$/.test(kind))return '[['+kind+': '+body+']]';
@@ -236,7 +259,7 @@ export function cleanQuestionPaper(value, depth=0) {
         let questionsStarted=false,previousHeaderCount=0;
         return String(value||'').split('\n').map(line=>{
             if(/^\s*\[\[PAPER_BREAK\]\]\s*$/i.test(line))questionsStarted=false;
-            if(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|[0-9०-९]+[.)]\s|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)(?:[.)]?\s|[.)]?$))/i.test(line))questionsStarted=true;
+            if(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):|[0-9०-९]+[.)]\s|(?:[IVX]{1,6})(?:[.)]?\s|[.)]?$))/i.test(line))questionsStarted=true;
             if(!line.includes('[[')&&line.includes('||')){
                 const questions=line.split(/\s*\|\|\s*/).map(cell=>cell.trim());
                 if(questions.length>=2&&questions.length<=4&&questions.every(cell=>cell.length<=300&&/^[0-9०-९]+(?:[.)।]\s*|\s+)\S[\s\S]*(?:_{2,}|\(\s*\))\s*$/u.test(cell))){questionsStarted=true;previousHeaderCount=0;return '[[MATCH_ROW: '+questions.join(' || ')+']]';}

@@ -60,6 +60,23 @@ const fs=require('node:fs');
  assert.equal(W.normaliseMarkerRows(continuationHeaders),headerFixed,'Server and browser must suppress the same continuation header');
  const orphan='[[SECTION_ROW: II. Answer. || 5M]]\n1. Question.\n[[TABLE_ROW: Name: ____ || Class: I || Roll No: ____]]\n[[SECTION_ROW: III. Continue. || 5M]]';
  for(const clean of [L.normalise(orphan),W.normaliseMarkerRows(orphan)])assert(!clean.includes('Name:'),'Continuation fields must be suppressed even when a page has no initial header');
+ const englishPaper=[
+  'Class: V','Sub: English','[[SECTION_ROW: VIII. Complete these sentences. || 5x1=5M]]','1. First item.',
+  '[[PAGE_BREAK]]','[[TABLE_ROW: Name: ____ || Total Marks: ____]]',
+  '[[SECTION_ROW: IX. Underline the correct word. || 3x1=3M]]','1. Next item.',
+  '[[PAGE_BREAK]]','[[SECTION_ROW: XI. Rewrite the sentences. || 4x2=8M]]','1. Last item.'
+ ].join('\n');
+ for(const normalise of [L.normalise,W.normaliseMarkerRows]){
+  const clean=normalise(englishPaper);
+  assert(!clean.includes('Total Marks'),'The two-field student form on a continuation page must not appear inside Class V');
+  assert(clean.includes('Class: V')&&clean.includes('Sub: English'));
+  assert(clean.includes('SECTION_ROW: IX.')&&clean.includes('SECTION_ROW: XI.'));
+  assert.equal(normalise(clean),clean,'Preview cleanup and Word cleanup must be idempotent');
+  const repeated=normalise('Class: I\nSub: English\nAnswer the following questions\n[[SECTION_ROW: I. Answer the following questions || 10x4=40M]]\n1. Where?');
+  assert.equal((repeated.match(/Answer the following questions/g)||[]).length,1,'One physical bit has one instruction');
+  const nextPaper=normalise('Class: I\nSub: English\n[[SECTION_ROW: XIII. Finish. || 5M]]\n1. End.\n[[PAGE_BREAK]]\n[[TABLE_ROW: Name: ____ || Class: II || Sub: English]]\n[[SECTION_ROW: I. Begin. || 10M]]');
+  assert(nextPaper.includes('Class: II'),'A genuine new paper retains its new class header');
+ }
  const malformed='[[SOURCE_BANNER: school]]\n[[TABLE_ROW: Name: ____ || Class: III || Roll No: ____ || Marks: ____ ||  ||  ||  ]]\n[[TABLE_ROW: Name: ____ || Class: III || Roll No: ____]]\n[[TABLE_ROW: Sub: Social || Name of the Examination: ____ || Marks: ____]]\n[[SECTION_ROW: I. Answer. || 10M]]';
  const malformedFixed=L.normalise(malformed);
  assert.equal((malformedFixed.match(/\bName:/g)||[]).length,1,'A malformed wide duplicate must not precede a cleaner exam header');
