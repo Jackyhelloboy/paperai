@@ -765,14 +765,14 @@
         const pages=String(value||'').split(/(\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\])/i),out=[];
         let identity={className:'',subject:''},started=false,forced=false,modified=false;
         const field=/^\s*(?:name\s*[:：-]|class(?:\s*[:：.-]|\s+(?=[IVX0-9_]))|roll\s*(?:no\.?|number)?\s*[:：.-]|sub(?:ject)?(?:\.?\s*[:：-]|\.\s+|\s+(?=English|Social|Science|Math|Hindi|Telugu|_))|date\s*[:：-]|time\s*[:：-]|(?:total\s*)?marks\s*[:：-]?\s*$|(?:total\s*)?marks\s*[:：-]|name\s+of\s+(?:the\s+)?examination\s*[:：-])/i;
-        const isField=cell=>field.test(cell);
+        const isField=cell=>field.test(cell)||/^(?:Roll\s*(?:No\.?|Number)|Name of (?:the )?Examination[\s_:.—-]*|(?:Total\s*)?Marks[\s_:.—-]*)$/i.test(cell);
         for(const page of pages){
             if(/^\[\[PAPER_BREAK\]\]$/i.test(page)){forced=true;continue;}
             if(/^\[\[PAGE_BREAK\]\]$/i.test(page))continue;
             if(!page.trim())continue;
-            const kept=[],metadata=[],lines=page.split('\n');let controls=[],exerciseFields=false,headerMarkBox=false;
+            const kept=[],metadata=[],lines=page.split('\n');let controls=[],exerciseFields=false,headerMarkBox=false,afterFurniture=false;
             for(const line of lines){
-                if(sectionOrdinal(line)){headerMarkBox=false;}
+                if(sectionOrdinal(line)){headerMarkBox=false;afterFurniture=false;}
                 if(sectionOrdinal(line))exerciseFields=/\b(?:complete|fill)\b.*\b(?:card|form|personal details)\b/i.test(line);
                 if(/^\s*\[\[(?:SOURCE_BANNER|BANNER):/i.test(line)||/^\s*BRILLIANT\s+MODEL\s+SCHOOLS?\b/i.test(line)){modified=true;headerMarkBox=true;continue;}
                 if(headerMarkBox&&/^\s*\[\[(?:(?:TABLE_ROW|BOXED):\s*)?[0-9]+\s*\]\]\s*$/i.test(line)){modified=true;controls=[];continue;}
@@ -782,7 +782,9 @@
                 // Anchored administrative labels only: questions such as
                 // "1. What is your school name?" and real exercise tables survive.
                 const furniture=!exerciseFields&&cells.some(c=>isField(c))&&cells.every(c=>isField(c)||/^(?:Summative|Formative)\s+Assessment\b/i.test(c)||!c||/^[_ .:—-]+$/.test(c)||/^(?:[IVX]{1,6}|[1-9]|1[0-2]|social(?: studies| science)?|english|science|maths?|hindi|telugu|\d{1,3})$/i.test(c));
-                if(furniture){if(cells.some(c=>/^(?:total\s*)?marks\b/i.test(c)))headerMarkBox=true;modified=true;metadata.push(cells.join(' || '));controls=[];continue;}
+                if(furniture){afterFurniture=true;if(cells.some(c=>/^(?:total\s*)?marks\b/i.test(c)))headerMarkBox=true;modified=true;metadata.push(cells.join(' || '));controls=[];continue;}
+                if(afterFurniture&&(/^\s*\[\[GRID:\s*\d+x\d+\]\]\s*$/i.test(line)||(row&&cells.every(c=>!c||/^[_\s]*$/.test(c))))){modified=true;controls=[];continue;}
+                if(line.trim()&&!/^(?:Summative|Formative)\s+Assessment\b/i.test(line.trim()))afterFurniture=false;
                 kept.push(...controls,line);controls=[];
             }
             kept.push(...controls);
@@ -805,6 +807,34 @@
             out.push(...kept);started=true;forced=false;
         }
         return modified?out.join('\n').replace(/\n{3,}/g,'\n\n').trim():String(value||'');
+    }
+    function normaliseExamExercises(value) {
+        const out=[];let choice=false;
+        const options=text=>String(text||'').split(/(?=(?:^|\s)(?:\([a-h]\)|[a-h][.)])\s+)/i).map(s=>s.trim()).filter(Boolean);
+        for(const raw of String(value||'').split('\n')){
+            const line=raw.trim();
+            if(/^\[\[PAPER_BREAK\]\]$/i.test(line))choice=false;
+            if(sectionOrdinal(line))choice=/\b(?:choose|tick)\b.*\bcorrect\s+answers?\b/i.test(line);
+            const row=line.match(/^\[\[(?:MATCH_ROW|TABLE_ROW):\s*([\s\S]*?)\]\]$/i);
+            if(choice&&row){
+                const cells=row[1].split(/\s*\|\|\s*/).map(c=>c.trim()).filter(c=>c&&!/^none$/i.test(c));
+                if(cells.length&&cells.every(c=>/^(?:\([a-h]\)|[a-h][.)])\s+/i.test(c))){out.push('[[CHOICE_ROW: '+cells.flatMap(options).join(' || ')+']]');continue;}
+                if(/^\d+[.)]\s/.test(cells[0]||'')){
+                    const optionCells=[],stemParts=[],blanks=[];
+                    for(const cell of cells){
+                        if(/^(?:\(\s*\)|\[\s*\])$/.test(cell)){blanks.push(cell);continue;}
+                        const parts=cell.replace(/<br>/gi,' ').split(/(?=(?:^|\s)(?:\([a-h]\)|[a-h][.)])\s+)/i).map(s=>s.trim()).filter(Boolean);
+                        for(const part of parts){if(/^(?:\([a-h]\)|[a-h][.)])\s+/i.test(part))optionCells.push(part);else stemParts.push(part);}
+                    }
+                    if(optionCells.length){out.push(stemParts.join(' ')+(blanks.length?'  '+blanks.join(' '):''));out.push('[[CHOICE_ROW: '+optionCells.join(' || ')+']]');continue;}
+                    if(cells.length===1){out.push(cells[0]);continue;}
+                }
+            }
+            out.push(raw);
+        }
+        // Only empty response brackets are widened; mathematical values and
+        // option labels such as (a) remain literal. NBSP survives HTML and Word.
+        return out.join('\n').replace(/\(\s*\)/g,'(\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0)').replace(/(?<!\[)\[\s*\](?!\])/g,'[\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0]');
     }
     function overlap(a,b) {
         const area=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x))*
@@ -885,5 +915,5 @@
         }
         return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,normaliseExamExercises,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
 });

@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),L=require('../frontend/vendor/paper-layout.js');
+const raw='[[SECTION_ROW: VI. Choose the correct answer. || 5x1=5]]\n[[MATCH_ROW: 1. A classroom has a:<br>a. blackboard || [] || b. bed]]\n[[TABLE_ROW: 2. What is the shape of the Earth? || ( ) || (a) triangle (b) rectangle (c) spherical (d) Square || ]]\n[[SECTION_ROW: VII. Match the following. || 5x1=5]]\n[[MATCH_ROW: 1. Teacher || [] || a. Teaches us values]]';
+const clean=L.normaliseExamExercises(raw);
+assert(clean.includes('1. A classroom has a:  ['));
+assert(clean.includes('[[CHOICE_ROW: a. blackboard || b. bed]]'));
+assert(clean.includes('[[CHOICE_ROW: (a) triangle || (b) rectangle || (c) spherical || (d) Square]]'));
+assert(!clean.split('VII.')[0].includes('MATCH_ROW'));
+assert(clean.includes('[[MATCH_ROW: 1. Teacher'));
+assert.equal(L.normaliseExamExercises(clean),clean);
+assert(L.normaliseExamExercises('1. Plot (2, 3) and evaluate f(5).').includes('(2, 3)'));
+assert(L.normaliseExamExercises('1. Answer () []').includes('(\u00a0'.replace('\\u00a0','\u00a0')));
+const fields='Class: III\nSubject: Social\nSummative Assessment - II\n[[TABLE_ROW: Roll No ||  ||  || ]]\n[[TABLE_ROW: Name of the Examination ||  ||  || ]]\n[[GRID: 3x3]]\nI Answer the following questions\n1. What makes up the Earth?\nII. Write the letters.\n[[GRID: 5x1]]';
+const content=L.cleanExamContent(fields);
+assert(!content.includes('Roll No')&&!content.includes('Name of the Examination')&&!content.includes('3x3'));
+assert(content.includes('5x1'));
+assert(!L.cleanExamContent('II. Write answers.\n[[TABLE_ROW: Name : ___ || Total Marks<br>___]]\nIII. Continue.').includes('Total Marks'));
+console.log('MCQ sections: questions above original choices, real matching retained, empty brackets widened, detached administrative grids removed.');
