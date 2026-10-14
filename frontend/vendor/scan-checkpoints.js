@@ -3,7 +3,7 @@
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.PaperAIScanCheckpoints=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
-  const VERSION='paperai-scan-v1',TTL=24*60*60*1000,MAX_BYTES=20*1024*1024;
+  const VERSION='paperai-scan-v2-clean-exams',TTL=24*60*60*1000,MAX_BYTES=20*1024*1024;
   // Only completed OCR pages are stored, never the uploaded PDF or credentials.
   // Re-selecting the exact PDF is required after refresh. Its complete SHA-256
   // digest, language and extraction version prevent same-name/cross-mode reuse.

@@ -49,6 +49,7 @@ jobs:
           node tests/exact-word-text.cjs
           node tests/mixed-language-suggestions.cjs
           node tests/clean-question-paper.cjs
+          node tests/clean-exam-content.cjs
           node tests/ai-quota.cjs
           node tests/automatic-upload.cjs
           node tests/gemini-fallback.cjs

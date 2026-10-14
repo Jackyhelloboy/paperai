@@ -5248,7 +5248,7 @@ async function extractOneFile(f, onProgress, label) {
         allRaw = result.result.raw_text || allText;
     }
 
-    if(ext==='pdf'){allText=PaperAILayout.orderPages(allText);allPlain=portableText(docxVisibleText(allText));}
+    if(ext==='pdf'){const cleaned=PaperAILayout.cleanExamContent(allText);if(cleaned!==allText)nativePdfPages=null;allText=PaperAILayout.orderPages(cleaned);allPlain=portableText(docxVisibleText(allText));}
     if (!allPlain) allPlain = allText;
     return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages };
 }
@@ -5298,7 +5298,7 @@ goBtn.onclick = async () => {
         if (!allPlain) allPlain = allText;
         if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in file');
 
-        allText = repairLegacyBranchDiagram(allText);
+        allText = PaperAILayout.cleanExamContent(repairLegacyBranchDiagram(allText));
         allPlain = repairLegacyBranchDiagram(allPlain);
 
         if (file !== sourceFile) return;
@@ -6162,7 +6162,7 @@ function createWordPlaceholderPngBase64() {
 
 async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
-    structuredText=packSourceFigureRows(PaperAILayout.normalise(structuredText));
+    structuredText=packSourceFigureRows(PaperAILayout.normalise(PaperAILayout.cleanExamContent(structuredText)));
 
     const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
     const footerXml = paperLayoutOptions().pageNumbers||/\[\[FOOTER:/i.test(structuredText)?docxFooterXml(structuredText):'<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>';
