@@ -55,3 +55,15 @@ export function invalidLayoutMarkers(text) {
     }
     return false;
 }
+
+// A crop-only correction must never replace question wording or captions.
+export function verifiedFigureCrops(first, verified) {
+ const markers=text=>[...String(text).matchAll(/\[\[(FIGURE(?:_ROW)?):\s*([^\n]*?)\]\]/gi)];
+ const specs=matches=>matches.flatMap(m=>m[2].split(/\s*\|\|\s*/));
+ const a=markers(first),b=markers(verified),old=specs(a),fresh=specs(b);
+ if(!old.length||old.length!==fresh.length||invalidLayoutMarkers(verified))return first;
+ const caption=spec=>(spec.split('|')[1]||'').trim().toLowerCase();
+ if(old.some((spec,i)=>caption(spec)!==caption(fresh[i])))return first;
+ let i=0;
+ return String(first).replace(/\[\[(FIGURE(?:_ROW)?):\s*([^\n]*?)\]\]/gi,(_,kind,body)=>'[['+kind+': '+body.split(/\s*\|\|\s*/).map(spec=>fresh[i++].split('|')[0].trim()+spec.slice(spec.indexOf('|')<0?spec.length:spec.indexOf('|'))).join(' || ')+']]');
+}

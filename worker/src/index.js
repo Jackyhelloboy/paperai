@@ -1,7 +1,7 @@
 import { PAPER_LAYOUT_RULES, normaliseMarkerRows } from './paper-layout-rules.js';
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
-import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings, losesSourceScript } from './ocr-output-guard.js';
+import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings, losesSourceScript, verifiedFigureCrops } from './ocr-output-guard.js';
 import { handleScanJob } from './scan-jobs.js';
 
 const DAILY_FREE_NEURONS = 10000;
@@ -1646,7 +1646,8 @@ READING CONTRACT:
 
   const needsRepair = degenerateOcr(text) || invalidLayoutMarkers(text) || !text.trim() ||
     /^no\s+(?:readable\s+)?text\s+(?:detected|found)[.!]?$/i.test(text.trim());
-  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair) && shouldVerifyOcr(text, imageMeta) &&
+  const figurePage=/\[\[FIGURE(?:_ROW)?:/i.test(text);
+  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage) && shouldVerifyOcr(text, imageMeta) &&
       providerState.deadline - Date.now() >= 5000 && !signal?.aborted) {
     const rescuePrompt = prompt + `
 
@@ -1705,7 +1706,9 @@ VERIFICATION RULES:
       const rescueText = normaliseMarkerRows(extractAiText(rescueResponse));
       usage = mergeAiUsage(usage, rescueResponse.usage || null);
 
-      if (shouldAcceptVerifiedText(text, rescueText, imageMeta)) {
+      if(figurePage&&!needsRepair){
+        const cropFixed=verifiedFigureCrops(text,rescueText);rescued=cropFixed!==text;text=cropFixed;
+      } else if (shouldAcceptVerifiedText(text, rescueText, imageMeta)) {
         text = rescueText;
         model = rescueResponse.model || (verificationState.provider === 'gemini' ? verificationState.geminiModel : PRIMARY_MODEL);
         rescued = true;
@@ -1770,6 +1773,7 @@ function shouldVerifyOcr(text, imageMeta = {}) {
 
   return degenerateOcr(visible) || invalidLayoutMarkers(visible) || emptyLike ||
     lineMiss ||
+    /\[\[FIGURE(?:_ROW)?:/i.test(visible) ||
     hasUnclear ||
     hasEditMetadata ||
     structuredPage ||

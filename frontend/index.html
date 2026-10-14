@@ -15,6 +15,7 @@
     <script src="vendor/sheet-reader.js"></script>
     <script src="vendor/archive-reader.js"></script>
 <script src="./vendor/paper-layout.js"></script>
+<script src="./vendor/professional-paper.js"></script>
 <script src="./vendor/paper-text.js"></script>
 <script src="./vendor/pdf-editable-layout.js"></script>
 <script src="./vendor/docx-reference-layout.js"></script>
@@ -5299,6 +5300,7 @@ goBtn.onclick = async () => {
         if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in file');
 
         allText = PaperAILayout.cleanExamContent(repairLegacyBranchDiagram(allText));
+        if(typeof PaperAIProfessionalPaper!=='undefined'){const formatted=PaperAIProfessionalPaper.format(allText);if(formatted!==allText)nativePdfPages=null;allText=formatted;}
         allPlain = repairLegacyBranchDiagram(allPlain);
 
         if (file !== sourceFile) return;
@@ -6162,6 +6164,7 @@ function createWordPlaceholderPngBase64() {
 
 async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
+    if(typeof PaperAIProfessionalPaper!=='undefined')structuredText=PaperAIProfessionalPaper.format(structuredText);
     structuredText=packSourceFigureRows(PaperAILayout.normalise(PaperAILayout.cleanExamContent(structuredText)));
 
     const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
