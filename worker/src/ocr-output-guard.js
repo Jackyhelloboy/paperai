@@ -7,6 +7,27 @@ export function blankSafeDraft(text) {
     // A bounded draft is only input to another visual verification, not final OCR.
     return String(text||'').replace(/_{81,}/g,'____________________________').slice(0,12000);
 }
+// Report observable uncertainty, never a fabricated percentage of accuracy.
+export function ocrReviewWarnings(text) {
+    const value=String(text||''), warnings=[];
+    const unclear=[...value.matchAll(/\[unclear(?::[^\]\n]*)?\]/gi)].length;
+    if(unclear)warnings.push({type:'unclear_source',count:unclear,message:'Some source characters could not be read. Compare the marked fragments with the original page.'});
+    if(value.includes('\ufffd'))warnings.push({type:'invalid_character',message:'A replacement character is present. Review it against the original page.'});
+    if(/\[\[PICTURE(?:_OPTION|_ROW)?:/i.test(value))warnings.push({type:'missing_source_picture',message:'A picture instruction has no original illustration. Review before printing.'});
+    return warnings;
+}
+
+export function losesSourceScript(first, second) {
+    // A verifier may improve individual letters, but must not silently
+    // translate/transliterate an entire substantial native-script passage.
+    const scripts=['Devanagari','Bengali','Gurmukhi','Gujarati','Oriya','Tamil','Telugu','Kannada','Malayalam','Arabic'];
+    return scripts.some(script=>{
+        const pattern=new RegExp('\\p{Script='+script+'}','gu');
+        const before=(String(first||'').match(pattern)||[]).length;
+        const after=(String(second||'').match(pattern)||[]).length;
+        return before>=20 && after<before*0.5;
+    });
+}
 export function invalidLayoutMarkers(text) {
     if(/\[\[(?:TABLE_ROW|GRID_ROW|MATCH_ROW|ARITHMETIC_ROW):[^\n]*\[\[(?:TABLE_ROW|GRID_ROW|FIGURE_ROW|MATCH_ROW|ARITHMETIC_ROW|GRID):/i.test(text))return true;
     if(/\[\[(?:QUESTION_ROW|SECTION_ROW):[^\]|]*\]\]/i.test(text))return true;

@@ -64,6 +64,20 @@ function setup(specs){
 
 (async()=>{
  assert.equal(Pipeline.DEFAULT_CONCURRENCY,2,'Use two conservative provider slots by default');
+ assert.equal(Pipeline.recommendedConcurrency({}),2,'Missing capacity hints retain conservative concurrency');
+ assert.equal(Pipeline.recommendedConcurrency({deviceMemory:2,hardwareConcurrency:8}),1,'Low-memory devices render only one scan at a time');
+ assert.equal(Pipeline.recommendedConcurrency({deviceMemory:8,hardwareConcurrency:4}),3,'Capable devices can overlap three full-quality pages');
+ assert.equal(Pipeline.recommendedConcurrency({deviceMemory:8,hardwareConcurrency:4,connection:{saveData:true}}),2,'Respect reduced-data devices');
+ assert.equal(Pipeline.recommendedConcurrency({deviceMemory:4,hardwareConcurrency:16}),2,'Many CPU cores do not imply sufficient bitmap memory');
+ const fastGates=Array.from({length:5},deferred),fastStarted=[];
+ const fastRun=Pipeline.run({items:[0,1,2,3,4],concurrency:Pipeline.recommendedConcurrency({deviceMemory:8,hardwareConcurrency:8}),
+  process:async(_,index)=>{fastStarted.push(index);await fastGates[index].promise;return {page:index};}});
+ assert.deepEqual(fastStarted,[0,1,2],'Capable-device selection must reach three OCR slots');
+ fastGates[1].resolve();await tick();
+ assert.deepEqual(fastStarted,[0,1,2,3],'A finished page immediately refills a capable-device slot');
+ fastGates.forEach(gate=>gate.resolve());await tick();
+ const fastResult=await fastRun;
+ assert.deepEqual(fastResult.results.map(result=>result.page),[0,1,2,3,4],'Three slots retain source order');
  assert(html.includes('<script src="./vendor/page-pipeline.js"></script>'),'The scheduler must load before the upload script');
  const pdf=setup(Array.from({length:21},scan)),running=pdf.run();
  await tick();

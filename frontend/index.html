@@ -21,6 +21,7 @@
 <script src="./vendor/ai-quota.js"></script>
 <script src="./vendor/scan-client.js"></script>
 <script src="./vendor/page-pipeline.js"></script>
+<script src="./vendor/scan-checkpoints.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -1763,6 +1764,8 @@
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 Retry / resume processing
             </button>
+
+            <p style="font-size:.8rem;color:var(--text-muted);margin-top:.75rem">PDF progress can be saved on this device for up to 24 hours when storage is available. Reopen the same PDF to resume. <button type="button" class="action-btn" onclick="clearSavedScans(this)">Clear saved scans</button></p>
 
             <div class="progress-wrap" id="prog">
                 <div class="progress-info">
@@ -5108,6 +5111,11 @@ function formatOutput(text) {
 // Successful scanned pages survive a failed request while this file stays open.
 // Key by the actual File and language, never by a potentially duplicate filename.
 const scannedPageCache=new WeakMap();
+const scanCheckpointStore=typeof PaperAIScanCheckpoints!=='undefined'?PaperAIScanCheckpoints.create():null;
+async function clearSavedScans(button){
+    await scanCheckpointStore?.clear();
+    if(button)button.textContent='Saved scans cleared';
+}
 function restoreScannedPage(page) {
     let text=page.text;
     for(const asset of page.media){
@@ -5128,6 +5136,8 @@ async function extractOneFile(f, onProgress, label) {
     if (ext === 'pdf') {
         report('Loading PDF...', 8);
         const language=languageSelect.value||'auto';
+        let checkpointKey=null;
+        try{if(scanCheckpointStore)checkpointKey=await PaperAIScanCheckpoints.fingerprint(f,language);}catch(_){}
         let languages=scannedPageCache.get(f);
         if(!languages){languages=new Map();scannedPageCache.set(f,languages);}
         let cached=languages.get(language);
@@ -5147,10 +5157,13 @@ async function extractOneFile(f, onProgress, label) {
                 if(cached.pages.some(p=>p.type==='image'))languages.set(language,cached);
             }
             const pages=cached.pages;
+            const restored=await scanCheckpointStore?.load(checkpointKey,pages.length);
+            if(restored)for(let i=0;i<pages.length;i++)if(!cached.results[i]&&restored[i])cached.results[i]=restored[i];
             for(let i=0;i<pages.length;i++)if(pages[i].type==='text'&&!cached.results[i]){
                 cached.results[i]={text:pages[i].text,plain:portableText(pages[i].text),raw:pages[i].text,media:[],nativeScene:pages[i].nativeScene||null};
             }
             const outcome=await PaperAIPagePipeline.run({items:pages,results:cached.results,signal:controller.signal,
+                concurrency:PaperAIPagePipeline.recommendedConcurrency(typeof navigator==='undefined'?{}:navigator),
                 onProgress:value=>{state=value;updateProgress();},
                 process:async(page,index)=>{
                     const ctrl=new AbortController(),cancel=()=>ctrl.abort();
@@ -5167,14 +5180,16 @@ async function extractOneFile(f, onProgress, label) {
                         // The stable page descriptor retains the request identity; a
                         // finished source bitmap can now be released immediately.
                         if(page.render)delete page.blob;
-                        return {text:annotated,plain:result.result.full_text||annotated,raw:result.result.raw_text||annotated,media,nativeScene:page.ocrScene};
+                        const saved={text:annotated,plain:result.result.full_text||annotated,raw:result.result.raw_text||annotated,media,nativeScene:page.ocrScene};
+                        await scanCheckpointStore?.savePage(checkpointKey,pages.length,index,saved);
+                        return saved;
                     } finally {clearTimeout(tid);controller.signal.removeEventListener('abort',cancel);}
                 }});
             if(outcome.cancelled||scanCancelled)throw new DOMException('Scan cancelled.','AbortError');
             if(outcome.errors.length){
                 const error=outcome.errors[0].error;
                 const message=error.name==='AbortError'?'The page request timed out.':error.message;
-                const stopped=new Error(message+' Completed '+outcome.completed+'/'+pages.length+' pages are kept while this file stays open. Use Retry / resume processing when the service is available. Do not upload the completed pages again.');
+                const stopped=new Error(message+' Completed '+outcome.completed+'/'+pages.length+' pages are kept in this tab; locally saved pages can also resume when you reopen the same PDF. Use Retry / resume processing when the service is available. Do not upload the completed pages again.');
                 stopped.code=error.code;throw stopped;
             }
             // Completion order never determines document order or image ownership.
@@ -5293,6 +5308,8 @@ goBtn.onclick = async () => {
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">A4 · narrow margins · auto formatted</span><span class="badge badge-gray">' + charCount + ' chars</span>';
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
+        const reviewCount=(allText.match(/\[unclear(?::[^\]\n]*)?\]|\[(?:source image|picture) needs review\]|\[\[PICTURE(?:_OPTION|_ROW)?:|\ufffd/gi)||[]).length;
+        if(reviewCount)badges+='<span class="badge badge-gray" role="status">'+reviewCount+' unclear '+(reviewCount===1?'item':'items')+' · compare with the source before printing</span>';
         $('statsBar').innerHTML = badges;
 
         if (file !== sourceFile) return;

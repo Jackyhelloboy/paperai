@@ -6,6 +6,14 @@
   // Each page may itself use an automatic backup. Keep the default conservative
   // so a large document cannot flood shared provider capacity or phone memory.
   const DEFAULT_CONCURRENCY=2;
+  // Browser hints are optional (Safari and privacy settings often omit them).
+  // Never infer capacity from screen size: a phone may open a desktop viewport.
+  function recommendedConcurrency(device={}){
+    const memory=Number(device.deviceMemory),cores=Number(device.hardwareConcurrency);
+    if(Number.isFinite(memory)&&memory>0&&memory<=2)return 1;
+    if(memory>=8&&cores>=4&&!device.connection?.saveData)return 3;
+    return DEFAULT_CONCURRENCY;
+  }
   async function run({items,results=[],process,signal,concurrency=DEFAULT_CONCURRENCY,onProgress=()=>{}}){
     const limit=Math.max(1,Math.min(4,Math.floor(Number(concurrency)||DEFAULT_CONCURRENCY)));
     const pending=items.map((_,index)=>index).filter(index=>!results[index]);
@@ -31,5 +39,5 @@
     await Promise.all(Array.from({length:Math.min(limit,pending.length)},worker));
     return {...snapshot(),results,errors,cancelled:!!signal?.aborted};
   }
-  return {DEFAULT_CONCURRENCY,run};
+  return {DEFAULT_CONCURRENCY,recommendedConcurrency,run};
 });

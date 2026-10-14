@@ -1,7 +1,7 @@
 import { PAPER_LAYOUT_RULES, normaliseMarkerRows } from './paper-layout-rules.js';
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
-import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers } from './ocr-output-guard.js';
+import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings, losesSourceScript } from './ocr-output-guard.js';
 import { handleScanJob } from './scan-jobs.js';
 
 const DAILY_FREE_NEURONS = 10000;
@@ -1198,7 +1198,8 @@ async function handleOCR(request, env, corsHeaders) {
   // No semantic auto-correction in literal OCR mode, with either provider.
   const allCorrections = [];
 
-  const consistencyWarnings = checkConsistency(correctedText);
+  const reviewWarnings = ocrReviewWarnings(correctedText);
+  const consistencyWarnings = [...checkConsistency(correctedText), ...reviewWarnings];
   const plainText = stripOcrMetadata(correctedText);
 
   // Compute post-correction confidence
@@ -1222,7 +1223,7 @@ async function handleOCR(request, env, corsHeaders) {
         high_confidence: highConfCorrections.length,
         medium_confidence: allCorrections.filter(c => c.confidence >= 0.85 && c.confidence < 0.95).length,
         low_confidence: allCorrections.filter(c => c.confidence < 0.85).length,
-        needs_review: allCorrections.some(c => c.confidence < 0.97),
+        needs_review: reviewWarnings.length > 0 || allCorrections.some(c => c.confidence < 0.97),
         corrections: allCorrections.slice(0, 50),
       },
       metadata: {
@@ -1237,6 +1238,8 @@ async function handleOCR(request, env, corsHeaders) {
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
         verification_pass_used: Boolean(aiResult.rescued),
+        review_required: reviewWarnings.length > 0,
+        accuracy_guaranteed: false,
         image_profile: imageMeta || {},
         learning_hints_used: learningHints.length,
         layout: detectExamLayout(plainText),
@@ -1780,6 +1783,7 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   if (/^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(b)) return false;
   if(degenerateOcr(a)||invalidLayoutMarkers(a))return true;
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
+  if (losesSourceScript(a, b)) return false;
 
   const comparableText = s => String(s||'').replace(/\[\[([A-Z_-]+):\s*([\s\S]*?)\]\]/gi,(_,kind,body)=>
     /^(?:FIGURE(?:_ROW)?|BANNER|GRID|SHAPE_ROW|ANSWER_LINES|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER|SOURCE_PAGE)$/i.test(kind)?' X ':body.replace(/\|\|/g,' '))

@@ -4,7 +4,10 @@ const html=fs.readFileSync('frontend/index.html','utf8');
 const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m=>m[1].includes('function buildDocxBody'))[1];
 const requests=[],pending=new Map(),progress=[];
 let renders=0,id=0,automatic=false;
+const checkpointRecords=new Map();
+const checkpointStore={load:async key=>checkpointRecords.get(key)||null,savePage:async(key,count,index,result)=>{if(key){const rows=checkpointRecords.get(key)||[];rows[index]=result;checkpointRecords.set(key,rows);}return true;},clear:async()=>checkpointRecords.clear()};
 const ctx=vm.createContext({Map,WeakMap,AbortController,DOMException,setTimeout,clearTimeout,setInterval,clearInterval,
+ PaperAIScanCheckpoints:{create:()=>checkpointStore,fingerprint:async(f,language)=>f.checkpointIdentity?f.checkpointIdentity+':'+language:null},
  PaperAIPagePipeline:require('../frontend/vendor/page-pipeline.js'),PaperAILayout:require('../frontend/vendor/paper-layout.js'),docxVisibleText:String,
  crypto:{randomUUID:()=>String(++id)},scanCancelled:false,languageSelect:{value:'auto'},extractedMedia:[],
  pdfToPages:async()=>{renders++;return Array.from({length:6},(_,blob)=>({type:'image',blob}));},
@@ -60,5 +63,12 @@ const settle=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
  await ctx.extractOneFile(cancelledFile,()=>{},'');
  assert.deepEqual(requests.slice(before).map(r=>r.blob),[0,2,3,4,5],'Resume after cancel keeps an out-of-order completed page');
  assert.equal(ctx.activeScanController,null);
+ const durableFile={name:'durable.pdf',checkpointIdentity:'exact-file-digest'};
+ await ctx.extractOneFile(durableFile,()=>{},'');
+ const beforeReopen=requests.length;ctx.extractedMedia=[];
+ const reopened=await ctx.extractOneFile({...durableFile},()=>{},'');
+ assert.equal(requests.length,beforeReopen,'Reselecting an identical PDF restores durable completed pages without OCR calls');
+ assert.equal(ctx.extractedMedia.length,6,'Recovered checkpoint pictures retain page ownership');
+ assert(reopened.text.includes('Question 5'));
  console.log('Scan resume: bounded parallel pages, sparse cache, stable request identity, ordered page-owned pictures, cancellation, language and file isolation pass.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
