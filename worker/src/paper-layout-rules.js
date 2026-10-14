@@ -27,10 +27,67 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
 - A clearly visible original printed page number uses [[SOURCE_PAGE: integer]] control metadata. Never invent a page number. Read physical multi-column rows left to right; keep original question numbers, including mistakes. Never renumber column-major text into a new question order.
 - Repeated headers indicate a new question paper only when visibly present. Read continuous questions across scan pages in order. Do not invent exam titles or copy a school banner from another page or reference.
 - Output the question paper alone. Do not add assistant answers, solutions, answer keys, encouragement, formatting suggestions or explanatory introductions. Remove completed answers, worked solutions, answer keys and grading comments from answer positions; restore those spaces as blanks. Preserve question operands, examples, options, word banks and matching choices: these are question content, not completed answers. Resolve handwritten question corrections to the intended final wording automatically; omit cancelled drafts and insert the final replacement naturally. Do not emit editorial STRIKE, DOUBLE-STRIKE, REPLACE, INSERT or HIGHLIGHT markers.
+- Determine answer positions from visible source layout. Handwriting or an answer-like word alone is not evidence of a completed response. Preserve a complete question sentence before its separate answer rule, including clues and true/false statements; never replace words inside that sentence with blanks. When the boundary is uncertain, retain the source wording. Preserve the count and grouping of separate missing-letter positions.
 - Letter grids use GRID or consecutive GRID_ROW markers. Up to 52 columns, 32 rows, 600 cells. Use only observed counts; uncertain borders remain [unclear]. Never turn ordinary notebook lines into ANSWER_LINES.
 - These reference rules govern representation and layout only. Never copy questions, school identities, dates, marks or answers from a different training paper.
 `;
 
+    function normaliseRecognitionMarkup(value) {
+        // Some readers emit a small HTML table instead of the row protocol.
+        // Parse only complete, unambiguous forms as text; never evaluate HTML,
+        // strip arbitrary tags, decode angle entities, or guess merged cells.
+        let text=String(value||'').replace(/&(?:nbsp|#160|#x0*a0);/gi,'\u00a0');
+        const cell=value=>String(value).replace(/[ \t]*\r?\n[ \t]*/g,' ').trim();
+        const row=body=>'[[TABLE_ROW: '+cell(body)+']]';
+        const htmlRows=body=>{
+            const rows=[];let rest=body.trim();
+            while(rest){
+                const native=rest.match(/^<TABLE_ROW\s*>([\s\S]*?)<\/TABLE_ROW\s*>/i);
+                if(native){if(/<\/?TABLE_ROW\b/i.test(native[1]))return null;rows.push(row(native[1]));rest=rest.slice(native[0].length).trim();continue;}
+                const tr=rest.match(/^<tr\s*>([\s\S]*?)<\/tr\s*>/i);
+                if(!tr)return null;
+                const cells=[];let contents=tr[1].trim();
+                while(contents){
+                    const td=contents.match(/^<(td|th)\s*>([\s\S]*?)<\/\1\s*>/i);
+                    if(!td||/<\/?(?:table|tr|td|th)\b/i.test(td[2])||td[2].includes('|'))return null;
+                    cells.push(cell(td[2]));contents=contents.slice(td[0].length).trim();
+                }
+                if(!cells.length)return null;
+                rows.push('[[TABLE_ROW: '+cells.join(' || ')+']]');rest=rest.slice(tr[0].length).trim();
+            }
+            return rows.length?rows.join('\n'):null;
+        };
+        const region=body=>{
+            if(!/^\s*\d{1,4}\s*,\s*\d{1,4}\s*,\s*\d{1,4}\s*,\s*\d{1,4}\s*$/.test(body))return null;
+            const [x,y,w,h]=body.split(',').map(Number);
+            return w>0&&h>0&&x+w<=1000&&y+h<=1000?'[[TABLE_REGION: '+[x,y,w,h].join(',')+']]':null;
+        };
+        text=text.replace(/(^|\n)[ \t]*<TABLE_REGION:\s*([^<>\n]+)>([\s\S]*?)<\/TABLE_REGION\s*>[ \t]*(?=\n|$)/gi,
+            (whole,prefix,bounds,body)=>{const marker=region(bounds);return marker?prefix+marker+'\n'+body.trim():whole;});
+        text=text.replace(/(^|\n)[ \t]*<TABLE_REGION:\s*([^<>\n]+)>[ \t]*(?=\n|$)/gi,
+            (whole,prefix,bounds)=>{const marker=region(bounds);return marker?prefix+marker:whole;});
+        text=text.replace(/(^|\n)[ \t]*<table\s*>([\s\S]*?)<\/table\s*>[ \t]*(?=\n|$)/gi,
+            (whole,prefix,body)=>{const rows=htmlRows(body);return rows===null?whole:prefix+rows;});
+        text=text.replace(/(^|\n)[ \t]*<TABLE_ROW\s*>([\s\S]*?)<\/TABLE_ROW\s*>[ \t]*(?=\n|$)/gi,
+            (whole,prefix,body)=>/<\/?TABLE_ROW\b/i.test(body)?whole:prefix+row(body));
+        // <br> is an intentional separator inside native row cells. Outside
+        // those cells it is a text line break, not printable markup.
+        let output='',cursor=0;const stack=[];
+        while(cursor<text.length){
+            if(text.slice(cursor,cursor+2)==='[['){
+                const kind=text.slice(cursor).match(/^\[\[([A-Z_]+):/i)?.[1]||'';
+                stack.push(Boolean(stack.at(-1))||/^(?:TABLE|GRID|MATCH|ARITHMETIC|CHOICE|OPTION|SECTION|QUESTION)_ROW$/i.test(kind));
+                output+='[[';cursor+=2;continue;
+            }
+            if(text.slice(cursor,cursor+2)===']]'){stack.pop();output+=']]';cursor+=2;continue;}
+            if(text[cursor]==='<'){
+                const br=text.slice(cursor).match(/^<br\s*\/?>/i);
+                if(br){output+=stack.at(-1)?'<br>':'\n';cursor+=br[0].length;continue;}
+            }
+            output+=text[cursor++];
+        }
+        return output;
+    }
     function canonicalPaperRow(kind,body) {
         if(!/^(?:SECTION_ROW|QUESTION_ROW|MATCH_ROW)$/.test(kind))return '[['+kind+': '+body+']]';
         const cells=[];let depth=0,start=0;
@@ -57,6 +114,7 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
 
 export function cleanQuestionPaper(value, depth=0) {
     if(depth>16)return '';
+    if(depth===0)value=normaliseRecognitionMarkup(value);
     const text=String(value||'').replace(/(?:\\_){2,}/g,run=>run.replace(/\\/g,''));let out='',cursor=0;
     while(cursor<text.length){
         const start=text.indexOf('[[',cursor);if(start<0){out+=text.slice(cursor);break;}

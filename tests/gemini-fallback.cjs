@@ -57,6 +57,9 @@ assert(!ctx.invalidLayoutMarkers('[[TABLE_ROW: text || [[BOXED: 100]]]]'),'Suppo
   const request=requests[0];assert.deepEqual(request.contents[0].parts[0],{inline_data:{mime_type:'image/png',data:'AA=='}});
   assert(request.contents[0].parts[1].text.includes('Never solve'));assert(request.contents[0].parts[1].text.includes('FIGURE'));
   assert(request.contents[0].parts[1].text.includes('TABLE_ROW'));assert(request.contents[0].parts[1].text.includes('marks'));
+  assert(request.contents[0].parts[1].text.includes('visible question/answer boundaries'),'The backup must receive the same source-layout rule for distinguishing questions from completed responses');
+  assert(request.contents[0].parts[1].text.includes('do not move that blank inside the sentence or replace any of its words'),'Complete question clues must remain intact before their separate answer rule');
+  assert(request.contents[0].parts[1].text.includes('preserve their exact count and grouping'),'Separate missing-letter positions must not be inferred from a possible answer');
   assert(request.contents[0].parts[1].text.includes('[[GRID: 5x8]]'),'Measured multi-row grid evidence must reach the backup model');
   assert(!request.contents[0].parts[1].text.includes('9999'),'Invalid geometry must never enter the model prompt');
   assert(!request.contents[0].parts[1].text.includes('x=990'),'Off-page geometry must never enter the model prompt');

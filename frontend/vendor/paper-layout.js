@@ -432,6 +432,62 @@
         }
         parts.push(text.slice(last));return parts.filter(Boolean);
     }
+    function normaliseRecognitionMarkup(value) {
+        // Some readers emit a small HTML table instead of the row protocol.
+        // Parse only complete, unambiguous forms as text; never evaluate HTML,
+        // strip arbitrary tags, decode angle entities, or guess merged cells.
+        let text=String(value||'').replace(/&(?:nbsp|#160|#x0*a0);/gi,'\u00a0');
+        const cell=value=>String(value).replace(/[ \t]*\r?\n[ \t]*/g,' ').trim();
+        const row=body=>'[[TABLE_ROW: '+cell(body)+']]';
+        const htmlRows=body=>{
+            const rows=[];let rest=body.trim();
+            while(rest){
+                const native=rest.match(/^<TABLE_ROW\s*>([\s\S]*?)<\/TABLE_ROW\s*>/i);
+                if(native){if(/<\/?TABLE_ROW\b/i.test(native[1]))return null;rows.push(row(native[1]));rest=rest.slice(native[0].length).trim();continue;}
+                const tr=rest.match(/^<tr\s*>([\s\S]*?)<\/tr\s*>/i);
+                if(!tr)return null;
+                const cells=[];let contents=tr[1].trim();
+                while(contents){
+                    const td=contents.match(/^<(td|th)\s*>([\s\S]*?)<\/\1\s*>/i);
+                    if(!td||/<\/?(?:table|tr|td|th)\b/i.test(td[2])||td[2].includes('|'))return null;
+                    cells.push(cell(td[2]));contents=contents.slice(td[0].length).trim();
+                }
+                if(!cells.length)return null;
+                rows.push('[[TABLE_ROW: '+cells.join(' || ')+']]');rest=rest.slice(tr[0].length).trim();
+            }
+            return rows.length?rows.join('\n'):null;
+        };
+        const region=body=>{
+            if(!/^\s*\d{1,4}\s*,\s*\d{1,4}\s*,\s*\d{1,4}\s*,\s*\d{1,4}\s*$/.test(body))return null;
+            const [x,y,w,h]=body.split(',').map(Number);
+            return w>0&&h>0&&x+w<=1000&&y+h<=1000?'[[TABLE_REGION: '+[x,y,w,h].join(',')+']]':null;
+        };
+        text=text.replace(/(^|\n)[ \t]*<TABLE_REGION:\s*([^<>\n]+)>([\s\S]*?)<\/TABLE_REGION\s*>[ \t]*(?=\n|$)/gi,
+            (whole,prefix,bounds,body)=>{const marker=region(bounds);return marker?prefix+marker+'\n'+body.trim():whole;});
+        text=text.replace(/(^|\n)[ \t]*<TABLE_REGION:\s*([^<>\n]+)>[ \t]*(?=\n|$)/gi,
+            (whole,prefix,bounds)=>{const marker=region(bounds);return marker?prefix+marker:whole;});
+        text=text.replace(/(^|\n)[ \t]*<table\s*>([\s\S]*?)<\/table\s*>[ \t]*(?=\n|$)/gi,
+            (whole,prefix,body)=>{const rows=htmlRows(body);return rows===null?whole:prefix+rows;});
+        text=text.replace(/(^|\n)[ \t]*<TABLE_ROW\s*>([\s\S]*?)<\/TABLE_ROW\s*>[ \t]*(?=\n|$)/gi,
+            (whole,prefix,body)=>/<\/?TABLE_ROW\b/i.test(body)?whole:prefix+row(body));
+        // <br> is an intentional separator inside native row cells. Outside
+        // those cells it is a text line break, not printable markup.
+        let output='',cursor=0;const stack=[];
+        while(cursor<text.length){
+            if(text.slice(cursor,cursor+2)==='[['){
+                const kind=text.slice(cursor).match(/^\[\[([A-Z_]+):/i)?.[1]||'';
+                stack.push(Boolean(stack.at(-1))||/^(?:TABLE|GRID|MATCH|ARITHMETIC|CHOICE|OPTION|SECTION|QUESTION)_ROW$/i.test(kind));
+                output+='[[';cursor+=2;continue;
+            }
+            if(text.slice(cursor,cursor+2)===']]'){stack.pop();output+=']]';cursor+=2;continue;}
+            if(text[cursor]==='<'){
+                const br=text.slice(cursor).match(/^<br\s*\/?>/i);
+                if(br){output+=stack.at(-1)?'<br>':'\n';cursor+=br[0].length;continue;}
+            }
+            output+=text[cursor++];
+        }
+        return output;
+    }
     function canonicalPaperRow(kind,body) {
         if(!/^(?:SECTION_ROW|QUESTION_ROW|MATCH_ROW)$/.test(kind))return '[['+kind+': '+body+']]';
         const cells=[];let depth=0,start=0;
@@ -458,6 +514,7 @@
 
     function cleanQuestionPaper(value, depth=0) {
     if(depth>16)return '';
+    if(depth===0)value=normaliseRecognitionMarkup(value);
     const text=String(value||'').replace(/(?:\\_){2,}/g,run=>run.replace(/\\/g,''));let out='',cursor=0;
     while(cursor<text.length){
         const start=text.indexOf('[[',cursor);if(start<0){out+=text.slice(cursor);break;}

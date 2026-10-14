@@ -31,6 +31,38 @@ assert.equal(Layout.normalise('4. द :-\n| | | | |\n| | | | |'),'4. द :-\n[[G
 assert(Layout.normalise('I. वर्णमाला लिखो।\n| अ | आ | इ | ई |').includes('[[GRID_ROW: अ || आ || इ || ई]]'),'A visible alphabet strip retains its literal letters in native cells');
 assert.equal(Layout.normalise('|x| || |y|'),'|x| || |y|','Absolute-value bars must remain literal');
 assert.equal(Layout.normalise('Use the || operator.'),'Use the || operator.');
+// Synthetic malformed representations, never source-paper question content.
+const htmlTableFixture='<table>\n<tr><td></td><td>Label<br/>Detail</td><td></td></tr>\n<tr><th>none</th><td>3 < 9 and 9 > 3</td><td>None of the above</td></tr>\n</table>';
+const nativeHtmlTable=Layout.normalise(htmlTableFixture);
+assert.equal(nativeHtmlTable,'[[TABLE_ROW: || Label<br>Detail || ]]\n[[TABLE_ROW: none || 3 < 9 and 9 > 3 || None of the above]]');
+const pseudoTable='<table>\n<TABLE_ROW>Label || Group: Z || </TABLE_ROW>\n<TABLE_ROW>Other || </TABLE_ROW>\n</table>\n<TABLE_REGION: 800,20,200,100>\n<table>\n<TABLE_ROW>Total</TABLE_ROW>\n<TABLE_ROW>___</TABLE_ROW>\n</table>\n</TABLE_REGION>';
+const fixedPseudo=Layout.normalise(pseudoTable);
+const compactRegion='<TABLE_REGION: 1,1,500,500><table><tr><td>First</td><td>Second</td></tr></table></TABLE_REGION>';
+assert.equal(Layout.normalise(compactRegion),'[[TABLE_REGION: 1,1,500,500]]\n[[TABLE_ROW: First || Second]]','A compact region wrapper must normalize in one pass');
+assert(!/<\/?(?:table|table_row|table_region)/i.test(fixedPseudo));
+assert(fixedPseudo.includes('[[TABLE_ROW: Label || Group: Z ||]]\n[[TABLE_ROW: Other ||]]'));
+assert(fixedPseudo.includes('[[TABLE_REGION: 800,20,200,100]]\n[[TABLE_ROW: Total]]\n[[TABLE_ROW: ___]]'));
+const markupBreaks='Find x<br>where x < 8 and 12 > x.\n[[ARITHMETIC_ROW: 12<BR />+ 9<br>___ || 34<br>- 7<br>___]]\n[[MATCH_ROW: First<br>line || Second<br/>line]]\nSpacing (&nbsp;&nbsp;) kept.';
+const fixedBreaks=Layout.normalise(markupBreaks);
+assert(fixedBreaks.startsWith('Find x\nwhere x < 8 and 12 > x.'));
+assert(fixedBreaks.includes('12<br>+ 9<br>___')&&fixedBreaks.includes('First<br>line || Second<br>line'));
+assert(fixedBreaks.includes('(\u00a0\u00a0)')&&!fixedBreaks.includes('&nbsp;'),'Nonbreaking spaces retain their count without printing an entity');
+const literalMarkup='Keep <variable>none</variable>, x < y, y > z, and &lt;script&gt; as written.\n3. Pick neither □ nor both □.    none\n[[CHOICE_ROW: All || none || None of the above]]\n[[FIGURE: 10,20,30,40| |none]]';
+assert.equal(Layout.normalise(literalMarkup),literalMarkup,'Unproven prose none, genuine options, math, unknown tags, encoded angles and valid geometry flags must remain literal');
+for(const unsupported of [
+ '<table><tr><td colspan="2">Merged cells are not guessed</td></tr></table>',
+ '<table><tr><td>Operand a | b</td><td>Other</td></tr></table>',
+ '<table><caption>Do not drop this label</caption><tr><td>Value</td></tr></table>',
+ '<TABLE_REGION: 900,20,200,100>\nBounds outside the page\n</TABLE_REGION>',
+ '<TABLE_ROW>First<TABLE_ROW>Nested</TABLE_ROW></TABLE_ROW>',
+ '<table><TABLE_ROW>First<TABLE_ROW>Nested</TABLE_ROW></TABLE_ROW></table>',
+ 'Explain the literal <table><tr><td>value</td></tr></table> markup.'
+])assert.equal(Layout.normalise(unsupported),unsupported,'Ambiguous table geometry or inline code must not be silently converted');
+for(const fixture of [htmlTableFixture,pseudoTable,compactRegion,markupBreaks,literalMarkup]){
+ const canonical=Layout.normalise(fixture);
+ assert.equal(worker.normaliseMarkerRows(fixture),canonical,'Server and browser must share conservative markup normalization');
+ assert.equal(Layout.normalise(canonical),canonical,'Markup normalization must be idempotent');
+}
 assert.equal(Layout.normalise('[[100]]'),'[[BOXED: 100]]','A numeric box must remain literal editable text rather than unsupported control syntax');
 assert.equal(worker.normaliseMarkerRows('[[100]]'),Layout.normalise('[[100]]'));
 assert.equal(Layout.nativePipeRows('I. A question.\nName: operand || data'),'I. A question.\nName: operand || data','Header detection must stop at question content');
@@ -72,6 +104,17 @@ Object.assign(ctx,{lastResult:{text:multiline,plain_text:multiline},teachEditor:
 ctx.openTeachPanel();
 assert(!ctx.teachEditor.value.includes('[[')&&!ctx.teachEditor.value.includes('<br>'),'Opening the editor must normalize incoming structured plain-text snapshots too');
 (async()=>{
+    const markupZip=await JSZip.loadAsync(await(await ctx.makeExtractedDocx(htmlTableFixture)).arrayBuffer());
+    const markupXml=await markupZip.file('word/document.xml').async('text');
+    const markupDoc=new DOMParser().parseFromString(markupXml,'application/xml');
+    assert.equal(markupDoc.getElementsByTagName('w:tr').length,2);
+    assert.equal(markupDoc.getElementsByTagName('w:tc').length,6,'Empty first and last HTML cells must remain physical Word cells');
+    const markupCells=Array.from(markupDoc.getElementsByTagName('w:tc'));
+    assert.equal(markupCells[0].textContent,'');assert.equal(markupCells[2].textContent,'');
+    assert.deepEqual(Array.from(markupCells[1].getElementsByTagName('w:p')).map(p=>p.textContent),['Label','Detail'],'An intentional cell break must become Word paragraphs');
+    const markupText=Array.from(markupDoc.getElementsByTagName('w:t')).map(t=>t.textContent).join(' ');
+    assert(markupText.includes('3 < 9 and 9 > 3')&&markupText.includes('none')&&markupText.includes('None of the above'));
+    assert(!/<\/?(?:table|tr|td|th|br)>|&nbsp;|\[\[/.test(markupText),'Recognized table framing must not print in Word');
     const preview=ctx.formatStructuredWorksheetLine(clean.split('\n')[0]);
     assert(preview.includes('<span>I अ से श्र तक वर्णमाला लिखो।</span>'));
     assert(preview.includes('ocr-section-marks">25M</span>'),'The instruction must not enter the marks column');
