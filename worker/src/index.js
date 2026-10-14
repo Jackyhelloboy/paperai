@@ -1652,7 +1652,17 @@ READING CONTRACT:
   const hasClass=/\bClass\s*[:：-]\s*[1-9IVX]/i.test(text);
   const hasSubject=/(?:\bSubject|\bSub)\s*[:：-]\s*\S/i.test(text);
   const missingPaperIdentity=newPaperBit&&hasClass!==hasSubject;
-  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPaperIdentity) && (missingPaperIdentity || shouldVerifyOcr(text, imageMeta)) &&
+  const romanSections=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'];
+  let previousSection=0,suspiciousSectionSequence=false;
+  for(const line of text.split('\n')){
+    if(/^\s*Class\s*[:：-]/i.test(line)){previousSection=0;continue;}
+    const bit=line.match(/^\s*(?:\[\[SECTION_ROW:\s*)?([IVX]{1,6})[.)]?\s+(?:Answer|Write|Fill|Choose|Tick|Match|Complete|Look|Circle|Underline|Name|Use|State|Rewrite|Make|Change|Identify|Join)\b/i);
+    if(!bit)continue;
+    const current=romanSections.indexOf(bit[1].toUpperCase())+1;
+    if(current&&previousSection&&current<previousSection)suspiciousSectionSequence=true;
+    if(current)previousSection=current;
+  }
+  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPaperIdentity || suspiciousSectionSequence) && (missingPaperIdentity || suspiciousSectionSequence || shouldVerifyOcr(text, imageMeta)) &&
       providerState.deadline - Date.now() >= 5000 && !signal?.aborted) {
     const rescuePrompt = prompt + `
 
@@ -1667,6 +1677,7 @@ VERIFICATION RULES:
 - Completed responses must become blank spaces; question stems/options/operands must remain. Never solve or complete a question from context.
 - Recheck every crop against the FULL PAGE image. Banner excludes editable fields and separate marks boxes. Every crop uses four integer x,y,width,height coordinates on the full-page 0–1000 scale.
 - On a new bit I, inspect the entire top header, including small Class and Sub/Subject fields inside a bordered box. Transcribe their visible values, but leave a field absent if it cannot be read. Do not copy an earlier paper's class or subject.
+- If Roman bits appear out of order in the first read, inspect each printed numeral carefully. Preserve the actual source number even when it is out of order; never repair numbering from the expected sequence.
 - Use only the supported layout marker names. Keep multi-column questions in physical MATCH_ROW cells, separate grids after their labels, and marks in right cells.
 - If additional enlarged views follow the full-page image, they show overlapping parts of THE SAME page. Use them to read small characters, not to add duplicate questions. Output one transcription of the full page. All figure coordinates stay relative to the first full-page image.
 - When image evidence is ambiguous, use [unclear] rather than guessing.`;
