@@ -58,3 +58,5 @@ npx wrangler@4 dev
 ```
 
 Pushing to `main` runs the production Pages deployment. Worker changes also run the Worker deployment. These workflows check the deployed revision and public routes; the Worker workflow separately checks actual image recognition. Verification records in `docs/` distinguish regression results, real exports and remaining recognition differences.
+
+The [parallel PDF verification record](docs/PARALLEL_PDF_VERIFICATION.md) documents the 21-page live timing, retry behavior, latest deployment checks and remaining recognition limits.

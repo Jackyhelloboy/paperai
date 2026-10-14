@@ -1,5 +1,7 @@
 # PaperAI timeout and resume verification
 
+For the later parallel-processing release, current Gemini check and 21-page timing, see [Parallel PDF verification](PARALLEL_PDF_VERIFICATION.md). This record describes the earlier release.
+
 The deployed fix addresses the interrupted scan reported as “Could not reach PaperAI OCR” after one of two pages. Production code is `972a9ae0cb74af42ae734ba91a19eabcca502ee4`, deployed on 2026-10-13 at [PaperAI](https://paperai-5up.pages.dev/). This record was finalized on 2026-10-14.
 
 ## What changed

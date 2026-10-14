@@ -1,0 +1,143 @@
+{
+  "date": "2026-10-14",
+  "parallel_release": "f9ef9feab861b38fed72152876f03c0a11c2c966",
+  "site": "https://paperai-5up.pages.dev/",
+  "parallel_live_run": {
+    "source_pages": 21,
+    "source_bytes": 15841068,
+    "native_text": false,
+    "workers": 2,
+    "completion_observed_within_seconds": 230,
+    "elapsed_measurement": "Upper bound from upload start to first observation of completion; not exact completion time.",
+    "manual_retry": false,
+    "manual_cancellation": false,
+    "all_source_pages_represented": true,
+    "source_order_preserved": true,
+    "word_download_completed": true,
+    "question_illustrations_expected": 15,
+    "question_illustrations_embedded": 15,
+    "selected_page_anchors_present": 20,
+    "selected_page_anchors_checked": 21,
+    "anchor_scope": "Selected phrases and continuity checks, not a character-accuracy score.",
+    "progress_screenshot": "PaperAI-Parallel-Progress.jpg",
+    "screenshot_state": "14/21 complete, two pages active, 134 seconds elapsed."
+  },
+  "quality_settings": {
+    "pdf_render_scale": 2.5,
+    "jpeg_quality": 0.94,
+    "unchanged": true,
+    "notes": "Models, image resolution and verifier selection/budgets retained. Follow-up changes clarify literal reading and normalize recognized table representations."
+  },
+  "core_regressions": {
+    "passed": 21,
+    "training_fixture_note": "The committed English PDF was checked in an isolated corpus because an unrelated local copy was truncated; the local copy was left untouched."
+  },
+  "core_ci": {
+    "pages_run": 38514530116,
+    "worker_run": 38514530077,
+    "worksheet_run": 38514530102,
+    "all_passed": true,
+    "public_route_load": {
+      "requests": 180,
+      "failures": 0,
+      "maximum_concurrency": 20,
+      "scope": "Public routes and synthetic text; not image-model throughput."
+    },
+    "gemini_credential_and_generation": "passed",
+    "synthetic_image": {
+      "completed": true,
+      "literal_question": true,
+      "extra_answer": false,
+      "elapsed_ms": 3297,
+      "acknowledgement_ms": 241
+    }
+  },
+  "initial_accuracy_issues": [
+    "Question wording additions, omissions and one character substitution were found in visual source spot checks.",
+    "Separate missing-letter positions had an incorrect count.",
+    "Recognized HTML and pseudo-table markup appeared literally in the Word file.",
+    "Five unexplained trailing none labels remained.",
+    "All expected question illustrations were present, but one crop was tight and an extra crop contained a header fragment."
+  ],
+  "limits": [
+    "No claim of error-free OCR or speedup factor: no serial benchmark was run on the same document.",
+    "Finished pages remain available while the same file stays open in the current tab; reload/close recovery is not guaranteed.",
+    "Temporary provider capacity and network latency can still affect completion time.",
+    "The source PDF, recognized text, exported Word and source-page images are not published in this repository."
+  ],
+  "follow_up_release": "90e0d659078477750ff3645d037f19e4918b62bc",
+  "follow_up": {
+    "changes": [
+      "Conservative conversion of balanced recognized tables, pseudo-table rows, bounded table regions, nonbreaking spaces and outside-cell line breaks. No arbitrary HTML evaluation or tag stripping.",
+      "Preserve question clues before separate answer rules and exact counts of separate missing-letter positions.",
+      "Retain mathematical comparisons, legitimate none options, empty physical table cells and intentional multiline cells."
+    ],
+    "focused_regressions_passed": 12,
+    "final_review": [
+      "Compact wrappers normalize in one pass.",
+      "Malformed nested rows remain unchanged.",
+      "Supported flags without a colon remain allowed by the reader instructions."
+    ],
+    "saved_output_normalization": {
+      "beforeTableTags": 70,
+      "afterTableTags": 0,
+      "outsideBreaksBefore": 11,
+      "nbspRemaining": false,
+      "normalizationIdempotent": true
+    },
+    "targeted_live_run": {
+      "source_page_numbers": [
+        3,
+        5,
+        9,
+        10,
+        17
+      ],
+      "source_pages": 5,
+      "completion_observed_within_seconds": 57,
+      "manual_retry": false,
+      "manual_cancel": false,
+      "previously_omitted_question_phrases_preserved": 2,
+      "separate_letter_blank_counts_correct": true,
+      "previous_added_word_absent": true,
+      "previous_section_heading_error_absent": true,
+      "word_download_succeeded": true,
+      "native_word_tables": 27,
+      "literal_table_markup_remaining": false,
+      "remaining_observed_error": "One character substitution remained in a question word.",
+      "scope": "Focused question/text and Word-XML checks, not full character accuracy or full visual pagination review."
+    },
+    "ci": {
+      "pages": {
+        "run": 38516405630,
+        "result": "success",
+        "public_route_requests": 180,
+        "failures": 0
+      },
+      "worksheet": {
+        "run": 38516405780,
+        "result": "success"
+      },
+      "worker": {
+        "run": 38516405838,
+        "successful_job": 115696739912,
+        "result": "success on second attempt",
+        "first_attempt": "Deploy command succeeded, but revision confirmation did not match within its check window; image test was not reached.",
+        "retry": "Same commit redeployed and backend revision matched. Gemini credential, generation and production image checks all passed.",
+        "synthetic_image": {
+          "acknowledgement_ms": 393,
+          "elapsed_ms": 3451,
+          "completed": true,
+          "literal_question": true,
+          "extra_answer": false
+        }
+      }
+    },
+    "remaining_limits": [
+      "One observed OCR word substitution remains. Some answer-rule and crop layout details still require review.",
+      "The five trailing none labels from source page 4 were not rechecked live in the five-page subset. Unproven prose is not silently stripped.",
+      "The full 21-page throughput observation belongs to the core release; the follow-up was checked on five source pages.",
+      "No image quality or verifier budget was lowered, but recognition is not guaranteed error-free."
+    ]
+  }
+}
