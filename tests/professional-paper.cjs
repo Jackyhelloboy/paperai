@@ -5,7 +5,7 @@ assert(clean.includes('[[SECTION_ROW: I. Answer the following || 10x3=30]]'));
 assert(clean.includes('[[SECTION_ROW: III. Name the following || 5x2=10]]'));
 assert(clean.includes('[[SECTION_ROW: IV. Fill in the blanks || 7x2=14]]'));
 assert(clean.includes('[[SECTION_ROW: V. Choose the correct answer || 6x1=6]]'));
-assert.equal((clean.match(/A: _+/g)||[]).length,2);assert(!clean.includes('ANSWER_LINES: 3'));
+assert.equal((clean.match(/\[\[ANSWER_LINES: 1\]\]/g)||[]).length,2);assert(!clean.includes('ANSWER_LINES: 3'));
 assert(!clean.includes('( ___ )'));assert(clean.includes('(\u00a0\u00a0'));
 for(const q of ['1. What makes up the Earth?','1. Explain poultry farming.','1. The smallest continent is ____'])assert(clean.includes(q));
 assert(P.format('I. Plot (2, 3).\n1. Evaluate f(5).').includes('f(5)'));
@@ -13,7 +13,17 @@ assert(!P.format('Name the following [5x2=10]\nVI. Write T [5x1=5]').includes('I
 const reordered=P.format('Class: II\nI. Answer. 2x1=2\nQ1\nIII. Fill. 2x1=2\nQ3\nII. Answer any three. 3x1=3\nQ2');
 assert(reordered.indexOf('II. Answer')<reordered.indexOf('III. Fill'));
 const ticks=P.format('VI. Tick the correct answer. 7x1=7\n[[MATCH_ROW: 1. We get honey from || ( ___ ) || animals □ / plants □ || ]]');
-assert(ticks.includes('TABLE_WIDTHS: 56,10,17,17'));assert(ticks.includes('animals □ || / plants □'));
+assert(ticks.includes('1. We get honey from animals / plants'));assert(!ticks.includes('□'));
 assert.equal(P.format(clean),clean,'Formatting remains stable through preview and export');
-assert.equal((P.format('II write any three (3) answers for the following question 3x4=12\n1. What is a celebration?\nA ____\n____\n____').match(/A: _+/g)||[]).length,1);
+assert.equal((P.format('II write any three (3) answers for the following question 3x4=12\n1. What is a celebration?\nA ____\n____\n____').match(/\[\[ANSWER_LINES: 1\]\]/g)||[]).length,1);
 console.log('Professional layout: single answer rules, bounded missing section labels, explicit section order, right marks, spacious brackets and stable tick columns.');
+
+const targeted=P.format('Class: II\nI. Answer questions. 1x1=1\nA [[ANSWER_LINES: 1]]\n---\nIV Write any four answers. 4x3=12\n[[MATCH_ROW: 1 why? || A:]]\nVI. Tick (v) the correct answer. 1x1=1\n1. animals [ ] / plants [ ].\nVII. Cross out the odd one. 1x1=1\n1. Ship Aeroplane Helicopter\nIII Give one word answer. 1x1=1\nIV Fill in the blanks. 1x1=1\n[[TABLE_REGION: 500,100,200,50]]\n[[TABLE_ROW: food || cow]]\nV Write Y or N. 1x1=1');
+assert(targeted.includes('II Write any four'));assert(targeted.includes('1 why?\n[[ANSWER_LINES: 1]]'));
+assert(!targeted.includes('---'));assert(!targeted.includes('TABLE_REGION'));
+assert(targeted.includes('Tick (✓)'));assert(targeted.includes('animals / plants .'));
+assert(targeted.includes('1. Ship || Aeroplane || Helicopter'));
+assert.equal(P.format(targeted),targeted);
+const festival=P.format("IX. Write R for religious festivals and N for national days. 6x1=6\n[[MATCH_ROW: 3. Republic Day || [ ] || 6. Independence Day || [ ]]\n]");
+assert(festival.includes('TABLE_WIDTHS: 50,50'));assert(!festival.includes('\n]'));
+assert.equal(P.format(festival),festival);
