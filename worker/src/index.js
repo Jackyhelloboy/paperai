@@ -684,6 +684,9 @@ async function runInference(env, body, state = {}, signal) {
   try {
     if (!env.AI) throw scanServiceError('SCAN_SERVICE_UNAVAILABLE', 'Scanning is temporarily unavailable.');
     primary = Promise.resolve().then(() => env.AI.run(PRIMARY_MODEL, body, {rejectIfBusy: true}));
+    // Website scans launch both readers immediately. The existing race below
+    // validates the primary and retains it if Gemini is unavailable.
+    if(hasBackup && state.parallelProviders)throw scanServiceError('AI_TIMEOUT','Start parallel image readers.');
     return await withinScanBudget(() => primary,
       Math.min(hasBackup ? (state.fastScan ? 4000 : 10000) : 45000, (state.deadline || Date.now() + PAGE_SCAN_BUDGET_MS) - Date.now()), signal);
   } catch (error) {
@@ -1530,7 +1533,7 @@ function sanitizeDetailViews(input, budget=5*1024*1024) {
 }
 
 async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], signal, detailViews = []) {
-  const providerState = {deadline: Date.now() + PAGE_SCAN_BUDGET_MS,fastScan:true};
+  const providerState = {deadline: Date.now() + PAGE_SCAN_BUDGET_MS,fastScan:true,parallelProviders:imageMeta?.parallelProviders===true};
   const scanStrategy = imageMeta?.scanStrategy || 'full-page';
   const scanMode = scanStrategy === 'line-mosaic'
     ? 'line-by-line'

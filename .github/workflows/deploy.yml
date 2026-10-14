@@ -40,6 +40,7 @@ jobs:
           node tests/scan-resume.cjs
           node tests/scan-checkpoints.cjs
           node tests/ocr-review.cjs
+          node tests/parallel-providers.cjs
           node tests/pdf-page-pipeline.cjs
           node tests/scan-transport.cjs
           node tests/docx-reference-layout.cjs

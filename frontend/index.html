@@ -4400,7 +4400,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', options = {}) {
         formData.append('language', languageSelect.value || 'auto');
         formData.append('preprocessing', 'smart');
         formData.append('difficulty', prepared.difficulty);
-        formData.append('image_meta', JSON.stringify(prepared.meta || {}));
+        formData.append('image_meta', JSON.stringify({...prepared.meta,parallelProviders:true}));
         if(prepared.detailViews?.length)formData.append('detail_views',JSON.stringify(prepared.detailViews));
         appendLearningHints(formData);
 
