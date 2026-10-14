@@ -58,6 +58,8 @@ const fs=require('node:fs');
  assert.equal((headerFixed.match(/\bName:/g)||[]).length,1,'Continuation pages must not insert identity fields between question sections');
  assert(headerFixed.includes('Class: I')&&headerFixed.includes('Sub: Social'),'The first paper header keeps its visible class and subject');
  assert.equal(W.normaliseMarkerRows(continuationHeaders),headerFixed,'Server and browser must suppress the same continuation header');
+ const orphan='[[SECTION_ROW: II. Answer. || 5M]]\n1. Question.\n[[TABLE_ROW: Name: ____ || Class: I || Roll No: ____]]\n[[SECTION_ROW: III. Continue. || 5M]]';
+ for(const clean of [L.normalise(orphan),W.normaliseMarkerRows(orphan)])assert(!clean.includes('Name:'),'Continuation fields must be suppressed even when a page has no initial header');
  const malformed='[[SOURCE_BANNER: school]]\n[[TABLE_ROW: Name: ____ || Class: III || Roll No: ____ || Marks: ____ ||  ||  ||  ]]\n[[TABLE_ROW: Name: ____ || Class: III || Roll No: ____]]\n[[TABLE_ROW: Sub: Social || Name of the Examination: ____ || Marks: ____]]\n[[SECTION_ROW: I. Answer. || 10M]]';
  const malformedFixed=L.normalise(malformed);
  assert.equal((malformedFixed.match(/\bName:/g)||[]).length,1,'A malformed wide duplicate must not precede a cleaner exam header');

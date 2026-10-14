@@ -5944,13 +5944,26 @@ function docxSourceRow(values) {
 }
 function packSourceFigureRows(value,media=extractedMedia) {
     const lines=String(value||'').split('\n'),out=[];
+    let pictureChoices=false;
     const parse=line=>String(line||'').trim().match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
     for(let i=0;i<lines.length;){
-        if(!parse(lines[i])){out.push(lines[i++]);continue;}
+        if(!parse(lines[i])){
+            const line=lines[i++];
+            if(/^(?:\[\[(?:SECTION_ROW|QUESTION_ROW):\s*)?(?:[IVX]+[.)\s]+|\d+[.)]\s+)/i.test(line.trim()))
+                pictureChoices=/\b(?:circle|tick|choose|mark|identify|name)\b.*\b(?:things|pictures|objects|clothes)\b|\bclothes\s+we\s+wear\b/i.test(line);
+            out.push(line);continue;
+        }
         const cells=[];let j=i;
-        while(j<lines.length){const found=parse(lines[j]);if(!found)break;cells.push(...worksheetCells(found[1],32));j++;}
+        while(j<lines.length){
+            const found=parse(lines[j]);
+            if(found){cells.push(...worksheetCells(found[1],32));j++;continue;}
+            if(!lines[j].trim()&&parse(lines[j+1])){j++;continue;}
+            break;
+        }
         const placed=cells.map((value,index)=>{const info=PaperAILayout.source(value),asset=media.find(item=>item.id===info.id);return asset?.region?{...asset.region,value,index}:{value,index};});
-        let rows=placed.every(item=>Number.isFinite(item.x)&&Number.isFinite(item.y))?PaperAILayout.figureRows(placed):[placed];
+        // Choice illustrations are a compact five-column exercise, including
+        // choices originally spread across several source rows. Preserve crop order.
+        let rows=pictureChoices?[placed]:placed.every(item=>Number.isFinite(item.x)&&Number.isFinite(item.y))?PaperAILayout.figureRows(placed):[placed];
         for(const row of rows)for(let start=0;start<row.length;start+=5){
             const group=row.slice(start,start+5).map(item=>item.value);
             out.push('[[SOURCE_FIGURE'+(group.length>1?'_ROW':'')+': '+group.join(' || ')+']]');

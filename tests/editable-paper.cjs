@@ -67,6 +67,14 @@ const fixture=[
     const packed=ctx.packSourceFigureRows(loose);
     assert.equal((packed.match(/SOURCE_FIGURE_ROW/g)||[]).length,2,'Separate crops from the same exercise must regroup into physical picture rows');
     assert.equal(packed.split('\n')[0].split('||').length,5,'A wide picture exercise uses five cells in its first row');
+    const choices=ctx.packSourceFigureRows('X. Circle the things that plants need:\n'+loose);
+    assert.equal(choices.split('\n')[1].split('||').length,5);
+    vm.runInContext(`extractedMedia.forEach((item,i)=>{item.region.y=i*130;});`,ctx);
+    const verticalChoices=ctx.packSourceFigureRows('X. Circle the things that plants need:\n'+loose);
+    assert.equal(verticalChoices.split('\n')[1].split('||').length,5,'Picture choices must use five columns even when source crops occupy separate vertical rows');
+    assert.equal(verticalChoices.split('\n')[2].split('||').length,2);
+    assert.equal(ctx.packSourceFigureRows('X. Circle the things that plants need:\n'+loose.replaceAll('\n','\n\n')),verticalChoices,'Blank spacing between picture crops must not break the exercise grid');
+    assert.equal(ctx.packSourceFigureRows('XI. Explain the diagrams:\n'+loose).split('\n').length,8,'Diagram questions retain their physical rows');
     const packedXml=ctx.buildDocxBody(packed);
     assert.equal((packedXml.match(/<w:tbl>/g)||[]).length,9,'Two picture-row tables plus seven editable answer boxes are expected');assert.equal((packedXml.match(/<wp:inline /g)||[]).length,7);
     const rels=await zip.file('word/_rels/document.xml.rels').async('text');

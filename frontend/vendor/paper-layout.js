@@ -542,7 +542,7 @@
                 if(labels.size>=3){
                     const ordinal=sectionOrdinal(nextContent(j));
                     if(questionsStarted&&ordinal===1){questionsStarted=false;headerSeen=false;}
-                    const continuation=questionsStarted&&headerSeen&&ordinal!==1;
+                    const continuation=questionsStarted&&ordinal!==1;
                     const malformedDuplicate=!questionsStarted&&(maxColumns>5||(rows===1&&labels.size>=5))&&laterCleaner(j,labels,maxColumns,rows);
                     if(!continuation&&!malformedDuplicate){out.push(...block);headerSeen=true;}
                     i=j;continue;
