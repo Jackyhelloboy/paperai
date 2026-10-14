@@ -64,5 +64,3 @@ The [parallel PDF verification record](docs/PARALLEL_PDF_VERIFICATION.md) docume
 ## Clean multi-class question papers
 
 PDF output omits school banners and repeated administrative Name/Roll/Date/Total Marks fields, including partial tables and plain paragraphs. Class and subject remain plain headings; a changed class starts a new paper. Question wording, options, help boxes and matching tables remain literal. Administrative-looking fields in explicit card/form exercises are retained. When cleanup changes a scanned page, export uses the cleaned editable layout rather than the original-page preview containing removed furniture. Fresh scans use checkpoint version v2 so earlier recognition is not reused. This is layout cleanup, not a guarantee of handwriting recognition accuracy.
-
-MCQ export now separates numbered question stems from their labelled choices using borderless choice rows. Actual matching exercises retain matching columns. Empty answer brackets have wider writing space, and purely blank grids adjacent to discarded administrative fields are removed; grids belonging to a labelled question are retained.

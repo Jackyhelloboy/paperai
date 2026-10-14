@@ -4930,7 +4930,7 @@ function formatStructuredWorksheetLine(line, columnWidths=null) {
     const figure=source.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
     if(figure) {
         const cells=worksheetCells(figure[1],32);
-        return '<div class="ocr-figure-row" style="--figure-cols:'+cells.length+'">'+cells.map(sourceFigureHtml).join('')+'</div>';
+        return '<div class="ocr-figure-row" style="--figure-cols:'+(cells.length>1?5:1)+'">'+cells.map(sourceFigureHtml).join('')+'</div>';
     }
     const banner=source.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
     if(banner) return sourceFigureHtml(banner[1]);
@@ -5248,7 +5248,7 @@ async function extractOneFile(f, onProgress, label) {
         allRaw = result.result.raw_text || allText;
     }
 
-    if(ext==='pdf'){const cleaned=PaperAILayout.normaliseExamExercises(PaperAILayout.cleanExamContent(allText));if(cleaned!==allText)nativePdfPages=null;allText=PaperAILayout.orderPages(cleaned);allPlain=portableText(docxVisibleText(allText));}
+    if(ext==='pdf'){const cleaned=PaperAILayout.cleanExamContent(allText);if(cleaned!==allText)nativePdfPages=null;allText=PaperAILayout.orderPages(cleaned);allPlain=portableText(docxVisibleText(allText));}
     if (!allPlain) allPlain = allText;
     return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages };
 }
@@ -5298,7 +5298,7 @@ goBtn.onclick = async () => {
         if (!allPlain) allPlain = allText;
         if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in file');
 
-        allText = PaperAILayout.normaliseExamExercises(PaperAILayout.cleanExamContent(repairLegacyBranchDiagram(allText)));
+        allText = PaperAILayout.cleanExamContent(repairLegacyBranchDiagram(allText));
         allPlain = repairLegacyBranchDiagram(allPlain);
 
         if (file !== sourceFile) return;
@@ -5951,7 +5951,7 @@ function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400, descrip
     return docxPictureRun(dim.w*635,dim.h*635,docxMediaUsed.get(id).rid,description);
 }
 function docxSourceRow(values) {
-    const widths=docxEqualWidths(values.length);
+    const widths=docxEqualWidths(values.length>1?5:1);
     return docxTableCells([values.map((value,i)=>{
         const item=PaperAILayout.source(value),available=docxCellContentWidth(widths[i]);
         return {xml:'<w:p><w:pPr><w:jc w:val="'+(sourceAsset(item.id)?.align||'center')+'"/><w:spacing w:after="60"/></w:pPr>'+docxSourceRun(item.id,available)+'</w:p>'+
@@ -5980,7 +5980,7 @@ function packSourceFigureRows(value,media=extractedMedia) {
         const placed=cells.map((value,index)=>{const info=PaperAILayout.source(value),asset=media.find(item=>item.id===info.id);return asset?.region?{...asset.region,value,index}:{value,index};});
         // Choice illustrations are a compact five-column exercise, including
         // choices originally spread across several source rows. Preserve crop order.
-        let rows=pictureChoices?[placed]:placed.every(item=>Number.isFinite(item.x)&&Number.isFinite(item.y))?PaperAILayout.figureRows(placed):[placed];
+        let rows=[placed];
         for(const row of rows)for(let start=0;start<row.length;start+=5){
             const group=row.slice(start,start+5).map(item=>item.value);
             out.push('[[SOURCE_FIGURE'+(group.length>1?'_ROW':'')+': '+group.join(' || ')+']]');
@@ -6162,7 +6162,7 @@ function createWordPlaceholderPngBase64() {
 
 async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
-    structuredText=packSourceFigureRows(PaperAILayout.normalise(PaperAILayout.normaliseExamExercises(PaperAILayout.cleanExamContent(structuredText))));
+    structuredText=packSourceFigureRows(PaperAILayout.normalise(PaperAILayout.cleanExamContent(structuredText)));
 
     const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
     const footerXml = paperLayoutOptions().pageNumbers||/\[\[FOOTER:/i.test(structuredText)?docxFooterXml(structuredText):'<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>';
