@@ -1588,7 +1588,7 @@ READING CONTRACT:
 5. Use TABLE_ROW for bordered table cells; MATCH_ROW for physical multi-column question/choice rows; CHOICE_ROW for unboxed multiple-choice options; OPTION_ROW for visibly boxed options. Separate cells with exactly ||. Preserve empty first/last cells. Multiline cell content uses <br> only inside a marker cell. Use the supported double-bracket markers exactly as defined, never HTML tables, XML tags or HTML entities. An absent mark is an empty cell, never the word none or null.
 6. Empty grids use GRID: columnsxrows. A word-search or other populated QUESTION grid uses one GRID_ROW per physical row. Place each grid immediately AFTER its own question label, even on a continuation page. Every separately labelled grid must remain separate; never merge grids across labels.
 7. Stack arithmetic with ARITHMETIC_ROW: original line<br>original operator/operand<br>blank rule. Preserve fractions, signs and every operand; do not calculate results. Long blank answer rules use ANSWER_LINES: observed count. Use at most 28 underscores for an ordinary continuous answer rule. Separate letter positions are different: preserve their exact count and grouping without adding, merging or completing missing letters.
-8. Preserve actual drawings using FIGURE/FIGURE_ROW crops in FULL PAGE coordinates, x,y,width,height integer 0–1000, not endpoints. Crop only original illustrations and their internal labels; never redraw an uncertain figure or crop completed responses. Basic unlabelled circle/square/rectangle/triangle/cube outlines may use SHAPE_ROW. Branch relationships use BRANCH_ROOT, BRANCH_ITEM, BRANCH_END with literal labels and original connections.
+8. Preserve actual drawings using FIGURE/FIGURE_ROW crops in FULL PAGE coordinates, x,y,width,height integer 0–1000, not endpoints. Crop only original illustrations and their internal labels; never redraw an uncertain figure or crop completed responses. A written placeholder such as “lion picture” is text, not an illustration: preserve it as text and do not emit FIGURE. A crop must stop before the next bit heading or question, even when a drawing touches the page ruling. Basic unlabelled circle/square/rectangle/triangle/cube outlines may use SHAPE_ROW. Branch relationships use BRANCH_ROOT, BRANCH_ITEM, BRANCH_END with literal labels and original connections.
 9. School BANNER includes ONLY school name, address and logos. Inspect the actual lower edge of the school/address block and the side edge before any separate marks column. EXCLUDE Class, exam title, Time, Marks, student name, Roll and Signature from the crop; these remain editable TABLE_ROW cells, with TABLE_REGION measured around each native field table. Preserve the separate Marks box as a native labelled table with its own TABLE_REGION, not part of the school crop. Do not repeat text inside the banner outside it. No guessed default crop rectangle.
 10. If an ORIGINAL printed page number is clearly visible, emit [[SOURCE_PAGE: original integer]] on its own line for automatic page ordering. This is control metadata, not printed question text. If absent or unreadable, omit it; never infer a page number from a question number. FOOTER contains other original footer text, excluding its page number.
 11. Preserve Devanagari strokes and separate vowel signs literally. Recheck श्र/ज्ञ, ू/२, े/ै against pixels, not expected words. Do not duplicate a question word because an insertion is above its printed occurrence.
@@ -1648,7 +1648,11 @@ READING CONTRACT:
   const needsRepair = degenerateOcr(text) || invalidLayoutMarkers(text) || !text.trim() ||
     /^no\s+(?:readable\s+)?text\s+(?:detected|found)[.!]?$/i.test(text.trim());
   const figurePage=/\[\[FIGURE(?:_ROW)?:/i.test(text);
-  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage) && shouldVerifyOcr(text, imageMeta) &&
+  const newPaperBit=/^(?:\s*\[\[SECTION_ROW:\s*)?I[.)]?\s+(?:Answer|Write|Fill|Choose|Tick|Match|Complete|Look|Circle|Underline|Name)\b/im.test(text);
+  const hasClass=/\bClass\s*[:：-]\s*[1-9IVX]/i.test(text);
+  const hasSubject=/(?:\bSubject|\bSub)\s*[:：-]\s*\S/i.test(text);
+  const missingPaperIdentity=newPaperBit&&hasClass!==hasSubject;
+  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPaperIdentity) && (missingPaperIdentity || shouldVerifyOcr(text, imageMeta)) &&
       providerState.deadline - Date.now() >= 5000 && !signal?.aborted) {
     const rescuePrompt = prompt + `
 
@@ -1662,6 +1666,7 @@ VERIFICATION RULES:
 - Compare the FIRST OCR to the image. Restore omitted source content and remove unsupported content. Resolve unreadable fragments only from visible pixels.
 - Completed responses must become blank spaces; question stems/options/operands must remain. Never solve or complete a question from context.
 - Recheck every crop against the FULL PAGE image. Banner excludes editable fields and separate marks boxes. Every crop uses four integer x,y,width,height coordinates on the full-page 0–1000 scale.
+- On a new bit I, inspect the entire top header, including small Class and Sub/Subject fields inside a bordered box. Transcribe their visible values, but leave a field absent if it cannot be read. Do not copy an earlier paper's class or subject.
 - Use only the supported layout marker names. Keep multi-column questions in physical MATCH_ROW cells, separate grids after their labels, and marks in right cells.
 - If additional enlarged views follow the full-page image, they show overlapping parts of THE SAME page. Use them to read small characters, not to add duplicate questions. Output one transcription of the full page. All figure coordinates stay relative to the first full-page image.
 - When image evidence is ambiguous, use [unclear] rather than guessing.`;

@@ -21,6 +21,31 @@ function objects(text){
   }return found;
 }
 function matchesSettings(body,expected){return body?.success===true&&Array.isArray(body.result?.bindings)&&body.result.bindings.some(binding=>binding.type==='plain_text'&&binding.name==='PAPERAI_RELEASE_SHA'&&binding.text===expected);}
+async function deploymentDiagnostics(){
+  const account=process.env.CLOUDFLARE_ACCOUNT_ID||'',token=process.env.CLOUDFLARE_API_TOKEN;
+  if(!/^[a-f0-9]{32}$/i.test(account)||!token)return;
+  const base='https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/paperai-ocr/';
+  const headers={Authorization:'Bearer '+token};
+  try{
+    const response=await request(base+'deployments',{headers,signal:AbortSignal.timeout(10000)});
+    const body=await response.json();
+    const deployments=Array.isArray(body.result?.deployments)?body.result.deployments:Array.isArray(body.result)?body.result:[];
+    // Version IDs and traffic percentages are safe to log; no bindings or credentials.
+    const active=deployments.sort((a,b)=>String(b.created_on||'').localeCompare(String(a.created_on||'')))[0];
+    console.log(JSON.stringify({check:'active-worker-deployment',http:response.status,
+      versions:Array.isArray(active?.versions)?active.versions.map(v=>({id:v.version_id,percentage:v.percentage})):[]}));
+    if(active?.versions?.length){
+      const id=active.versions.find(v=>v.percentage===100)?.version_id||active.versions[0].version_id;
+      if(/^[a-f0-9-]{36}$/i.test(id)){
+        const version=await request(base+'versions/'+id,{headers,signal:AbortSignal.timeout(10000)});
+        const data=await version.json();
+        const bindings=data.result?.resources?.bindings;
+        console.log(JSON.stringify({check:'active-worker-version',http:version.status,id,
+          releaseBindingPresent:Array.isArray(bindings)&&bindings.some(b=>b.name==='PAPERAI_RELEASE_SHA')}));
+      }
+    }
+  }catch(_){console.log(JSON.stringify({check:'active-worker-deployment',available:false}));}
+}
 async function verifyProduction(){
   const expected=process.env.GITHUB_SHA;
   if(expected){
@@ -36,7 +61,7 @@ async function verifyProduction(){
       }
       if(active)break;await sleep(3000);
     }
-    if(!active){console.error(JSON.stringify({check:'backend-revision',...lastHealth,matched:false}));throw new Error('Production backend revision did not become active.');}
+    if(!active){await deploymentDiagnostics();console.error(JSON.stringify({check:'backend-revision',...lastHealth,matched:false}));throw new Error('Production backend revision did not become active.');}
     console.log('Production backend revision matches the deployment commit.');
   }
   const tail=spawn('npx',['--yes','wrangler@4','tail','paperai-ocr','--format=json'],
