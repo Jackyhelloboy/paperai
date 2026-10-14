@@ -685,7 +685,7 @@ async function runInference(env, body, state = {}, signal) {
     if (!env.AI) throw scanServiceError('SCAN_SERVICE_UNAVAILABLE', 'Scanning is temporarily unavailable.');
     primary = Promise.resolve().then(() => env.AI.run(PRIMARY_MODEL, body, {rejectIfBusy: true}));
     return await withinScanBudget(() => primary,
-      Math.min(hasBackup ? 10000 : 45000, (state.deadline || Date.now() + PAGE_SCAN_BUDGET_MS) - Date.now()), signal);
+      Math.min(hasBackup ? (state.fastScan ? 4000 : 10000) : 45000, (state.deadline || Date.now() + PAGE_SCAN_BUDGET_MS) - Date.now()), signal);
   } catch (error) {
     const dailyLimit = isDailyFreeLimitError(error);
     if (dailyLimit) { try { await markUsageExhausted(env); } catch (_) {} }

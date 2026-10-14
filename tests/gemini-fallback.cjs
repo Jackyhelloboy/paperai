@@ -142,7 +142,7 @@ assert(!ctx.invalidLayoutMarkers('[[TABLE_ROW: text || [[BOXED: 100]]]]'),'Suppo
   assert.equal(response.status,200);assert((await response.json()).suggestions.includes('uncommonphrase'));
   assert.equal(queue.length,0);assert.equal((await ctx.getUsageStatus(suggestion.env)).estimated_used,0);
   const originalTimer=ctx.setTimeout;
-  ctx.setTimeout=(fn,ms)=>setTimeout(()=>{if(ms===10000||ms===18000)clock+=ms;fn();},ms===10000||ms===18000?5:ms);
+  ctx.setTimeout=(fn,ms)=>setTimeout(()=>{if(ms===4000||ms===10000||ms===18000)clock+=ms;fn();},ms===4000||ms===10000||ms===18000?5:ms);
   const hung=environment(()=>new Promise(()=>{}));queue.push(output(good.response));
   response=await ctx.handler.fetch(image(),hung.env);
   assert.equal(response.status,200,'An unresponsive primary must promptly yield to the backup');
