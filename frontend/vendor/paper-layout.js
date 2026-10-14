@@ -770,23 +770,26 @@
             if(/^\[\[PAPER_BREAK\]\]$/i.test(page)){forced=true;continue;}
             if(/^\[\[PAGE_BREAK\]\]$/i.test(page))continue;
             if(!page.trim())continue;
-            const kept=[],metadata=[],lines=page.split('\n');let controls=[],exerciseFields=false;
+            const kept=[],metadata=[],lines=page.split('\n');let controls=[],exerciseFields=false,headerMarkBox=false;
             for(const line of lines){
+                if(sectionOrdinal(line)){headerMarkBox=false;}
                 if(sectionOrdinal(line))exerciseFields=/\b(?:complete|fill)\b.*\b(?:card|form|personal details)\b/i.test(line);
-                if(/^\s*\[\[(?:SOURCE_BANNER|BANNER):/i.test(line)||/^\s*BRILLIANT\s+MODEL\s+SCHOOLS?\b/i.test(line)){modified=true;continue;}
+                if(/^\s*\[\[(?:SOURCE_BANNER|BANNER):/i.test(line)||/^\s*BRILLIANT\s+MODEL\s+SCHOOLS?\b/i.test(line)){modified=true;headerMarkBox=true;continue;}
+                if(headerMarkBox&&/^\s*\[\[(?:(?:TABLE_ROW|BOXED):\s*)?[0-9]+\s*\]\]\s*$/i.test(line)){modified=true;controls=[];continue;}
                 if(/^\s*\[\[TABLE_(?:REGION|WIDTHS|HEADER):/i.test(line)){controls.push(line);continue;}
                 const row=line.match(/^\s*\[\[TABLE_ROW:\s*([\s\S]*?)\]\]\s*$/i);
                 const cells=row?row[1].split(/\s*\|\|\s*/).map(c=>c.replace(/<br>/gi,' ').trim()):[line.trim()];
                 // Anchored administrative labels only: questions such as
                 // "1. What is your school name?" and real exercise tables survive.
                 const furniture=!exerciseFields&&cells.some(c=>isField(c))&&cells.every(c=>isField(c)||/^(?:Summative|Formative)\s+Assessment\b/i.test(c)||!c||/^[_ .:—-]+$/.test(c)||/^(?:[IVX]{1,6}|[1-9]|1[0-2]|social(?: studies| science)?|english|science|maths?|hindi|telugu|\d{1,3})$/i.test(c));
-                if(furniture){modified=true;metadata.push(cells.join(' || '));controls=[];continue;}
+                if(furniture){if(cells.some(c=>/^(?:total\s*)?marks\b/i.test(c)))headerMarkBox=true;modified=true;metadata.push(cells.join(' || '));controls=[];continue;}
                 kept.push(...controls,line);controls=[];
             }
             kept.push(...controls);
             const metadataText=metadata.join('\n');
             const found=paperIdentity(metadataText);
             if(!found.subject){const namedSubject=metadataText.match(/name\s+of\s+(?:the\s+)?examination\s*[:：-]?\s*(Social(?: Studies| Science)?|English|Science|Maths?|Hindi|Telugu)\b/i);if(namedSubject)found.subject=namedSubject[1];}
+            if(!found.subject){const classSubject=metadataText.match(/class\s*[:：-]?\s*(?:[IVX]+|[0-9]+)\s*[-–]\s*(Social(?: Studies| Science)?|English|Science|Maths?|Hindi|Telugu)\b/i);if(classSubject)found.subject=classSubject[1];}
             const exam=metadataText.match(/\b(?:Summative|Formative)\s+Assessment\s*[-–]?\s*(?:[IVX]+|[1-9])\b/i);
             const firstSection=kept.find(line=>sectionOrdinal(line)>0)||'';
             const changed=(found.className&&identity.className&&found.className.toLowerCase()!==identity.className.toLowerCase())||
