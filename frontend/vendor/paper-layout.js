@@ -21,13 +21,20 @@
         // Detect only labels in the paper header, never a subject mentioned in a question.
         const lines=String(text||'').split('\n').map(s=>s.trim()).filter(Boolean);
         const firstQuestion=lines.findIndex(s=>/^(?:\d+[.)]\s|\[\[(?:SECTION_ROW|QUESTION_ROW):|(?:I|II|III|IV|V|VI|VII|VIII|IX|X)[.)]\s)/i.test(s));
-        const header=lines.slice(0,firstQuestion<0?12:Math.min(12,firstQuestion)).join('\n');
+        const header=lines.slice(0,firstQuestion<0?20:Math.min(20,firstQuestion)).join('\n');
+        const identity=paperIdentity(header);
         const subject='(?:subject\\s*[:=\\-]\\s*|(?:class\\s*)?(?:[IVX]+|[1-9]|10)\\s*[-:]\\s*)';
         let name='compact';
         if(/\b(?:work\s*sheet|activity\s*sheet)\b/i.test(header))name='worksheet';
-        else if(new RegExp('(?:^|\\n)\\s*'+subject+'(?:social(?:\\s+(?:studies|science))?|english)\\b','i').test(header)||/^(?:social studies|social science|english)\s*$/im.test(header))name='humanities';
-        else if(new RegExp('(?:^|\\n)\\s*'+subject+'science\\b','i').test(header)||/^science\s*$/im.test(header))name='science';
-        return {name,format:referenceFormats[name],preserveSource:Boolean(nativeSource)};
+        else if(/^(?:social(?:\s+(?:studies|science))?|english)$/i.test(identity.subject)||new RegExp('(?:^|\\n)\\s*'+subject+'(?:social(?:\\s+(?:studies|science))?|english)\\b','i').test(header)||/^(?:social studies|social science|english)\s*$/im.test(header))name='humanities';
+        else if(/^science$/i.test(identity.subject)||new RegExp('(?:^|\\n)\\s*'+subject+'science\\b','i').test(header)||/^science\s*$/im.test(header))name='science';
+        return {name,format:referenceFormats[name],preserveSource:Boolean(nativeSource),className:identity.className,subject:identity.subject};
+    }
+    function paperIdentity(value) {
+        const source=String(value||'').replace(/\[\[(?:TABLE_ROW|SECTION_ROW|QUESTION_ROW):\s*/gi,'').replace(/\]\]/g,'').replace(/\|\|/g,'\n');
+        const classHit=source.match(/\bclass\s*[:=\-]?\s*((?:pre\s*-?\s*)?(?:nursery|lkg|ukg|[ivx]{1,6}|(?:1[0-2]|[1-9])(?:st|nd|rd|th)?))\b/i);
+        const subjectHit=source.match(/\b(?:sub(?:ject)?|paper)\s*\.?\s*[:=\-]?\s*(social(?:\s+(?:studies|science))?|science|english|mathematics|maths?|hindi|telugu|tamil|kannada|malayalam|marathi|bengali|gujarati|punjabi|odia|urdu|kashmiri)\b/i);
+        return {className:classHit?classHit[1].replace(/\s+/g,' ').trim():'',subject:subjectHit?subjectHit[1].replace(/\s+/g,' ').trim():''};
     }
     function figure(value) {
         const parts = String(value || '').split('|');
@@ -437,6 +444,11 @@
         // Parse only complete, unambiguous forms as text; never evaluate HTML,
         // strip arbitrary tags, decode angle entities, or guess merged cells.
         let text=String(value||'').replace(/&(?:nbsp|#160|#x0*a0);/gi,'\u00a0');
+        // Convert only formatting commands known to leak from editable exam
+        // fields. Mathematical TeX and unknown backslashes remain literal.
+        text=text.replace(/\\hspace\*?\{\s*(\d+(?:\.\d+)?)\s*cm\s*\}/gi,(_,cm)=>'_'.repeat(Math.max(4,Math.min(24,Math.round(Number(cm)*4)))))
+            .replace(/\\underline\{([^{}]*)\}/gi,'$1').replace(/\\underline\{([^{}]*)\}/gi,'$1')
+            .replace(/\\hline\b/gi,'').replace(/\\n\b/g,'<br>');
         const cell=value=>String(value).replace(/[ \t]*\r?\n[ \t]*/g,' ').trim();
         const row=body=>'[[TABLE_ROW: '+cell(body)+']]';
         const htmlRows=body=>{
@@ -487,6 +499,58 @@
             output+=text[cursor++];
         }
         return output;
+    }
+    const PAPER_FIELD_PATTERNS=[
+        ['exam',/\bname\s+of\s+(?:the\s+)?examination\b/i],['roll',/\broll\s*(?:no\.?|number)?\b/i],
+        ['class',/\bclass\b/i],['subject',/\bsub(?:ject)?\.?\s*:/i],['marks',/\b(?:total\s+)?marks?\b/i],
+        ['name',/\bname\s*:/i],['date',/\bdate\s*:/i],['time',/\btime\s*:/i]
+    ];
+    function paperFieldLabels(value) {
+        const source=String(value||'').replace(/<br>/gi,' '),found=[];
+        for(const [name,pattern] of PAPER_FIELD_PATTERNS)if(pattern.test(source))found.push(name);
+        return new Set(found);
+    }
+    function sectionOrdinal(value) {
+        const hit=String(value||'').match(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):\s*)?(I|II|III|IV|V|VI|VII|VIII|IX|X)(?:[.)\s]|$)/i);
+        return hit?['I','II','III','IV','V','VI','VII','VIII','IX','X'].indexOf(hit[1].toUpperCase())+1:0;
+    }
+    function suppressContinuationHeaders(value) {
+        const lines=String(value||'').split('\n'),out=[];
+        const control=line=>/^\s*\[\[TABLE_(?:REGION|WIDTHS|HEADER):/i.test(line);
+        const row=line=>String(line||'').match(/^\s*\[\[TABLE_ROW:\s*([\s\S]*?)\]\]\s*$/i);
+        const question=line=>sectionOrdinal(line)>0||/^\s*(?:\[\[QUESTION_ROW:\s*)?[0-9०-९]+[.)।]\s/u.test(line);
+        const nextContent=index=>{while(index<lines.length&&(!lines[index].trim()||control(lines[index])))index++;return lines[index]||'';};
+        const laterCleaner=(index,labels,currentColumns,currentRows)=>{
+            for(let j=index;j<Math.min(lines.length,index+18);j++){
+                if(question(lines[j])||/^\s*\[\[(?:PAGE_BREAK|PAPER_BREAK|SOURCE_BANNER):/i.test(lines[j]))break;
+                if(!control(lines[j])&&!row(lines[j]))continue;
+                const bodies=[];let maxColumns=0;
+                while(j<lines.length&&(control(lines[j])||row(lines[j]))){if(bodies.length&&control(lines[j]))break;const found=row(lines[j]);if(found){bodies.push(found[1]);maxColumns=Math.max(maxColumns,found[1].split(/\s*\|\|\s*/).length);}j++;}
+                const other=paperFieldLabels(bodies.join(' ')),overlap=[...labels].filter(x=>other.has(x)).length;
+                if(overlap>=3&&(maxColumns<currentColumns||bodies.length>currentRows))return true;
+            }
+            return false;
+        };
+        let questionsStarted=false,headerSeen=false;
+        for(let i=0;i<lines.length;){
+            const line=lines[i];
+            if(/^\s*\[\[PAPER_BREAK\]\]\s*$/i.test(line)||/^\s*\[\[SOURCE_BANNER:/i.test(line)){questionsStarted=false;headerSeen=false;out.push(line);i++;continue;}
+            if(control(line)||row(line)){
+                const block=[];let maxColumns=0,rows=0,j=i;
+                while(j<lines.length&&(control(lines[j])||row(lines[j]))){if(rows&&control(lines[j]))break;block.push(lines[j]);const found=row(lines[j]);if(found){rows++;maxColumns=Math.max(maxColumns,found[1].split(/\s*\|\|\s*/).length);}j++;}
+                const labels=paperFieldLabels(block.join(' '));
+                if(labels.size>=3){
+                    const ordinal=sectionOrdinal(nextContent(j));
+                    if(questionsStarted&&ordinal===1){questionsStarted=false;headerSeen=false;}
+                    const continuation=questionsStarted&&headerSeen&&ordinal!==1;
+                    const malformedDuplicate=!questionsStarted&&(maxColumns>5||(rows===1&&labels.size>=5))&&laterCleaner(j,labels,maxColumns,rows);
+                    if(!continuation&&!malformedDuplicate){out.push(...block);headerSeen=true;}
+                    i=j;continue;
+                }
+            }
+            out.push(line);if(question(line))questionsStarted=true;i++;
+        }
+        return out.join('\n').replace(/\n{3,}/g,'\n\n');
     }
     function canonicalPaperRow(kind,body) {
         if(!/^(?:SECTION_ROW|QUESTION_ROW|MATCH_ROW)$/.test(kind))return '[['+kind+': '+body+']]';
@@ -695,7 +759,7 @@
                 lines[i].match(/^(.+?)\s{3,}(\S.*?)\s*$/);
             if(pair)lines[i]='[[MATCH_ROW: '+pair[1].trim()+' || '+pair[2].trim()+']]';
         }
-        return lines.map(line=>line.trimEnd()).join('\n');
+        return suppressContinuationHeaders(lines.map(line=>line.trimEnd()).join('\n'));
     }
     function overlap(a,b) {
         const area=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x))*
@@ -776,5 +840,5 @@
         }
         return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
+    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,measuredGrid,tablePlacement,schoolBannerTable,figure,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
 });

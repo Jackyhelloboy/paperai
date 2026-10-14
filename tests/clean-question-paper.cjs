@@ -48,6 +48,25 @@ const fs=require('node:fs');
  assert.equal(L.normalise('1. अपना नाम लिखिए। || 2M'),'[[QUESTION_ROW: 1. अपना नाम लिखिए। || 2M]]');
  assert.equal(L.normalise('1. च :- [[GRID: 13x1| |none]] none'),'1. च :-\n[[GRID: 13x1]]');
  assert.equal(W.normaliseMarkerRows('[[GRID: 13x1| |none]] none'),'[[GRID: 13x1]]');
+ const continuationHeaders=[
+  '[[TABLE_ROW: Name: ____ || Class: I || Roll No: ____]]','[[TABLE_ROW: Sub: Social || Date: ____ || Total Marks: 50]]',
+  '[[SECTION_ROW: I. Answer. || 10M]]','1. First question.','[[PAGE_BREAK]]',
+  '[[TABLE_ROW: Name: ____ || Class: ____ || Roll No: ____]]','[[TABLE_ROW: Sub: ____ || Date: ____ || Total Marks: ____]]',
+  '[[SECTION_ROW: III. Continue. || 5M]]','1. Continued question.'
+ ].join('\n');
+ const headerFixed=L.normalise(continuationHeaders);
+ assert.equal((headerFixed.match(/\bName:/g)||[]).length,1,'Continuation pages must not insert identity fields between question sections');
+ assert(headerFixed.includes('Class: I')&&headerFixed.includes('Sub: Social'),'The first paper header keeps its visible class and subject');
+ assert.equal(W.normaliseMarkerRows(continuationHeaders),headerFixed,'Server and browser must suppress the same continuation header');
+ const malformed='[[SOURCE_BANNER: school]]\n[[TABLE_ROW: Name: ____ || Class: III || Roll No: ____ || Marks: ____ ||  ||  ||  ]]\n[[TABLE_ROW: Name: ____ || Class: III || Roll No: ____]]\n[[TABLE_ROW: Sub: Social || Name of the Examination: ____ || Marks: ____]]\n[[SECTION_ROW: I. Answer. || 10M]]';
+ const malformedFixed=L.normalise(malformed);
+ assert.equal((malformedFixed.match(/\bName:/g)||[]).length,1,'A malformed wide duplicate must not precede a cleaner exam header');
+ const texFields=String.raw`[[TABLE_ROW: Name:- \underline{\hspace{4cm}} || Class: \underline{\hspace{1cm} III} || Roll No: \hspace{2cm}]]`;
+ const texFixed=L.normalise(texFields);
+ assert(!/\\(?:underline|hspace|hline)|\\n\b/.test(texFixed));assert(texFixed.includes('Class: ____ III'));
+ assert.equal(W.normaliseMarkerRows(texFields),texFixed);
+ const identity=L.paperIdentity('[[TABLE_ROW: Name: ____ || Class: III || Roll No: ____]]\n[[TABLE_ROW: Sub: Social || Marks: 50]]');
+ assert.deepEqual(identity,{className:'III',subject:'Social'});assert.equal(L.automaticFormat('[[TABLE_ROW: Class: III || Sub: Social]]\nI. Answer.').name,'humanities');
  const joined=L.normalise('IV.\n[[QUESTION_ROW: बारहखड़ी लिखिए। || 5x2=10]]');assert(joined.includes('[[SECTION_ROW: IV. बारहखड़ी लिखिए। || 5x2=10]]'));
  const misplaced='[[GRID: 13x1]]\n5. न :-\n[[GRID: 13x1]]\n6. प :-\n[[SECTION_ROW: IV. Write. || 2M]]';
  const aligned=L.alignLeadingGridLabels(misplaced,2);assert(aligned.indexOf('5. न')<aligned.indexOf('[[GRID:'));assert(aligned.indexOf('6. प')<aligned.lastIndexOf('[[GRID:'));

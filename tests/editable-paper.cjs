@@ -62,6 +62,13 @@ const fixture=[
     const countRow=ctx.buildDocxBody('[[TABLE_WIDTHS: 5,50,45]]\n[[MATCH_ROW: 1. || [[SOURCE_FIGURE: source-1| |none]] || = ______]]');
     assert(countRow.includes('<w:gridCol w:w="523"/>'),'Observed narrow number columns must retain their proportions');
     assert.equal((countRow.match(/<w:vAlign w:val="center"\/>/g)||[]).length,3,'Question numbers and blank answers must align vertically with their picture');
+    vm.runInContext(`extractedMedia=${JSON.stringify(Array.from({length:7},(_,i)=>({id:'row-'+(i+1),dataUrl:'data:image/png;base64,'+png,w:120,h:80,region:{x:20+i%5*190,y:i<5?200:420,w:150,h:120}})))};`,ctx);
+    const loose=Array.from({length:7},(_,i)=>'[[SOURCE_FIGURE: row-'+(i+1)+'|picture '+(i+1)+'|box]]').join('\n');
+    const packed=ctx.packSourceFigureRows(loose);
+    assert.equal((packed.match(/SOURCE_FIGURE_ROW/g)||[]).length,2,'Separate crops from the same exercise must regroup into physical picture rows');
+    assert.equal(packed.split('\n')[0].split('||').length,5,'A wide picture exercise uses five cells in its first row');
+    const packedXml=ctx.buildDocxBody(packed);
+    assert.equal((packedXml.match(/<w:tbl>/g)||[]).length,9,'Two picture-row tables plus seven editable answer boxes are expected');assert.equal((packedXml.match(/<wp:inline /g)||[]).length,7);
     const rels=await zip.file('word/_rels/document.xml.rels').async('text');
     assert(rels.includes('rIdSource1')&&rels.includes('media/rIdSource1.png'));
     const widths=Layout.tableWidths([['Name','Long detailed materials column','Tool']],10466);

@@ -5894,7 +5894,7 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
             return {...region,id};
         };
         const cell = r => r.id+'|'+(r.caption||' ')+'|'+(r.answer?'box':'none');
-        return String(text).replace(/\[\[(FIGURE_ROW|FIGURE|BANNER):\s*([\s\S]*?)\]\]/gi,(_,kind,body)=>{
+        const recovered=String(text).replace(/\[\[(FIGURE_ROW|FIGURE|BANNER):\s*([\s\S]*?)\]\]/gi,(_,kind,body)=>{
             if(kind.toUpperCase()==='BANNER') {
                 let region=PaperAILayout.bannerRegion(body,text);
                 if(region&&/\[\[TABLE_ROW:[^\n]*(?:class|time|marks|roll|name|signature|exam)/i.test(text)){
@@ -5915,6 +5915,7 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
             const rows=PaperAILayout.figureRows(regions);
             return rows.map(row=>'[[SOURCE_FIGURE'+(row.length>1?'_ROW':'')+': '+row.map(cell).join(' || ')+']]').join('\n');
         });
+        return packSourceFigureRows(recovered,media);
     } finally { if(source.close) source.close(); }
 }
 function sourceFigureHtml(value) {
@@ -5940,6 +5941,23 @@ function docxSourceRow(values) {
             (item.caption ? docxRichParagraph(item.caption,{center:true,size:22,after:40,available}) : '')+
             (item.answer ? docxAnswerBoxParagraph(available) : '')};
     })],widths,{bordered:false});
+}
+function packSourceFigureRows(value,media=extractedMedia) {
+    const lines=String(value||'').split('\n'),out=[];
+    const parse=line=>String(line||'').trim().match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
+    for(let i=0;i<lines.length;){
+        if(!parse(lines[i])){out.push(lines[i++]);continue;}
+        const cells=[];let j=i;
+        while(j<lines.length){const found=parse(lines[j]);if(!found)break;cells.push(...worksheetCells(found[1],32));j++;}
+        const placed=cells.map((value,index)=>{const info=PaperAILayout.source(value),asset=media.find(item=>item.id===info.id);return asset?.region?{...asset.region,value,index}:{value,index};});
+        let rows=placed.every(item=>Number.isFinite(item.x)&&Number.isFinite(item.y))?PaperAILayout.figureRows(placed):[placed];
+        for(const row of rows)for(let start=0;start<row.length;start+=5){
+            const group=row.slice(start,start+5).map(item=>item.value);
+            out.push('[[SOURCE_FIGURE'+(group.length>1?'_ROW':'')+': '+group.join(' || ')+']]');
+        }
+        i=j;
+    }
+    return out.join('\n');
 }
 
 function blobToDataURL(blob) {
@@ -6114,7 +6132,7 @@ function createWordPlaceholderPngBase64() {
 
 async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
-    structuredText=PaperAILayout.normalise(structuredText);
+    structuredText=packSourceFigureRows(PaperAILayout.normalise(structuredText));
 
     const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
     const footerXml = paperLayoutOptions().pageNumbers||/\[\[FOOTER:/i.test(structuredText)?docxFooterXml(structuredText):'<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>';

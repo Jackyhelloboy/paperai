@@ -13,7 +13,7 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
 - Read the full page and keep intentional blank answer rules. Do not duplicate a source footer in the question body: use [[FOOTER: left text || center text]] for a clearly separate printed page footer, omitting its printed page number (the exporter supplies a live page field).
 - For an ACTUAL drawing, illustration, map, graph or complex diagram, preserve the original pixels using a crop marker. Coordinates are x,y,width,height integers on the exact displayed image, normalized to 0–1000, origin TOP LEFT. Bound ONLY the illustration, including its diagram labels; exclude surrounding question text. Do not replace it with a generic picture.
 - Single illustration: [[FIGURE: 100,250,180,120|visible caption|none]]. Blank caption is valid. Use box instead of none ONLY for a visible answer box belonging to this illustration.
-- Several illustrations across one row: [[FIGURE_ROW: 100,250,180,120|1.|box || 400,250,180,120|2.|box]]. Each cell has its OWN crop. Exactly preserve the visible illustration count and row order. Put separately printed words below pictures in the caption, spelled exactly as visible; never infer object names.
+- Several illustrations across one row: [[FIGURE_ROW: 100,250,180,120|1.|box || 400,250,180,120|2.|box]]. Each cell has its OWN crop. Exactly preserve the visible illustration count and row order. Never emit each picture as a separate one-picture FIGURE when several pictures share a row. Use at most five picture cells per row, continuing left to right on the next row. Put separately printed words below pictures in the caption, spelled exactly as visible; never infer object names.
 - In counting exercises, all repeated drawings belonging to ONE numbered problem form ONE crop. Keep every object and its strokes inside that crop. Preserve the original vertical question rows; do not turn each repeated object into a new question or supply its count. Keep the separately written equals sign and blank answer rule as editable text outside the crop.
 - Keep internal diagram labels, abacus rods/beads and number-strip ticks inside their illustration crop. Do not transcribe those same labels again as external captions or crop only one fragment of the diagram.
 - For a real school banner at the page top, emit BANNER with four integer crop coordinates measured from THIS image. Crop only the school name, address and logos. Stop above editable Class/Subject/exam/Time/Marks/Name/Roll/Signature fields. Do not copy an example rectangle or use a default percentage-height crop. Do not repeat the school or address text already included inside that crop as body paragraphs. Preserve Name/Class/Subject/exam fields as editable text outside it. A clipped, unreadable school name must not be completed from memory.
@@ -26,6 +26,7 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
 - An individual question with a separate right-side mark uses [[QUESTION_ROW: exact question || exact mark]]. Fractions such as ½ and equations such as 4×½=2 must remain literal.
 - A clearly visible original printed page number uses [[SOURCE_PAGE: integer]] control metadata. Never invent a page number. Read physical multi-column rows left to right; keep original question numbers, including mistakes. Never renumber column-major text into a new question order.
 - Repeated headers indicate a new question paper only when visibly present. Read continuous questions across scan pages in order. Do not invent exam titles or copy a school banner from another page or reference.
+- Student fields (Name, Class, Roll No, Subject, Date, Time and Marks) belong only in the editable header at the beginning of their question paper. On continuation pages, do not repeat them between sections. Read the visible Class and Subject literally. Never output LaTeX or TeX formatting commands; use plain field text, underscores, native TABLE_ROW cells and <br> only.
 - Output the question paper alone. Do not add assistant answers, solutions, answer keys, encouragement, formatting suggestions or explanatory introductions. Remove completed answers, worked solutions, answer keys and grading comments from answer positions; restore those spaces as blanks. Preserve question operands, examples, options, word banks and matching choices: these are question content, not completed answers. Resolve handwritten question corrections to the intended final wording automatically; omit cancelled drafts and insert the final replacement naturally. Do not emit editorial STRIKE, DOUBLE-STRIKE, REPLACE, INSERT or HIGHLIGHT markers.
 - Determine answer positions from visible source layout. Handwriting or an answer-like word alone is not evidence of a completed response. Preserve a complete question sentence before its separate answer rule, including clues and true/false statements; never replace words inside that sentence with blanks. When the boundary is uncertain, retain the source wording. Preserve the count and grouping of separate missing-letter positions.
 - Letter grids use GRID or consecutive GRID_ROW markers. Up to 52 columns, 32 rows, 600 cells. Use only observed counts; uncertain borders remain [unclear]. Never turn ordinary notebook lines into ANSWER_LINES.
@@ -37,6 +38,9 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
         // Parse only complete, unambiguous forms as text; never evaluate HTML,
         // strip arbitrary tags, decode angle entities, or guess merged cells.
         let text=String(value||'').replace(/&(?:nbsp|#160|#x0*a0);/gi,'\u00a0');
+        text=text.replace(/\\hspace\*?\{\s*(\d+(?:\.\d+)?)\s*cm\s*\}/gi,(_,cm)=>'_'.repeat(Math.max(4,Math.min(24,Math.round(Number(cm)*4)))))
+            .replace(/\\underline\{([^{}]*)\}/gi,'$1').replace(/\\underline\{([^{}]*)\}/gi,'$1')
+            .replace(/\\hline\b/gi,'').replace(/\\n\b/g,'<br>');
         const cell=value=>String(value).replace(/[ \t]*\r?\n[ \t]*/g,' ').trim();
         const row=body=>'[[TABLE_ROW: '+cell(body)+']]';
         const htmlRows=body=>{
@@ -87,6 +91,58 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 8, reviewed across the complete t
             output+=text[cursor++];
         }
         return output;
+    }
+    const PAPER_FIELD_PATTERNS=[
+        ['exam',/\bname\s+of\s+(?:the\s+)?examination\b/i],['roll',/\broll\s*(?:no\.?|number)?\b/i],
+        ['class',/\bclass\b/i],['subject',/\bsub(?:ject)?\.?\s*:/i],['marks',/\b(?:total\s+)?marks?\b/i],
+        ['name',/\bname\s*:/i],['date',/\bdate\s*:/i],['time',/\btime\s*:/i]
+    ];
+    function paperFieldLabels(value) {
+        const source=String(value||'').replace(/<br>/gi,' '),found=[];
+        for(const [name,pattern] of PAPER_FIELD_PATTERNS)if(pattern.test(source))found.push(name);
+        return new Set(found);
+    }
+    function sectionOrdinal(value) {
+        const hit=String(value||'').match(/^\s*(?:\[\[(?:SECTION_ROW|QUESTION_ROW):\s*)?(I|II|III|IV|V|VI|VII|VIII|IX|X)(?:[.)\s]|$)/i);
+        return hit?['I','II','III','IV','V','VI','VII','VIII','IX','X'].indexOf(hit[1].toUpperCase())+1:0;
+    }
+    function suppressContinuationHeaders(value) {
+        const lines=String(value||'').split('\n'),out=[];
+        const control=line=>/^\s*\[\[TABLE_(?:REGION|WIDTHS|HEADER):/i.test(line);
+        const row=line=>String(line||'').match(/^\s*\[\[TABLE_ROW:\s*([\s\S]*?)\]\]\s*$/i);
+        const question=line=>sectionOrdinal(line)>0||/^\s*(?:\[\[QUESTION_ROW:\s*)?[0-9०-९]+[.)।]\s/u.test(line);
+        const nextContent=index=>{while(index<lines.length&&(!lines[index].trim()||control(lines[index])))index++;return lines[index]||'';};
+        const laterCleaner=(index,labels,currentColumns,currentRows)=>{
+            for(let j=index;j<Math.min(lines.length,index+18);j++){
+                if(question(lines[j])||/^\s*\[\[(?:PAGE_BREAK|PAPER_BREAK|SOURCE_BANNER):/i.test(lines[j]))break;
+                if(!control(lines[j])&&!row(lines[j]))continue;
+                const bodies=[];let maxColumns=0;
+                while(j<lines.length&&(control(lines[j])||row(lines[j]))){if(bodies.length&&control(lines[j]))break;const found=row(lines[j]);if(found){bodies.push(found[1]);maxColumns=Math.max(maxColumns,found[1].split(/\s*\|\|\s*/).length);}j++;}
+                const other=paperFieldLabels(bodies.join(' ')),overlap=[...labels].filter(x=>other.has(x)).length;
+                if(overlap>=3&&(maxColumns<currentColumns||bodies.length>currentRows))return true;
+            }
+            return false;
+        };
+        let questionsStarted=false,headerSeen=false;
+        for(let i=0;i<lines.length;){
+            const line=lines[i];
+            if(/^\s*\[\[PAPER_BREAK\]\]\s*$/i.test(line)||/^\s*\[\[SOURCE_BANNER:/i.test(line)){questionsStarted=false;headerSeen=false;out.push(line);i++;continue;}
+            if(control(line)||row(line)){
+                const block=[];let maxColumns=0,rows=0,j=i;
+                while(j<lines.length&&(control(lines[j])||row(lines[j]))){if(rows&&control(lines[j]))break;block.push(lines[j]);const found=row(lines[j]);if(found){rows++;maxColumns=Math.max(maxColumns,found[1].split(/\s*\|\|\s*/).length);}j++;}
+                const labels=paperFieldLabels(block.join(' '));
+                if(labels.size>=3){
+                    const ordinal=sectionOrdinal(nextContent(j));
+                    if(questionsStarted&&ordinal===1){questionsStarted=false;headerSeen=false;}
+                    const continuation=questionsStarted&&headerSeen&&ordinal!==1;
+                    const malformedDuplicate=!questionsStarted&&(maxColumns>5||(rows===1&&labels.size>=5))&&laterCleaner(j,labels,maxColumns,rows);
+                    if(!continuation&&!malformedDuplicate){out.push(...block);headerSeen=true;}
+                    i=j;continue;
+                }
+            }
+            out.push(line);if(question(line))questionsStarted=true;i++;
+        }
+        return out.join('\n').replace(/\n{3,}/g,'\n\n');
     }
     function canonicalPaperRow(kind,body) {
         if(!/^(?:SECTION_ROW|QUESTION_ROW|MATCH_ROW)$/.test(kind))return '[['+kind+': '+body+']]';
@@ -202,8 +258,8 @@ export function normaliseMarkerRows(text) {
         if(depth>0&&joined.length)joined[joined.length-1]+=' '+line.trim();else joined.push(line);
         depth=Math.max(0,depth+(line.match(/\[\[/g)||[]).length-(line.match(/\]\]/g)||[]).length);
     }
-    return joined.map(line=>{
+    return suppressContinuationHeaders(joined.map(line=>{
         const m=line.match(bare);
         return m ? '[['+m[1].toUpperCase()+': '+m[2].replace(/\]\]$/,'')+']]' : line;
-    }).join('\n');
+    }).join('\n'));
 }
