@@ -1,29 +1,141 @@
 {
-  "deployed_frontend_commit": "5b248adfba6a936dddfdca19825c6887831e8e7b",
-  "deployed_reader_commit": "eaddbc1f0dc26b4aa05ffd96158c7c6b3dca06ea",
-  "frontend_workflow_run": 38231223502,
-  "frontend_workflow_job": 114750906668,
+  "verified_at_utc": "2026-10-13",
+  "visual_review_completed_utc": "2026-10-14",
+  "site": "https://paperai-5up.pages.dev/",
+  "deployed_frontend_commit": "972a9ae0cb74af42ae734ba91a19eabcca502ee4",
+  "deployed_reader_commit": "972a9ae0cb74af42ae734ba91a19eabcca502ee4",
+  "frontend_workflow_run": 38424184987,
+  "frontend_workflow_job": 115389098642,
+  "reader_workflow_run": 38424185009,
+  "reader_workflow_job": 115389105343,
+  "worksheet_workflow_run": 38424185165,
   "tests": [
-    "worksheet-layout",
-    "pdf-editable-layout",
-    "docx-import",
-    "editable-paper",
-    "question-paper-model",
-    "scan-resume",
-    "docx-reference-layout",
-    "reference-formats",
     "ai-quota",
     "automatic-upload",
-    "gemini-fallback",
-    "public-gateway",
-    "gemini-deployment",
     "clean-question-paper",
+    "dense-word-layout",
+    "docx-import",
+    "docx-reference-layout",
+    "editable-paper",
     "exact-word-text",
-    "mixed-language-suggestions"
+    "gemini-deployment",
+    "gemini-fallback",
+    "mixed-language-suggestions",
+    "pdf-editable-layout",
+    "public-gateway",
+    "question-paper-model",
+    "reference-formats",
+    "scan-resume",
+    "scan-transport",
+    "score-row-contract",
+    "training-corpus",
+    "worksheet-layout"
+  ],
+  "test_results": [
+    {
+      "suite": "tests/ai-quota.cjs",
+      "passed": true,
+      "seconds": 0.11
+    },
+    {
+      "suite": "tests/automatic-upload.cjs",
+      "passed": true,
+      "seconds": 0.09
+    },
+    {
+      "suite": "tests/clean-question-paper.cjs",
+      "passed": true,
+      "seconds": 0.11
+    },
+    {
+      "suite": "tests/dense-word-layout.cjs",
+      "passed": true,
+      "seconds": 0.31
+    },
+    {
+      "suite": "tests/docx-import.cjs",
+      "passed": true,
+      "seconds": 0.11
+    },
+    {
+      "suite": "tests/docx-reference-layout.cjs",
+      "passed": true,
+      "seconds": 1.26
+    },
+    {
+      "suite": "tests/editable-paper.cjs",
+      "passed": true,
+      "seconds": 0.29
+    },
+    {
+      "suite": "tests/exact-word-text.cjs",
+      "passed": true,
+      "seconds": 0.15
+    },
+    {
+      "suite": "tests/gemini-deployment.cjs",
+      "passed": true,
+      "seconds": 0.06
+    },
+    {
+      "suite": "tests/gemini-fallback.cjs",
+      "passed": true,
+      "seconds": 0.16
+    },
+    {
+      "suite": "tests/mixed-language-suggestions.cjs",
+      "passed": true,
+      "seconds": 0.08
+    },
+    {
+      "suite": "tests/pdf-editable-layout.cjs",
+      "passed": true,
+      "seconds": 0.86
+    },
+    {
+      "suite": "tests/public-gateway.cjs",
+      "passed": true,
+      "seconds": 0.08
+    },
+    {
+      "suite": "tests/question-paper-model.cjs",
+      "passed": true,
+      "seconds": 0.13
+    },
+    {
+      "suite": "tests/reference-formats.cjs",
+      "passed": true,
+      "seconds": 0.22
+    },
+    {
+      "suite": "tests/scan-resume.cjs",
+      "passed": true,
+      "seconds": 0.06
+    },
+    {
+      "suite": "tests/scan-transport.cjs",
+      "passed": true,
+      "seconds": 0.08
+    },
+    {
+      "suite": "tests/score-row-contract.cjs",
+      "passed": true,
+      "seconds": 0.21
+    },
+    {
+      "suite": "tests/training-corpus.cjs",
+      "passed": true,
+      "seconds": 9.44
+    },
+    {
+      "suite": "tests/worksheet-layout.cjs",
+      "passed": true,
+      "seconds": 0.11
+    }
   ],
   "bounded_load": {
-    "started_at": "2026-10-12T09:39:21.026Z",
-    "commit": "5b248adfba6a936dddfdca19825c6887831e8e7b",
+    "started_at": "2026-10-13T15:41:48.685Z",
+    "commit": "972a9ae0cb74af42ae734ba91a19eabcca502ee4",
     "scope": "Public pages and API; synthetic text only. Maximum 20 concurrent requests. No image-model capacity claim.",
     "groups": [
       {
@@ -35,9 +147,9 @@
         "statuses": {
           "200": 40
         },
-        "p50_ms": 45,
-        "p95_ms": 81,
-        "max_ms": 186,
+        "p50_ms": 56,
+        "p95_ms": 96,
+        "max_ms": 193,
         "seconds": 8
       },
       {
@@ -49,9 +161,9 @@
         "statuses": {
           "200": 40
         },
-        "p50_ms": 49,
-        "p95_ms": 76,
-        "max_ms": 85,
+        "p50_ms": 54,
+        "p95_ms": 122,
+        "max_ms": 138,
         "seconds": 4
       },
       {
@@ -63,9 +175,9 @@
         "statuses": {
           "200": 40
         },
-        "p50_ms": 83,
-        "p95_ms": 120,
-        "max_ms": 155,
+        "p50_ms": 87,
+        "p95_ms": 154,
+        "max_ms": 199,
         "seconds": 2.01
       },
       {
@@ -77,9 +189,9 @@
         "statuses": {
           "200": 40
         },
-        "p50_ms": 264,
-        "p95_ms": 311,
-        "max_ms": 374,
+        "p50_ms": 274,
+        "p95_ms": 393,
+        "max_ms": 895,
         "seconds": 4
       },
       {
@@ -91,9 +203,9 @@
         "statuses": {
           "200": 20
         },
-        "p50_ms": 26,
-        "p95_ms": 38,
-        "max_ms": 47,
+        "p50_ms": 25,
+        "p95_ms": 37,
+        "max_ms": 56,
         "seconds": 4
       }
     ],
@@ -118,28 +230,67 @@
       "/vendor/archive-reader.js loads",
       "/vendor/sheet-reader.js loads"
     ],
-    "finished_at": "2026-10-12T09:39:47.898Z",
+    "finished_at": "2026-10-13T15:42:12.589Z",
     "result": "passed"
   },
+  "production_image": {
+    "completed": true,
+    "http": 200,
+    "acknowledgement_ms": 527,
+    "elapsed_ms": 6926,
+    "polls": 4,
+    "literal_question": true,
+    "extra_answer": false,
+    "scope": "One synthetic image; not a PDF throughput or latency guarantee."
+  },
+  "gemini_verification": {
+    "credential_validated": true,
+    "both_configured_model_endpoints_validated": true,
+    "generation_check": "Connection timed out",
+    "scope": "Deployment check on 2026-10-13; key validity does not establish generation availability."
+  },
+  "resume_check": {
+    "source": "training/class 2 hindi.pdf",
+    "source_pages": 2,
+    "completed_pages": 2,
+    "frontend_browser_commit": "57a47041af5e3f0ac1a5cf8b8fdc9b3751a7bf79",
+    "reader_commit": "972a9ae0cb74af42ae734ba91a19eabcca502ee4",
+    "frontend_note": "Tab remained open through the reader update; frontend source is unchanged between this browser revision and the deployed revision.",
+    "actions": [
+      "Page 1 completed",
+      "Cancelled while reading page 2",
+      "Clicked Retry / resume processing on the same open file",
+      "Page 1 remained complete; processing continued from page 2",
+      "Both pages completed; Download Word became enabled",
+      "Downloaded the Word document through the live UI"
+    ],
+    "continuous_elapsed_ms": null,
+    "timing_note": "The deliberate cancellation, manual resume and UI inspection make this unsuitable as an uninterrupted full-PDF timing measurement."
+  },
   "live_word_checks": {
-    "runtime_commit": "ad9d81c43e2fa404c994b1fd454675467c184935",
     "source": "training/class 2 hindi.pdf",
     "pages_per_download": 2,
-    "automatic": {
-      "editor_word_number_tokens": 194,
-      "word_word_number_tokens": 194,
-      "equal": true
-    },
-    "edited": {
-      "editor_word_number_tokens": 194,
-      "word_word_number_tokens": 194,
-      "equal": true,
-      "changed_word": "अदरकक → अदरक",
-      "scope": "Deliberate optional-editor test; not an automatic OCR accuracy claim."
-    },
-    "measurement": "NFC-normalized visible word/number token streams from real browser downloads; geometry and whitespace are verified separately."
+    "editor_characters": 2226,
+    "editor_word_number_tokens": 205,
+    "word_word_number_tokens": 205,
+    "equal": true,
+    "layout_markers_in_word": false,
+    "page_size_twips": [
+      11906,
+      16838
+    ],
+    "measurement": "NFC-normalized visible word/number token streams. Does not assert identical punctuation, whitespace or source OCR.",
+    "download_sha256": "2093ae347e0b9b1d9a1dbb1c1afb7e2bb3c7f4ef54232781ac8522fda0045fc2",
+    "editor_snapshot_sha256": "c28182a2aa2bc463d121ba3e82a5bf52e31f9e310ccead4e9c517c9a7f392873"
   },
-  "live_suggestions": {
+  "dense_word_check": {
+    "runtime_commit": "44b084d2ff73a2f43eefdcb860a22d03eebbbfb6",
+    "pages": 1,
+    "native_editable_shapes": 12,
+    "visual_result": "Shapes and answer boxes fit the column content width.",
+    "screenshot": "PaperAI-Dense-Word-Verification.jpg"
+  },
+  "earlier_live_suggestions": {
     "runtime_commit": "ae3e5c5d62732afc561c6828537f0411666f2db6",
     "source": "Hindi/English text fixture",
     "selected": "Gingre",
@@ -155,13 +306,34 @@
     "fa2_pdf_pages_checked": 12
   },
   "final_visual_check": {
-    "completed": false,
-    "reason": "Browser transport disconnected and its reset timed out. Earlier real Word downloads were rendered and both pages inspected; the last decoder revision is covered by regression and deployment checks."
+    "completed": true,
+    "pages_inspected": 2,
+    "renderer": "LibreOffice via render_docx.py",
+    "observations": [
+      "Both pages render legibly with A4 page dimensions and native grids.",
+      "Some Hindi glyphs and question numbering differ from the source.",
+      "An alphabet response remains in the OCR result instead of an empty answer area.",
+      "Pipe characters remain in the time/marks header and several grid labels.",
+      "The third barakhadi label ends page 1 while its grid begins page 2.",
+      "Some header underscores wrap to a second line."
+    ],
+    "current_dashboard_screenshot": "PaperAI-Completion-Verification.jpg",
+    "screenshot_note": "Fresh dashboard capture on 2026-10-14, after the completed scan tab was cleaned up between sessions. It is not a screenshot of the PDF result."
+  },
+  "limits": {
+    "server_page_provider_budget_ms": 70000,
+    "optional_verifier_budget_ms": 18000,
+    "client_submission_timeout_ms": 30000,
+    "client_status_timeout_ms": 12000,
+    "client_polling_budget_ms": 100000,
+    "stored_completed_result_retention_ms": 600000,
+    "completed_pages": "Kept while the same file remains open in the current tab; not a reload/closed-tab recovery guarantee."
   },
   "limitations": [
-    "Some live handwriting readings still differ from source glyphs, including repeated consonants and separated vowel marks. Text-preservation fixes do not certify handwriting recognition.",
-    "The app uses measured reference rules, OCR instructions and deterministic layout; no hosted weight fine-tuning was performed.",
-    "Native Word display also depends on the opening application and installed fonts. Indic font/language tags are explicit; fonts are not embedded.",
-    "The 180-request load test covers public routes and synthetic text uploads, not simultaneous image inference capacity."
+    "Gemini generation timed out in the latest deployment check despite valid credentials. The accepted primary request is now retained during fallback.",
+    "Live handwriting recognition and all source layout details are not certified error-free; observed problems are listed in final_visual_check.",
+    "Rules, prompts and measured layout references were updated; no hosted model weights were fine-tuned.",
+    "Indic font/language tags are explicit, but fonts are not embedded and rendering depends on the opening application.",
+    "The 180-request bounded load check covers public routes and synthetic text, not concurrent image-model capacity."
   ]
 }
