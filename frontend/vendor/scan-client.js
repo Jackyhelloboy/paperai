@@ -5,8 +5,19 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   function create({fetcher,randomId=()=>crypto.randomUUID(),now=()=>Date.now(),
     pause=(ms,signal)=>new Promise((resolve,reject)=>{
-      const cancel=()=>{clearTimeout(timer);reject(new DOMException('Scan cancelled.','AbortError'));};
-      const timer=setTimeout(()=>{signal?.removeEventListener('abort',cancel);resolve();},ms);
+      let finished=false;
+      const close=()=>{
+        if(finished)return false;finished=true;clearTimeout(timer);
+        signal?.removeEventListener('abort',cancel);
+        if(typeof document!=='undefined')document.removeEventListener('visibilitychange',wake);
+        if(typeof window!=='undefined')window.removeEventListener('pageshow',wake);
+        return true;
+      };
+      const cancel=()=>{if(close())reject(new DOMException('Scan cancelled.','AbortError'));};
+      const wake=()=>{if(typeof document==='undefined'||document.visibilityState==='visible')if(close())resolve();};
+      const timer=setTimeout(()=>{if(close())resolve();},ms);
+      if(typeof document!=='undefined')document.addEventListener('visibilitychange',wake);
+      if(typeof window!=='undefined')window.addEventListener('pageshow',wake);
       if(signal?.aborted)cancel();else signal?.addEventListener('abort',cancel,{once:true});
     })}){
     const jobs=new WeakMap();
@@ -16,9 +27,18 @@
       let job=languages.get(language);
       let submit=!job;
       if(!job){job={id:randomId()};languages.set(language,job);}
-      const started=now(),deadline=started+180000;
+      const started=now();let deadline=started+180000,hiddenAt=null;
+      const visibility=()=>{
+        if(typeof document==='undefined')return;
+        if(document.visibilityState==='hidden'&&hiddenAt===null)hiddenAt=now();
+        else if(document.visibilityState==='visible'&&hiddenAt!==null){deadline+=Math.max(0,now()-hiddenAt);hiddenAt=null;}
+      };
+      if(typeof document!=='undefined'){
+        document.addEventListener('visibilitychange',visibility);
+        visibility();
+      }
       let failures=0,submissions=0;
-      while(now()<deadline){
+      try{while(now()<deadline){
         if(signal?.aborted)throw new DOMException('Scan cancelled.','AbortError');
         const controller=new AbortController();
         const cancel=()=>controller.abort();
@@ -61,6 +81,7 @@
         await pause(1500,signal);
       }
       throw new Error('This page is taking longer than expected. Retry / resume to collect its result.');
+      }finally{if(typeof document!=='undefined')document.removeEventListener('visibilitychange',visibility);}
     }
     return {request};
   }

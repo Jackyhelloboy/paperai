@@ -1770,8 +1770,8 @@
             </div>
 
             <label for="deepOcrVerify" style="display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.5;color:var(--text2);margin:6px 0 12px;cursor:pointer">
-                <input type="checkbox" id="deepOcrVerify" checked style="margin-top:2px;accent-color:var(--accent)">
-                <span><strong>Deep dual-AI OCR verification</strong> · Double-check every scanned page for missing questions, marks and multilingual text. Slower and may use additional AI credits; keeps uncertain differences for review.</span>
+                <input type="checkbox" id="deepOcrVerify" style="margin-top:2px;accent-color:var(--accent)">
+                <span><strong>Deep dual-AI OCR verification</strong> · Optional: force a second reading on every page (slower, more AI credits). Fast mode already double-checks difficult or incomplete pages automatically.</span>
             </label>
 
             <div class="file-preview" id="filePreview">
@@ -1792,6 +1792,7 @@
             </button>
 
             <div class="checkpoint-tools"><span title="Reopen the same PDF to resume locally saved pages. Saved pages expire after 24 hours.">Local saves · 24h</span><button type="button" class="action-btn" onclick="clearSavedScans(this)">Clear saves</button><button type="button" class="action-btn" onclick="rescanSelectedPdf(this)" title="Discard saved OCR for this PDF and extract every page again">Fresh rescan PDF</button></div>
+            <div class="teach-sub" id="backgroundScanStatus" role="status" aria-live="polite">You can switch apps and return: PaperAI will reconnect to submitted pages. Keep this browser tab open for the next pages. Reloading closes the current page session; select the same PDF to resume saved pages.</div>
 
             <div class="progress-wrap" id="prog">
                 <div class="progress-info">
@@ -2057,6 +2058,13 @@ window.addEventListener('pagehide', () => {
     presenceSocket?.close();
 });
 window.addEventListener('pageshow', () => { presenceStopped = false; connectPresence(); });
+document.addEventListener('visibilitychange',()=>{
+    if(!processingUpload)return;
+    const status=$('backgroundScanStatus');
+    if(status)status.textContent=document.visibilityState==='hidden'
+        ? 'Scan submitted. When you return, PaperAI will reconnect and collect available results. Keep this tab open.'
+        : 'Back in PaperAI · reconnecting to the current page. Do not upload completed pages again.';
+});
 connectPresence();
 
 const IMAGE_EXTS = ['jpg','jpeg','png','bmp','webp','gif','tiff','tif'];
@@ -5656,7 +5664,7 @@ function docxParagraph(text, options = {}) {
     const before = Number(options.before || 0);
     const after = Number(options.after ?? paperLayoutOptions().after ?? 40);
     const left = Number(options.left || (options.question?paperLayoutOptions().indent:0));
-    const keep = '<w:keepLines/><w:widowControl/>' + (options.keepNext ? '<w:keepNext/>' : '');
+    const keep = (options.keepNext||options.keepTogether?'<w:keepLines/>':'')+'<w:widowControl/>' + (options.keepNext ? '<w:keepNext/>' : '');
     const rtl=(String(text).match(/\p{Script=Arabic}/gu)||[]).length>(String(text).match(/[A-Za-z]/g)||[]).length;
     const jc = options.center ? '<w:jc w:val="center"/>' : options.right||rtl ? '<w:jc w:val="right"/>' : '';
     const indent = left ? '<w:ind w:left="' + left + '"'+(options.question?' w:hanging="'+Math.min(left,240)+'"':'')+'/>' : '';
@@ -5899,7 +5907,7 @@ function docxRichParagraph(raw, options = {}) {
             (picture[1].toUpperCase() === 'PICTURE_OPTION' ? '  ☐' : ''),{size:18});
     }).join('');
     const rtl=(String(raw).match(/\p{Script=Arabic}/gu)||[]).length>(String(raw).match(/[A-Za-z]/g)||[]).length;
-    return '<w:p><w:pPr><w:keepLines/>'+(options.keepNext?'<w:keepNext/>':'')+(rtl?'<w:bidi/>':'')+
+    return '<w:p><w:pPr>'+(options.keepNext||options.keepTogether?'<w:keepLines/>':'')+'<w:widowControl/>'+(options.keepNext?'<w:keepNext/>':'')+(rtl?'<w:bidi/>':'')+
         (options.question&&paperLayoutOptions().indent?'<w:ind w:left="'+paperLayoutOptions().indent+'" w:hanging="'+Math.min(paperLayoutOptions().indent,240)+'"/>':'')+
         (options.center?'<w:jc w:val="center"/>':options.right||rtl?'<w:jc w:val="right"/>':'')+'<w:spacing w:after="'+(options.after??paperLayoutOptions().after??70)+'" w:line="'+Math.round(paperLayoutOptions().line*240)+'" w:lineRule="auto"/></w:pPr>'+runs+'</w:p>';
 }

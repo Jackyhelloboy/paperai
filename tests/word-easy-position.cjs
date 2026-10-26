@@ -41,6 +41,8 @@ context.configureAutomaticPaper(paper,true);
     assert.equal(doc.getElementsByTagName('parsererror').length,0,'All modes must be valid XML');
     assert(xml.includes('1. फूलों से हमें क्या मिलती है?'),'Question text must stay editable');
     assert(xml.includes('3×2=6M'),'Marks must survive every edit mode');
+    const firstQuestion=xml.split('</w:p>').find(paragraph=>paragraph.includes('1. फूलों से हमें क्या मिलती है?'));
+    if(mode!=='source')assert(!firstQuestion.includes('<w:keepLines/>'),'A long Word question must be allowed to wrap across a page instead of leaving a large blank gap');
     assert.equal((xml.match(/<w:pageBreakBefore\/>/g)||[]).length,1,'Explicit page breaks preserved');
     assert(xml.includes('<wp:inline '),'Images in multi-column worksheets must remain stable');
     if(mode==='source'){

@@ -1,6 +1,8 @@
 // One isolated Durable Object per random request ID. Short polling lets a
 // mobile connection recover without repeating an accepted image submission.
-const RETENTION_MS = 10 * 60 * 1000;
+// Scans submitted before mobile background suspension must remain collectible.
+// Only a per-request response is retained; the Durable Object alarm deletes it.
+const RETENTION_MS = 24 * 60 * 60 * 1000;
 const pending = () => Response.json({status:'processing'}, {
   status:202, headers:{'Cache-Control':'no-store','Retry-After':'2'}
 });

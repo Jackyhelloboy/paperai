@@ -22,7 +22,7 @@ const completed=()=>Response.json({status:'completed',result:{full_text:'1. Writ
   const restored=owner(job.storage);
   assert.equal((await context.handleScanJob(restored,get(),run)).status,200,'Result survives object eviction');
   assert.equal(calls,1);
-  assert(job.storage.get('alarm')>Date.now()&&job.storage.get('alarm')<=Date.now()+600000);
+  assert(job.storage.get('alarm')>Date.now()+23*3600000&&job.storage.get('alarm')<=Date.now()+24*3600000);
   assert.equal((await context.handleScanJob(owner(),get(),run)).status,404,'A different ID cannot collect this result');
   const saved=job.storage.get('scan-result');saved.expiresAt=Date.now()-1;
   assert.equal((await context.handleScanJob(owner(job.storage),get(),run)).status,404,'Expired results are not returned');
