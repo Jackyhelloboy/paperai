@@ -807,16 +807,17 @@
     function cleanExamContent(value) {
         const pages=String(value||'').split(/(\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\])/i),out=[];
         let identity={className:'',subject:''},started=false,forced=false,modified=false;
+        const personalFormExercise=line=>/(?:\b(?:complete|fill)\b.{0,55}\b(?:card|form|personal\s+(?:details|information))\b|(?:अपनी|व्यक्तिगत|छात्र).{0,45}(?:जानकारी|विवरण|नाम).{0,30}(?:भर|लिख)|(?:మీ|వ్యక్తిగత).{0,45}(?:వివరాలు|పేరు).{0,30}(?:పూరించ|రాయ)|(?:உங்கள்|தனிப்பட்ட).{0,45}(?:விவரங்|பெயர்).{0,30}(?:நிரப்பு|எழுது)|(?:ನಿಮ್ಮ|ವೈಯಕ್ತಿಕ).{0,45}(?:ವಿವರ|ಹೆಸರು).{0,30}(?:ತುಂಬ|ಬರೆಯ)|(?:നിങ്ങളുടെ|വ്യക്തിഗത).{0,45}(?:വിവര|പേര്).{0,30}(?:പൂരിപ്പി|എഴുത)|(?:নিজের|ব্যক্তিগত).{0,45}(?:তথ্য|নাম).{0,30}(?:পূরণ|লিখ)|(?:اپنی|ذاتی).{0,45}(?:معلومات|نام).{0,30}(?:بھریں|لکھ))/iu.test(String(line||''));
         const field=/^\s*(?:name\s*[:：-]|class(?:\s*[:：.-]|\s+(?=[IVX0-9_]))|roll\s*(?:no\.?|number)?\s*[:：.-]|sub(?:ject)?(?:\.?\s*[:：-]|\.\s+|\s+(?=English|Social|Science|Math|Hindi|Telugu|_))|date\s*[:：-]|time\s*[:：-]|(?:total\s*)?marks\s*[:：-]?\s*$|(?:total\s*)?marks\s*[:：-]|name\s+of\s+(?:the\s+)?examination\s*[:：-]|(?:नाम|कक्षा|विषय|दिनांक|अनुक्रमांक|कुल\s*अंक|పేరు|తరగతి|విషయం|పాఠ్యాంశం|తేదీ|క్రమ\s*సంఖ్య|మొత్తం\s*మార్కులు|பெயர்|வகுப்பு|பாடம்|தேதி|வரிசை\s*எண்|ಹೆಸರು|ತರಗತಿ|ವಿಷಯ|ದಿನಾಂಕ|പേര്|ക്ലാസ്|വിഷയം|শ্রেণি|বিষয়|مضمون|درجہ)\s*[:：-])/iu;
         const isField=cell=>field.test(cell);
         for(const page of pages){
             if(/^\[\[PAPER_BREAK\]\]$/i.test(page)){forced=true;continue;}
             if(/^\[\[PAGE_BREAK\]\]$/i.test(page))continue;
             if(!page.trim())continue;
-            const kept=[],metadata=[],lines=page.split('\n');let controls=[],exerciseFields=false,headerMarkBox=false;
+            const kept=[],metadata=[],lines=page.split('\n');let controls=[],exerciseFields=false,headerMarkBox=false,insideQuestionSection=false;
             for(const line of lines){
-                if(sectionOrdinal(line)){headerMarkBox=false;}
-                if(sectionOrdinal(line))exerciseFields=/\b(?:complete|fill)\b.*\b(?:card|form|personal details)\b/i.test(line);
+                if(sectionOrdinal(line)){headerMarkBox=false;insideQuestionSection=true;exerciseFields=personalFormExercise(line);}
+                else if(insideQuestionSection&&personalFormExercise(line))exerciseFields=true;
                 if(/^\s*\[\[(?:SOURCE_BANNER|BANNER):/i.test(line)||/^\s*BRILLIANT\s+MODEL\s+SCHOOLS?\b/i.test(line)){modified=true;headerMarkBox=true;continue;}
                 if(headerMarkBox&&/^\s*\[\[(?:(?:TABLE_ROW|BOXED):\s*)?[0-9]+\s*\]\]\s*$/i.test(line)){modified=true;controls=[];continue;}
                 if(/^\s*\[\[TABLE_(?:REGION|WIDTHS|HEADER):/i.test(line)){controls.push(line);continue;}
