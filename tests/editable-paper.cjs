@@ -15,6 +15,7 @@ const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,
     fetch:async()=>({ok:false}),setTimeout,clearTimeout
 });
 vm.runInContext(inline.slice(a,b),ctx);
+vm.runInContext("activeDocxEditingMode='source'",ctx);
 const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB9sAAAAASUVORK5CYII=';
 vm.runInContext(`extractedMedia=[{id:'source-1',dataUrl:'data:image/png;base64,${png}',w:300,h:100,widthTwips:1800}]; resolveHeaderBanner=async()=>null;`,ctx);
 const fixture=[

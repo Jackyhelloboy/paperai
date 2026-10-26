@@ -70,6 +70,16 @@ PDF output omits school banners and repeated administrative Name/Roll/Date/Total
 Answer sections use one consistent writing rule per answer. Section mark equations are rendered in the right-hand score column, including equations with a missing closing scan bracket. Omitted Roman labels are restored only in exactly bounded gaps; a complete, uniquely labelled section sequence can be reordered within its own class. Visible question numbers are never guessed or renumbered. Tick alternatives use fixed column proportions and empty response brackets contain spaces instead of underscore strokes. Figure pages receive a bounded verification pass that can update only crop bounds when illustration counts and captions agree; it never replaces question wording. Fresh image scans use checkpoint version v3 so older unverified crops are not reused. The first-pass wording and pixels remain authoritative; model crop verification is not a guarantee of accuracy.
 # Question-paper pictures
 
+### Word editing layouts
+
+The **Word layout** selector alongside Download Word offers three choices:
+
+- **Easy to edit · stable text** (default): section headings and marks are normal Word paragraphs with a right tab stop, single pictures are inline in their own editable paragraph, and non-grid tables can be resized. Genuine answer grids and multi-picture rows stay as tables so their structure is not lost.
+- **Drag pictures freely**: the same editable structure, but standalone source pictures use an unlocked floating Word anchor with top-and-bottom wrapping. This avoids pulling the next question heading beside a moved picture. Multi-picture grids remain inline and aligned.
+- **Preserve original layout**: retains the layout-oriented Word export for source PDFs and pre-existing Word documents.
+
+The question-paper preview aligns translation questions and their `A.` labels in two columns, keeps true/false answer brackets beside their statements when OCR separated them, and packs adjacent source pictures into rows of up to five. These are presentation repairs; the original OCR text is retained for review.
+
 The Extracted view also contains **Review every page** for a scanned PDF. Each original PDF page can be rendered on demand beside the extracted text from that page, allowing teachers to inspect skipped or misread question numbers, marks, figures and continuation lines before exporting the editable Word reconstruction. These original-page views are read-only evidence, not generated illustrations. Paper AI preserves source page order and warns when a scanned page returns no text. The Word output remains reconstructed/editable, so typography and handwriting cannot be guaranteed pixel-identical to a photographed original.
 
 Paper AI preserves source illustrations using `SOURCE_FIGURE`/`SOURCE_BANNER` markers. The **Pictures · Add / AI** control in the Extracted view now lets a teacher choose an exact question, insert a PNG/JPEG/WebP, preview the picture, and include it in the editable `.docx` export. Added pictures are converted to bounded PNGs in the browser. Original PDF pictures are not replaced by generated ones.

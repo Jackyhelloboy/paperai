@@ -962,5 +962,35 @@
         }
         return lines.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows};
+    // Presentation-only grouping: keep every source word intact and avoid
+    // orphan checkboxes and "A." labels jumping to their own visual rows.
+    // This runs after OCR, never rewriting the raw source transcription.
+    function presentationRows(value){
+        const lines=String(value||'').split('\n'),out=[];let mode='';
+        for(let i=0;i<lines.length;i++){
+            const line=lines[i],trim=line.trim();
+            const heading=trim.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\]\]$/i);
+            if(heading||/^[IVX]{1,6}[.)]\s+\S/u.test(trim)){
+                const title=heading?heading[1]:trim;
+                mode=/(?:सही\s+वाक्य|सही\s+गलत|true\s*(?:or|\/)\s*false|true.false|tick\s*\(?✓|correct\s+sentence)/iu.test(title)?'true-false':
+                    /(?:हिन्दी\s+वाक्य|हिंदी\s+वाक्य|translate\s+(?:into|to)|write\s+in\s+hindi|वाक्य\s+लिखो)/iu.test(title)?'translation':'';
+            }
+            if(/^\[\[PAPER_BREAK\]\]$/i.test(trim))mode='';
+            if(mode==='true-false'&&/^\[$/.test(trim)&&/^\]$/.test((lines[i+1]||'').trim())&&out.length){
+                const previous=out[out.length-1];
+                if(previous.trim()&&!/^\[\[/.test(previous.trim())&&!/[\[\]]\s*$/.test(previous.trim())){
+                    out[out.length-1]=previous+'  (    )';i++;continue;
+                }
+            }
+            if(mode==='translation'&&/^\d+[.)]\s+\S/u.test(trim)){
+                const next=(lines[i+1]||'').trim();
+                if(/^(?:A\.|Ans(?:wer)?\s*[:.])(?:\s|$)/i.test(next)){
+                    out.push('[[QA_ROW: '+trim.replace(/\|\|/g,'|')+' || '+next.replace(/\|\|/g,'|')+']]');i++;continue;
+                }
+            }
+            out.push(line);
+        }
+        return out.join('\n');
+    }
+    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
 });

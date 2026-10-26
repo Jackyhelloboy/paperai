@@ -91,6 +91,7 @@ const slice=(a,b)=>code.slice(code.indexOf(a),code.indexOf(b,code.indexOf(a)+1))
 const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,repairLegacyBranchDiagram:s=>s,isOutputHeadingLine:()=>false,circledNumberValue:()=>null,
     fetch:async()=>({ok:false}),setTimeout,clearTimeout,esc:String,formatOutputLine:String});
 vm.runInContext(slice('function xmlEscape','async function downloadWord'),ctx);
+vm.runInContext("activeDocxEditingMode='source'",ctx);
 vm.runInContext(slice('function worksheetCells','function formatOutput(text)'),ctx);
 vm.runInContext(slice('function collapsePortableAnswerBlankContinuations','function formatOcrAnnotation'),ctx);
 const multiline='[[TABLE_ROW: CLASS: || II - HINDI || QUARTERLY EXAMINATIONS-2026<br>TIME: 2h:30M<br>Name of the Student: _____ || 100<br>Invigilator<br>Signature]]';

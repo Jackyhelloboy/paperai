@@ -32,6 +32,7 @@ vm.runInContext(slice('function xmlEscape','async function downloadWord'),ctx);
 vm.runInContext(slice('function applyTeachWordCorrectionsToLayout','const TEACH_LANGUAGE_META'),ctx);
 vm.runInContext(slice('function renderTeachPreview','function updateTeachButtons'),ctx);
 vm.runInContext(slice('async function downloadWord','function copyText'),ctx);
+ctx.$=()=>({value:'source'});
 (async()=>{
     await ctx.downloadWord(nodes.button);
     assert(downloaded,'Download must finish without a manual layout panel');
@@ -46,6 +47,7 @@ vm.runInContext(slice('async function downloadWord','function copyText'),ctx);
     assert.equal(doc.getElementsByTagName('w:tc').length,17,'Native table and blank answer-grid cells were lost');
     assert(!xml.includes('[[')&&!xml.includes('<w:strike')&&!/<w:ins(?:\s|>)/.test(xml));
     assert.equal(ctx.lastResult.preview_layout_text,expected,'Downloading must rebuild the current editor preview');
+    vm.runInContext("activeDocxEditingMode='source'",ctx);
     const english='Class: I\nSubject: English\nAnswer the following questions: I. Answer the following questions: 10x4=40 M.\n1. Where does Manu live?\nII. Unscramble these words. 4x1=4M.';
     const englishZip=await JSZip.loadAsync(await (await ctx.makeExtractedDocx(english)).arrayBuffer());
     const englishXml=await englishZip.file('word/document.xml').async('text');

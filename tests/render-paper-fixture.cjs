@@ -10,6 +10,7 @@ const ctx=vm.createContext({PaperAILayout:require('../frontend/vendor/paper-layo
  fetch:async()=>({ok:false}),lastResult:null,extractedMedia:[]});
 vm.runInContext(slice('function worksheetCells','function formatOutput(text)'),ctx);
 vm.runInContext(slice('function xmlEscape','async function downloadWord'),ctx);
+vm.runInContext("activeDocxEditingMode='source'",ctx);
 (async()=>{const input=fs.readFileSync(process.argv[2]||'tests/fixtures/hindi-class5-fa3.txt','utf8');
  const blob=await ctx.makeExtractedDocx(input),buffer=Buffer.from(await blob.arrayBuffer());
  const zip=await ctx.JSZip.loadAsync(buffer),xml=await zip.file('word/document.xml').async('text');

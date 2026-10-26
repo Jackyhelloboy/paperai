@@ -11,6 +11,7 @@ const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,
     repairLegacyBranchDiagram:s=>s,isOutputHeadingLine:s=>/^(?:I|II|III|IV)[. ]/.test(s),circledNumberValue:()=>null,
     hideErr:()=>{ctx.error=null;},showErr:message=>{ctx.error=message;},fetch:async()=>({ok:false}),setTimeout,clearTimeout});
 vm.runInContext(slice('function xmlEscape','async function downloadWord'),ctx);
+vm.runInContext("activeDocxEditingMode='source'",ctx);
 const fixtures={
     science:'Subject: Science\nI. Answer Any Ten of the Following. (10 x 4 = 40)\n1) Name two things we can see in the sky at night.\n2) What kind of clothes do we wear in the summer season?\nII. Give two examples for each of the following. (5x2=10)\n1) Cereals ______________________           ______________________\n[[TABLE_WIDTHS: 20,50,30]]\n[[TABLE_ROW: Basket making || 1. Leaves<br>2. Bamboo || Knife]]',
     humanities:'Subject: English\nI. Answer the questions. 4×½=2\n1. Read the [[UNDERLINE: passage]] and answer the questions.\n[[TABLE_WIDTHS: 15,45,40]]\n[[MATCH_ROW: 1. Leaf || (   ) || b. Root]]\n[[MATCH_ROW: 2. Stem || (   ) || a. Flower]]\nII. Rewrite the words. 2M\n1. [[DOUBLE-UNDERLINE: word]] [[STRIKE: old]] [[INSERT: new]] [[BOXED: cue]]',
