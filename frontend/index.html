@@ -1769,6 +1769,11 @@
                 </select>
             </div>
 
+            <label for="deepOcrVerify" style="display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.5;color:var(--text2);margin:6px 0 12px;cursor:pointer">
+                <input type="checkbox" id="deepOcrVerify" checked style="margin-top:2px;accent-color:var(--accent)">
+                <span><strong>Deep dual-AI OCR verification</strong> · Double-check every scanned page for missing questions, marks and multilingual text. Slower and may use additional AI credits; keeps uncertain differences for review.</span>
+            </label>
+
             <div class="file-preview" id="filePreview">
                 <img class="file-thumb" id="fileThumb" src="" alt="" style="display:none">
                 <div class="file-type-icon" id="fileTypeIcon" style="display:none"></div>
@@ -4467,14 +4472,15 @@ async function sendToOCR(sourceBlob, signal, progressText = '', options = {}) {
         formData.append('language', languageSelect.value || 'auto');
         formData.append('preprocessing', 'smart');
         formData.append('difficulty', prepared.difficulty);
-        formData.append('image_meta', JSON.stringify({...prepared.meta,parallelProviders:true,pageNumber:options.pageNumber||null,pageCount:options.pageCount||null}));
+        const deepVerify=options.deepVerify===true||(options.deepVerify==null&&typeof $==='function'&&$('deepOcrVerify')?.checked===true);
+        formData.append('image_meta', JSON.stringify({...prepared.meta,parallelProviders:true,deepVerify,pageNumber:options.pageNumber||null,pageCount:options.pageCount||null}));
         if(prepared.detailViews?.length)formData.append('detail_views',JSON.stringify(prepared.detailViews));
         appendLearningHints(formData);
 
         let res;
         try {
             res = await scanClient.request({
-                source:options.sourceKey||sourceBlob,language:languageSelect.value || 'auto',body:formData,signal,
+                source:options.sourceKey||sourceBlob,language:(languageSelect.value||'auto')+(deepVerify?'|deep-ocr-v1':'|standard'),body:formData,signal,
                 onProgress:message=>progress((progressText?progressText.replace('Preparing','Reading')+' · ':'')+message,22)
             });
         } catch (e) {
@@ -5225,11 +5231,13 @@ async function extractOneFile(f, onProgress, label) {
     if (ext === 'pdf') {
         report('Loading PDF...', 8);
         const language=languageSelect.value||'auto';
+        const deepVerify=typeof $==='function'&&$('deepOcrVerify')?.checked===true;
+        const cacheKey=language+(deepVerify?'|deep-ocr-v1':'|standard');
         let checkpointKey=null;
-        try{if(scanCheckpointStore)checkpointKey=await PaperAIScanCheckpoints.fingerprint(f,language);}catch(_){}
+        try{if(scanCheckpointStore)checkpointKey=await PaperAIScanCheckpoints.fingerprint(f,cacheKey);}catch(_){}
         let languages=scannedPageCache.get(f);
         if(!languages){languages=new Map();scannedPageCache.set(f,languages);}
-        let cached=languages.get(language);
+        let cached=languages.get(cacheKey);
         const controller=new AbortController(),started=Date.now();
         activeScanController=controller;
         let state=null;
@@ -5243,7 +5251,7 @@ async function extractOneFile(f, onProgress, label) {
         try {
             if(!cached){
                 cached={pages:await pdfToPages(f,controller.signal,message=>report(label+message,10)),results:[]};
-                if(cached.pages.some(p=>p.type==='image'))languages.set(language,cached);
+                if(cached.pages.some(p=>p.type==='image'))languages.set(cacheKey,cached);
             }
             const pages=cached.pages;
             const restored=await scanCheckpointStore?.load(checkpointKey,pages.length);
@@ -5262,7 +5270,7 @@ async function extractOneFile(f, onProgress, label) {
                     try {
                         if(!('blob' in page))page.blob=await page.render(ctrl.signal);
                         const result=await sendToOCR(page.blob,ctrl.signal,label+'Preparing page '+(index+1)+'/'+pages.length,
-                            {sourceKey:page,media,pageNumber:index+1,pageCount:pages.length,onProgress:updateProgress});
+                            {sourceKey:page,media,pageNumber:index+1,pageCount:pages.length,deepVerify,onProgress:updateProgress});
                         if(result.status!=='completed'||!result.result)throw new Error('OCR failed on page '+(index+1)+'.');
                         const annotated=result.result.annotated_text||result.result.full_text||'';
                         page.ocrScene=result.result.native_scene||null;

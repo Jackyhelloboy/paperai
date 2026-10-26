@@ -1280,6 +1280,8 @@ async function handleOCR(request, env, corsHeaders) {
   const allCorrections = [];
 
   const reviewWarnings = ocrReviewWarnings(correctedText);
+  if(aiResult.verificationDisagreement)reviewWarnings.push({type:'ocr_reader_disagreement',message:'OCR and Gemini readers disagreed on visible questions, labels or marks. Compare this page to the original before printing.'});
+  if(imageMeta?.deepVerify===true&&!aiResult.secondReadCompleted)reviewWarnings.push({type:'verification_incomplete',message:'The second OCR reading was unavailable. Only one reading could be checked; compare this page with the scan.'});
   if(missingOpeningSections(correctedText,imageMeta))reviewWarnings.push({type:'missing_opening_sections',message:'The first page may be missing opening sections. Compare it with the source.'});
   const consistencyWarnings = [...checkConsistency(correctedText), ...reviewWarnings];
   const plainText = stripOcrMetadata(correctedText);
@@ -1320,6 +1322,9 @@ async function handleOCR(request, env, corsHeaders) {
         scan_strategy: imageMeta?.scanStrategy || 'full-page',
         detected_lines: Number(imageMeta?.lineCount) || 0,
         verification_pass_used: Boolean(aiResult.rescued),
+        deep_verification_requested: imageMeta?.deepVerify===true,
+        second_read_completed:Boolean(aiResult.secondReadCompleted),
+        verification_disagreement:Boolean(aiResult.verificationDisagreement),
         review_required: reviewWarnings.length > 0,
         accuracy_guaranteed: false,
         image_profile: imageMeta || {},
@@ -1612,7 +1617,7 @@ function sanitizeDetailViews(input, budget=5*1024*1024) {
 }
 
 async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], signal, detailViews = []) {
-  const providerState = {deadline: Date.now() + PAGE_SCAN_BUDGET_MS,fastScan:true,parallelProviders:imageMeta?.parallelProviders===true};
+  const providerState = {deadline: Date.now() + (imageMeta?.deepVerify===true?95000:PAGE_SCAN_BUDGET_MS),fastScan:true,parallelProviders:imageMeta?.parallelProviders===true};
   const scanStrategy = imageMeta?.scanStrategy || 'full-page';
   const scanMode = scanStrategy === 'line-mosaic'
     ? 'line-by-line'
@@ -1725,6 +1730,7 @@ READING CONTRACT:
   let model = response.model || (providerState.provider === 'gemini' ? providerState.geminiModel : PRIMARY_MODEL);
   let usage = mergeAiUsage(response.usage || null, null);
   let rescued = false;
+  let secondReadCompleted=false,verificationDisagreement=false;
 
   const missingStructure=missingResponsePositions(text)||missingOpeningSections(text,imageMeta);
   const needsRepair = missingStructure || degenerateOcr(text) || invalidLayoutMarkers(text) || !text.trim() ||
@@ -1744,7 +1750,7 @@ READING CONTRACT:
     if(current&&previousSection&&current<previousSection)suspiciousSectionSequence=true;
     if(current)previousSection=current;
   }
-  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPaperIdentity || suspiciousSectionSequence) && (needsRepair || missingPaperIdentity || suspiciousSectionSequence || shouldVerifyOcr(text, imageMeta)) &&
+  if ((imageMeta?.deepVerify===true || ((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPaperIdentity || suspiciousSectionSequence) && (needsRepair || missingPaperIdentity || suspiciousSectionSequence || shouldVerifyOcr(text, imageMeta))) &&
       providerState.deadline - Date.now() >= 5000 && !signal?.aborted) {
     const rescuePrompt = prompt + `
 
@@ -1770,10 +1776,12 @@ VERIFICATION RULES:
     try {
       // Keep the primary reader as the first pass. An independent verifier
       // reduces repeated transcription errors on the already-selected hard pages.
-      const verificationState={...providerState, geminiBody:undefined,
-        deadline:Math.min(providerState.deadline,Date.now()+18000),
-        ...(String(env.GEMINI_API_KEY||'').trim()?{provider:'gemini'}:{})};
-      const independentRead=verificationState.provider==='gemini';
+      const deepVerify=imageMeta?.deepVerify===true;
+      const useGemini=Boolean(String(env.GEMINI_API_KEY||'').trim()) && (providerState.provider!=='gemini'||!env.AI);
+      const verificationState={...providerState,geminiBody:undefined,parallelProviders:false,
+        deadline:Math.min(providerState.deadline,Date.now()+(deepVerify?30000:18000)),
+        ...(useGemini?{provider:'gemini'}:deepVerify&&env.AI?{provider:'primary'}:{})};
+      const independentRead=deepVerify||verificationState.provider==='gemini';
       const verificationPrompt=!independentRead?rescuePrompt:
         prompt+'\n\nLITERAL VERIFICATION PASS:\nRead the image independently from top to bottom. No earlier transcription is supplied. Return only the literal source question paper and its supported layout markers. Preserve every visible number, typo, blank and physical row; do not complete words from context.\n'+
         rescuePrompt.slice(rescuePrompt.indexOf('VERIFICATION RULES:')).replace(/^- .*FIRST OCR.*$/gm,'- Inspect the complete visual page, including its bottom questions and all source figures.');
@@ -1805,6 +1813,8 @@ VERIFICATION RULES:
       }, verificationState, signal);
 
       const rescueText = normaliseMarkerRows(extractAiText(rescueResponse));
+      secondReadCompleted=Boolean(rescueText.trim())&&!degenerateOcr(rescueText)&&!invalidLayoutMarkers(rescueText);
+      verificationDisagreement=secondReadCompleted&&(losesSourceSections(text,rescueText)||losesSourceQuestions(text,rescueText)||losesSourceMarks(text,rescueText)||losesSourceScript(text,rescueText));
       usage = mergeAiUsage(usage, rescueResponse.usage || null);
 
       if(figurePage&&!needsRepair){
@@ -1836,7 +1846,7 @@ VERIFICATION RULES:
     error.code='OCR_OUTPUT_INVALID';throw error;
   }
   if(degenerateOcr(text)||invalidLayoutMarkers(text)){const error=new Error('Invalid OCR output or illustration bounds');error.code='OCR_OUTPUT_INVALID';throw error;}
-  return { text, raw: text, model, usage, scanMode, rescued };
+  return { text, raw: text, model, usage, scanMode, rescued, secondReadCompleted, verificationDisagreement };
 }
 
 function shouldVerifyOcr(text, imageMeta = {}) {

@@ -86,3 +86,9 @@ Paper AI preserves source illustrations using `SOURCE_FIGURE`/`SOURCE_BANNER` ma
 
 AI illustration generation is **optional and disabled by default**. It uses the Worker-side `GEMINI_API_KEY` secret (never expose this key in browser code) and Google's `gemini-2.5-flash-image` endpoint. To allow it, set the Worker environment variable `ENABLE_IMAGE_GENERATION=true`, and optionally set `IMAGE_GENERATION_DAILY_LIMIT` to a value from 1 to 30 (default 10). The existing `KV` binding must be configured. Calls are counted against the budget before sending requests; KV counters are eventually consistent, so apply an external hard spending cap at the provider before enabling a public deployment. If image generation is unavailable or the daily limit is reached, the manual picture upload and Word export remain available.
 
+# Deep OCR verification
+
+For difficult scanned question papers, leave **Deep OCR + Gemini verification** checked before uploading. PaperAI still races its configured Cloudflare/Gemini readers for the first usable transcription, then requests a separate literal re-read of each scanned page when time and provider capacity permit. The second result is accepted only if existing numbered questions, section headings, marks and native-language content survive the comparison. When the readers disagree or the verification pass is unavailable, the page is marked for manual comparison with **Review every page**. This can be slower and use additional AI credits. Changing this setting uses a separate PDF scan checkpoint, so previous single-read results cannot mask a new deep scan.
+
+**AI Print Review** checks extracted text and layout markers; it is not a pixel-perfect Word/PDF renderer. Inspect the source page alongside each extraction and use Word's Print Preview before printing. No OCR model can guarantee complete transcription of illegible handwritten pages.
+
