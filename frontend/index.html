@@ -1784,7 +1784,7 @@
                 Retry / resume processing
             </button>
 
-            <div class="checkpoint-tools"><span title="Reopen the same PDF to resume locally saved pages. Saved pages expire after 24 hours.">Local saves · 24h</span><button type="button" class="action-btn" onclick="clearSavedScans(this)">Clear saves</button></div>
+            <div class="checkpoint-tools"><span title="Reopen the same PDF to resume locally saved pages. Saved pages expire after 24 hours.">Local saves · 24h</span><button type="button" class="action-btn" onclick="clearSavedScans(this)">Clear saves</button><button type="button" class="action-btn" onclick="rescanSelectedPdf(this)" title="Discard saved OCR for this PDF and extract every page again">Fresh rescan PDF</button></div>
 
             <div class="progress-wrap" id="prog">
                 <div class="progress-info">
@@ -5138,8 +5138,24 @@ function formatOutput(text) {
 const scannedPageCache=new WeakMap();
 const scanCheckpointStore=typeof PaperAIScanCheckpoints!=='undefined'?PaperAIScanCheckpoints.create():null;
 async function clearSavedScans(button){
+    if(processingUpload){showErr('Wait for the current scan to finish or cancel it before clearing saved pages.');return false;}
     await scanCheckpointStore?.clear();
+    for(const selected of fileBatch)scannedPageCache.delete(selected);
+    if(file)scannedPageCache.delete(file);
     if(button)button.textContent='Cleared';
+    return true;
+}
+async function rescanSelectedPdf(button){
+    if(processingUpload)return;
+    const batch=fileBatch.length?fileBatch:(file?[file]:[]);
+    if(!batch.some(f=>f.name.toLowerCase().endsWith('.pdf'))){showErr('Select the original PDF first, then choose Fresh rescan PDF.');return;}
+    button.disabled=true;
+    try{
+        if(!await clearSavedScans())return;
+        lastResult=null;
+        resBox.classList.remove('show');
+        await goBtn.onclick();
+    }finally{button.disabled=false;}
 }
 function restoreScannedPage(page) {
     let text=page.text;
