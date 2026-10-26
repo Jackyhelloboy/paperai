@@ -1873,6 +1873,12 @@
                 <div class="output-body" id="textOut"></div>
             </div>
 
+            <div class="output-card" id="pageReviewPanel" style="display:none" aria-label="All source pages and extracted text">
+                <div class="results-header"><span class="results-title">Review every page</span><span class="badge badge-gray" id="pageReviewCount"></span></div>
+                <div class="teach-sub">Each page stays in source order. Open an original page to compare it with its extracted questions, marks, pictures, and layout. The final editable paper is shown above.</div>
+                <div id="pageReviewList"></div>
+            </div>
+
             <div class="flagged-card" id="flaggedBox">
                 <div class="flagged-header">
                     <div class="flagged-title">Words to review</div>
@@ -2104,6 +2110,7 @@ function setFiles(input) {
     goBtn.disabled = false;
     hideErr();
     resBox.classList.remove('show');
+    $('pageReviewPanel').style.display='none';
     void goBtn.onclick();
 }
 
@@ -2122,6 +2129,7 @@ function clearFile() {
     goBtn.disabled=true;
     hideErr();
     resBox.classList.remove('show');
+    $('pageReviewPanel').style.display='none';
     fileInput.value='';
     fileThumb.style.display='none';
     fileTypeIcon.style.display='none';
@@ -5191,6 +5199,7 @@ async function extractOneFile(f, onProgress, label) {
     let allPlain = '';
     let allRaw = '';
     const reviewWarnings=[];
+    const pageTexts=[];
     let nativePdfPages=null;
 
     if (ext === 'pdf') {
@@ -5240,7 +5249,9 @@ async function extractOneFile(f, onProgress, label) {
                         // The stable page descriptor retains the request identity; a
                         // finished source bitmap can now be released immediately.
                         if(page.render)delete page.blob;
-                        const saved={text:annotated,plain:result.result.full_text||annotated,raw:result.result.raw_text||annotated,media,nativeScene:page.ocrScene,reviewWarnings:(result.result.consistency_warnings||[]).map(w=>({...w,page:index+1}))};
+                        const warnings=(result.result.consistency_warnings||[]).map(w=>({...w,page:index+1}));
+                        if(!annotated.trim())warnings.push({code:'EMPTY_PAGE_OCR',page:index+1,message:'This page contains no extracted text; inspect the original page.'});
+                        const saved={text:annotated,plain:result.result.full_text||annotated,raw:result.result.raw_text||annotated,media,nativeScene:page.ocrScene,reviewWarnings:warnings};
                         await scanCheckpointStore?.savePage(checkpointKey,pages.length,index,saved);
                         return saved;
                     } finally {clearTimeout(tid);controller.signal.removeEventListener('abort',cancel);}
@@ -5255,6 +5266,7 @@ async function extractOneFile(f, onProgress, label) {
             // Completion order never determines document order or image ownership.
             for(let i=0;i<pages.length;i++){
                 const saved=restoreScannedPage(cached.results[i]);
+                pageTexts.push(saved.text);
                 reviewWarnings.push(...(cached.results[i].reviewWarnings||[]));
                 pages[i].ocrScene=saved.nativeScene||null;
                 allText+=(allText?'\n[[PAGE_BREAK]]\n':'')+saved.text;
@@ -5309,9 +5321,9 @@ async function extractOneFile(f, onProgress, label) {
         allRaw = result.result.raw_text || allText;
     }
 
-    if(ext==='pdf'){const cleaned=PaperAILayout.cleanExamContent(allText);if(cleaned!==allText)nativePdfPages=null;allText=PaperAILayout.orderPages(cleaned);allPlain=portableText(docxVisibleText(allText));}
+    if(ext==='pdf'){const repaired=PaperAILayout.repairAntonymRows(allText),cleaned=PaperAILayout.cleanExamContent(repaired);if(cleaned!==allText)nativePdfPages=null;allText=PaperAILayout.orderPages(cleaned);allPlain=portableText(docxVisibleText(allText));}
     if (!allPlain) allPlain = allText;
-    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages, reviewWarnings };
+    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages, reviewWarnings, pageTexts };
 }
 
 goBtn.onclick = async () => {
@@ -5336,6 +5348,7 @@ goBtn.onclick = async () => {
         let allPlain = '';
         let allRaw = '';
         let nativePdfPages=null;
+        let documentPageTexts=[];
         const photoScenes=[],reviewWarnings=[];
 
         for (let idx = 0; idx < batch.length; idx++) {
@@ -5346,6 +5359,7 @@ goBtn.onclick = async () => {
             if(scanCancelled)throw new DOMException('Scan cancelled.','AbortError');
             reviewWarnings.push(...(part.reviewWarnings||[]));
             if(batch.length===1)nativePdfPages=part.nativePdfPages;
+            if(batch.length===1&&/\.pdf$/i.test(batch[idx].name))documentPageTexts=part.pageTexts||[];
             if(IMAGE_EXTS.includes(batch[idx].name.split('.').pop().toLowerCase())&&part.nativePdfPages)photoScenes.push(...part.nativePdfPages);
             if (!String(part.plain || part.text || '').trim()) continue;
             const isPhoto=f=>IMAGE_EXTS.includes(f?.name.split('.').pop().toLowerCase());
@@ -5376,6 +5390,7 @@ goBtn.onclick = async () => {
         const charCount = allPlain.length;
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">A4 · narrow margins · auto formatted</span><span class="badge badge-gray">' + charCount + ' chars</span>';
+        if(documentPageTexts.length)badges+='<span class="badge badge-gray">'+documentPageTexts.length+' PDF pages · all available to review</span>';
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
         const reviewCount=reviewWarnings.length+(typeof PaperAIProfessionalPaper!=='undefined'?PaperAIProfessionalPaper.validate(allText).length:0)+(allText.match(/\[unclear(?::[^\]\n]*)?\]|\[(?:source image|picture) needs review\]|\[\[PICTURE(?:_OPTION|_ROW)?:|\ufffd/gi)||[]).length;
         if(reviewCount)badges+='<span class="badge badge-gray" role="status">'+reviewCount+' unclear '+(reviewCount===1?'item':'items')+' · review</span>';
@@ -5384,7 +5399,8 @@ goBtn.onclick = async () => {
         if (file !== sourceFile) return;
         lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw, source_file: sourceFile,
             native_docx_file:batch.length===1&&/\.docx$/i.test(sourceFile.name)?sourceFile:null,native_docx_text:allText,
-            native_pdf_pages:nativePdfPages,native_pdf_text:allText,native_pdf_preview:nativePdfPages?PaperAIPdfEditable.preview(nativePdfPages):null };
+            native_pdf_pages:nativePdfPages,native_pdf_text:allText,native_pdf_preview:nativePdfPages?PaperAIPdfEditable.preview(nativePdfPages):null,
+            page_texts:documentPageTexts };
         teachPanel.classList.remove('show');
         showingRaw = false;
         $('tabVerified').classList.add('active');
@@ -5392,6 +5408,8 @@ goBtn.onclick = async () => {
         updateResultActionsForTab();
         textOut.innerHTML = formatOutput(lastResult.text || '');
         textOut.className = 'output-body';
+        if(documentPageTexts.length)renderAllPageReviews();
+        else $('pageReviewPanel').style.display='none';
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
         setProg(100, 'Done');
@@ -5419,6 +5437,64 @@ goBtn.onclick = async () => {
 };
 
 function dlBlob(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
+
+let pageReviewGeneration=0,sourceReviewPdfPromise=null,sourceReviewPdfFile=null;
+function renderAllPageReviews(){
+    const panel=$('pageReviewPanel'),list=$('pageReviewList'),pageTexts=lastResult?.page_texts||[];
+    pageReviewGeneration++;
+    list.replaceChildren();
+    panel.style.display=pageTexts.length?'block':'none';
+    if(!pageTexts.length)return;
+    $('pageReviewCount').textContent=pageTexts.length+' '+(pageTexts.length===1?'page':'pages');
+    const finalPages=String(lastResult.text||'').split(/\s*\[\[PAGE_BREAK\]\]\s*/i).filter(x=>x.trim());
+    const useFinal=finalPages.length===pageTexts.length;
+    pageTexts.forEach((sourceText,index)=>{
+        const card=document.createElement('details');
+        card.style.cssText='margin:12px 0;border:1px solid var(--border);border-radius:10px;padding:12px';
+        const summary=document.createElement('summary');summary.style.cssText='cursor:pointer;font-weight:700';
+        summary.textContent='Page '+(index+1)+' of '+pageTexts.length+' · original + extracted';
+        const columns=document.createElement('div');columns.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-top:12px';
+        const original=document.createElement('div');
+        const header=document.createElement('strong');header.textContent='Original PDF page';original.append(header);
+        const renderButton=document.createElement('button');renderButton.className='action-btn';renderButton.type='button';
+        renderButton.style.cssText='display:block;margin:8px 0';renderButton.textContent='View original page';
+        const picture=document.createElement('div');original.append(renderButton,picture);
+        const extracted=document.createElement('div');
+        const extractedHeader=document.createElement('strong');extractedHeader.textContent='Extracted questions and marks';
+        const body=document.createElement('div');body.className='output-body';body.style.cssText='margin-top:8px;padding:8px;border:1px solid var(--border);min-width:0';
+        body.innerHTML=formatOutput(useFinal?finalPages[index]:sourceText);
+        extracted.append(extractedHeader,body);
+        columns.append(original,extracted);card.append(summary,columns);list.append(card);
+        const generation=pageReviewGeneration;
+        renderButton.onclick=async()=>{
+            if(renderButton.disabled)return;
+            renderButton.disabled=true;renderButton.textContent='Rendering page…';
+            try{
+                const pdf=await getSourceReviewPdf(lastResult.source_file);
+                if(generation!==pageReviewGeneration)return;
+                if(index>=pdf.numPages)throw new Error('Original PDF page count does not match the extracted pages.');
+                const page=await pdf.getPage(index+1),unit=page.getViewport({scale:1}),viewport=page.getViewport({scale:Math.min(1.6,740/unit.width)});
+                const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+                canvas.style.cssText='display:block;width:100%;height:auto;max-width:740px;border:1px solid var(--border)';
+                try{await page.render({canvasContext:canvas.getContext('2d',{alpha:false}),viewport}).promise;}
+                finally{page.cleanup?.();}
+                if(generation!==pageReviewGeneration)return;
+                picture.replaceChildren(canvas);renderButton.textContent='Original page shown';
+            }catch(error){picture.textContent='Unable to display the source page: '+(error.message||'PDF rendering failed.');renderButton.textContent='Retry original page';renderButton.disabled=false;}
+        };
+    });
+}
+async function getSourceReviewPdf(pdfFile){
+    if(sourceReviewPdfFile!==pdfFile){
+        sourceReviewPdfFile=pdfFile;
+        sourceReviewPdfPromise=(async()=>{
+            if(typeof pdfjsLib==='undefined')throw new Error('PDF viewer is unavailable.');
+            const buffer=await pdfFile.arrayBuffer();
+            return pdfjsLib.getDocument({data:new Uint8Array(buffer)}).promise;
+        })();
+    }
+    return sourceReviewPdfPromise;
+}
 
 function currentExportText(){
     return currentPlainText();

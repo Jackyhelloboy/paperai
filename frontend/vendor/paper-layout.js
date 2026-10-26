@@ -929,5 +929,32 @@
         }
         return alignLeadingGridLabels(lines.join('\n'),grids.length);
     }
-    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids};
+    // An OCR model can mistake blank answer boxes and pen ticks for a matching
+    // exercise. Keep the numbered vocabulary exactly as read, but remove only
+    // the synthetic grid when the explicit section asks for antonyms.
+    function repairAntonymRows(input){
+        const lines=String(input||'').split('\n');let antonyms=false,afterBreak=false;
+        const matchingPlaceholder=cell=>/^\s*(?:\(\s*\)|\[\s*\]|[_x×✓✔✗✘\-\s]+)\s*$/iu.test(cell);
+        for(let i=0;i<lines.length;i++){
+            const line=lines[i].trim();
+            if(/^\[\[PAPER_BREAK\]\]$/i.test(line)){antonyms=false;afterBreak=false;continue;}
+            if(/^\[\[PAGE_BREAK\]\]$/i.test(line)){afterBreak=true;continue;}
+            const heading=line.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\]\]$/i);
+            if(heading){antonyms=/(?:विलोम|antonym|opposite\s+words|వ్యతిరేక|எதிர்ச்சொல்|ವಿರುದ್ಧಾರ್ಥ|বিপরীত)/iu.test(heading[1]);afterBreak=false;continue;}
+            if(!line)continue;
+            if(afterBreak&&antonyms&&/^[IVX]{1,6}\.$/i.test(line)){
+                const next=lines.slice(i+1).find(s=>s.trim());
+                if(/^\[\[MATCH_ROW:/i.test(next||'')){lines[i]='';afterBreak=false;continue;}
+            }
+            afterBreak=false;
+            if(!antonyms)continue;
+            const match=line.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\]\]$/i);
+            if(!match)continue;
+            const cells=match[1].split(/\s*\|\|\s*/).map(x=>x.trim());
+            if(cells.length>=2&&/^\d+[.)]\s*\S/u.test(cells[0])&&cells.slice(1).every(matchingPlaceholder))
+                lines[i]=cells[0];
+        }
+        return lines.join('\n');
+    }
+    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows};
 });
