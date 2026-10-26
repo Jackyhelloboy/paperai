@@ -1826,6 +1826,7 @@
                     Download Word
                 </button>
                 <button class="action-btn" id="printReviewBtn" type="button" onclick="runPrintReview(this)">✦ AI Print Review</button>
+                <button class="action-btn" id="arrangeBitsBtn" type="button" onclick="runAiBitLayout(this)">✦ AI Arrange Bits</button>
                 <label for="wordEditMode" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap">Word layout
                     <select id="wordEditMode" style="padding:7px;max-width:240px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text)">
                         <option value="easy">Easy to edit · stable text</option>
@@ -1847,6 +1848,7 @@
                 <div id="printReviewFindings" style="margin:10px 0"></div>
                 <div class="teach-sub">AI checks text, section markers, marks and grid instructions. It cannot measure actual Word line wrapping or confirm missing scanned words. Compare every source page and use Word's Print Preview before printing.</div>
             </div>
+            <div class="teach-sub" id="aiLayoutStatus" role="status" aria-live="polite" style="display:none;padding:8px 10px">AI layout is ready to check this paper.</div>
 
             <div class="teach-panel" id="picturePanel" aria-label="Question picture editor">
                 <div class="teach-title">Pictures in this question paper</div>
@@ -1929,6 +1931,7 @@ const teachAiBtn=$('teachAiBtn'),teachAiStatus=$('teachAiStatus');
 const teachLanguageStatus=$('teachLanguageStatus');
 
 let file=null, fileBatch=[], lastResult=null, showingRaw=false;
+let aiLayoutRequestId=0;
 let processingUpload=false, uploadRun=0, activeScanController=null, scanCancelled=false;
 let teachOriginalText='', teachOriginalLayoutText='', teachHistory=[], teachHistoryIndex=-1, teachHistoryLock=false;
 let smartComposition=null, phoneticSelectionLock=false;
@@ -5006,14 +5009,14 @@ function worksheetRenderTable(rows, widths=null, header=false) {
     }).join('');
     return '<div class="ocr-layout-scroll"><table class="ocr-worksheet-table">'+(widths?.length===columns?'<colgroup>'+widths.map(w=>'<col style="width:'+w/widths.reduce((a,b)=>a+b,0)*100+'%">').join('')+'</colgroup>':'')+'<tbody>' + content + '</tbody></table></div>';
 }
-function formatStructuredWorksheetLine(line, columnWidths=null) {
+function formatStructuredWorksheetLine(line, columnWidths=null, imageColumns=5) {
     const source = String(line || '').trim();
     const qa=source.match(/^\[\[QA_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
     if(qa)return '<div class="ocr-qa-row"><span>'+formatOutputLine(qa[1].trim())+'</span><span>'+formatOutputLine(qa[2].trim())+'</span></div>';
     const figure=source.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
     if(figure) {
         const cells=worksheetCells(figure[1],32);
-        return '<div class="ocr-figure-row" style="--figure-cols:'+(cells.length>1?5:1)+'">'+cells.map(sourceFigureHtml).join('')+'</div>';
+        return '<div class="ocr-figure-row" style="--figure-cols:'+(cells.length>1?Math.max(1,Math.min(5,imageColumns)):1)+'">'+cells.map(sourceFigureHtml).join('')+'</div>';
     }
     const banner=source.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
     if(banner) return sourceFigureHtml(banner[1]);
@@ -5085,12 +5088,12 @@ function formatOutput(text) {
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
     if(lastResult?.native_pdf_preview&&text===lastResult.native_pdf_text&&paperLayoutOptions().keepSourcePages)return lastResult.native_pdf_preview;
 
-    const visualText=PaperAILayout.presentationRows(packSourceFigureRows(PaperAILayout.normalise(repairLegacyBranchDiagram(String(text)))));
+    const visualText=PaperAILayout.presentationRows(packSourceFigureRows(PaperAILayout.normalise(repairLegacyBranchDiagram(String(text)))),layoutTypeHints());
     const lines = PaperAILayout.compactPages(visualText,paperLayoutOptions().keepSourcePages).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     let html = '';
     let i = 0;
-    let pendingTableWidths=null, pendingTableHeader=false, pendingTableRegion=null;
+    let pendingTableWidths=null, pendingTableHeader=false, pendingTableRegion=null, imageColumns=5;
 
     while (i < lines.length) {
         const branch = parseBranchBlock(lines, i);
@@ -5101,6 +5104,8 @@ function formatOutput(text) {
         }
 
         const line = lines[i];
+        const bitHeading=layoutBitHeading(line);
+        if(bitHeading)imageColumns=layoutColumnsForTitle(bitHeading);
         const schoolBanner=PaperAILayout.schoolBannerTable(lines,i);
         if(schoolBanner){
             html+='<div style="display:grid;grid-template-columns:minmax(0,1fr) '+schoolBanner.width/10466*100+'%;gap:0;align-items:start">'+sourceFigureHtml(schoolBanner.id)+worksheetRenderTable(schoolBanner.rows.map(row=>row.join(' || ')))+'</div>';
@@ -5156,7 +5161,7 @@ function formatOutput(text) {
             html+=matchingRows.map(row=>formatStructuredWorksheetLine('[[MATCH_ROW: '+row.join(' || ')+']]',widths)).join('');
             pendingTableWidths=null;pendingTableHeader=false;i=matchingIndex;continue;
         }
-        const structuredLine = formatStructuredWorksheetLine(line);
+        const structuredLine = formatStructuredWorksheetLine(line,null,imageColumns);
         if (structuredLine) {
             if(pendingTableRegion&&/^\s*\[\[GRID:/i.test(line)){const dimensions=worksheetGridSize(line.replace(/^\s*\[\[GRID:\s*/i,'').replace(/\]\]\s*$/,'')),metric=PaperAILayout.measuredGrid(pendingTableRegion,dimensions?.rows||1);html+='<div style="width:'+metric.width/10466*100+'%;--paper-grid-height:'+metric.rowHeight/10466*100+'cqw">'+structuredLine+'</div>';}else html+=structuredLine;
             if(/^\s*\[\[GRID:/i.test(line))pendingTableRegion=null;
@@ -5443,6 +5448,7 @@ goBtn.onclick = async () => {
         $('tabRaw').classList.remove('active');
         updateResultActionsForTab();
         textOut.innerHTML = formatOutput(lastResult.text || '');
+        if(typeof runAiBitLayout==='function')void runAiBitLayout(null,true);
         textOut.className = 'output-body';
         if(documentPageTexts.length)renderAllPageReviews();
         else $('pageReviewPanel').style.display='none';
@@ -5918,7 +5924,7 @@ function buildDocxBody(structuredText) {
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     const body = [];
     let i = 0;
-    let pendingWidths=null, pendingHeader=false, pendingTableRegion=null;
+    let pendingWidths=null, pendingHeader=false, pendingTableRegion=null, imageColumns=5;
 
     while (i < lines.length) {
         const branch = parseDocxBranchBlock(lines, i);
@@ -5929,6 +5935,8 @@ function buildDocxBody(structuredText) {
             continue;
         }
         const line = String(lines[i] || '').trim();
+        const bitHeading=layoutBitHeading(line);
+        if(bitHeading)imageColumns=layoutColumnsForTitle(bitHeading);
         const qa=line.match(/^\[\[QA_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
         if(qa){
             if(activeDocxEditingMode==='source')body.push(docxTableCells([[qa[1].trim(),qa[2].trim()]],[7900,2566],{bordered:false,keepTogether:true}));
@@ -5947,7 +5955,7 @@ function buildDocxBody(structuredText) {
         const tableRegion=line.match(/^\[\[TABLE_REGION:\s*([^\]]+)\]\]$/i);
         if(tableRegion){pendingTableRegion=PaperAILayout.figure(tableRegion[1]);i++;continue;}
         let sourceFigure=line.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
-        if(sourceFigure){body.push(docxSourceRow(worksheetCells(sourceFigure[1],32)));i++;continue;}
+        if(sourceFigure){body.push(docxSourceRow(worksheetCells(sourceFigure[1],32),imageColumns));i++;continue;}
         const sourceBanner=line.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
         if(sourceBanner){body.push('<w:p><w:pPr><w:jc w:val="'+(sourceAsset(sourceBanner[1].trim())?.align||'center')+'"/><w:keepNext/><w:spacing w:after="100"/></w:pPr>'+docxSourceRun(sourceBanner[1].trim(),DOCX_CONTENT_W,2200,'Original source banner')+'</w:p>');i++;continue;}
         if(/^\[\[FOOTER:/i.test(line)){i++;continue;}
@@ -6250,10 +6258,10 @@ function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400, descrip
     const dim=PaperAILayout.fit(asset,available,maxHeight);
     return docxPictureRun(dim.w*635,dim.h*635,docxMediaUsed.get(id).rid,description,movable);
 }
-function docxSourceRow(values) {
+function docxSourceRow(values,columns=5) {
     if(values.length===1&&activeDocxEditingMode!=='source')
         return docxRichParagraph('[[SOURCE_FIGURE: '+values[0]+']]',{available:DOCX_CONTENT_W,after:90});
-    const widths=docxEqualWidths(values.length>1?5:1);
+    const widths=docxEqualWidths(values.length>1?Math.max(values.length,Math.min(5,columns)):1);
     return docxTableCells([values.map((value,i)=>{
         const item=PaperAILayout.source(value),available=docxCellContentWidth(widths[i]);
         return {xml:'<w:p><w:pPr><w:jc w:val="'+(sourceAsset(item.id)?.align||'center')+'"/><w:spacing w:after="60"/></w:pPr>'+docxSourceRun(item.id,available)+'</w:p>'+
@@ -6261,15 +6269,33 @@ function docxSourceRow(values) {
             (item.answer ? docxAnswerBoxParagraph(available) : '')};
     })],widths,{bordered:false});
 }
+function layoutBitHeading(line){
+    const row=String(line||'').trim().match(/^\[\[SECTION_ROW:\s*([^|\]]+?)(?:\s*\|\|[^\]]*)?\]\]$/i);
+    if(row)return row[1].trim();
+    const plain=String(line||'').trim().match(/^([IVX]{1,6})[.)]?\s+([^\n]{3,140})$/i);
+    return plain?plain[0].trim():'';
+}
+function layoutColumnsForTitle(title){
+    const current=typeof lastResult==='undefined'?null:lastResult;
+    const text=String(current?.text||'');
+    if(!current?.layoutPlan||current.layoutPlanText!==text)return 5;
+    const type=current.layoutPlan.find(section=>section.title===title);
+    return type?.kind==='pictures'?Math.max(1,Math.min(5,type.imageColumns||5)):5;
+}
+function layoutTypeHints(){
+    const current=typeof lastResult==='undefined'?null:lastResult;
+    if(!current?.layoutPlan||current.layoutPlanText!==current.text)return {};
+    return Object.fromEntries(current.layoutPlan.map(item=>[item.title,item.kind]));
+}
 function packSourceFigureRows(value,media=extractedMedia) {
     const lines=String(value||'').split('\n'),out=[];
-    let pictureChoices=false;
+    let imageColumns=5;
     const parse=line=>String(line||'').trim().match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
     for(let i=0;i<lines.length;){
         if(!parse(lines[i])){
             const line=lines[i++];
-            if(/^(?:\[\[(?:SECTION_ROW|QUESTION_ROW):\s*)?(?:[IVX]+[.)\s]+|\d+[.)]\s+)/i.test(line.trim()))
-                pictureChoices=/\b(?:circle|tick|choose|mark|identify|name)\b.*\b(?:things|pictures|objects|clothes)\b|\bclothes\s+we\s+wear\b/i.test(line);
+            const heading=layoutBitHeading(line);
+            if(heading)imageColumns=layoutColumnsForTitle(heading);
             out.push(line);continue;
         }
         const cells=[];let j=i;
@@ -6283,8 +6309,8 @@ function packSourceFigureRows(value,media=extractedMedia) {
         // Choice illustrations are a compact five-column exercise, including
         // choices originally spread across several source rows. Preserve crop order.
         let rows=[placed];
-        for(const row of rows)for(let start=0;start<row.length;start+=5){
-            const group=row.slice(start,start+5).map(item=>item.value);
+        for(const row of rows)for(let start=0;start<row.length;start+=imageColumns){
+            const group=row.slice(start,start+imageColumns).map(item=>item.value);
             out.push('[[SOURCE_FIGURE'+(group.length>1?'_ROW':'')+': '+group.join(' || ')+']]');
         }
         i=j;
@@ -6465,7 +6491,7 @@ function createWordPlaceholderPngBase64() {
 async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
     if(typeof PaperAIProfessionalPaper!=='undefined')structuredText=PaperAIProfessionalPaper.format(structuredText);
-    structuredText=PaperAILayout.presentationRows(packSourceFigureRows(PaperAILayout.normalise(PaperAILayout.cleanExamContent(structuredText))));
+    structuredText=PaperAILayout.presentationRows(packSourceFigureRows(PaperAILayout.normalise(PaperAILayout.cleanExamContent(structuredText))),layoutTypeHints());
 
     const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
     const footerXml = paperLayoutOptions().pageNumbers||/\[\[FOOTER:/i.test(structuredText)?docxFooterXml(structuredText):'<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>';
@@ -6636,6 +6662,44 @@ async function runPrintReview(btn){
         }
     }catch(error){status.textContent='Print review unavailable: '+(error?.message||'Try again.');}
     finally{btn.disabled=false;}
+}
+
+function compactLayoutEvidence(source){
+    const lines=String(source||'').split('\n'),sections=[];
+    let current=null;
+    for(const line of lines){
+        const title=layoutBitHeading(line);
+        if(title){current={text:line+'\n',chars:line.length+1,items:0};sections.push(current);continue;}
+        if(!current||current.chars>600||current.items>=8||!line.trim())continue;
+        current.text+=line.slice(0,150)+'\n';current.chars+=Math.min(line.length,150)+1;current.items++;
+    }
+    return sections.map(s=>s.text).join('\n').slice(0,16000);
+}
+async function runAiBitLayout(btn,automatic=false){
+    if(!lastResult?.text)return;
+    const source=lastResult,sourceText=String(source.text||''),status=$('aiLayoutStatus'),sequence=++aiLayoutRequestId;
+    const layoutEvidence=compactLayoutEvidence(sourceText);
+    if(!layoutEvidence.trim())return;
+    status.style.display='block';
+    status.textContent='AI is identifying question bits and arranging existing pictures in the background…';
+    if(btn)btn.disabled=true;
+    try{
+        const response=await fetchOcrEndpoint('/api/layout-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:layoutEvidence}),signal:AbortSignal.timeout(35000)});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw Error(data.error||'Layout classification unavailable.');
+        if(sequence!==aiLayoutRequestId||source!==lastResult||source.text!==sourceText)return;
+        const originalTitles=new Set(sourceText.split('\n').map(layoutBitHeading).filter(Boolean));
+        const allowed=new Set(['pictures','matching','mcq','true_false','fill_blanks','translation','written','table','other']);
+        const plan=(Array.isArray(data.sections)?data.sections:[]).filter(item=>
+            originalTitles.has(item.title)&&allowed.has(item.kind)&&Number.isInteger(item.imageColumns)&&item.imageColumns>=1&&item.imageColumns<=5);
+        source.layoutPlan=plan;source.layoutPlanText=sourceText;
+        status.textContent=data.ai_checked
+            ? 'AI identified '+plan.length+' question bits. Picture grid geometry is now shared by the preview and editable Word export; original image content is untouched.'
+            : 'AI layout service is unavailable. Safe five-column image grids and existing question-paper rules remain active.';
+        if(!showingRaw)textOut.innerHTML=formatOutput(sourceText);
+    }catch(error){
+        if(sequence===aiLayoutRequestId)status.textContent='Kept the standard question-paper layout: '+(error?.message||'AI was unavailable.');
+    }finally{if(btn)btn.disabled=false;}
 }
 
 function copyText(btn){

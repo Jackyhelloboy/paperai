@@ -30,6 +30,7 @@ const paper=[
   '3. Continue the question across pages.'
 ].join('\n');
 context.configureAutomaticPaper(paper,true);
+vm.runInContext(`lastResult={text:${JSON.stringify(paper)},layoutPlanText:${JSON.stringify(paper)},layoutPlan:[{title:'II. Identify pictures.',kind:'pictures',imageColumns:2}]}`,context);
 
 (async()=>{
   for(const mode of ['source','easy','move']){
@@ -41,6 +42,7 @@ context.configureAutomaticPaper(paper,true);
     assert.equal(doc.getElementsByTagName('parsererror').length,0,'All modes must be valid XML');
     assert(xml.includes('1. फूलों से हमें क्या मिलती है?'),'Question text must stay editable');
     assert(xml.includes('3×2=6M'),'Marks must survive every edit mode');
+    assert(xml.includes('<w:gridCol w:w="5233"'),'AI layout-selected two-column picture grid must survive in Word');
     const firstQuestion=xml.split('</w:p>').find(paragraph=>paragraph.includes('1. फूलों से हमें क्या मिलती है?'));
     if(mode!=='source')assert(!firstQuestion.includes('<w:keepLines/>'),'A long Word question must be allowed to wrap across a page instead of leaving a large blank gap');
     assert.equal((xml.match(/<w:pageBreakBefore\/>/g)||[]).length,1,'Explicit page breaks preserved');

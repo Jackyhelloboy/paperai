@@ -965,14 +965,16 @@
     // Presentation-only grouping: keep every source word intact and avoid
     // orphan checkboxes and "A." labels jumping to their own visual rows.
     // This runs after OCR, never rewriting the raw source transcription.
-    function presentationRows(value){
+    function presentationRows(value,typeHints={}){
         const lines=String(value||'').split('\n'),out=[];let mode='';
         for(let i=0;i<lines.length;i++){
             const line=lines[i],trim=line.trim();
             const heading=trim.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\]\]$/i);
             if(heading||/^[IVX]{1,6}(?:[.)]\s*|\s+)\S/u.test(trim)){
-                const title=heading?heading[1]:trim;
-                mode=/(?:सही\s+वाक्य|सही\s+गलत|true\s*(?:or|\/)\s*false|true.false|tick\s*\(?✓|correct\s+sentence)/iu.test(title)?'true-false':
+                const title=heading?heading[1].split(/\s*\|\|/)[0].trim():trim;
+                const hint=typeHints&&Object.prototype.hasOwnProperty.call(typeHints,title)?typeHints[title]:'';
+                mode=hint==='true_false'?'true-false':hint==='translation'?'translation':
+                    /(?:सही\s+वाक्य|सही\s+गलत|true\s*(?:or|\/)\s*false|true.false|tick\s*\(?✓|correct\s+sentence)/iu.test(title)?'true-false':
                     /(?:हिन्दी\s+वाक्य|हिंदी\s+वाक्य|translate\s+(?:into|to)|write\s+in\s+hindi|वाक्य\s+लिखो)/iu.test(title)?'translation':'';
             }
             if(/^\[\[PAPER_BREAK\]\]$/i.test(trim))mode='';

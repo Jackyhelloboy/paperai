@@ -26,5 +26,5 @@ const html=fs.readFileSync('frontend/index.html','utf8');
 assert(html.includes('class="ocr-qa-row"'),'Web preview must render side-by-side answer labels');
 assert(html.includes('PaperAILayout.presentationRows(packSourceFigureRows('),'PDF preview and Word must share picture/row grouping');
 assert(html.includes('const qa=line.match(/^\\[\\[QA_ROW:'),'Word exporter must retain aligned question/answer rows');
-assert(html.includes('(cells.length>1?5:1)'),'Source illustrations must stay in a five-column grid');
+assert(html.includes('imageColumns=5')&&html.includes('Math.min(5,imageColumns)'),'Source illustrations must default to five columns while allowing verified picture-bit geometry');
 console.log('Question-paper alignment: matching columns, true/false checkboxes, translation answer rows and five-picture grids pass.');

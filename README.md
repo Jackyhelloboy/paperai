@@ -92,3 +92,7 @@ The default **Fast automatic verification** races the configured Cloudflare/Gemi
 
 **AI Print Review** checks extracted text and layout markers; it is not a pixel-perfect Word/PDF renderer. Inspect the source page alongside each extraction and use Word's Print Preview before printing. No OCR model can guarantee complete transcription of illegible handwritten pages.
 
+## Fast-mode AI bit arrangement
+
+After extraction, PaperAI shows the paper immediately and asks the configured Gemini model to classify the visible question bits in the background. The **AI Arrange Bits** button can retry this step without rescanning the PDF. Gemini only returns the type of each existing bit and an image-grid column count (1–5). The server and browser validate exact bit titles and allowed layout types before applying them. This can change the geometry of original, intact source images in the preview and editable Word file; it never asks the model to repaint a PDF crop, rewrite a question, add an answer or change a mark. A compact snippet of each bit keeps the request small even for long papers. Standard five-column image grids remain available when Gemini cannot respond; the public layout helper is covered by a small daily KV-backed AI budget.
+
