@@ -32,8 +32,8 @@
     }
     function paperIdentity(value) {
         const source=String(value||'').replace(/\[\[(?:TABLE_ROW|SECTION_ROW|QUESTION_ROW):\s*/gi,'').replace(/\]\]/g,'').replace(/\|\|/g,'\n');
-        const classHit=source.match(/\bclass\s*[:=\-]?\s*((?:pre\s*-?\s*)?(?:nursery|lkg|ukg|[ivx]{1,6}|(?:1[0-2]|[1-9])(?:st|nd|rd|th)?))\b/i);
-        const subjectHit=source.match(/\b(?:sub(?:ject)?|paper)\s*\.?\s*[:=\-]?\s*(social(?:\s+(?:studies|science))?|science|english|mathematics|maths?|hindi|telugu|tamil|kannada|malayalam|marathi|bengali|gujarati|punjabi|odia|urdu|kashmiri)\b/i);
+        const classHit=source.match(/(?:\bclass\b|कक्षा|తరగతి|வகுப்பு|ತರಗತಿ|ക്ലാസ്|শ্রেণি|જાતિ|درجہ)\s*[:=\-]?\s*((?:pre\s*-?\s*)?(?:nursery|lkg|ukg|[ivx]{1,6}|(?:1[0-2]|[1-9])(?:st|nd|rd|th)?|[०-९౦-౯௦-௯]+))(?![\p{L}\p{N}])/iu);
+        const subjectHit=source.match(/(?:\b(?:sub(?:ject)?|paper)\b|विषय|సబ్జెక్టు|విషయం|பாடம்|ವಿಷಯ|വിഷയം|বিষয়|વિષય|مضمون)\s*\.?\s*[:=\-]?\s*(social(?:\s+(?:studies|science))?|science|english|mathematics|maths?|hindi|telugu|tamil|kannada|malayalam|marathi|bengali|gujarati|punjabi|odia|urdu|kashmiri|हिन्दी|हिंदी|अंग्रेज़ी|गणित|विज्ञान|తెలుగు|హిందీ|ఆంగ్లం|గణితం|సైన్స్|தமிழ்|கணிதம்|ಕನ್ನಡ|ಗಣಿತ|മലയാളം|বাংলা|ગુજરાતી|اردو)(?![\p{L}\p{N}])/iu);
         return {className:classHit?classHit[1].replace(/\s+/g,' ').trim():'',subject:subjectHit?subjectHit[1].replace(/\s+/g,' ').trim():''};
     }
     function figure(value) {
@@ -510,9 +510,13 @@
         return output;
     }
     const PAPER_FIELD_PATTERNS=[
-        ['exam',/\bname\s+of\s+(?:the\s+)?examination\b/i],['roll',/\broll\s*(?:no\.?|number)?\b/i],
-        ['class',/\bclass\b/i],['subject',/\bsub(?:ject)?\.?\s*:/i],['marks',/\b(?:total\s+)?marks?\b/i],
-        ['name',/\bname\s*:/i],['date',/\bdate\s*:/i],['time',/\btime\s*:/i]
+        ['exam',/\bname\s+of\s+(?:the\s+)?examination\b/i],['roll',/(?:\broll\s*(?:no\.?|number)?\b|अनुक्रमांक|క్రమ సంఖ్య|வரிசை எண்|ಕ್ರಮ ಸಂಖ್ಯೆ|റോൾ നമ്പർ)/iu],
+        ['class',/(?:\bclass\b|कक्षा|తరగతి|வகுப்பு|ತರಗತಿ|ക്ലാസ്|শ্রেণি|درجہ)/iu],
+        ['subject',/(?:\bsub(?:ject)?\.?\s*:|विषय\s*[:：]|విషయం\s*[:：]|పాఠ్యాంశం\s*[:：]|பாடம்\s*[:：]|ವಿಷಯ\s*[:：]|വിഷയം\s*[:：]|বিষয়\s*[:：]|مضمون\s*[:：])/iu],
+        ['marks',/(?:\b(?:total\s+)?marks?\b|कुल\s*अंक|మొత్తం\s*మార్కులు|மொத்த மதிப்பெண்கள்|ಒಟ್ಟು ಅಂಕಗಳು|ആകെ മാർക്ക്)/iu],
+        ['name',/(?:\bname\s*[:：]|नाम\s*[:：]|పేరు\s*[:：]|பெயர்\s*[:：]|ಹೆಸರು\s*[:：]|പേര്\s*[:：])/iu],
+        ['date',/(?:\bdate\s*[:：]|दिनांक\s*[:：]|తేదీ\s*[:：]|தேதி\s*[:：]|ದಿನಾಂಕ\s*[:：])/iu],
+        ['time',/(?:\btime\s*[:：]|समय\s*[:：]|సమయం\s*[:：]|நேரம்\s*[:：]|ಸಮಯ\s*[:：])/iu]
     ];
     function paperFieldLabels(value) {
         const source=String(value||'').replace(/<br>/gi,' '),found=[];
@@ -803,7 +807,7 @@
     function cleanExamContent(value) {
         const pages=String(value||'').split(/(\[\[(?:PAGE_BREAK|PAPER_BREAK)\]\])/i),out=[];
         let identity={className:'',subject:''},started=false,forced=false,modified=false;
-        const field=/^\s*(?:name\s*[:：-]|class(?:\s*[:：.-]|\s+(?=[IVX0-9_]))|roll\s*(?:no\.?|number)?\s*[:：.-]|sub(?:ject)?(?:\.?\s*[:：-]|\.\s+|\s+(?=English|Social|Science|Math|Hindi|Telugu|_))|date\s*[:：-]|time\s*[:：-]|(?:total\s*)?marks\s*[:：-]?\s*$|(?:total\s*)?marks\s*[:：-]|name\s+of\s+(?:the\s+)?examination\s*[:：-])/i;
+        const field=/^\s*(?:name\s*[:：-]|class(?:\s*[:：.-]|\s+(?=[IVX0-9_]))|roll\s*(?:no\.?|number)?\s*[:：.-]|sub(?:ject)?(?:\.?\s*[:：-]|\.\s+|\s+(?=English|Social|Science|Math|Hindi|Telugu|_))|date\s*[:：-]|time\s*[:：-]|(?:total\s*)?marks\s*[:：-]?\s*$|(?:total\s*)?marks\s*[:：-]|name\s+of\s+(?:the\s+)?examination\s*[:：-]|(?:नाम|कक्षा|विषय|दिनांक|अनुक्रमांक|कुल\s*अंक|పేరు|తరగతి|విషయం|పాఠ్యాంశం|తేదీ|క్రమ\s*సంఖ్య|మొత్తం\s*మార్కులు|பெயர்|வகுப்பு|பாடம்|தேதி|வரிசை\s*எண்|ಹೆಸರು|ತರಗತಿ|ವಿಷಯ|ದಿನಾಂಕ|പേര്|ക്ലാസ്|വിഷയം|শ্রেণি|বিষয়|مضمون|درجہ)\s*[:：-])/iu;
         const isField=cell=>field.test(cell);
         for(const page of pages){
             if(/^\[\[PAPER_BREAK\]\]$/i.test(page)){forced=true;continue;}
