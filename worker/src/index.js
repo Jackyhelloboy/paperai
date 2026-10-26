@@ -1,7 +1,7 @@
 import { PAPER_LAYOUT_RULES, normaliseMarkerRows } from './paper-layout-rules.js';
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
-import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings, losesSourceScript, verifiedFigureCrops, missingResponsePositions, missingOpeningSections, losesSourceSections, losesSourceQuestions } from './ocr-output-guard.js';
+import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings, losesSourceScript, verifiedFigureCrops, missingResponsePositions, missingOpeningSections, losesSourceSections, losesSourceQuestions, losesSourceMarks } from './ocr-output-guard.js';
 import { handleScanJob } from './scan-jobs.js';
 
 const DAILY_FREE_NEURONS = 10000;
@@ -1811,7 +1811,7 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   if (/^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(b)) return false;
   if(degenerateOcr(a)||invalidLayoutMarkers(a))return true;
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
-  if (losesSourceScript(a, b)||losesSourceSections(a,b)||losesSourceQuestions(a,b)) return false;
+  if (losesSourceScript(a, b)||losesSourceSections(a,b)||losesSourceQuestions(a,b)||losesSourceMarks(a,b)) return false;
   if(!missingResponsePositions(a)&&missingResponsePositions(b))return false;
   if(!missingOpeningSections(a,imageMeta)&&missingOpeningSections(b,imageMeta))return false;
 
