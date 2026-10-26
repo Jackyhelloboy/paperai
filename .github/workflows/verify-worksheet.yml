@@ -40,6 +40,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install frontend test dependencies
+        run: npm ci --prefix frontend --ignore-scripts
       - name: Validate preview and Word XML
         run: |
           node tests/worksheet-layout.cjs
