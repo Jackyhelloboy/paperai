@@ -4419,7 +4419,7 @@ async function sendToOCR(sourceBlob, signal, progressText = '', options = {}) {
         formData.append('language', languageSelect.value || 'auto');
         formData.append('preprocessing', 'smart');
         formData.append('difficulty', prepared.difficulty);
-        formData.append('image_meta', JSON.stringify({...prepared.meta,parallelProviders:true}));
+        formData.append('image_meta', JSON.stringify({...prepared.meta,parallelProviders:true,pageNumber:options.pageNumber||null,pageCount:options.pageCount||null}));
         if(prepared.detailViews?.length)formData.append('detail_views',JSON.stringify(prepared.detailViews));
         appendLearningHints(formData);
 
@@ -5017,6 +5017,7 @@ function formatStructuredWorksheetLine(line, columnWidths=null) {
 }
 
 function formatOutput(text) {
+    if(typeof PaperAIProfessionalPaper!=='undefined')text=PaperAIProfessionalPaper.format(text);
     if(!text) return '<span style="color:var(--text3)">No text detected</span>';
     if(lastResult?.native_pdf_preview&&text===lastResult.native_pdf_text&&paperLayoutOptions().keepSourcePages)return lastResult.native_pdf_preview;
 
@@ -5150,6 +5151,7 @@ async function extractOneFile(f, onProgress, label) {
     let allText = '';
     let allPlain = '';
     let allRaw = '';
+    const reviewWarnings=[];
     let nativePdfPages=null;
 
     if (ext === 'pdf') {
@@ -5192,14 +5194,14 @@ async function extractOneFile(f, onProgress, label) {
                     try {
                         if(!('blob' in page))page.blob=await page.render(ctrl.signal);
                         const result=await sendToOCR(page.blob,ctrl.signal,label+'Preparing page '+(index+1)+'/'+pages.length,
-                            {sourceKey:page,media,onProgress:updateProgress});
+                            {sourceKey:page,media,pageNumber:index+1,pageCount:pages.length,onProgress:updateProgress});
                         if(result.status!=='completed'||!result.result)throw new Error('OCR failed on page '+(index+1)+'.');
                         const annotated=result.result.annotated_text||result.result.full_text||'';
                         page.ocrScene=result.result.native_scene||null;
                         // The stable page descriptor retains the request identity; a
                         // finished source bitmap can now be released immediately.
                         if(page.render)delete page.blob;
-                        const saved={text:annotated,plain:result.result.full_text||annotated,raw:result.result.raw_text||annotated,media,nativeScene:page.ocrScene};
+                        const saved={text:annotated,plain:result.result.full_text||annotated,raw:result.result.raw_text||annotated,media,nativeScene:page.ocrScene,reviewWarnings:(result.result.consistency_warnings||[]).map(w=>({...w,page:index+1}))};
                         await scanCheckpointStore?.savePage(checkpointKey,pages.length,index,saved);
                         return saved;
                     } finally {clearTimeout(tid);controller.signal.removeEventListener('abort',cancel);}
@@ -5214,6 +5216,7 @@ async function extractOneFile(f, onProgress, label) {
             // Completion order never determines document order or image ownership.
             for(let i=0;i<pages.length;i++){
                 const saved=restoreScannedPage(cached.results[i]);
+                reviewWarnings.push(...(cached.results[i].reviewWarnings||[]));
                 pages[i].ocrScene=saved.nativeScene||null;
                 allText+=(allText?'\n[[PAGE_BREAK]]\n':'')+saved.text;
                 allPlain+=(allPlain?'\n\n':'')+saved.plain;
@@ -5269,7 +5272,7 @@ async function extractOneFile(f, onProgress, label) {
 
     if(ext==='pdf'){const cleaned=PaperAILayout.cleanExamContent(allText);if(cleaned!==allText)nativePdfPages=null;allText=PaperAILayout.orderPages(cleaned);allPlain=portableText(docxVisibleText(allText));}
     if (!allPlain) allPlain = allText;
-    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages };
+    return { text: allText, plain: allPlain, raw: allRaw, nativePdfPages, reviewWarnings };
 }
 
 goBtn.onclick = async () => {
@@ -5294,7 +5297,7 @@ goBtn.onclick = async () => {
         let allPlain = '';
         let allRaw = '';
         let nativePdfPages=null;
-        const photoScenes=[];
+        const photoScenes=[],reviewWarnings=[];
 
         for (let idx = 0; idx < batch.length; idx++) {
             const part = await extractOneFile(batch[idx], (msg, pct) => {
@@ -5302,6 +5305,7 @@ goBtn.onclick = async () => {
                 setProg(overall, msg);
             }, batch.length > 1 ? 'File ' + (idx+1) + '/' + batch.length + ': ' : '');
             if(scanCancelled)throw new DOMException('Scan cancelled.','AbortError');
+            reviewWarnings.push(...(part.reviewWarnings||[]));
             if(batch.length===1)nativePdfPages=part.nativePdfPages;
             if(IMAGE_EXTS.includes(batch[idx].name.split('.').pop().toLowerCase())&&part.nativePdfPages)photoScenes.push(...part.nativePdfPages);
             if (!String(part.plain || part.text || '').trim()) continue;
@@ -5334,7 +5338,7 @@ goBtn.onclick = async () => {
         const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
         let badges = '<span class="badge badge-green">A4 · narrow margins · auto formatted</span><span class="badge badge-gray">' + charCount + ' chars</span>';
         if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
-        const reviewCount=(allText.match(/\[unclear(?::[^\]\n]*)?\]|\[(?:source image|picture) needs review\]|\[\[PICTURE(?:_OPTION|_ROW)?:|\ufffd/gi)||[]).length;
+        const reviewCount=reviewWarnings.length+(typeof PaperAIProfessionalPaper!=='undefined'?PaperAIProfessionalPaper.validate(allText).length:0)+(allText.match(/\[unclear(?::[^\]\n]*)?\]|\[(?:source image|picture) needs review\]|\[\[PICTURE(?:_OPTION|_ROW)?:|\ufffd/gi)||[]).length;
         if(reviewCount)badges+='<span class="badge badge-gray" role="status">'+reviewCount+' unclear '+(reviewCount===1?'item':'items')+' · review</span>';
         $('statsBar').innerHTML = badges;
 

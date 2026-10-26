@@ -33,6 +33,8 @@ jobs:
           npm ci --prefix frontend --ignore-scripts
           node tests/worksheet-layout.cjs
           node tests/pdf-editable-layout.cjs
+          node tests/strict-section-layout.cjs
+          node tests/professional-paper.cjs
           node tests/docx-import.cjs
           node tests/editable-paper.cjs
           node tests/dense-word-layout.cjs

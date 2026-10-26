@@ -1,7 +1,7 @@
 import { PAPER_LAYOUT_RULES, normaliseMarkerRows } from './paper-layout-rules.js';
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
-import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings, losesSourceScript, verifiedFigureCrops } from './ocr-output-guard.js';
+import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings, losesSourceScript, verifiedFigureCrops, missingResponsePositions, missingOpeningSections, losesSourceSections } from './ocr-output-guard.js';
 import { handleScanJob } from './scan-jobs.js';
 
 const DAILY_FREE_NEURONS = 10000;
@@ -1202,6 +1202,7 @@ async function handleOCR(request, env, corsHeaders) {
   const allCorrections = [];
 
   const reviewWarnings = ocrReviewWarnings(correctedText);
+  if(missingOpeningSections(correctedText,imageMeta))reviewWarnings.push({type:'missing_opening_sections',message:'The first page may be missing opening sections. Compare it with the source.'});
   const consistencyWarnings = [...checkConsistency(correctedText), ...reviewWarnings];
   const plainText = stripOcrMetadata(correctedText);
 
@@ -1585,11 +1586,11 @@ READING CONTRACT:
 2. Distinguish QUESTION content from completed RESPONSES using visible question/answer boundaries, never handwriting, ink color or semantic plausibility alone. Keep all question stems, operands, examples, options, word banks, matching choices and diagram labels. A complete question sentence followed by a separate answer rule must remain complete: do not move that blank inside the sentence or replace any of its words. This includes clues for naming/one-word exercises and statements in true/false exercises. Remove text only when visibly entered in an answer position or explicitly labelled as an answer/solution; retain source wording when that distinction is uncertain. Remove completed responses, worked solutions, answer keys, grading comments and ticks. Restore their blank answer positions. A handwritten alphabet after a request to write the alphabet is a response, not a word bank. Do not populate any empty answer grid from that response.
 3. Resolve visibly edited QUESTION wording to the final legible wording naturally. Omit cancelled drafts, replacement arrows and insertion highlighting. Preserve source spelling, dates, facts, punctuation and question numbers. Do not add connecting words to improve grammar or substitute more familiar wording. An unreadable question fragment is [unclear]; do not replace a missing question stem with an answer blank or guessed textbook content.
 4. Keep marks literal in the RIGHT cell: [[SECTION_ROW: original section heading || original score]] and [[QUESTION_ROW: original question || original score]]. Never duplicate scores inside question text or cells. Do not move mathematical operands, coordinates or units into the marks cell.
-5. Use TABLE_ROW for bordered table cells; MATCH_ROW for physical multi-column question/choice rows; CHOICE_ROW for unboxed multiple-choice options; OPTION_ROW for visibly boxed options. Separate cells with exactly ||. Preserve empty first/last cells. Multiline cell content uses <br> only inside a marker cell. Use the supported double-bracket markers exactly as defined, never HTML tables, XML tags or HTML entities. An absent mark is an empty cell, never the word none or null.
+5. Use TABLE_ROW for bordered table cells; MATCH_ROW for actual matching or independent numbered questions; CHOICE_ROW for unboxed multiple-choice options; OPTION_ROW for visibly boxed options. Separate cells with exactly ||. Preserve empty first/last cells. Multiline cell content uses <br> only inside a marker cell. Use the supported double-bracket markers exactly as defined, never HTML tables, XML tags or HTML entities. An absent mark is an empty cell, never the word none or null.
 6. Empty grids use GRID: columnsxrows. A word-search or other populated QUESTION grid uses one GRID_ROW per physical row. Place each grid immediately AFTER its own question label, even on a continuation page. Every separately labelled grid must remain separate; never merge grids across labels.
 7. Stack arithmetic with ARITHMETIC_ROW: original line<br>original operator/operand<br>blank rule. Preserve fractions, signs and every operand; do not calculate results. Long blank answer rules use ANSWER_LINES: observed count. Use at most 28 underscores for an ordinary continuous answer rule. Separate letter positions are different: preserve their exact count and grouping without adding, merging or completing missing letters.
 8. Preserve actual drawings using FIGURE/FIGURE_ROW crops in FULL PAGE coordinates, x,y,width,height integer 0–1000, not endpoints. Crop only original illustrations and their internal labels; never redraw an uncertain figure or crop completed responses. A written placeholder such as “lion picture” is text, not an illustration: preserve it as text and do not emit FIGURE. A crop must stop before the next bit heading or question, even when a drawing touches the page ruling. Basic unlabelled circle/square/rectangle/triangle/cube outlines may use SHAPE_ROW. Branch relationships use BRANCH_ROOT, BRANCH_ITEM, BRANCH_END with literal labels and original connections.
-9. School BANNER includes ONLY school name, address and logos. Inspect the actual lower edge of the school/address block and the side edge before any separate marks column. EXCLUDE Class, exam title, Time, Marks, student name, Roll and Signature from the crop; these remain editable TABLE_ROW cells, with TABLE_REGION measured around each native field table. Preserve the separate Marks box as a native labelled table with its own TABLE_REGION, not part of the school crop. Do not repeat text inside the banner outside it. No guessed default crop rectangle.
+9. Omit school banners and administrative student fields. Preserve Class, Subject and exam title as editable text. Never crop headings or questions.
 10. If an ORIGINAL printed page number is clearly visible, emit [[SOURCE_PAGE: original integer]] on its own line for automatic page ordering. This is control metadata, not printed question text. If absent or unreadable, omit it; never infer a page number from a question number. FOOTER contains other original footer text, excluding its page number.
 11. Preserve Devanagari strokes and separate vowel signs literally. Recheck श्र/ज्ञ, ू/२, े/ै against pixels, not expected words. Do not duplicate a question word because an insertion is above its printed occurrence.
 12. FINAL CHECK: count all question labels and physical cells in every section. Verify each left AND right column, the page bottom and its continuation grids. Ensure no question stem, option, score or real illustration was omitted and no completed response remains. Return No text detected only when no meaningful source content exists.
@@ -1645,13 +1646,14 @@ READING CONTRACT:
   let usage = mergeAiUsage(response.usage || null, null);
   let rescued = false;
 
-  const needsRepair = degenerateOcr(text) || invalidLayoutMarkers(text) || !text.trim() ||
+  const missingStructure=missingResponsePositions(text)||missingOpeningSections(text,imageMeta);
+  const needsRepair = missingStructure || degenerateOcr(text) || invalidLayoutMarkers(text) || !text.trim() ||
     /^no\s+(?:readable\s+)?text\s+(?:detected|found)[.!]?$/i.test(text.trim());
   const figurePage=/\[\[FIGURE(?:_ROW)?:/i.test(text);
   const newPaperBit=/^(?:\s*\[\[SECTION_ROW:\s*)?I[.)]?\s+(?:Answer|Write|Fill|Choose|Tick|Match|Complete|Look|Circle|Underline|Name)\b/im.test(text);
   const hasClass=/\bClass\s*[:：-]\s*[1-9IVX]/i.test(text);
   const hasSubject=/(?:\bSubject|\bSub)\s*[:：-]\s*\S/i.test(text);
-  const missingPaperIdentity=newPaperBit&&hasClass!==hasSubject;
+  const missingPaperIdentity=(newPaperBit||Number(imageMeta?.pageNumber)===1)&&hasClass!==hasSubject;
   const romanSections=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'];
   let previousSection=0,suspiciousSectionSequence=false;
   for(const line of text.split('\n')){
@@ -1662,7 +1664,7 @@ READING CONTRACT:
     if(current&&previousSection&&current<previousSection)suspiciousSectionSequence=true;
     if(current)previousSection=current;
   }
-  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPaperIdentity || suspiciousSectionSequence) && (missingPaperIdentity || suspiciousSectionSequence || shouldVerifyOcr(text, imageMeta)) &&
+  if (((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPaperIdentity || suspiciousSectionSequence) && (needsRepair || missingPaperIdentity || suspiciousSectionSequence || shouldVerifyOcr(text, imageMeta)) &&
       providerState.deadline - Date.now() >= 5000 && !signal?.aborted) {
     const rescuePrompt = prompt + `
 
@@ -1672,7 +1674,7 @@ ${blankSafeDraft(text)}
 ---END FIRST OCR---
 VERIFICATION RULES:
 - Recheck each physical row and its question numbers against the image. Do not reorder, renumber, drop stems or move choices to other questions.
-- Inspect the complete visual page including left/right columns, bottom questions and all continuation grids.
+- Inspect the complete visual page including the TOP questions, left/right columns, bottom questions and all continuation grids. Restore omitted section I and II instructions and questions when visible. Hindi matras, anusvara and nukta are protected question data. Preserve faint question text; ignore only unrelated show-through from the reverse side.
 - Compare the FIRST OCR to the image. Restore omitted source content and remove unsupported content. Resolve unreadable fragments only from visible pixels.
 - Completed responses must become blank spaces; question stems/options/operands must remain. Never solve or complete a question from context.
 - Recheck every crop against the FULL PAGE image. Banner excludes editable fields and separate marks boxes. Every crop uses four integer x,y,width,height coordinates on the full-page 0–1000 scale.
@@ -1807,7 +1809,9 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   if (/^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(b)) return false;
   if(degenerateOcr(a)||invalidLayoutMarkers(a))return true;
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
-  if (losesSourceScript(a, b)) return false;
+  if (losesSourceScript(a, b)||losesSourceSections(a,b)) return false;
+  if(!missingResponsePositions(a)&&missingResponsePositions(b))return false;
+  if(!missingOpeningSections(a,imageMeta)&&missingOpeningSections(b,imageMeta))return false;
 
   const comparableText = s => String(s||'').replace(/\[\[([A-Z_-]+):\s*([\s\S]*?)\]\]/gi,(_,kind,body)=>
     /^(?:FIGURE(?:_ROW)?|BANNER|GRID|SHAPE_ROW|ANSWER_LINES|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER|SOURCE_PAGE)$/i.test(kind)?' X ':body.replace(/\|\|/g,' '))

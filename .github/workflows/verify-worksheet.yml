@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'frontend/index.html'
+      - 'frontend/vendor/professional-paper.js'
+      - 'worker/src/ocr-output-guard.js'
+      - 'tests/strict-section-layout.cjs'
       - 'worker/src/index.js'
       - 'tests/worksheet-layout.cjs'
       - 'tests/question-paper-model.cjs'
@@ -38,7 +41,10 @@ jobs:
         with:
           node-version: '22'
       - name: Validate preview and Word XML
-        run: node tests/worksheet-layout.cjs
+        run: |
+          node tests/worksheet-layout.cjs
+          node tests/professional-paper.cjs
+          node tests/strict-section-layout.cjs
       - name: Check Worker JavaScript
         run: |
           node --input-type=module --check < worker/src/index.js

@@ -817,7 +817,7 @@
                 if(headerMarkBox&&/^\s*\[\[(?:(?:TABLE_ROW|BOXED):\s*)?[0-9]+\s*\]\]\s*$/i.test(line)){modified=true;controls=[];continue;}
                 if(/^\s*\[\[TABLE_(?:REGION|WIDTHS|HEADER):/i.test(line)){controls.push(line);continue;}
                 const row=line.match(/^\s*\[\[TABLE_ROW:\s*([\s\S]*?)\]\]\s*$/i);
-                const cells=row?row[1].split(/\s*\|\|\s*/).map(c=>c.replace(/<br>/gi,' ').trim()):[line.trim()];
+                const cells=(row?row[1]:line).split(/\s*\|\|\s*/).map(c=>c.replace(/<br>/gi,' ').trim());
                 // Anchored administrative labels only: questions such as
                 // "1. What is your school name?" and real exercise tables survive.
                 const furniture=!exerciseFields&&cells.some(c=>isField(c))&&cells.every(c=>isField(c)||/^(?:Summative|Formative)\s+Assessment\b/i.test(c)||!c||/^[_ .:—-]+$/.test(c)||/^(?:[IVX]{1,6}|[1-9]|1[0-2]|social(?: studies| science)?|english|science|maths?|hindi|telugu|\d{1,3})$/i.test(c));

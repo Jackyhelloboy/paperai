@@ -28,6 +28,7 @@ jobs:
 
       - name: Verify quota handling before deploying the Worker
         run: |
+          node tests/strict-section-layout.cjs
           node tests/ai-quota.cjs
           node tests/gemini-fallback.cjs
           node tests/scan-transport.cjs

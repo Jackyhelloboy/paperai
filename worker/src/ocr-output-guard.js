@@ -14,6 +14,7 @@ export function ocrReviewWarnings(text) {
     if(unclear)warnings.push({type:'unclear_source',count:unclear,message:'Some source characters could not be read. Compare the marked fragments with the original page.'});
     if(value.includes('\ufffd'))warnings.push({type:'invalid_character',message:'A replacement character is present. Review it against the original page.'});
     if(/\[\[PICTURE(?:_OPTION|_ROW)?:/i.test(value))warnings.push({type:'missing_source_picture',message:'A picture instruction has no original illustration. Review before printing.'});
+    if(missingResponsePositions(value))warnings.push({type:'missing_answer_spaces',message:'Answer spaces may be missing. Compare this section with the source.'});
     return warnings;
 }
 
@@ -66,4 +67,43 @@ export function verifiedFigureCrops(first, verified) {
  if(old.some((spec,i)=>caption(spec)!==caption(fresh[i])))return first;
  let i=0;
  return String(first).replace(/\[\[(FIGURE(?:_ROW)?):\s*([^\n]*?)\]\]/gi,(_,kind,body)=>'[['+kind+': '+body.split(/\s*\|\|\s*/).map(spec=>fresh[i++].split('|')[0].trim()+spec.slice(spec.indexOf('|')<0?spec.length:spec.indexOf('|'))).join(' || ')+']]');
+}
+
+// Evidence of a structural omission only: request another source-image read.
+// Never decide where a missing blank belongs or manufacture its answer.
+export function missingResponsePositions(text) {
+    const value=String(text||'');
+    if(value.length>80000)return false;
+    const lines=value.split('\n');
+    let expected=false,body=[];
+    const suspect=()=>{
+        if(!expected)return false;
+        const section=body.join('\n');
+        const numbered=[...section.matchAll(/(?:^|\n|\|\||\[\[(?:QUESTION_ROW|MATCH_ROW|TABLE_ROW):)\s*[0-9०-९]+[.)।]\s*\S/gu)].length;
+        const response=/(?:_{2,}|\.{3,}|…|[─━—]{2,}|\(\s*\)|\[\s*\]|□|☐|\[\[(?:ANSWER_LINES|GRID|GRID_ROW|CHECKBOX|BOXED):?)/u.test(section);
+        return numbered>=2&&!response;
+    };
+    for(const line of lines){
+        const heading=line.match(/^\s*\[\[SECTION_ROW:\s*([^\n]*?)(?:\|\||\]\])/i)||line.match(/^\s*[IVXLCDM]+[.)]\s+(.+)/i);
+        if(heading||/^\s*(?:Class\s*:|\[\[PAPER_BREAK\]\])/i.test(line)){
+            if(suspect())return true;
+            const instruction=heading?heading[1]:'';
+            expected=/खाली स्थान|रिक्त स्थान|सही.*गलत|\bfill\b[^\n]{0,90}\bblanks?\b|\bquestion\s+tags?\b|\b(?:true\s*(?:or|\/|and)\s*false|true\s+false)\b/i.test(instruction);
+            body=[];
+        }else body.push(line);
+    }
+    return suspect();
+}
+
+// A first PDF page beginning mid-paper is a coverage failure, not a new title.
+export function missingOpeningSections(text, imageMeta={}) {
+ if(Number(imageMeta.pageNumber)!==1)return false;
+ const value=String(text||''),sections=[...value.matchAll(/(?:^|\n)\s*(?:\[\[SECTION_ROW:\s*)?([IVXLCDM]+)[.)]?\s+[^\n]+/g)];
+ return sections.length>0&&sections[0][1]!=='I'&&/(?:^|\n)\s*(?:\[\[(?:QUESTION_ROW|MATCH_ROW|TABLE_ROW):\s*)?[0-9०-९]+[.)]\s*\S/u.test(value);
+}
+
+export function losesSourceSections(first, second) {
+ const sections=value=>[...String(value||'').matchAll(/(?:^|\n)\s*(?:\[\[SECTION_ROW:\s*)?([IVXLCDM]+)[.)]?\s+([^\n]+)/g)].map(m=>m[1]);
+ const a=sections(first),b=sections(second);
+ return a.length>=2&&a.some(n=>!b.includes(n));
 }
