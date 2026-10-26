@@ -13,6 +13,13 @@ async function suggest(input,context,candidates){
         body:JSON.stringify({text:input,source_language:'en',language:'hi',mode:'contextual',context})}),env);
     assert.equal(response.status,200);return response.json();
 }
+async function translate(input,language,candidates){
+    queue.push(candidates);
+    const response=await ctx.handler.fetch(new Request('https://paperai.test/api/suggest-word',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({text:input,source_language:'en',language,mode:'translate',context:'Class 2 science question',
+            learned_suggestions:['untrusted old correction'],local_suggestions:['untrusted local correction']})}),env);
+    assert.equal(response.status,200);return response.json();
+}
 async function checkEditorRequests(){
     const html=fs.readFileSync('frontend/index.html','utf8');
     const code=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m=>m[1].includes('function buildDocxBody'))[1];
@@ -58,6 +65,15 @@ async function checkEditorRequests(){
     assert.deepEqual(result.suggestions,['2. गाड़ी + 3'],'Suggestions must preserve all numbers/operators');
     result=await suggest('Gingre','Correct the English spelling.',['Ginger','जिंजर','中文']);
     assert.deepEqual(result.suggestions,['Ginger'],'An English-only selection/context must not force Hindi transliteration');
+    result=await suggest('౨ + ೩ = ___ గణితం','తెలుగు ప్రశ్న',['౨ + ೩ = ___ గణితం','౨ + ೪ = ___ గణితం','౨ + ೩ = 5 గణితం','౨ − ೩ = ___ గణితం']);
+    assert.deepEqual(result.suggestions,['౨ + ೩ = ___ గణితం'],'Native-script digits, equations and blanks must remain exact');
+    result=await translate('Choose the correct answer (   )', 'te',
+        ['సరైన సమాధానాన్ని ఎంచుకోండి (   )','సరైన సమాధానాన్ని ఎంచుకోండి (పిల్లి)','صحیح جواب (   )']);
+    assert.deepEqual(result.suggestions,['సరైన సమాధానాన్ని ఎంచుకోండి (   )'],'Translation must preserve empty answer spaces and target script');
+    assert.equal(result.mode,'translation');
+    assert(requests.at(-1).messages[0].content.includes('Translate meaning'));
+    result=await translate('What is ५ + ౩?', 'ta',['௫ + ౩ என்பது என்ன?','௫ + ௩ என்பது என்ன?']);
+    assert.deepEqual(result.suggestions,[],'A translation must not silently convert native numeral glyphs');
     assert.equal(queue.length,0);
     console.log('Mixed-language suggestions: contextual proofreading, English inside Hindi, Roman-Hindi alternatives, unchanged equations, deduplicated requests and released busy buttons pass.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

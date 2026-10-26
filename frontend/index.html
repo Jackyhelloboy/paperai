@@ -1879,6 +1879,11 @@
                     <button class="teach-tool" id="teachOriginalBtn" type="button" onclick="teachRestoreOriginal()">Original</button>
                     <button class="teach-tool teach-ai-btn" id="teachAiBtn" type="button" onclick="requestAdvancedAiSuggestions()">✦ AI Suggestions</button>
                 </div>
+                <div class="teach-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                    <label for="translationTarget">Translate selection to</label>
+                    <select id="translationTarget" class="teach-tool" style="max-width:100%;min-width:0" aria-label="Translation language"><option value="en">English</option><option value="hi">Hindi</option><option value="te">Telugu</option><option value="ta">Tamil</option><option value="kn">Kannada</option><option value="ml">Malayalam</option><option value="mr">Marathi</option><option value="bn">Bengali</option><option value="gu">Gujarati</option><option value="pa">Punjabi</option><option value="or">Odia</option><option value="ur">Urdu</option><option value="ks">Kashmiri</option></select>
+                    <button class="teach-tool" type="button" onclick="requestAdvancedAiSuggestions('translate')">Translate selection</button>
+                </div>
                 <div class="teach-ai-row">
                     <span class="teach-ai-status" id="teachAiStatus">Select any word or sentence — select a suggestion to apply it.</span>
                 </div>
@@ -3957,11 +3962,11 @@ function findInputSegmentAtCaret() {
     };
 }
 
-async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage, localSuggestions, learnedSuggestions, sequence) {
+async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage, localSuggestions, learnedSuggestions, sequence, mode = 'contextual') {
     const normalized = String(sourceText || '').replace(/\s+/g, ' ').trim();
     const context = getTeachContext(smartComposition?.start || teachEditor.selectionStart);
-    const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000contextual\u0000' +
-        normalized.toLowerCase() + '\u0000' + context;
+    const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000' + mode + '\u0000' +
+        normalized + '\u0000' + context;
 
     if (aiSuggestionCache.has(cacheKey)) return aiSuggestionCache.get(cacheKey);
 
@@ -3981,7 +3986,7 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
                 context,
                 local_suggestions: localSuggestions.slice(0, 5),
                 learned_suggestions: (learnedSuggestions || []).slice(0, 5),
-                mode: 'contextual'
+                mode
             })
         });
 
@@ -4024,14 +4029,14 @@ function selectedTeachSegment() {
     return { start, end: start + source.length, source };
 }
 
-async function requestAdvancedAiSuggestions() {
+async function requestAdvancedAiSuggestions(mode = 'contextual') {
     if (aiSuggestionTimer) {
         clearTimeout(aiSuggestionTimer);
         aiSuggestionTimer = null;
     }
 
     const selected = selectedTeachSegment();
-    const segment = selected || findInputSegmentAtCaret();
+    const segment = selected || (mode === 'translate' ? null : findInputSegmentAtCaret());
 
     if (!segment?.source) {
         teachAiStatus.textContent = 'Select a word or sentence first.';
@@ -4041,11 +4046,15 @@ async function requestAdvancedAiSuggestions() {
         return;
     }
 
+    if (mode === 'translate' && /[\r\n]/.test(segment.source)) {
+        teachAiStatus.textContent = 'Select one word, sentence, or paragraph at a time to preserve the paper layout.';
+        return;
+    }
     const sourceText = segment.source.replace(/\s+/g, ' ').trim();
-    smartComposition = { ...segment, source: sourceText, context: getTeachContext(segment.start) };
+    smartComposition = { ...segment, mode, source: segment.source, context: getTeachContext(segment.start) };
     const sourceLanguage = currentTeachSourceLanguage(sourceText);
-    const targetLanguage = currentTeachLanguage();
-    const learnedChoices = getLearnedCorrectionSuggestions(sourceText);
+    const targetLanguage = mode === 'translate' ? document.getElementById('translationTarget').value : currentTeachLanguage();
+    const learnedChoices = mode === 'translate' ? [] : getLearnedCorrectionSuggestions(sourceText);
     const localChoices = learnedChoices;
     const normalizedSource = sourceText.normalize('NFC').toLocaleLowerCase();
     const visibleLocalChoices = localChoices.filter(choice =>
@@ -4056,7 +4065,7 @@ async function requestAdvancedAiSuggestions() {
     activeAiButtonSequence = sequence;
     teachAiBtn.disabled = true;
     const sourceLabel = TEACH_LANGUAGE_META[sourceLanguage]?.label || sourceLanguage;
-    teachAiStatus.textContent = 'AI is checking ' + sourceLabel + ': “' + (sourceText.length > 70 ? sourceText.slice(0, 67) + '…' : sourceText) + '”';
+    teachAiStatus.textContent = (mode === 'translate' ? 'Translating selected text from ' : 'AI is checking ') + sourceLabel + ': “' + (sourceText.length > 70 ? sourceText.slice(0, 67) + '…' : sourceText) + '”';
     renderSuggestionChips(visibleLocalChoices, [], true);
 
     try {
@@ -4066,7 +4075,7 @@ async function requestAdvancedAiSuggestions() {
             targetLanguage,
             localChoices,
             learnedChoices,
-            sequence
+            sequence, mode
         );
 
         if (sequence !== aiSuggestionSequence) return;
@@ -4082,7 +4091,7 @@ async function requestAdvancedAiSuggestions() {
         const count = uniqueStrings([...usefulLocal, ...usefulAi]).length;
         teachAiStatus.textContent = count
             ? 'Tap a suggestion above the text box to replace only the selected text.'
-            : 'AI found no better correction. Your selected text was not changed.';
+            : 'No confident suggestion was returned. Your selected text was not changed.';
     } catch (_) {
         if (sequence === aiSuggestionSequence) {
             const normalizedSource = sourceText.normalize('NFC').toLocaleLowerCase();
@@ -4169,6 +4178,7 @@ function chooseSmartSuggestion(choice) {
         teachAiStatus.textContent = 'Selection changed. Choose a suggestion for the current text.';
         return;
     }
+    if (smartComposition.mode === 'translate' && lastResult) lastResult.has_user_translation = true;
     const newEnd = replaceTeachRange(selectedStart, selectedEnd, choice);
     aiSuggestionSequence++;
     activeAiButtonSequence = 0;
@@ -4369,7 +4379,7 @@ function saveLearning() {
     // Save & apply commits exactly what the user is seeing in Teach.
     renderTeachPreview();
 
-    const pairs = extractLearningPairs(original, corrected);
+    const pairs = lastResult?.has_user_translation ? [] : extractLearningPairs(original, corrected);
     const existing = loadLearningHints();
     const map = new Map();
 

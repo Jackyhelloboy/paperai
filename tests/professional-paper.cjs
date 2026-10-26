@@ -27,3 +27,9 @@ assert.equal(P.format(targeted),targeted);
 const festival=P.format("IX. Write R for religious festivals and N for national days. 6x1=6\n[[MATCH_ROW: 3. Republic Day || [ ] || 6. Independence Day || [ ]]\n]");
 assert(festival.includes('TABLE_WIDTHS: 50,50'));assert(!festival.includes('\n]'));
 assert.equal(P.format(festival),festival);
+
+const telugu=P.format('Class: II\nI. సరైన సమాధానాన్ని ఎంచుకోండి ౩x౧=౩ marks\n౧. ఆకు ఆకుపచ్చగా ఉందా? (   )\nII. ప్రశ్నలకు సమాధానాలు రాయండి ౨x౧=౨ marks\n౧. నీ పేరు ఏమిటి?');
+assert(telugu.includes('[[SECTION_ROW: I. సరైన సమాధానాన్ని ఎంచుకోండి || ౩x౧=౩ marks]]'));
+assert(telugu.includes('[[SECTION_ROW: II. ప్రశ్నలకు సమాధానాలు రాయండి || ౨x౧=౨ marks]]'));
+assert(telugu.includes('౧. నీ పేరు ఏమిటి?\n[[ANSWER_LINES: 1]]'));
+assert.equal(P.format(telugu),telugu);

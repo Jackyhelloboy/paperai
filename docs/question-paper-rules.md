@@ -31,3 +31,11 @@ The uploaded page is the authority for words, letters, question numbers, marks, 
 ## Regression gate
 
 Run `node tests/strict-section-layout.cjs`, `node tests/professional-paper.cjs`, `node tests/worksheet-layout.cjs` and `node tests/exact-word-text.cjs` before deploying. The source-reviewed Hindi fixture exercises all six section types in the supplied Class V FA III paper through the production Word exporter. `tests/render-paper-fixture.cjs` can write that DOCX for visual inspection. Structural tests cannot substitute for comparing OCR words against source pixels.
+
+## Multilingual suggestions and translation
+
+- The scanned paper remains the source of truth in every language. Keep the source script, exact words, section labels, option order, question numbers, marks and answer spaces; do not silently translate during OCR or formatting.
+- Native-script numeral glyphs, equations and blank markers are protected in correction suggestions. If the scan is uncertain, leave text for teacher review instead of inventing missing letters.
+- The correction panel offers proofreading and a separate, explicit translation action for a selected single line or paragraph. The selected destination language controls translation; a teacher must tap a suggestion before it changes the editor. Original and Undo remain available.
+- Translations preserve question meaning, negation, names, numbers, equations, units, marks, answer blanks and options. They never answer questions. Translating text does not create reusable OCR spelling examples.
+- Script detection is only a hint, especially when multiple languages share a script. Prefer the explicitly chosen language; uncertain wording needs human review.

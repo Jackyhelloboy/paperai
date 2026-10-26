@@ -3,8 +3,8 @@
  const roman=n=>{let s='';for(const [v,t] of [[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']])while(n>=v){s+=t;n-=v;}return s;};
  const romans=Array.from({length:100},(_,i)=>roman(i+1));
  const instruction=/^(?:Answer|Write|Name|Fill|Choose|Tick|Match|Cross|Unjumble|Unscramble|Circle|Colou?r|Give|Mark|Locate|Complete|Change|Join|Add|State|Use|Underline|Identify|Rewrite|Make|Say|Look|Read|Arrange|Draw|Label|Find|Put|Select|Form|Separate|Classify|Correct|Count|List)\b/i;
- const score=String.raw`(?:\d+(?:[./]\d+)?[¼½¾]?|[¼½¾])`;
- const marksAtEnd=new RegExp(String.raw`\s*[\[(]?\s*(${score}\s*[x×X*]\s*${score}\s*=\s*${score}\s*(?:[mM](?:arks?)?\.?)?|${score}\s*(?:[mM](?:arks?)?\.?))\s*[\])]?\s*$`);
+ const score=String.raw`(?:\p{Nd}+(?:[./]\p{Nd}+)?[¼½¾]?|[¼½¾])`;
+ const marksAtEnd=new RegExp(String.raw`\s*[\[(]?\s*(${score}\s*[x×X*]\s*${score}\s*=\s*${score}\s*(?:[mM](?:arks?)?\.?)?|${score}\s*(?:[mM](?:arks?)?\.?))\s*[\])]?\s*$`,'u');
  const blankBracket=/\([\s_—-]*\)|(?<!\[)\[[\s_—-]*\](?!\])/g;
  const rowOf=line=>{const m=String(line).match(/^\s*\[\[(TABLE_ROW|MATCH_ROW|CHOICE_ROW|OPTION_ROW):\s*([\s\S]*)\]\]\s*$/i);return m?{kind:m[1].toUpperCase(),cells:m[2].split(/\s*\|\|\s*/)}:null;};
  const compact=s=>s.replace(/\s+/g,'').replace(/[.:;]+$/,'').toLowerCase();
@@ -28,9 +28,10 @@
  }
  function type(h){
   const s=h.body||h.title;
-  if(/जोड़ी|मिलान|జతపరచ|பொருத்து/.test(s))return 'matching';
-  if(/प्रश्नों? के उत्तर|प्रश्न.*उत्तर.*लिख/.test(s))return 'answer';
-  if(/खाली स्थान|रिक्त स्थान|वचन|विलोम|अर्थ लिख/.test(s))return 'completion';
+  if(/जोड़ी|मिलान|జతపరచ|జత చేయ|పోల్చ|பொருத்து|இணை|ಹೊಂದಿಸಿ|ಜೋಡಿಸಿ|ചേർക്കുക|യോജിപ്പിക്കുക|মেলাও|মেলান|જોડો|ਮਿਲਾਓ|ملا[ؤو]/u.test(s))return 'matching';
+  if(/प्रश्नों? के उत्तर|प्रश्न.*उत्तर.*लिख|ప్రశ్నల.*జవాబ|ప్రశ్నల.*సమాధాన|வினாக்கள.*விடை|ಪ್ರಶ್ನೆ.*ಉತ್ತರ|ചോദ്യ.*ഉത്തര|প্রশ্ন.*উত্তর|પ્રશ્ન.*જવાબ|سوال.*جواب/u.test(s))return 'answer';
+  if(/खाली स्थान|रिक्त स्थान|वचन|विलोम|अर्थ लिख|ఖాళీ.*పూరించ|ఖాళీ.*నింప|கோடிட்ட இட|விடுபட்ட இட|ಖಾಲಿ.*ತುಂಬ|ഒഴിഞ്ഞ.*പൂരിപ്പ|শূন্যস্থান|ખાલી જગ્યા|خالی جگہ/u.test(s))return 'completion';
+  if(/సరైన.*ఎంచుకో|సరైన.*గుర్తించ|சரியான.*தேர்ந்தெடு|ಸರಿಯಾದ.*ಆಯ್ಕೆ|ശരിയായ.*തിരഞ്ഞെടു|সঠিক.*নির্বাচন|صحیح.*منتخب/u.test(s))return 'choice';
   if(/\bmatch\b|\bcolumn\s+A\b.*\bcolumn\s+B\b/i.test(s))return 'matching';
   if(/\b(?:tick|choose|select)\b.*\b(?:correct|right|options?|answers?)\b/i.test(s))return 'choice';
   if(/^Cross\b.*\bodd\b/i.test(s))return 'odd';
@@ -50,7 +51,7 @@
    let h=heading(lines[i]);
    // Join a wrapped instruction only up to its explicit trailing score.
    if(h&&!h.marks&&!lines[i].includes('[['))for(let j=i+1;j<Math.min(i+4,lines.length);j++){
-    if(!lines[j].trim()||/^(?:\d+[.)]?\s|\[\[|Class:|Subject:)/i.test(lines[j].trim())||heading(lines[j]))break;
+    if(!lines[j].trim()||/^(?:\p{Nd}+[.)]?\s|\[\[|Class:|Subject:)/iu.test(lines[j].trim())||heading(lines[j]))break;
     const joined=heading(lines.slice(i,j+1).join(' '));
     if(joined?.marks){lines[i]=emitHeading(joined);for(let k=i+1;k<=j;k++)lines[k]='';h=joined;break;}
    }
@@ -70,7 +71,7 @@
    if(/PAPER_BREAK|^Class:/i.test(raw)){mode='';lastRule=false;}
    if(['answer','rewrite','choice','completion','festival','odd'].includes(mode)&&/^\s*\[\[TABLE_(?:REGION|WIDTHS):/i.test(raw))continue;
    const answer=mode==='answer'||mode==='rewrite';
-   if(answer&&row&&row.cells.length===2&&/^\d+[.)]?\s/.test(row.cells[0])&&/^A\s*:?\s*[_\s]*$/i.test(row.cells[1])){out.push(row.cells[0],'[[ANSWER_LINES: 1]]');lastRule=true;continue;}
+   if(answer&&row&&row.cells.length===2&&/^\p{Nd}+[.)]?\s/u.test(row.cells[0])&&/^A\s*:?\s*[_\s]*$/i.test(row.cells[1])){out.push(row.cells[0],'[[ANSWER_LINES: 1]]');lastRule=true;continue;}
    const explicitRule=raw.match(/^\s*(?:A\s*:?\s*)?\[\[ANSWER_LINES:\s*(\d+)\]\]\s*$/i);
    if(answer&&(explicitRule||/^\s*(?:A\s*:?\s*)?_{3,}\s*$/.test(raw))){if(!lastRule)out.push('[[ANSWER_LINES: '+1+']]');lastRule=true;continue;}
    if(answer&&/^\s*[-.·]{3,}\s*$/.test(raw))continue;
@@ -95,12 +96,12 @@
     if(text.includes('/')&&!text.includes('[[SOURCE_')&&!text.includes('[[FIGURE')){out.push(text.replace(blankBracket,'').replace(/[□☐]/g,'').replace(/ +/g,' ').trim());lastRule=false;continue;}
     if(row&&['MATCH_ROW','TABLE_ROW'].includes(row.kind)){
      const c=row.cells;
-     if(/^\d+[.)]?\s/.test(c[0])&&c.slice(1).some(x=>/^\(?[a-d][.)]\s/i.test(x))){out.push(c[0]);const options=c.slice(1).filter(x=>x.trim()&&!/^[\s()[\]_—-]*$/.test(x));out.push('[[CHOICE_ROW: '+options.join(' || ')+']]');continue;}
+     if(/^\p{Nd}+[.)]?\s/u.test(c[0])&&c.slice(1).some(x=>/^\(?[a-d][.)]\s/i.test(x))){out.push(c[0]);const options=c.slice(1).filter(x=>x.trim()&&!/^[\s()[\]_—-]*$/.test(x));out.push('[[CHOICE_ROW: '+options.join(' || ')+']]');continue;}
      if(c.every(x=>!x.trim()||/^\(?[a-d][.)]\s/i.test(x))){out.push('[[CHOICE_ROW: '+c.filter(Boolean).join(' || ')+']]');continue;}
     }
    }
    if(mode==='odd'){
-    const words=row?row.cells:raw.trim().match(/^(\d+[.)]?\s+\S+)\s+(\S+)\s+(\S+)$/)?.slice(1);
+    const words=row?row.cells:raw.trim().match(/^(\p{Nd}+[.)]?\s+\S+)\s+(\S+)\s+(\S+)$/u)?.slice(1);
     if(words&&words.length===3){out.push('[[TABLE_WIDTHS: 33,34,33]]','[[MATCH_ROW: '+words.join(' || ')+']]');continue;}
    }
    if(mode==='festival'&&row){const c=row.cells;
@@ -117,7 +118,7 @@
   for(const line of out){
    const h=heading(line),boundary=/PAPER_BREAK|^Class:/i.test(line);
    if(h||boundary){finishAnswer();written=h&&['answer','rewrite'].includes(type(h));}
-   else if(written&&/^\s*[0-9०-९]+[.)]?\s+\S/u.test(line)){finishAnswer();pending=true;}
+   else if(written&&/^\s*\p{Nd}+[.)]?\s+\S/u.test(line)){finishAnswer();pending=true;}
    if(pending&&/ANSWER_LINES:|_{3,}/.test(line))hasRule=true;
    spaced.push(line);
   }
@@ -131,7 +132,7 @@
   for(const line of String(value||'').split('\n')){
    const h=heading(line);if(h){finish();mode=type(h);title=h.title;items=0;blanks=0;if(!h.ordinal)issues.push({code:'section_number',section:title,message:'Check the section number against the source.'});continue;}
    if(/^Class:|PAPER_BREAK/i.test(line)){finish();mode='';items=0;blanks=0;}
-   if(/^\s*\d+[.)]?\s/.test(line))items++;
+   if(/^\s*\p{Nd}+[.)]?\s/u.test(line))items++;
    if(/_{2,}|\.{3,}|ANSWER_LINES|\([\s—-]*\)|\[[\s—-]*\]/.test(line))blanks++;
    if(mode==='choice'&&/^\s*\[\[MATCH_ROW:/.test(line))issues.push({code:'choice_layout',section:title,message:'Check option labels and their question.'});
   }
