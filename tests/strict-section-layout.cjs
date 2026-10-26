@@ -22,6 +22,12 @@ assert.equal((formatted.match(/ANSWER_LINES: 1/g)||[]).length,3);assert.equal(P.
 assert(!L.cleanExamContent('Class: III || Sub: English\n|| Roll No.: ____ || Date: ____ ||\nI. Answer questions.\n1. Name the animal.').includes('Roll No'));
 const partial='1. कोयल =\n2. मिसरी =\n[[SECTION_ROW: III. निम्न लिखित शब्दों के वचन बदलिए। || 4x1=4]]\n1. पत्नी\n2. घड़ा';
 assert(ctx.missingOpeningSections(partial,{pageNumber:1}));assert(!ctx.missingOpeningSections(partial,{pageNumber:2}));
+const observedFailedExport='1. कोयल =\n2. मिसरी =\n3. चारपाई =\n4. मुँह =\n[[SECTION_ROW: III. वचन बदलिए। || 4x1=4]]\n1. पत्नी';
+assert(ctx.missingOpeningSections(observedFailedExport,{pageNumber:1}),
+ 'The real-world Hindi export starting at bit II without a heading, then bit III, must fail coverage verification');
+assert(!ctx.missingOpeningSections('[[SECTION_ROW: I. प्रश्नों के उत्तर लिखिए। || 3x2=6M]]\n1. पहला प्रश्न',{pageNumber:1}));
+assert(/if\(missingOpeningSections\(text,imageMeta\)\)\s*\{[\s\S]{0,260}OCR_OUTPUT_INVALID/.test(fs.readFileSync('worker/src/index.js','utf8')),
+ 'An incomplete first-page OCR cannot return completed after the final verification attempt');
 assert(ctx.losesSourceSections(hindi,partial));assert(!ctx.losesSourceSections(partial,hindi+'\nIII. निम्न लिखित शब्दों के वचन बदलिए। 4x1=4'));
 const lost='[[SECTION_ROW: XII. Fill in the blanks (Binomials). || 5x1=5]]\n1. We love the of the market place.\n2. The child swayed to the music.';
 assert(ctx.missingResponsePositions(lost));assert(!ctx.missingResponsePositions(lost.replace('love the of','love the ___ of')));
