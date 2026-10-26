@@ -107,3 +107,24 @@ export function losesSourceSections(first, second) {
  const a=sections(first),b=sections(second);
  return a.length>=2&&a.some(n=>!b.includes(n));
 }
+
+// The second reader may have cleaner spelling but must not silently erase
+// numbered questions seen by the first. Count labels, not inferred answers;
+// repeated 1/2/3 numbering is valid when a new bit begins.
+export function losesSourceQuestions(first, second) {
+ const counts=value=>{
+  const sections=new Map();let bit='continuation';
+  for(const line of String(value||'').split('\n')){
+   const section=line.match(/^\s*(?:\[\[SECTION_ROW:\s*)?([IVX]{1,6})[.)]?\s+\S/iu);
+   if(section)bit=section[1].toUpperCase();
+   const body=line.replace(/^\s*\[\[(?:QUESTION_ROW|MATCH_ROW|TABLE_ROW|CHOICE_ROW|OPTION_ROW):\s*/i,'');
+   const items=[...body.matchAll(/(?:^|\|\|)\s*[0-9०-९౦-౯௦-௯]+[.)।]\s*\S/gu)].length;
+   if(items)sections.set(bit,(sections.get(bit)||0)+items);
+  }
+  return sections;
+ };
+ const a=counts(first),b=counts(second);
+ const secondTotal=[...b.values()].reduce((sum,n)=>sum+n,0);
+ return [...a].some(([bit,count])=>bit==='continuation'?
+   count>secondTotal:count>(b.get(bit)||0));
+}
