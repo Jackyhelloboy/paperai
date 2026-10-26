@@ -970,7 +970,7 @@
         for(let i=0;i<lines.length;i++){
             const line=lines[i],trim=line.trim();
             const heading=trim.match(/^\[\[SECTION_ROW:\s*([\s\S]*?)\]\]$/i);
-            if(heading||/^[IVX]{1,6}[.)]\s+\S/u.test(trim)){
+            if(heading||/^[IVX]{1,6}(?:[.)]\s*|\s+)\S/u.test(trim)){
                 const title=heading?heading[1]:trim;
                 mode=/(?:सही\s+वाक्य|सही\s+गलत|true\s*(?:or|\/)\s*false|true.false|tick\s*\(?✓|correct\s+sentence)/iu.test(title)?'true-false':
                     /(?:हिन्दी\s+वाक्य|हिंदी\s+वाक्य|translate\s+(?:into|to)|write\s+in\s+hindi|वाक्य\s+लिखो)/iu.test(title)?'translation':'';

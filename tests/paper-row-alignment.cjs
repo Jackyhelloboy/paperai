@@ -19,6 +19,8 @@ assert(!arranged.includes('\n[\n]'),'Do not show orphan bracket lines');
 assert(arranged.includes('[[QA_ROW: 1. Who are you || A.]]'),'Translation answer label belongs on the question row');
 assert(arranged.includes('[[QA_ROW: 2. I am Raman || A.]]'));
 assert.equal(Layout.presentationRows('1. [\n]\n2. A.'),'1. [\n]\n2. A.','Do not reinterpret literal maths or unrelated symbols outside question sections');
+assert(Layout.presentationRows('V सही वाक्य पर (✓) लगाओ।\n1. हम छात्र हैं।\n[\n]')
+  .includes('1. हम छात्र हैं।  (    )'),'Unpunctuated Roman bit heading must still keep its answer square beside the question');
 
 const html=fs.readFileSync('frontend/index.html','utf8');
 assert(html.includes('class="ocr-qa-row"'),'Web preview must render side-by-side answer labels');
