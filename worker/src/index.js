@@ -1,7 +1,7 @@
 import { PAPER_LAYOUT_RULES, normaliseMarkerRows } from './paper-layout-rules.js';
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
-import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings, losesSourceScript, verifiedFigureCrops, missingResponsePositions, missingOpeningSections, losesSourceSections } from './ocr-output-guard.js';
+import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings, losesSourceScript, verifiedFigureCrops, missingResponsePositions, missingOpeningSections, losesSourceSections, losesSourceQuestions, losesSourceMarks } from './ocr-output-guard.js';
 import { handleScanJob } from './scan-jobs.js';
 
 const DAILY_FREE_NEURONS = 10000;
@@ -1152,7 +1152,13 @@ async function handleOCR(request, env, corsHeaders) {
     // request stays on the backup through verification after it switches.
     aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, request.signal, detailViews);
   } catch (e) {
-    if(e?.code==='OCR_OUTPUT_INVALID')return Response.json({error:'OCR returned repetitive or incomplete output. Please retry this page or review its source.',code:'OCR_OUTPUT_INVALID'}, {status:502,headers:corsHeaders});
+    if(e?.code==='OCR_OUTPUT_INVALID'){
+      const missingOpening=/opening question bits/i.test(String(e.message||''));
+      return Response.json({
+        error:missingOpening?'The first question bit(s) were missed. Retry this page or review the source before downloading Word.':'OCR returned repetitive or incomplete output. Please retry this page or review its source.',
+        code:'OCR_OUTPUT_INVALID',missing_opening_sections:missingOpening
+      },{status:502,headers:corsHeaders});
+    }
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
       return freeLimitResponse(corsHeaders);
@@ -1591,6 +1597,7 @@ READING CONTRACT:
 7. Stack arithmetic with ARITHMETIC_ROW: original line<br>original operator/operand<br>blank rule. Preserve fractions, signs and every operand; do not calculate results. Long blank answer rules use ANSWER_LINES: observed count. Use at most 28 underscores for an ordinary continuous answer rule. Separate letter positions are different: preserve their exact count and grouping without adding, merging or completing missing letters.
 8. Preserve actual drawings using FIGURE/FIGURE_ROW crops in FULL PAGE coordinates, x,y,width,height integer 0–1000, not endpoints. Crop only original illustrations and their internal labels; never redraw an uncertain figure or crop completed responses. A written placeholder such as “lion picture” is text, not an illustration: preserve it as text and do not emit FIGURE. A crop must stop before the next bit heading or question, even when a drawing touches the page ruling. Basic unlabelled circle/square/rectangle/triangle/cube outlines may use SHAPE_ROW. Branch relationships use BRANCH_ROOT, BRANCH_ITEM, BRANCH_END with literal labels and original connections.
 9. Omit school banners and administrative student fields. Preserve Class, Subject and exam title as editable text. Never crop headings or questions.
+9a. A printed ANSWER SHEET or similar form header does not prove the handwritten content below is completed answers. If that content consists of Roman-numbered bits and numbered question sentences, transcribe ALL those questions and their original marks. Ignore pale reverse-side show-through and notebook ruling; retain the dark front-side handwriting. Never discard bit I because it begins close to the header.
 10. If an ORIGINAL printed page number is clearly visible, emit [[SOURCE_PAGE: original integer]] on its own line for automatic page ordering. This is control metadata, not printed question text. If absent or unreadable, omit it; never infer a page number from a question number. FOOTER contains other original footer text, excluding its page number.
 11. Preserve Devanagari strokes and separate vowel signs literally. Recheck श्र/ज्ञ, ू/२, े/ै against pixels, not expected words. Do not duplicate a question word because an insertion is above its printed occurrence.
 12. FINAL CHECK: count all question labels and physical cells in every section. Verify each left AND right column, the page bottom and its continuation grids. Ensure no question stem, option, score or real illustration was omitted and no completed response remains. Return No text detected only when no meaningful source content exists.
@@ -1675,6 +1682,7 @@ ${blankSafeDraft(text)}
 VERIFICATION RULES:
 - Recheck each physical row and its question numbers against the image. Do not reorder, renumber, drop stems or move choices to other questions.
 - Inspect the complete visual page including the TOP questions, left/right columns, bottom questions and all continuation grids. Restore omitted section I and II instructions and questions when visible. Hindi matras, anusvara and nukta are protected question data. Preserve faint question text; ignore only unrelated show-through from the reverse side.
+- A printed ANSWER SHEET banner is administrative furniture, not an instruction to remove the dark handwritten question paper beneath it. On a lined Hindi scan, distinguish dark front-side questions from faint mirrored show-through, and check every numbered item under bit I before accepting the page.
 - Compare the FIRST OCR to the image. Restore omitted source content and remove unsupported content. Resolve unreadable fragments only from visible pixels.
 - Completed responses must become blank spaces; question stems/options/operands must remain. Never solve or complete a question from context.
 - Recheck every crop against the FULL PAGE image. Banner excludes editable fields and separate marks boxes. Every crop uses four integer x,y,width,height coordinates on the full-page 0–1000 scale.
@@ -1744,6 +1752,15 @@ VERIFICATION RULES:
     }
   }
 
+  // A first page that begins with later Roman bits while still containing
+  // numbered questions is incomplete. Never report it as successfully scanned:
+  // the browser retries this page once and keeps other completed PDF pages.
+  // This protects against a plausible-looking Word export that silently
+  // omits the opening question bit(s), as observed on the Hindi FA-3 scan.
+  if(missingOpeningSections(text,imageMeta)){
+    const error=new Error('The opening question bits were not recovered from this page. Retry with the full source page.');
+    error.code='OCR_OUTPUT_INVALID';throw error;
+  }
   if(degenerateOcr(text)||invalidLayoutMarkers(text)){const error=new Error('Invalid OCR output or illustration bounds');error.code='OCR_OUTPUT_INVALID';throw error;}
   return { text, raw: text, model, usage, scanMode, rescued };
 }
@@ -1809,7 +1826,7 @@ function shouldAcceptVerifiedText(first, second, imageMeta = {}) {
   if (/^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(b)) return false;
   if(degenerateOcr(a)||invalidLayoutMarkers(a))return true;
   if (!a || /^no\s+(?:readable\s+)?text\s+detected[.!]?$/i.test(a)) return true;
-  if (losesSourceScript(a, b)||losesSourceSections(a,b)) return false;
+  if (losesSourceScript(a, b)||losesSourceSections(a,b)||losesSourceQuestions(a,b)||losesSourceMarks(a,b)) return false;
   if(!missingResponsePositions(a)&&missingResponsePositions(b))return false;
   if(!missingOpeningSections(a,imageMeta)&&missingOpeningSections(b,imageMeta))return false;
 

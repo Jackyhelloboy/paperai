@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const cp = require('node:child_process');
+const {DOMParser}=require('../frontend/node_modules/@xmldom/xmldom');
 const html = fs.readFileSync('frontend/index.html','utf8');
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 const inline = scripts.find(x=>x[1].includes('function formatOutput(text)'))?.[1];
@@ -80,8 +80,7 @@ assert((xml.match(/<w:tbl>/g)||[]).length >= 6,'grids/tables exported as flatten
 assert(xml.includes('<w:tblGrid>') && xml.includes('<w:tblBorders>'));
 assert(xml.includes('<w:pageBreakBefore/>'),'Word page break missing');
 for(const word of ['बकरी','goat','Activity','Materials','Tools','5x2=10M']) assert(xml.includes(word),'Word document missing: '+word);
-const validate=cp.spawnSync('python3',['-c',
-    'import sys, xml.etree.ElementTree as E; E.fromstring(sys.stdin.read()); print("Word document XML valid")'
-],{input:xml,encoding:'utf8'});
-assert.equal(validate.status,0,validate.stderr);
+const parsed=new DOMParser({onError:(level,message)=>{if(level!=='warning')throw Error(message);}})
+    .parseFromString(xml,'application/xml');
+assert.equal(parsed.documentElement.localName,'document','Word document XML must parse correctly');
 console.log('Worksheet regression: inline JS parses, preview structures match, Word XML is valid with embedded images and tables.');

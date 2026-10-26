@@ -107,3 +107,66 @@ export function losesSourceSections(first, second) {
  const a=sections(first),b=sections(second);
  return a.length>=2&&a.some(n=>!b.includes(n));
 }
+
+function questionInventory(value) {
+ const sections=new Map();let bit='continuation';
+ for(const line of String(value||'').split('\n')){
+  const heading=line.match(/^\s*(?:\[\[SECTION_ROW:\s*)?([IVX]{1,6})[.)]\s+\S/iu);
+  if(heading)bit=heading[1].toUpperCase();
+  const body=line.replace(/^\s*\[\[(?:QUESTION_ROW|MATCH_ROW|TABLE_ROW|CHOICE_ROW|OPTION_ROW):\s*/i,'');
+  const labels=[...body.matchAll(/(?:^|\|\|)\s*([0-9०-९౦-౯௦-௯]+)[.)।]\s*\S/gu)].map(m=>m[1]);
+  if(labels.length)sections.set(bit,[...(sections.get(bit)||[]),...labels]);
+ }
+ return sections;
+}
+
+// Compare the actual visible number sequence rather than the count. An OCR
+// correction may add a missed question, but must retain all previously seen
+// labels, including repeated or irregular numbers and native digit glyphs.
+export function losesSourceQuestions(first, second) {
+ const before=questionInventory(first),after=questionInventory(second);
+ const subsequence=(oldLabels,newLabels)=>{
+  let index=0;
+  for(const label of newLabels)if(label===oldLabels[index])index++;
+  return index===oldLabels.length;
+ };
+ for(const [bit,labels] of before){
+  let candidate=after.get(bit)||[];
+  if(bit==='continuation'){
+   const nextBit=[...before.keys()].find(key=>key!=='continuation');
+   const previous=nextBit&&['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'].indexOf(nextBit);
+   if(previous>0)candidate=after.get(['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'][previous-1])||candidate;
+   if(!candidate.length)candidate=[...after.values()].flat();
+  }
+  if(!subsequence(labels,candidate))return true;
+ }
+ return false;
+}
+
+// A verified transcript must not erase or change a score that was already
+// read from the source. Only literal scores are compared, never calculated.
+export function losesSourceMarks(first, second) {
+ const scores=value=>{
+  const sections=new Map();let bit='continuation';
+  const add=(key,score)=>sections.set(key,[...(sections.get(key)||[]),score]);
+  for(const line of String(value||'').split('\n')){
+   const heading=line.match(/^\s*(?:\[\[SECTION_ROW:\s*)?([IVX]{1,6})[.)]\s+\S/iu);
+   if(heading)bit=heading[1].toUpperCase();
+   const row=line.match(/^\s*\[\[(SECTION_ROW|QUESTION_ROW):\s*(.*?)\s*\|\|\s*([^|]*?)\]\]\s*$/i);
+   if(row){
+    const score=row[3].replace(/\s+/g,'').trim();
+    if(score){const key=row[1].toUpperCase()==='SECTION_ROW'?bit:bit+':'+(row[2].match(/^\s*([0-9०-९౦-౯௦-௯]+)[.)।]/u)?.[1]||row[2].trim());add(key,score);}
+   }else if(heading){
+    const trailing=line.match(/(?:^|\s)(\p{Nd}+\s*[x×X*]\s*\p{Nd}+\s*=\s*\p{Nd}+\s*(?:M|Marks?|अंक)?|\p{Nd}+\s*(?:M|Marks?|अंक))\s*[.।]?\s*$/iu);
+    if(trailing)add(bit,trailing[1].replace(/\s+/g,''));
+   }
+  }
+  return sections;
+ };
+ const before=scores(first),after=scores(second);
+ return [...before].some(([key,marks])=>{
+  let index=0;
+  for(const mark of after.get(key)||[])if(mark===marks[index])index++;
+  return index!==marks.length;
+ });
+}
