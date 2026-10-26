@@ -1822,6 +1822,24 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
                     Correct text
                 </button>
+                <button class="action-btn" type="button" onclick="openPicturePanel()">Pictures · Add / AI</button>
+            </div>
+
+            <div class="teach-panel" id="picturePanel" aria-label="Question picture editor">
+                <div class="teach-title">Pictures in this question paper</div>
+                <div class="teach-sub">Original PDF pictures remain unchanged. Add a picture only when needed; AI pictures are labelled as generated and never replace source evidence automatically.</div>
+                <div id="paperPictureGallery" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0"></div>
+                <label for="pictureQuestion">Place after question or line</label>
+                <select id="pictureQuestion" style="display:block;width:100%;max-width:100%;margin:6px 0 12px;padding:10px"></select>
+                <label for="picturePrompt">Picture description (English, Hindi, Telugu, or another language)</label>
+                <textarea id="picturePrompt" rows="2" maxlength="240" style="display:block;width:100%;margin:6px 0 12px;padding:10px;resize:vertical" placeholder="Example: black-and-white textbook illustration of a mango tree"></textarea>
+                <input id="pictureUpload" type="file" accept="image/png,image/jpeg,image/webp" style="max-width:100%;margin-bottom:10px"/>
+                <div class="teach-actions">
+                    <button class="action-btn" type="button" onclick="addUploadedQuestionPicture()">Insert uploaded picture</button>
+                    <button class="action-btn teach-ai-btn" id="generatePictureBtn" type="button" onclick="generateQuestionPicture()">✦ Generate AI picture</button>
+                    <button class="action-btn" type="button" onclick="closePicturePanel()">Done</button>
+                </div>
+                <div id="pictureStatus" role="status" aria-live="polite" style="margin-top:10px"></div>
             </div>
 
             <div class="teach-panel" id="teachPanel">
@@ -5959,6 +5977,81 @@ let defaultBannerPngPromise = null;
 let extractedMedia = [];
 let docxMediaUsed = new Map();
 function sourceAsset(id) { return extractedMedia.find(item => item.id === id); }
+function pictureStatus(message){$('pictureStatus').textContent=message;}
+function closePicturePanel(){$('picturePanel').classList.remove('show');}
+function openPicturePanel(){
+    if(!lastResult)return;
+    if($('teachPanel').classList.contains('show')){
+        pictureStatus('Save or cancel your text corrections before inserting a picture.');
+        showErr('Save or cancel text corrections before inserting a picture.');
+        return;
+    }
+    $('picturePanel').classList.add('show');
+    const lines=String(lastResult.text||'').split('\n');
+    const select=$('pictureQuestion');select.replaceChildren();
+    lines.forEach((line,index)=>{
+        if(!line.trim()||/^\[\[(?:SOURCE_FIGURE|SOURCE_BANNER|PAGE_BREAK)/i.test(line.trim()))return;
+        const option=document.createElement('option');option.value=String(index);
+        option.textContent='Line '+(index+1)+': '+line.replace(/\[\[[^\]]*\]\]/g,'').slice(0,95);
+        select.appendChild(option);
+    });
+    if(!select.options.length)pictureStatus('No question lines available yet.');
+    else pictureStatus('Choose a question, then upload or generate an illustration.');
+    const gallery=$('paperPictureGallery');gallery.replaceChildren();
+    for(const asset of extractedMedia){
+        if(!asset.dataUrl||asset.role==='banner')continue;
+        const item=document.createElement('div');item.style.cssText='width:110px;font-size:11px;overflow-wrap:anywhere';
+        const img=document.createElement('img');img.src=asset.dataUrl;img.alt=asset.generated?'AI-generated illustration':'Original PDF illustration';img.style.cssText='width:100%;height:85px;object-fit:contain;border:1px solid #ddd;border-radius:6px';
+        const label=document.createElement('div');label.textContent=asset.generated?'AI generated':'From source / uploaded';
+        item.append(img,label);gallery.append(item);
+    }
+}
+async function insertQuestionPicture(imageBlob,{generated=false,caption=''}={}){
+    if(!lastResult)throw new Error('Upload and extract a question paper first.');
+    const lines=String(lastResult.text||'').split('\n');
+    const index=Number($('pictureQuestion').value);
+    if(!Number.isSafeInteger(index)||index<0||index>=lines.length)throw new Error('Select a question first.');
+    if(imageBlob.size>8*1024*1024)throw new Error('Pictures must be smaller than 8 MB.');
+    const source=await decodeImageSource(imageBlob);
+    try{
+        const w=source.width||source.naturalWidth,h=source.height||source.naturalHeight;
+        if(!w||!h)throw new Error('This image could not be decoded.');
+        const scale=Math.min(1,1400/Math.max(w,h));
+        const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
+        canvas.getContext('2d').drawImage(source,0,0,canvas.width,canvas.height);
+        const id='teacher-picture-'+crypto.randomUUID();
+        extractedMedia.push({id,dataUrl:canvas.toDataURL('image/png'),w:canvas.width,h:canvas.height,generated,widthTwips:Math.min(DOCX_CONTENT_W,6000)});
+        const pictureMarker='[[SOURCE_FIGURE: '+id+'|'+String(caption||' ').replace(/[\[\]|\n]/g,' ').slice(0,100)+'|none]]';
+        lines.splice(index+1,0,pictureMarker);
+        lastResult.text=lines.join('\n');
+        lastResult.plain=portableText(docxVisibleText(lastResult.text));
+        delete lastResult.preview_text;delete lastResult.preview_layout_text;
+        showingRaw=false;$('tabVerified').classList.add('active');$('tabRaw').classList.remove('active');
+        textOut.innerHTML=formatOutput(lastResult.text);textOut.className='output-body';
+        updateResultActionsForTab();openPicturePanel();
+        pictureStatus('Picture inserted after the selected question. It will appear in the Word download.');
+    }finally{if(source.close)source.close();}
+}
+async function addUploadedQuestionPicture(){
+    const photo=$('pictureUpload').files?.[0];
+    if(!photo){pictureStatus('Choose a PNG, JPEG or WebP picture first.');return;}
+    if(!/^image\/(png|jpeg|webp)$/.test(photo.type)){pictureStatus('Please choose a PNG, JPEG or WebP picture.');return;}
+    try{await insertQuestionPicture(photo);$('pictureUpload').value='';}catch(error){pictureStatus(error.message||'Could not insert picture.');}
+}
+async function generateQuestionPicture(){
+    const prompt=$('picturePrompt').value.trim(),button=$('generatePictureBtn');
+    if(prompt.length<8){pictureStatus('Describe the required picture in at least eight characters.');return;}
+    if(!lastResult||!$('pictureQuestion').options.length){pictureStatus('Choose a question first.');return;}
+    button.disabled=true;pictureStatus('Generating an optional illustration…');
+    try{
+        const response=await fetch('/api/generate-picture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
+        const result=await response.json();
+        if(!response.ok||!result.image||!/^data:image\/(png|jpeg);base64,/.test(result.image))throw new Error(result.error||'AI picture generation is unavailable.');
+        const blob=await (await fetch(result.image)).blob();
+        await insertQuestionPicture(blob,{generated:true,caption:''});
+    }catch(error){pictureStatus(error.message||'Picture generation failed. Try uploading your own picture.');}
+    finally{button.disabled=false;}
+}
 async function recoverSourceFigures(text, blob, media = extractedMedia) {
     text=PaperAILayout.deduplicateFigures(text);
     if (!/\[\[(?:FIGURE(?:_ROW)?|BANNER):/i.test(text)) return text;

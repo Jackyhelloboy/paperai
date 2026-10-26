@@ -1,7 +1,7 @@
 // Server-only gateway. Never copy the backend address into browser assets.
 const API_BACKEND = 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
 const ROUTES = Object.freeze({
-  '/api/ocr': 'POST', '/api/ocr-status': 'GET', '/api/suggest-word': 'POST',
+  '/api/ocr': 'POST', '/api/ocr-status': 'GET', '/api/suggest-word': 'POST', '/api/generate-picture': 'POST',
   '/api/usage': 'GET', '/api/live': 'GET', '/api/health': 'GET',
 });
 const ERRORS = Object.freeze({
@@ -14,6 +14,9 @@ const ERRORS = Object.freeze({
   AI_OCR_FAILED: 'This page could not be scanned. Please try again.',
   OCR_FAILED: 'This file could not be read. Please check the file and try again.',
   OCR_PROXY_UNREACHABLE: 'PaperAI is temporarily unreachable. Please try again shortly.',
+  IMAGE_GENERATION_UNAVAILABLE: 'AI pictures are not enabled for this website. You can still insert an uploaded picture.',
+  IMAGE_GENERATION_LIMIT: 'AI picture generation has reached its daily limit. Try again tomorrow or upload a picture.',
+  IMAGE_GENERATION_FAILED: 'AI could not generate this picture. Try another description or upload an image.',
   SCAN_NOT_FOUND: 'This page has not been submitted.',
 });
 function json(body, status = 200, extra = {}) {
@@ -67,6 +70,7 @@ export async function onRequest({request, env = {}, fetcher = fetch}) {
       reset_at: body.reset_at,
     });
     if (url.pathname === '/api/suggest-word') return json({suggestions: body.suggestions || []});
+    if (url.pathname === '/api/generate-picture') return json({image:body.image || null});
     return json(publicResult(body),upstream.status,upstream.status===202?{'Retry-After':'2'}:{});
   } catch (_) {
     return json({error: ERRORS.OCR_PROXY_UNREACHABLE, code: 'OCR_PROXY_UNREACHABLE'}, 502);

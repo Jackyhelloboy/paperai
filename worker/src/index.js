@@ -8,6 +8,43 @@ const DAILY_FREE_NEURONS = 10000;
 const GEMMA4_INPUT_NEURONS_PER_MILLION = 9091;
 const GEMMA4_OUTPUT_NEURONS_PER_MILLION = 27273;
 
+// Image generation is opt-in: a public endpoint must never spend the site's
+// Gemini credits unless an administrator explicitly enables a daily budget.
+async function generateQuestionPicture(request, env, corsHeaders) {
+  const error=(code,message,status)=>Response.json({code,error:message},{status,headers:{...corsHeaders,'Cache-Control':'no-store'}});
+  if (env.ENABLE_IMAGE_GENERATION !== 'true' || !env.KV || !String(env.GEMINI_API_KEY||'').trim())
+    return error('IMAGE_GENERATION_UNAVAILABLE','AI pictures are not enabled yet. Uploading an image still works.',503);
+  if (Number(request.headers.get('Content-Length')||0)>2048)
+    return error('IMAGE_GENERATION_FAILED','Picture description is too long.',413);
+  let payload;
+  try {payload=await request.json();}catch(_){return error('IMAGE_GENERATION_FAILED','Invalid picture description.',400);}
+  const prompt=typeof payload?.prompt==='string'?payload.prompt.trim():'';
+  if(prompt.length<8||prompt.length>240||/[\x00-\x08\x0B-\x1F]/.test(prompt))
+    return error('IMAGE_GENERATION_FAILED','Enter a picture description between 8 and 240 characters.',400);
+  // Lower quotas reduce unplanned third-party image-generation charges. KV is
+  // eventually consistent; administrators should additionally enforce a hard
+  // provider billing cap before enabling this public feature.
+  const max=Math.min(30,Math.max(1,Number(env.IMAGE_GENERATION_DAILY_LIMIT)||10));
+  const day=new Date().toISOString().slice(0,10),key='paperai:images:'+day;
+  let used;
+  try {used=Number(await env.KV.get(key)||0);}catch(_){return error('IMAGE_GENERATION_UNAVAILABLE','Image budget tracker is unavailable.',503);}
+  if(used>=max)return error('IMAGE_GENERATION_LIMIT','The daily AI image limit has been reached. Upload a picture or try tomorrow.',429);
+  // Reserve before sending a billable request, even if model execution fails.
+  try {await env.KV.put(key,String(used+1),{expirationTtl:172800});}catch(_){return error('IMAGE_GENERATION_UNAVAILABLE','Image budget tracker is unavailable.',503);}
+  try {
+    const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent',{
+      method:'POST',redirect:'manual',headers:{'Content-Type':'application/json','X-goog-api-key':env.GEMINI_API_KEY},
+      body:JSON.stringify({contents:[{parts:[{text:'Make one accurate, uncluttered school textbook illustration. White background, no labels or written text. Subject: '+prompt}]}],generationConfig:{responseModalities:['IMAGE']}}),
+      signal:AbortSignal.timeout(45000),
+    });
+    if(!response.ok)return error('IMAGE_GENERATION_FAILED','Image provider unavailable. Try later or upload a picture.',503);
+    const result=await response.json();
+    const item=(result?.candidates?.[0]?.content?.parts||[]).find(part=>part.inlineData?.data&&/^image\/(?:png|jpeg)$/.test(part.inlineData.mimeType||''));
+    if(!item || item.inlineData.data.length>8*1024*1024)return error('IMAGE_GENERATION_FAILED','No usable illustration was returned.',502);
+    return Response.json({image:'data:'+item.inlineData.mimeType+';base64,'+item.inlineData.data},{headers:{...corsHeaders,'Cache-Control':'no-store'}});
+  }catch(_){return error('IMAGE_GENERATION_FAILED','Image generation timed out. Try later or upload a picture.',503);}
+}
+
 export default {
   async fetch(request, env) {
     const corsHeaders = {
@@ -53,6 +90,10 @@ export default {
           error: 'Usage tracker unavailable',
         }, { status: 503, headers: corsHeaders });
       }
+    }
+
+    if (url.pathname === '/api/generate-picture' && request.method === 'POST') {
+      return generateQuestionPicture(request, env, corsHeaders);
     }
 
     if ((url.pathname === '/api/ocr' && request.method === 'POST') ||
