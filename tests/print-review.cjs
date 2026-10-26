@@ -19,7 +19,8 @@ assert.equal(modelIssues.length,2,'AI must cite source text and cannot add unsup
 assert.equal(modelIssues[0].category,'marks');
 assert.equal(modelIssues[1].category,'alignment');
 const frontend=fs.readFileSync('frontend/index.html','utf8');
-assert(frontend.includes('AI Print Review'));
+assert(frontend.includes('class="teach-panel simplified-hidden" id="printReviewPanel"'));
+assert(!frontend.includes('id="printReviewBtn"'));
 assert(frontend.includes("'/api/print-review'"));
 assert(frontend.includes('Word\'s Print Preview'));
 console.log('Read-only multilingual print review regression passed.');

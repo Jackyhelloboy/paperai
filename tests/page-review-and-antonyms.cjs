@@ -27,13 +27,15 @@ for(const header of ['Opposite words','వ్యతిరేక పదాలు'
 const genuine='[[SECTION_ROW: I. Match the following || 5M]]\n[[MATCH_ROW: 1. hot || ( ) || cold]]';
 assert.equal(L.repairAntonymRows(genuine),genuine,'Do not damage real matching exercises');
 const html=fs.readFileSync('frontend/index.html','utf8');
-for(const required of ['id="pageReviewPanel"','id="pageReviewList"','function renderAllPageReviews()','async function getSourceReviewPdf(pdfFile)','pageTexts.push(saved.text)','page_texts:documentPageTexts','renderAllPageReviews();'])
+for(const required of ['id="pageReviewPanel"','id="pageReviewList"','function renderAllPageReviews()','async function getSourceReviewPdf(pdfFile)','pageTexts.push(saved.text)','page_texts:documentPageTexts'])
   assert(html.includes(required),'Every-page review wiring missing: '+required);
 assert(html.includes('pdf.getPage(index+1)'),'Review source page with the correct one-based PDF page index');
 assert(html.includes('formatOutput(useFinal?finalPages[index]:sourceText)'),'Display OCR for every corresponding source page');
 const vm=require('node:vm');
 const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m=>m[1].includes('function buildDocxBody'))[1];
 const snippet=script.slice(script.indexOf('let pageReviewGeneration='),script.indexOf('function currentExportText(){'));
+assert(html.includes('class="output-card simplified-hidden" id="pageReviewPanel"'),'Per-page source audit should not crowd the result view');
+assert(!html.includes('if(documentPageTexts.length)renderAllPageReviews();'),'Do not render hidden review cards automatically');
 class Node{
   constructor(){this.children=[];this.style={};this.textContent='';this.innerHTML='';this.className='';}
   append(...children){this.children.push(...children);}

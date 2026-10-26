@@ -767,6 +767,8 @@
             margin-bottom: 0.625rem;
         }
 
+        .simplified-hidden { display: none !important; }
+
         .action-btn {
             flex: 0 1 auto;
             min-width: 0;
@@ -1769,7 +1771,7 @@
                 </select>
             </div>
 
-            <label for="deepOcrVerify" style="display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.5;color:var(--text2);margin:6px 0 12px;cursor:pointer">
+            <label for="deepOcrVerify" class="simplified-hidden" style="display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.5;color:var(--text2);margin:6px 0 12px;cursor:pointer">
                 <input type="checkbox" id="deepOcrVerify" style="margin-top:2px;accent-color:var(--accent)">
                 <span><strong>Deep dual-AI OCR verification</strong> · Optional: force a second reading on every page (slower, more AI credits). Fast mode already double-checks difficult or incomplete pages automatically.</span>
             </label>
@@ -1812,45 +1814,28 @@
 
         <div class="results" id="resBox">
             <div class="results-header">
-                <span class="results-title">Extracted Text</span>
+                <span class="results-title">Question paper</span>
                 <div class="results-badges" id="statsBar"></div>
             </div>
 
-            <div class="results-actions">
-                <button class="action-btn" onclick="copyText(this)">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-                    Copy
-                </button>
+            <div class="results-actions" aria-label="Question paper actions">
                 <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     Download Word
                 </button>
-                <button class="action-btn" id="printReviewBtn" type="button" onclick="runPrintReview(this)">✦ AI Print Review</button>
-                <button class="action-btn" id="arrangeBitsBtn" type="button" onclick="runAiBitLayout(this)">✦ AI Arrange Bits</button>
-                <label for="wordEditMode" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap">Word layout
-                    <select id="wordEditMode" style="padding:7px;max-width:240px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text)">
-                        <option value="easy">Easy to edit · stable text</option>
-                        <option value="move">Drag pictures freely</option>
-                        <option value="source">Preserve original layout</option>
-                    </select>
-                </label>
-
-                <button class="action-btn" onclick="openTeachPanel()">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4 11.5-11.5z"/></svg>
-                    Correct text
-                </button>
-                <button class="action-btn" type="button" onclick="openPicturePanel()">Pictures · Add / AI</button>
+                <button class="action-btn" type="button" onclick="openTeachPanel()">Teach / Edit</button>
+                <button class="action-btn" type="button" onclick="clearPaperData()" title="Clear the current paper and locally saved scan pages.">Clear data</button>
             </div>
 
-            <div class="teach-panel" id="printReviewPanel" aria-label="Question paper print readiness review" style="display:none">
+            <div class="teach-panel simplified-hidden" id="printReviewPanel" aria-label="Question paper print readiness review" style="display:none">
                 <div class="teach-title">Print-readiness report</div>
                 <div class="teach-sub" id="printReviewStatus" role="status" aria-live="polite"></div>
                 <div id="printReviewFindings" style="margin:10px 0"></div>
                 <div class="teach-sub">AI checks text, section markers, marks and grid instructions. It cannot measure actual Word line wrapping or confirm missing scanned words. Compare every source page and use Word's Print Preview before printing.</div>
             </div>
-            <div class="teach-sub" id="aiLayoutStatus" role="status" aria-live="polite" style="display:none;padding:8px 10px">AI layout is ready to check this paper.</div>
+            <div class="teach-sub simplified-hidden" id="aiLayoutStatus" role="status" aria-live="polite" style="display:none;padding:8px 10px">AI layout is ready to check this paper.</div>
 
-            <div class="teach-panel" id="picturePanel" aria-label="Question picture editor">
+            <div class="teach-panel simplified-hidden" id="picturePanel" aria-label="Question picture editor">
                 <div class="teach-title">Pictures in this question paper</div>
                 <div class="teach-sub">Original PDF pictures remain unchanged. Add a picture only when needed; AI pictures are labelled as generated and never replace source evidence automatically.</div>
                 <div id="paperPictureGallery" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0"></div>
@@ -1897,19 +1882,19 @@
 
             <div class="output-card">
                 <div class="output-tabs">
-                    <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Extracted</button>
-                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Plain text</button>
+                    <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Paper preview</button>
+                    <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Extracted text</button>
                 </div>
                 <div class="output-body" id="textOut"></div>
             </div>
 
-            <div class="output-card" id="pageReviewPanel" style="display:none" aria-label="All source pages and extracted text">
+            <div class="output-card simplified-hidden" id="pageReviewPanel" style="display:none" aria-label="All source pages and extracted text">
                 <div class="results-header"><span class="results-title">Review every page</span><span class="badge badge-gray" id="pageReviewCount"></span></div>
                 <div class="teach-sub">Each page stays in source order. Open an original page to compare it with its extracted questions, marks, pictures, and layout. The final editable paper is shown above.</div>
                 <div id="pageReviewList"></div>
             </div>
 
-            <div class="flagged-card" id="flaggedBox">
+            <div class="flagged-card simplified-hidden" id="flaggedBox">
                 <div class="flagged-header">
                     <div class="flagged-title">Words to review</div>
                 </div>
@@ -2154,6 +2139,12 @@ function setFiles(input) {
 
 function setFile(f) {
     setFiles([f]);
+}
+
+async function clearPaperData() {
+    if (processingUpload) { clearFile(); return; }
+    await clearSavedScans();
+    clearFile();
 }
 
 function clearFile() {
@@ -4616,8 +4607,8 @@ function currentPlainText() {
 function updateResultActionsForTab() {
     const downloadBtn = $('downloadWordBtn');
     if (!downloadBtn) return;
-    downloadBtn.style.display = showingRaw ? 'none' : '';
-    downloadBtn.disabled = showingRaw;
+    downloadBtn.style.display = '';
+    downloadBtn.disabled = false;
 
 }
 
@@ -5439,12 +5430,10 @@ goBtn.onclick = async () => {
         const nativeWord=batch.length===1&&/\.docx$/i.test(sourceFile.name);
         configureAutomaticPaper(allText,!!nativePdfPages||nativeWord);
         const charCount = allPlain.length;
-        const editCount = (allText.match(/\[\[(?:DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE):/g) || []).length;
-        let badges = '<span class="badge badge-green">A4 · narrow margins · auto formatted</span><span class="badge badge-gray">' + charCount + ' chars</span>';
-        if(documentPageTexts.length)badges+='<span class="badge badge-gray">'+documentPageTexts.length+' PDF pages · all available to review</span>';
-        if (editCount) badges += '<span class="badge badge-gray">' + editCount + ' edits</span>';
+        let badges = '<span class="badge badge-gray">' + (documentPageTexts.length ? documentPageTexts.length + ' pages' : charCount + ' characters') + '</span>';
+
         const reviewCount=reviewWarnings.length+(typeof PaperAIProfessionalPaper!=='undefined'?PaperAIProfessionalPaper.validate(allText).length:0)+(allText.match(/\[unclear(?::[^\]\n]*)?\]|\[(?:source image|picture) needs review\]|\[\[PICTURE(?:_OPTION|_ROW)?:|\ufffd/gi)||[]).length;
-        if(reviewCount)badges+='<span class="badge badge-gray" role="status">'+reviewCount+' unclear '+(reviewCount===1?'item':'items')+' · review</span>';
+        if(reviewCount)badges+='<span class="badge badge-gray" role="status">'+reviewCount+' items to check</span>';
         $('statsBar').innerHTML = badges;
 
         if (file !== sourceFile) return;
@@ -5460,8 +5449,7 @@ goBtn.onclick = async () => {
         textOut.innerHTML = formatOutput(lastResult.text || '');
         if(typeof runAiBitLayout==='function')void runAiBitLayout(null,true);
         textOut.className = 'output-body';
-        if(documentPageTexts.length)renderAllPageReviews();
-        else $('pageReviewPanel').style.display='none';
+        $('pageReviewPanel').style.display='none';
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
         setProg(100, 'Done');

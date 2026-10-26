@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const html=fs.readFileSync('frontend/index.html','utf8');
+const section=html.slice(html.indexOf('<div class="results" id="resBox">'),html.indexOf('<div class="teach-panel simplified-hidden" id="printReviewPanel"'));
+assert(html.includes('id="tabVerified" onclick="showTab(\'verified\')">Paper preview')&&html.includes('id="tabRaw" onclick="showTab(\'raw\')">Extracted text'));
+for(const label of ['Download Word','Teach / Edit','Clear data'])assert(section.includes(label));
+assert.equal((section.match(/<button /g)||[]).length,3,'Result actions should be three clear choices');
+assert(!section.includes('AI Print Review')&&!section.includes('AI Arrange Bits')&&!section.includes('Word layout'));
+assert(html.includes('id="teachUndoBtn"')&&html.includes('id="teachRedoBtn"'));
+assert(html.includes('onclick="clearSavedScans(this)"'));
+assert(html.includes('onclick="clearPaperData()"'));
+assert(html.includes('await clearSavedScans();\n    clearFile();'));
+assert(html.includes('class="output-card simplified-hidden" id="pageReviewPanel"'));
+assert(html.includes('class="simplified-hidden" style="display:flex')&&html.includes('id="deepOcrVerify"'));
+assert(html.includes("downloadBtn.disabled = false;"),'Word export remains available from both tabs');
+console.log('Simple paper preview, extracted text, Teach, Word, Undo, Redo and clear controls pass.');
