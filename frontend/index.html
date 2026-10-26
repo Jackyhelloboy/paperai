@@ -3093,7 +3093,7 @@ async function makeLineMosaic(source, layout, originalWidth, originalHeight, for
     };
 }
 
-async function prepareImageForOCR(source, forceSafe = false) {
+async function prepareImageForOCR(source, forceSafe = false, preservePageEdges = false) {
     let decoded;
     try {
         decoded = await decodeImageSource(source);
@@ -3112,7 +3112,11 @@ async function prepareImageForOCR(source, forceSafe = false) {
     const cameraOriginalWidth = decoded.width || decoded.naturalWidth || 0;
     const cameraOriginalHeight = decoded.height || decoded.naturalHeight || 0;
 
-    const paperBounds = detectPaperBounds(decoded, cameraOriginalWidth, cameraOriginalHeight);
+    // PDF pages were already rasterized to an exact page rectangle. Cropping
+    // their photographed/pale margins a second time can clip bit I or the
+    // last question and changes original figure coordinates. Crop only
+    // standalone photos for which finding the paper edges is helpful.
+    const paperBounds = preservePageEdges ? null : detectPaperBounds(decoded, cameraOriginalWidth, cameraOriginalHeight);
     let workSource = decoded;
     let croppedSource = null;
     let originalWidth = cameraOriginalWidth;
@@ -3241,7 +3245,7 @@ async function prepareImageForOCR(source, forceSafe = false) {
     });
 
     if (blob.size > 7 * 1024 * 1024 && !forceSafe) {
-        return prepareImageForOCR(source, true);
+        return prepareImageForOCR(source, true, preservePageEdges);
     }
 
     return {
@@ -4403,7 +4407,8 @@ async function sendToOCR(sourceBlob, signal, progressText = '', options = {}) {
     if(signal?.aborted)throw new DOMException('Scan cancelled.','AbortError');
     // Provider selection belongs to the backend. A cached primary-provider
     // block must never prevent uploading a page to the automatic backup.
-    let prepared = await prepareImageForOCR(sourceBlob, false);
+    const preservePageEdges=Number(options.pageNumber)>0;
+    let prepared = await prepareImageForOCR(sourceBlob, false, preservePageEdges);
 
     if (progressText) {
         const lines = Number(prepared.meta?.lineCount) || 0;
@@ -4457,18 +4462,18 @@ async function sendToOCR(sourceBlob, signal, progressText = '', options = {}) {
         if ((res.status === 408 || body?.code === 'AI_TIMEOUT') && attempt === 0) {
             progress('Scan was slow · retrying a lighter page...',22);
             await wait(250);
-            prepared = await prepareImageForOCR(sourceBlob, true);
+            prepared = await prepareImageForOCR(sourceBlob, true, preservePageEdges);
             continue;
         }
         if(body?.code==='OCR_OUTPUT_INVALID'&&attempt===0){
             progress('Rechecking an incomplete scan...',22);
-            prepared=await prepareImageForOCR(sourceBlob,true);
+            prepared=await prepareImageForOCR(sourceBlob,true,preservePageEdges);
             continue;
         }
 
         if (res.status === 413 && attempt === 0) {
             await wait(250);
-            prepared = await prepareImageForOCR(sourceBlob, true);
+            prepared = await prepareImageForOCR(sourceBlob, true, preservePageEdges);
             continue;
         }
 
