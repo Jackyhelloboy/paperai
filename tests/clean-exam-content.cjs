@@ -32,4 +32,15 @@ assert(cleanTelugu.includes('1. ప్రశ్న.')&&cleanTelugu.includes('2. 
 assert.equal(L.cleanExamContent(cleanTelugu),cleanTelugu,'Multilingual cleanup must be idempotent');
 assert.equal(L.paperIdentity('कक्षा: ५\nविषय: हिंदी').className,'५');
 assert.equal(L.paperIdentity('கணிதம்\nவகுப்பு: ௫\nபாடம்: தமிழ்').subject,'தமிழ்');
+for(const [heading,form] of [
+ ['V. अपनी जानकारी भरिए।','[[TABLE_ROW: नाम: ____ || कक्षा: ____]]'],
+ ['V. మీ వివరాలు పూరించండి.','[[TABLE_ROW: పేరు: ____ || తరగతి: ____]]'],
+ ['V. உங்கள் விவரங்களை நிரப்புக.','[[TABLE_ROW: பெயர்: ____ || வகுப்பு: ____]]'],
+ ['V. ನಿಮ್ಮ ವಿವರಗಳನ್ನು ತುಂಬಿರಿ.','[[TABLE_ROW: ಹೆಸರು: ____ || ತರಗತಿ: ____]]']
+]){
+ const question='[[SECTION_ROW: '+heading+' || 2M]]\n'+form;
+ assert(L.cleanExamContent(question).includes(form),'Real native-language student-detail exercises must survive: '+heading);
+ const unrelated='[[SECTION_ROW: IV. प्रश्न लिखिए। || 2M]]\n'+form;
+ assert(!L.cleanExamContent(unrelated).includes(form),'Administrative furniture must still be removed outside a form exercise');
+}
 console.log('Clean exam content: repeated plain fields, partial metadata grids, banners removed; exact questions, word banks, matching and separate classes retained.');
