@@ -1152,7 +1152,13 @@ async function handleOCR(request, env, corsHeaders) {
     // request stays on the backup through verification after it switches.
     aiResult = await runAI(imageDataBase64, mimeType, env, language, difficulty, imageMeta, learningHints, request.signal, detailViews);
   } catch (e) {
-    if(e?.code==='OCR_OUTPUT_INVALID')return Response.json({error:'OCR returned repetitive or incomplete output. Please retry this page or review its source.',code:'OCR_OUTPUT_INVALID'}, {status:502,headers:corsHeaders});
+    if(e?.code==='OCR_OUTPUT_INVALID'){
+      const missingOpening=/opening question bits/i.test(String(e.message||''));
+      return Response.json({
+        error:missingOpening?'The first question bit(s) were missed. Retry this page or review the source before downloading Word.':'OCR returned repetitive or incomplete output. Please retry this page or review its source.',
+        code:'OCR_OUTPUT_INVALID',missing_opening_sections:missingOpening
+      },{status:502,headers:corsHeaders});
+    }
     if (isDailyFreeLimitError(e)) {
       try { await markUsageExhausted(env); } catch (_) {}
       return freeLimitResponse(corsHeaders);
@@ -1746,6 +1752,15 @@ VERIFICATION RULES:
     }
   }
 
+  // A first page that begins with later Roman bits while still containing
+  // numbered questions is incomplete. Never report it as successfully scanned:
+  // the browser retries this page once and keeps other completed PDF pages.
+  // This protects against a plausible-looking Word export that silently
+  // omits the opening question bit(s), as observed on the Hindi FA-3 scan.
+  if(missingOpeningSections(text,imageMeta)){
+    const error=new Error('The opening question bits were not recovered from this page. Retry with the full source page.');
+    error.code='OCR_OUTPUT_INVALID';throw error;
+  }
   if(degenerateOcr(text)||invalidLayoutMarkers(text)){const error=new Error('Invalid OCR output or illustration bounds');error.code='OCR_OUTPUT_INVALID';throw error;}
   return { text, raw: text, model, usage, scanMode, rescued };
 }
