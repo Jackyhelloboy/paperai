@@ -74,6 +74,15 @@ const fs=require('node:fs');
  assert.equal(W.normaliseMarkerRows(continuationHeaders),headerFixed,'Server and browser must suppress the same continuation header');
  const orphan='[[SECTION_ROW: II. Answer. || 5M]]\n1. Question.\n[[TABLE_ROW: Name: ____ || Class: I || Roll No: ____]]\n[[SECTION_ROW: III. Continue. || 5M]]';
  for(const clean of [L.normalise(orphan),W.normaliseMarkerRows(orphan)])assert(!clean.includes('Name:'),'Continuation fields must be suppressed even when a page has no initial header');
+ for(const form of [
+  '[[TABLE_ROW: పేరు: ____ || తరగతి: 5 || క్రమ సంఖ్య: ____]]',
+  '[[TABLE_ROW: नाम: ____ || कक्षा: ५ || अनुक्रमांक: ____]]',
+  '[[TABLE_ROW: பெயர்: ____ || வகுப்பு: ௫ || வரிசை எண்: ____]]'
+ ]){
+  const input='[[SECTION_ROW: I. Write. || 5M]]\n1. Question.\n'+form+'\n[[SECTION_ROW: II. Continue. || 5M]]';
+  assert.equal(L.normalise(input),W.normaliseMarkerRows(input),'Server/browser native-script cleanup must agree');
+  assert(!L.normalise(input).includes(form),'Administrative grids must not interrupt multilingual sections');
+ }
  const englishPaper=[
   'Class: V','Sub: English','[[SECTION_ROW: VIII. Complete these sentences. || 5x1=5M]]','1. First item.',
   '[[PAGE_BREAK]]','[[TABLE_ROW: Name: ____ || Total Marks: ____]]',
