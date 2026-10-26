@@ -41,7 +41,7 @@
   if(/^(?:Answer\b(?!.*\b(?:adding|brackets|action words)\b)|Write\s+any\b.*\banswers?\b)/i.test(s))return 'answer';
   if(/^Rewrite\b|^Join\b.*\bsentences\b|^Change\b.*\bsentences\b/i.test(s))return 'rewrite';
   if(/\b(?:box|blanks?|complete|missing|unscramble|unjumble|opposites?|plural|prefix|nouns?|verbs?|adverbs?)\b/i.test(s))return 'completion';
-  if(/\b(?:true|false|yes|no)\b/i.test(s))return 'boolean';
+  if(/\b(?:true|false|yes|no)\b|\b(?:write|mark|choose)\s+[TFYN]\b|\b(?:write|mark|choose)\s+(?:t\s*(?:or|\/)\s*f|y\s*(?:or|\/)\s*n)\b|सही.*गलत|हाँ.*नहीं|हां.*नहीं|అవును.*కాదు|ஆம்.*இல்லை|ಹೌದು.*ಇಲ್ಲ|അതെ.*അല്ല|হ্যাঁ.*না|ਹਾਂ.*ਨਹੀਂ|ہاں.*نہیں/iu.test(s))return 'boolean';
   return 'plain';
  }
  const emitHeading=h=>'[[SECTION_ROW: '+h.title.replace(/\bTick\s*\([vV]\)/g,'Tick (✓)')+' || '+h.marks+']]';
@@ -71,6 +71,16 @@
    if(/PAPER_BREAK|^Class:/i.test(raw)){mode='';lastRule=false;}
    if(['answer','rewrite','choice','completion','festival','odd'].includes(mode)&&/^\s*\[\[TABLE_(?:REGION|WIDTHS):/i.test(raw))continue;
    const answer=mode==='answer'||mode==='rewrite';
+   if(answer&&/^\s*(?:A(?:ns(?:wer)?)?\s*:?\s*)?\[unclear\]\s*$/i.test(raw)){
+    // Only a standalone, explicitly positioned response can become an empty rule.
+    // Unreadable words inside a question remain visible for review.
+    if(!lastRule)out.push('[[ANSWER_LINES: 1]]');lastRule=true;continue;
+   }
+   if(mode==='boolean'){
+    const bracket=/^\s*(?:\(\s*\)|\[\s*\]|□|☐)\s*$/u;
+    if(bracket.test(raw)&&out.length&&/^\s*\p{Nd}+[.)।]\s+\S/u.test(out[out.length-1])){out[out.length-1]+=' '+raw.trim();continue;}
+    if(row&&row.cells.length===2&&/^\s*\p{Nd}+[.)।]\s+\S/u.test(row.cells[0])&&bracket.test(row.cells[1])){out.push(row.cells[0].trim()+' '+row.cells[1].trim());continue;}
+   }
    if(answer&&row&&row.cells.length===2&&/^\p{Nd}+[.)]?\s/u.test(row.cells[0])&&/^A\s*:?\s*[_\s]*$/i.test(row.cells[1])){out.push(row.cells[0],'[[ANSWER_LINES: 1]]');lastRule=true;continue;}
    const explicitRule=raw.match(/^\s*(?:A\s*:?\s*)?\[\[ANSWER_LINES:\s*(\d+)\]\]\s*$/i);
    if(answer&&(explicitRule||/^\s*(?:A\s*:?\s*)?_{3,}\s*$/.test(raw))){if(!lastRule)out.push('[[ANSWER_LINES: '+1+']]');lastRule=true;continue;}
@@ -127,16 +137,22 @@
  }
  function format(value){return String(value||'').split(/(\[\[PAPER_BREAK\]\]|(?=^Class:))/gim).map(formatPaper).join('');}
  function validate(value){
-  const issues=[];let mode='',title='',items=0,blanks=0;
-  const finish=()=>{if(items&&['completion','boolean'].includes(mode)&&!blanks)issues.push({code:'missing_answer_spaces',section:title,message:'Check answer spaces against the source.'});};
+  const issues=[];let mode='',title='',items=0,blanks=0,booleanItems=[];
+  const hasSpace=line=>/_{2,}|\.{3,}|ANSWER_LINES|\([\s—-]*\)|\[[\s—-]*\]|□|☐/.test(line);
+  const finish=()=>{
+   if(items&&['completion','boolean'].includes(mode)&&!blanks)issues.push({code:'missing_answer_spaces',section:title,message:'Check answer spaces against the source.'});
+   if(['boolean','choice'].includes(mode)&&booleanItems.length>1&&booleanItems.some(Boolean)&&booleanItems.some(value=>!value))issues.push({code:'missing_question_bracket',section:title,message:'A Yes/No question may be missing its answer brackets; compare with the source.'});
+  };
   for(const line of String(value||'').split('\n')){
-   const h=heading(line);if(h){finish();mode=type(h);title=h.title;items=0;blanks=0;if(!h.ordinal)issues.push({code:'section_number',section:title,message:'Check the section number against the source.'});continue;}
-   if(/^Class:|PAPER_BREAK/i.test(line)){finish();mode='';items=0;blanks=0;}
-   if(/^\s*\p{Nd}+[.)]?\s/u.test(line))items++;
-   if(/_{2,}|\.{3,}|ANSWER_LINES|\([\s—-]*\)|\[[\s—-]*\]/.test(line))blanks++;
+   const h=heading(line);if(h){finish();mode=type(h);title=h.title;items=0;blanks=0;booleanItems=[];if(!h.ordinal)issues.push({code:'section_number',section:title,message:'Check the section number against the source.'});continue;}
+   if(/^Class:|PAPER_BREAK/i.test(line)){finish();mode='';items=0;blanks=0;booleanItems=[];}
+   if(/^\s*\p{Nd}+[.)]?\s/u.test(line)){items++;if(['boolean','choice'].includes(mode))booleanItems.push(hasSpace(line));}
+   else if(['boolean','choice'].includes(mode)&&booleanItems.length&&hasSpace(line))booleanItems[booleanItems.length-1]=true;
+   if(hasSpace(line))blanks++;
    if(mode==='choice'&&/^\s*\[\[MATCH_ROW:/.test(line))issues.push({code:'choice_layout',section:title,message:'Check option labels and their question.'});
   }
   finish();return issues;
  }
+
  return {heading,type,format,validate};
 });

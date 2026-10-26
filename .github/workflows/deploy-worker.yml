@@ -32,6 +32,8 @@ jobs:
           node tests/mixed-language-suggestions.cjs
           node tests/ai-quota.cjs
           node tests/gemini-fallback.cjs
+          node tests/provider-reserve-handoff.cjs
+          node tests/answer-bracket-evidence.cjs
           node tests/scan-transport.cjs
           node tests/gemini-deployment.cjs
 

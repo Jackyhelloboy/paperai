@@ -75,20 +75,37 @@ export function missingResponsePositions(text) {
     const value=String(text||'');
     if(value.length>80000)return false;
     const lines=value.split('\n');
-    let expected=false,body=[];
+    let expected=false,booleanSection=false,choiceSection=false,body=[];
     const suspect=()=>{
         if(!expected)return false;
         const section=body.join('\n');
-        const numbered=[...section.matchAll(/(?:^|\n|\|\||\[\[(?:QUESTION_ROW|MATCH_ROW|TABLE_ROW):)\s*[0-9०-९]+[.)।]\s*\S/gu)].length;
-        const response=/(?:_{2,}|\.{3,}|…|[─━—]{2,}|\(\s*\)|\[\s*\]|□|☐|\[\[(?:ANSWER_LINES|GRID|GRID_ROW|CHECKBOX|BOXED):?)/u.test(section);
-        return numbered>=2&&!response;
+        const numbered=[...section.matchAll(/(?:^|\n|\|\||\[\[(?:QUESTION_ROW|MATCH_ROW|TABLE_ROW):)\s*\p{Nd}+[.)।]\s*\S/gu)].length;
+        const responseMarker=/(?:_{2,}|\.{3,}|…|[─━—]{2,}|\(\s*\)|\[\s*\]|□|☐|\[\[(?:ANSWER_LINES|GRID|GRID_ROW|CHECKBOX|BOXED):?)/u;
+        const response=responseMarker.test(section);
+        if(numbered>=2&&!response)return true;
+        if(!(booleanSection||choiceSection)||numbered<2)return false;
+        // A bracket on one Yes/No item cannot stand in for another item.
+        // Include two-column rows: each labelled cell is its own question.
+        const questions=[];let current=null;
+        for(const line of body){
+            const segments=line.replace(/^\s*\[\[(?:MATCH_ROW|TABLE_ROW|QUESTION_ROW):\s*/i,'').replace(/\]\]\s*$/,'').split(/\s*\|\|\s*/);
+            for(const part of segments){
+                if(/^\s*\p{Nd}+[.)।]\s+\S/u.test(part)){
+                    current={text:part};questions.push(current);
+                }else if(current&&/^\s*(?:\(\s*\)|\[\s*\]|□|☐|_{2,}|\[\[ANSWER_LINES:)/u.test(part))current.text+=' '+part;
+            }
+        }
+        if(questions.length<2||!questions.some(q=>responseMarker.test(q.text)))return false;
+        return questions.some(q=>!responseMarker.test(q.text));
     };
     for(const line of lines){
         const heading=line.match(/^\s*\[\[SECTION_ROW:\s*([^\n]*?)(?:\|\||\]\])/i)||line.match(/^\s*[IVXLCDM]+[.)]\s+(.+)/i);
         if(heading||/^\s*(?:Class\s*:|\[\[PAPER_BREAK\]\])/i.test(line)){
             if(suspect())return true;
             const instruction=heading?heading[1]:'';
-            expected=/खाली स्थान|रिक्त स्थान|सही.*गलत|\bfill\b[^\n]{0,90}\bblanks?\b|\bquestion\s+tags?\b|\b(?:true\s*(?:or|\/|and)\s*false|true\s+false)\b/i.test(instruction);
+            booleanSection=/\b(?:write|mark|choose)\s+[TFYN]\b|\b(?:write|mark|choose)\s+(?:t\s*(?:or|\/)\s*f|y\s*(?:or|\/)\s*n)\b|सही.*गलत|हाँ.*नहीं|हां.*नहीं|అవును.*కాదు|అవునా.*కాదా|ஆம்.*இல்லை|ಹೌದು.*ಇಲ್ಲ|അതെ.*അല്ല|হ্যাঁ.*না|ਹਾਂ.*ਨਹੀਂ|ہاں.*نہیں|\b(?:true\s*(?:or|\/|and)\s*false|true\s+false|yes\s*(?:or|\/|and)\s*no|yes\s+no)\b/i.test(instruction);
+            choiceSection=/\b(?:choose|tick|select)\b[^\n]{0,90}\b(?:correct|right|answer|option)\b|సరైన.*ఎంచుకో|சரியான.*தேர்ந்தெடு|ಸರಿಯಾದ.*ಆಯ್ಕೆ/iu.test(instruction);
+            expected=booleanSection||choiceSection||/खाली स्थान|रिक्त स्थान|ఖాళీ|கோடிட்ட|ಖಾಲಿ|ഒഴിഞ്ഞ|শূন্যস্থান|ਖਾਲੀ|خالی|\bfill\b[^\n]{0,90}\bblanks?\b|\bquestion\s+tags?\b/i.test(instruction);
             body=[];
         }else body.push(line);
     }

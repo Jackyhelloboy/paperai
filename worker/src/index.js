@@ -615,6 +615,17 @@ async function confirmedFreeLimit(env) {
   } catch (_) { return false; }
 }
 
+// The primary provider allows 10,000 neurons per day. Keep a small reserve
+// for in-flight requests; the tracked count is only an estimate, so Gemini
+// gets first chance near 9,500, but a Gemini outage can still use primary
+// until that provider confirms its actual daily rejection.
+async function nearPrimaryDailyReserve(env) {
+  try {
+    const status = await withinScanBudget(() => getUsageStatus(env), 2000);
+    return status.provider_limit_reached !== true && Number(status.estimated_used) >= 9500;
+  } catch (_) { return false; }
+}
+
 const PRIMARY_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 const GEMINI_MODEL = 'gemini-flash-latest';
 const GEMINI_CAPACITY_MODEL = 'gemini-3.5-flash-lite';
@@ -783,6 +794,18 @@ async function runInference(env, body, state = {}, signal) {
     if (!hasBackup) throw new Error('3036: daily free allocation reached');
     state.provider = 'gemini';
     return runGemini(env, body, signal, state);
+  }
+  if (hasBackup && state.fastScan && await nearPrimaryDailyReserve(env)) {
+    const reserveState = {...state, provider: 'gemini'};
+    try {
+      const result = await runGemini(env, body, signal, reserveState);
+      Object.assign(state, reserveState);
+      return result;
+    } catch (error) {
+      // A soft threshold is not an entitlement to fail a page. Confirmed
+      // provider blocks still take precedence in the normal primary path.
+      if (signal?.aborted || !['AI_BUSY', 'AI_TIMEOUT', 'SCAN_SERVICE_UNAVAILABLE', 'OCR_OUTPUT_INVALID'].includes(error?.code)) throw error;
+    }
   }
   let primary;
   try {
@@ -1726,7 +1749,8 @@ READING CONTRACT:
 11. Preserve Devanagari strokes and separate vowel signs literally. Recheck श्र/ज्ञ, ू/२, े/ै against pixels, not expected words. Do not duplicate a question word because an insertion is above its printed occurrence.
 12. FINAL CHECK: count all question labels and physical cells in every section. Verify each left AND right column, the page bottom and its continuation grids. Ensure no question stem, option, score or real illustration was omitted and no completed response remains. Return No text detected only when no meaningful source content exists.
 13. SECTION CONTRACT: For every Roman-numbered bit on THIS page, output its number and instruction once, then every visible numbered item and its options in physical order. Do not repeat the instruction in prose before a SECTION_ROW. Do not create an extra section, change a Roman number, silently fill missing items or change a printed marks/count mismatch. The next scanned page may continue the same paper and bit; only a visibly fresh Class/Subject with bit I starts a new paper. Keep student fields only in that new-paper header. Never turn unbordered a/b/c choices or notebook ruling into a table.
-14. SECTION TYPE: An antonyms/opposite-words exercise (विलोम शब्द, వ్యతిరేక పదాలు, எதிர்ச்சொல்) is a numbered vocabulary list, NOT a matching exercise. Dark handwritten X marks or parentheses next to those words are not extra table columns. Transcribe the original numbered words on separate lines. Only use MATCH_ROW when there are actual source-side choices or an explicit matching/join-the-pairs instruction. A page beginning midway through a bit must not be given a stray new Roman heading.`;
+14. SECTION TYPE: An antonyms/opposite-words exercise (विलोम शब्द, వ్యతిరేక పదాలు, எதிர்ச்சொல்) is a numbered vocabulary list, NOT a matching exercise. Dark handwritten X marks or parentheses next to those words are not extra table columns. Transcribe the original numbered words on separate lines. Only use MATCH_ROW when there are actual source-side choices or an explicit matching/join-the-pairs instruction. A page beginning midway through a bit must not be given a stray new Roman heading.
+15. RESPONSE BRACKETS: In Yes/No, True/False and choice exercises, read EACH numbered item and its own response bracket or checkbox from the source image. Preserve an empty (   ) or [   ] beside every item where it is visible. Do not infer that a later item lacks a bracket merely because a previous item used one; do not invent one where the source has none. A bracket is an answer position, never a reason to discard the question wording.`;
 
 
   const requestBody = {
@@ -1780,6 +1804,7 @@ READING CONTRACT:
   let secondReadCompleted=false,verificationDisagreement=false;
 
   const missingStructure=missingResponsePositions(text)||missingOpeningSections(text,imageMeta);
+  const hasUnclearSource = /\[unclear(?::[^\]\n]*)?\]/i.test(text);
   const needsRepair = missingStructure || degenerateOcr(text) || invalidLayoutMarkers(text) || !text.trim() ||
     /^no\s+(?:readable\s+)?text\s+(?:detected|found)[.!]?$/i.test(text.trim());
   const figurePage=/\[\[FIGURE(?:_ROW)?:/i.test(text);
@@ -1797,7 +1822,7 @@ READING CONTRACT:
     if(current&&previousSection&&current<previousSection)suspiciousSectionSequence=true;
     if(current)previousSection=current;
   }
-  if ((imageMeta?.deepVerify===true || ((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPaperIdentity || suspiciousSectionSequence) && (needsRepair || missingPaperIdentity || suspiciousSectionSequence || shouldVerifyOcr(text, imageMeta))) &&
+  if ((imageMeta?.deepVerify===true || hasUnclearSource || ((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPaperIdentity || suspiciousSectionSequence) && (needsRepair || missingPaperIdentity || suspiciousSectionSequence || shouldVerifyOcr(text, imageMeta))) &&
       providerState.deadline - Date.now() >= 5000 && !signal?.aborted) {
     const rescuePrompt = prompt + `
 
@@ -1807,6 +1832,7 @@ ${blankSafeDraft(text)}
 ---END FIRST OCR---
 VERIFICATION RULES:
 - Recheck each physical row and its question numbers against the image. Do not reorder, renumber, drop stems or move choices to other questions.
+- Count the visible answer brackets in each Yes/No, True/False and choice bit; compare bracket-by-bracket with the first OCR and restore only those visibly present beside their original question numbers.
 - Inspect the complete visual page including the TOP questions, left/right columns, bottom questions and all continuation grids. Restore omitted section I and II instructions and questions when visible. Hindi matras, anusvara and nukta are protected question data. Preserve faint question text; ignore only unrelated show-through from the reverse side.
 - A printed ANSWER SHEET banner is administrative furniture, not an instruction to remove the dark handwritten question paper beneath it. On a lined Hindi scan, distinguish dark front-side questions from faint mirrored show-through, and check every numbered item under bit I before accepting the page.
 - Compare the FIRST OCR to the image. Restore omitted source content and remove unsupported content. Resolve unreadable fragments only from visible pixels.

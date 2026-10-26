@@ -855,6 +855,18 @@
             Math.max(0,Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y));
         return area/Math.max(1,a.w*a.h+b.w*b.h-area);
     }
+    // OCR sometimes marks printed options as image crops. Only reject a crop
+    // when its own caption already contains a complete editable question or
+    // answer option; a short drawing label ("1. leaf") is still an image.
+    function figureTextInstead(spec) {
+        const crop=figure(spec),caption=crop?.caption?.trim()||'';
+        if(!caption)return '';
+        const letters=(caption.match(/\p{L}/gu)||[]).length;
+        const question=/[?؟？]\s*(?:\(\s*\)|\[\s*\])?$/u.test(caption)&&letters>=6;
+        const option=/^\s*(?:\([a-dA-D]\)|[a-dA-D][.)])\s+\S/u.test(caption)&&letters>=8;
+        const instructions=/^(?:choose|tick|select|match|fill|write|answer|circle|correct|प्रश्न|सही|ఎంచుకో|எழுது|ಆಯ್ಕೆ|തിരഞ്ഞെടു|নির্বাচন|جواب)/iu.test(caption)&&letters>=18;
+        return question||option||instructions?caption:'';
+    }
     function deduplicateFigures(text) {
         const inline=[];
         for(const line of String(text).split('\n')){
@@ -863,8 +875,12 @@
                 const r=figure(m[1]);if(r)inline.push(r);
             }
         }
-        return String(text).replace(/\[\[FIGURE_ROW:\s*([\s\S]*?)\]\]/gi,(_,body)=>{
+        return String(text).replace(/\[\[FIGURE:\s*([^\]\n]+)\]\]/gi,(marker,body)=>figureTextInstead(body)||marker)
+            .replace(/\[\[FIGURE_ROW:\s*([\s\S]*?)\]\]/gi,(_,body)=>{
             const all=body.split(/\s*\|\|\s*/);
+            const textCells=all.map(figureTextInstead);
+            if(all.length>=2&&textCells.every(Boolean))
+                return '[[CHOICE_ROW: '+textCells.join(' || ')+']]';
             // An impossible detached row must not duplicate an already complete
             // set of pictures attached to their individual questions.
             if(all.some(x=>!figure(x))&&inline.length>=all.length)return '';
@@ -994,5 +1010,5 @@
         }
         return out.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
+    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureTextInstead,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
 });
