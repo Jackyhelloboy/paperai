@@ -17,6 +17,9 @@ for(const answer of ['1. बाहर','2. कड़वे','3. विश्व�
   assert(corrected.includes('\n'+answer+'\n'),'Keep handwritten antonym word and exact question number: '+answer);
 assert(corrected.includes('[[MATCH_ROW: 1. फूल || (   ) || (a) Flower]]'),'Do not modify genuine matching sections');
 assert(corrected.includes('[[PAGE_BREAK]]'),'Preserve source page boundary');
+assert.equal(L.repairAntonymRows('[[SECTION_ROW: IV. विलोम शब्द लिखिए। || 4M]]\n1. बाहर X\n2. कड़वे X'),
+  '[[SECTION_ROW: IV. विलोम शब्द लिखिए। || 4M]]\n1. बाहर\n2. कड़वे',
+  'Remove only stray end-of-row ticks from antonyms; keep original question labels');
 for(const header of ['Opposite words','వ్యతిరేక పదాలు','எதிர்ச்சொல்']){
   const row='[[SECTION_ROW: II. '+header+' || 2M]]\n[[MATCH_ROW: 1. hot || ( ) || x]]';
   assert(L.repairAntonymRows(row).includes('\n1. hot'),'Cross-language antonym section: '+header);

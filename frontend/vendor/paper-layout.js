@@ -949,7 +949,13 @@
             afterBreak=false;
             if(!antonyms)continue;
             const match=line.match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\]\]$/i);
-            if(!match)continue;
+            if(!match){
+                // Pen X/cross marks at the end of an antonym answer row are
+                // grading marks, not part of the question vocabulary.
+                const tick=line.match(/^(\d+[.)]\s+\S(?:.*\S)?)\s+[X×✗✘]$/u);
+                if(tick)lines[i]=tick[1];
+                continue;
+            }
             const cells=match[1].split(/\s*\|\|\s*/).map(x=>x.trim());
             if(cells.length>=2&&/^\d+[.)]\s*\S/u.test(cells[0])&&cells.slice(1).every(matchingPlaceholder))
                 lines[i]=cells[0];
