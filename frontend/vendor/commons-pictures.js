@@ -121,9 +121,13 @@ async function handlePictureSearch(request, corsHeaders = {}, fetcher = (...args
       if (lookedUp.every(result=>result.status==='rejected')) throw lookedUp[0].reason;
       let pages = lookedUp.filter(result=>result.status==='fulfilled').flatMap(result=>result.value);
       let items = pages.map(page => candidate(page, query)).filter(Boolean);
-      if (!items.length) {
-        pages = await metadata({generator:'search', gsrnamespace:'6', gsrlimit:'30', gsrsearch:query}, fetcher);
-        items = pages.map(page=>candidate(page,query)).filter(Boolean);
+      // Styled searches may return relevant pictures but none safe for automatic
+      // insertion. Also inspect a broader object-only search in that case.
+      if (!items.some(item=>item.confident)) {
+        try {
+          const extra = await metadata({generator:'search',gsrnamespace:'6',gsrlimit:'50',gsrsearch:query},fetcher);
+          items = items.concat(extra.map(page=>candidate(page,query)).filter(Boolean));
+        } catch (_) { /* Keep the successful outline search results. */ }
       }
       const unique = [...new Map(items.map(item=>[item.title,item])).values()];
       const results = unique.sort((a,b) => b.score-a.score).slice(0,8).map(publicCandidate);
