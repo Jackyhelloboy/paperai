@@ -70,8 +70,11 @@
             }
             throw new Error('Matching pictures could not be downloaded. Choose a picture using Find pictures.');
         })());
-        try{return await pending.get(q);}catch(error){pending.delete(q);throw error;}
-        finally{if(pending.size>40)pending.delete(pending.keys().next().value);}
+        // This cache deduplicates concurrent requests only. Never reuse a past
+        // result indefinitely: Commons files, licenses and teacher choices change.
+        const request=pending.get(q);
+        try{return await request;}
+        finally{if(pending.get(q)===request)pending.delete(q);}
     }
     return {query,placeholder,assetURL,search,download,automatic,groupRequests};
 });
