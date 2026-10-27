@@ -41,3 +41,10 @@ The existing Commons metadata search, image download, preview picker, PNG conver
 The browser takes a clean PNG raster capture of the selected, licensed image pixels on its own canvas before export. This is an **image screenshot**, not a screenshot of a search page or browser window. The capture retains proportions, uses a white background and high-quality resampling, and is stored as an embedded PNG image object in Word. No remote image URL is needed to open the DOCX. The screenshot does not create new image rights: Commons public-domain/CC0 checks still apply before capture.
 
 This screenshot path is implemented by `prepareQuestionPicture` in `frontend/index.html`, which exports `captureMethod: 'image-pixels-screenshot'`. Search still retrieves the source picture pixels first; there is no way to screenshot an online image without first receiving its pixels. Screenshot capture does not verify that the selected object is semantically correct. Teacher review is still required for uncertain choices and source scans are never silently replaced.
+
+
+## Reference worksheet image style (October 2026)
+
+The requested visual style matches the supplied reference ZIP: bold, recognizable black-and-white outlines, clean white backgrounds and straightforward school worksheet clipart (for example duck, camel, classroom and book). A search for an object such as `apple` first uses the phrase `apple black and white outline clipart`, then `apple black and white line drawing`, then `apple outline coloring page`. Such style-matched Commons results are ranked higher than generic photos or scene illustrations. Search candidates still require public-domain/CC0 verification and the existing unambiguous subject safeguards. Results without a reliable single-object title remain for teacher review. The PNG screenshot is made from the licensed image pixels before the editable Word export; do not screenshot the search webpage itself.
+
+The ZIP is a visual reference, **not** an authorization to redistribute its files; do not commit those images or infer their licenses without provenance.
