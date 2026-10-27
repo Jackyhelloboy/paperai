@@ -96,7 +96,7 @@ export default {
     }
 
     if (url.pathname === '/api/pictures/search' || url.pathname === '/api/pictures/asset') {
-      return handlePictureSearch(request, corsHeaders);
+      return handlePictureSearch(request, corsHeaders, env);
     }
     if (url.pathname === '/api/generate-picture' && request.method === 'POST') {
       return generateQuestionPicture(request, env, corsHeaders);
