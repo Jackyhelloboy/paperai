@@ -26,6 +26,15 @@ vm.runInContext(source,ctx);
  const unavailable=await ctx.materializeDefaultPictureNotes('[[DEFAULT_PICTURE_ROW: 1. duck pic || 2. fish pic]]');
  assert(unavailable.includes('1. duck pic [picture needs review]')&&unavailable.includes('2. fish pic [picture needs review]'));
  assert.equal(media.length,10,'Failed searches must never insert synthetic substitutes');
+ ctx.PaperAIPictures.automatic=async query=>{
+   if(query==='fish')throw Error('Offline for fish');
+   return {blob:{},source:{label:query,license:'Public domain'}};
+ };
+ const partial=await ctx.materializeDefaultPictureNotes('[[DEFAULT_PICTURE_ROW: 1. duck pic || 2. fish pic]]');
+ assert.match(partial,/\[\[SOURCE_FIGURE: web-picture-/,'Keep the successfully found duck image');
+ assert.match(partial,/2\. fish pic \[picture needs review\]/,'Keep the missing fish visible for review');
+ assert.equal(media.length,11,'Only one valid picture is inserted on partial retrieval');
+
  console.log('Online pictures become PNG-backed editable Word rows, with source credits, captions, answer spaces and explicit missing-picture review.');
 })().catch(e=>{console.error(e);process.exitCode=1});
 
