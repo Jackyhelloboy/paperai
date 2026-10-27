@@ -11,7 +11,7 @@ assert.match(html,/onclick="generateQuestionPicture\(\)"/);
 assert(html.includes("lastResult.text=lines.join('\\n')"));
 assert.match(html,/\[\[SOURCE_FIGURE: '\+id/);
 assert.match(html,/textOut\.innerHTML=formatOutput\(lastResult\.text\)/);
-assert.match(html,/docxSourceRun\(item\.id,available\)/);
+assert.match(html,/docxSourceRun\(item\.id,available,sourceMode\?4400:maxHeight/);
 assert.match(gateway,/'\/api\/generate-picture': 'POST'/);
 assert.match(gateway,/image:body\.image \|\| null/);
 

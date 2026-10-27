@@ -76,7 +76,9 @@ const fixture=[
     assert.equal(verticalChoices.split('\n')[2].split('||').length,2);
     assert.equal(ctx.packSourceFigureRows('X. Circle the things that plants need:\n'+loose.replaceAll('\n','\n\n')),verticalChoices,'Blank spacing between picture crops must not break the exercise grid');
     assert.equal(ctx.packSourceFigureRows('XI. Explain the diagrams:\n'+loose).split('\n').length,3,'Consecutive standalone exercise pictures use five columns');
-    assert.equal((ctx.docxSourceRow(['row-1| |none','row-2| |none']).match(/<w:gridCol /g)||[]).length,5,'A final picture row retains five column widths');
+    const shortPictureRow=ctx.docxSourceRow(['row-1| |none','row-2| |none']);
+    assert.equal((shortPictureRow.match(/<w:gridCol /g)||[]).length,2,'A final two-picture row should use the full width in two equal cells');
+    assert.deepEqual([...shortPictureRow.matchAll(/<w:gridCol w:w="(\d+)"/g)].map(m=>Number(m[1])),[5233,5233]);
     const packedXml=ctx.buildDocxBody(packed);
     assert.equal((packedXml.match(/<w:tbl>/g)||[]).length,9,'Two picture-row tables plus seven editable answer boxes are expected');assert.equal((packedXml.match(/<wp:inline /g)||[]).length,7);
     const rels=await zip.file('word/_rels/document.xml.rels').async('text');

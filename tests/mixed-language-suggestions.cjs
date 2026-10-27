@@ -32,6 +32,12 @@ async function checkEditorRequests(){
         PaperAIQuota:{isDailyError:()=>false},fetchOcrEndpoint:()=>{submissions++;return new Promise(resolve=>complete=resolve);},
         selectedTeachSegment:()=>({start:0,end:6,source:'Gingre'}),currentTeachSourceLanguage:()=> 'en',currentTeachLanguage:()=> 'hi',
         getLearnedCorrectionSuggestions:()=>[],TEACH_LANGUAGE_META:{en:{label:'English'}},renderSuggestionChips:()=>{},clearTimeout});
+    ui.teachEditor.value='II. निम्नलिखित शब्दों का अर्थ लिखो\n1. Kite pic (       )';
+    vm.runInContext(slice('function getTeachContext','function findInputSegmentAtCaret'),ui);
+    assert(ui.getTeachContext(ui.teachEditor.value.indexOf('Kite')).includes('निम्नलिखित शब्दों'),
+        'Suggestions should see the current bit instruction, not only the nearby word');
+    ui.getTeachContext=()=> 'हिन्दी और English शब्द';
+    ui.teachEditor.value='Gingre';
     vm.runInContext(slice('async function fetchAiTextSuggestions','function selectedTeachSegment'),ui);
     const first=ui.fetchAiTextSuggestions('Gingre','en','hi',[],[],1);
     ui.aiSuggestionSequence=2;

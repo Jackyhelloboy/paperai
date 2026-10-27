@@ -37,6 +37,8 @@ jobs:
           node tests/professional-paper.cjs
           node tests/answer-bracket-evidence.cjs
           node tests/figure-text-crops.cjs
+          node tests/image-grid-width.cjs
+          node tests/image-crop-evidence.cjs
           node tests/simplified-results-ui.cjs
           node tests/docx-import.cjs
           node tests/editable-paper.cjs

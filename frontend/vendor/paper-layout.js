@@ -51,7 +51,7 @@
         if(!item)return '';
         const caption=item.caption.trim();
         // A handwritten “horse picture” label is editable text, not a drawing.
-        return /^(?:[\p{L}\p{M}][\p{L}\p{M}\s-]{0,45}\s+)?picture$/iu.test(caption)?caption:'';
+        return /^(?:[\p{L}\p{M}][\p{L}\p{M}\s-]{0,45}\s+)?(?:pic|picture)\.?$/iu.test(caption)?caption:'';
     }
     function bannerRegion(spec,text) {
         const banner=figure(spec);if(!banner)return null;
@@ -861,6 +861,7 @@
     function figureTextInstead(spec) {
         const crop=figure(spec),caption=crop?.caption?.trim()||'';
         if(!caption)return '';
+        if(literalPictureCaption(spec))return caption;
         const letters=(caption.match(/\p{L}/gu)||[]).length;
         const question=/[?؟？]\s*(?:\(\s*\)|\[\s*\])?$/u.test(caption)&&letters>=6;
         const option=/^\s*(?:\([a-dA-D]\)|[a-dA-D][.)])\s+\S/u.test(caption)&&letters>=8;
@@ -879,8 +880,11 @@
             .replace(/\[\[FIGURE_ROW:\s*([\s\S]*?)\]\]/gi,(_,body)=>{
             const all=body.split(/\s*\|\|\s*/);
             const textCells=all.map(figureTextInstead);
-            if(all.length>=2&&textCells.every(Boolean))
-                return '[[CHOICE_ROW: '+textCells.join(' || ')+']]';
+            if(all.length>=2&&textCells.every(Boolean)){
+                const options=textCells.every(cell=>/^\s*(?:\([a-dA-D]\)|[a-dA-D][.)])\s+\S/u.test(cell));
+                return options?'[[CHOICE_ROW: '+textCells.join(' || ')+']]':'[[MATCH_ROW: '+textCells.join(' || ')+']]';
+            }
+            if(textCells.some(Boolean))return all.map((cell,index)=>textCells[index]||'[[FIGURE: '+cell.trim()+']]').join('\n');
             // An impossible detached row must not duplicate an already complete
             // set of pictures attached to their individual questions.
             if(all.some(x=>!figure(x))&&inline.length>=all.length)return '';

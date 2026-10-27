@@ -1153,8 +1153,9 @@
         }
         /* A4-like compact worksheet preview; rows and Word tables share widths. */
         .output-body { max-height: min(76vh, 900px); font-size: 11px; }
-        .ocr-figure-row { display:grid; grid-template-columns:repeat(var(--figure-cols),minmax(0,1fr)); gap:.35rem; align-items:start; margin:.5rem 0 .8rem; width:100%; }
-        .ocr-figure-cell { display:flex; flex-direction:column; gap:.28rem; align-items:center; min-width:0; }
+        .ocr-figure-row { display:grid; grid-template-columns:repeat(var(--figure-cols),minmax(0,1fr)); gap:.35rem; align-items:start; margin:.35rem 0 .55rem; width:100%; }
+        .ocr-figure-cell { display:flex; flex-direction:column; gap:.25rem; align-items:center; justify-content:flex-start; min-width:0; }
+        .ocr-figure-cell img { width:100%; height:18cqw; max-height:105px; object-fit:contain; }
         .ocr-figure-cell .ocr-picture-placeholder { width:100%; max-width:110px; min-width:0; min-height:68px; margin:0; padding:.18rem; }
         .ocr-figure-cell .ocr-picture-placeholder img { width:min(65%,48px); height:40px; }
         .ocr-figure-number { align-self:flex-start; font-size:.7rem; }
@@ -3924,9 +3925,15 @@ function getLearnedCorrectionSuggestions(input, localCandidates = []) {
 
 function getTeachContext(position) {
     const text = teachEditor.value || '';
-    const start = Math.max(0, Number(position || 0) - 90);
-    const end = Math.min(text.length, Number(position || 0) + 90);
-    return text.slice(start, end).replace(/\s+/g, ' ').trim();
+    const at = Math.max(0, Math.min(text.length, Number(position) || 0));
+    const before = text.slice(Math.max(0, at - 1800), at);
+    const heading = before.split('\n').reverse().find(line =>
+        /^\s*(?:\[\[SECTION_ROW:|[IVXLCDM]+[.)]\s+)(?:[^\n]{3,180})/iu.test(line)) || '';
+    const nearby = text.slice(Math.max(0, at - 220), Math.min(text.length, at + 220));
+    // The bit instruction distinguishes a spelling correction from a question
+    // answer or a picture request. The source excerpt stays under the API cap.
+    return ((heading ? heading.trim().slice(0, 150) + ' | ' : '') + nearby)
+        .replace(/\s+/g, ' ').trim().slice(0, 600);
 }
 
 function findInputSegmentAtCaret() {
@@ -5017,7 +5024,7 @@ function formatStructuredWorksheetLine(line, columnWidths=null, imageColumns=5) 
     const figure=source.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
     if(figure) {
         const cells=worksheetCells(figure[1],32);
-        return '<div class="ocr-figure-row" style="--figure-cols:'+(cells.length>1?Math.max(1,Math.min(5,imageColumns)):1)+'">'+cells.map(sourceFigureHtml).join('')+'</div>';
+        return '<div class="ocr-figure-row" style="--figure-cols:'+Math.max(1,Math.min(5,cells.length))+'">'+cells.map(sourceFigureHtml).join('')+'</div>';
     }
     const banner=source.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
     if(banner) return sourceFigureHtml(banner[1]);
@@ -5953,7 +5960,12 @@ function buildDocxBody(structuredText) {
         const tableRegion=line.match(/^\[\[TABLE_REGION:\s*([^\]]+)\]\]$/i);
         if(tableRegion){pendingTableRegion=PaperAILayout.figure(tableRegion[1]);i++;continue;}
         let sourceFigure=line.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
-        if(sourceFigure){body.push(docxSourceRow(worksheetCells(sourceFigure[1],32),imageColumns));i++;continue;}
+        if(sourceFigure){
+            const cells=worksheetCells(sourceFigure[1],32);
+            const explicitRow=/^\[\[SOURCE_FIGURE_ROW:/i.test(line);
+            body.push(docxSourceRow(cells,explicitRow?Math.max(cells.length,imageColumns):imageColumns));
+            i++;continue;
+        }
         const sourceBanner=line.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
         if(sourceBanner){body.push('<w:p><w:pPr><w:jc w:val="'+(sourceAsset(sourceBanner[1].trim())?.align||'center')+'"/><w:keepNext/><w:spacing w:after="100"/></w:pPr>'+docxSourceRun(sourceBanner[1].trim(),DOCX_CONTENT_W,2200,'Original source banner')+'</w:p>');i++;continue;}
         if(/^\[\[FOOTER:/i.test(line)){i++;continue;}
@@ -6192,6 +6204,26 @@ async function generateQuestionPicture(){
     }catch(error){pictureStatus(error.message||'Picture generation failed. Try uploading your own picture.');}
     finally{button.disabled=false;}
 }
+function sourceCropHasInk(context,width,height) {
+    if(!context?.getImageData||width<2||height<2)return true;
+    try {
+        const pixels=context.getImageData(0,0,width,height).data;
+        const step=Math.max(1,Math.ceil(Math.sqrt(width*height/70000)));
+        const cols=Math.ceil(width/step),rows=Math.ceil(height/step),rowInk=new Uint32Array(rows);
+        let ink=0;
+        for(let y=0,ry=0;y<height;y+=step,ry++)for(let x=0;x<width;x+=step){
+            const i=(y*width+x)*4;
+            if(pixels[i+3]<100)continue;
+            const brightness=(pixels[i]*299+pixels[i+1]*587+pixels[i+2]*114)/1000;
+            if(brightness<242){ink++;rowInk[ry]++;}
+        }
+        const samples=cols*rows;
+        if(ink<Math.max(4,samples*.0003))return false;
+        const rulingRows=[...rowInk].filter(n=>n>cols*.90).length;
+        const otherInk=ink-[...rowInk].filter(n=>n>cols*.90).reduce((sum,n)=>sum+n,0);
+        return !(rulingRows>0&&rulingRows<=2&&otherInk<Math.max(4,samples*.001));
+    }catch(_){return true;} // Unknown pixels are evidence to review, never grounds for deletion.
+}
 async function recoverSourceFigures(text, blob, media = extractedMedia) {
     text=PaperAILayout.deduplicateFigures(text);
     if (!/\[\[(?:FIGURE(?:_ROW)?|BANNER):/i.test(text)) return text;
@@ -6199,7 +6231,7 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
     try {
         const sw = source.width || source.naturalWidth, sh = source.height || source.naturalHeight;
         const sourceDataUrl=await blobToDataURL(blob);
-        const crop = spec => {
+        const crop = (spec,kind='figure') => {
             const region = typeof spec==='object'?spec:PaperAILayout.figure(spec);
             if (!region) return {id:'missing',caption:'[source image needs review]',answer:false};
             const rect = PaperAILayout.pixels(region,sw,sh);
@@ -6207,6 +6239,8 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
             const ctx=canvas.getContext('2d');
             if (!ctx) throw new Error('Image crop could not be created.');
             ctx.drawImage(source,rect.x,rect.y,rect.w,rect.h,0,0,rect.w,rect.h);
+            if(kind==='figure'&&!sourceCropHasInk(ctx,rect.w,rect.h))
+                return {id:'missing',caption:region.caption||'[source image needs review]',answer:region.answer};
             const id='source-'+crypto.randomUUID();
             media.push({id,dataUrl:canvas.toDataURL('image/png'),w:rect.w,h:rect.h,
                 widthTwips:Math.min(DOCX_CONTENT_W,Math.round(region.w*PaperAILayout.profile.pageWidth/1000)),region,sourceDataUrl:sourceDataUrl});
@@ -6225,7 +6259,7 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
                         if(bounds)region={...searchRegion,w:searchRegion.w*bounds.w/rect.w,h:searchRegion.h*bounds.h/rect.h};
                     }
                 }
-                const asset=crop(region); asset.caption='';
+                const asset=crop(region,'banner'); asset.caption='';
                 const item=media.find(item=>item.id===asset.id); if(item) item.role='banner';
                 return '[[SOURCE_BANNER: '+asset.id+']]';
             }
@@ -6235,6 +6269,10 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
                 labels[0]+(PaperAILayout.figure(specs[0])?.answer?' ______':''):
                 '[[MATCH_ROW: '+labels.map((label,index)=>label+(PaperAILayout.figure(specs[index])?.answer?' ______':'')).join(' || ')+']]';
             const regions=specs.map(x=>crop(x));
+            if(regions.some(region=>region.id==='missing'))
+                return regions.map(region=>region.id==='missing'
+                    ? '[source image needs review]'
+                    : '[[SOURCE_FIGURE: '+cell(region)+']]').join('\n');
             const rows=PaperAILayout.figureRows(regions);
             return rows.map(row=>'[[SOURCE_FIGURE'+(row.length>1?'_ROW':'')+': '+row.map(cell).join(' || ')+']]').join('\n');
         });
@@ -6244,28 +6282,36 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
 function sourceFigureHtml(value) {
     const info=PaperAILayout.source(value), asset=sourceAsset(info.id);
     return '<div class="ocr-figure-cell" style="align-items:'+(asset?.align==='left'?'flex-start':asset?.align==='right'?'flex-end':'center')+'">'+(asset
-        ? '<img style="max-width:100%;width:'+PaperAILayout.fit(asset,10466,7000).w/10466*100+'cqw;object-fit:contain" src="'+esc(asset.dataUrl)+'" alt="Original source illustration">'
+        ? '<img src="'+esc(asset.dataUrl)+'" alt="Original source illustration">'
         : '<span class="ocr-picture-label">[source image needs review]</span>')+
         (info.caption ? '<span class="ocr-picture-label">'+formatOutputLine(info.caption)+'</span>' : '')+
         (info.answer ? '<span class="ocr-figure-answer"></span>' : '')+'</div>';
 }
-function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400, description='Original source illustration', movable=false) {
+function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400, description='Original source illustration', movable=false, fitCell=false) {
     const asset=sourceAsset(id);
     if(!asset) return docxRun('[source image needs review]',{size:18});
     if(!docxMediaUsed.has(id)) docxMediaUsed.set(id,{asset,rid:'rIdSource'+(docxMediaUsed.size+1)});
-    const dim=PaperAILayout.fit(asset,available,maxHeight);
+    // A row owns equal-width cells; fit each picture inside its cell without
+    // distorting the original pixels or allowing a tall crop to consume a page.
+    const dim=PaperAILayout.fit(fitCell?{...asset,widthTwips:available}:asset,available,maxHeight);
     return docxPictureRun(dim.w*635,dim.h*635,docxMediaUsed.get(id).rid,description,movable);
 }
 function docxSourceRow(values,columns=5) {
     if(values.length===1&&activeDocxEditingMode!=='source')
         return docxRichParagraph('[[SOURCE_FIGURE: '+values[0]+']]',{available:DOCX_CONTENT_W,after:90});
-    const widths=docxEqualWidths(values.length>1?Math.max(values.length,Math.min(5,columns)):1);
+    const count=Math.max(1,Math.min(5,Number(columns)||5));
+    if(values.length>count)return Array.from({length:Math.ceil(values.length/count)},(_,index)=>
+        docxSourceRow(values.slice(index*count,(index+1)*count),count)).join('');
+    // The final short row still spans the paper width, corner to corner.
+    const widths=docxEqualWidths(values.length);
+    const maxHeight=values.length>=5?1750:values.length===4?1950:values.length===3?2250:2600;
+    const sourceMode=activeDocxEditingMode==='source';
     return docxTableCells([values.map((value,i)=>{
         const item=PaperAILayout.source(value),available=docxCellContentWidth(widths[i]);
-        return {xml:'<w:p><w:pPr><w:jc w:val="'+(sourceAsset(item.id)?.align||'center')+'"/><w:spacing w:after="60"/></w:pPr>'+docxSourceRun(item.id,available)+'</w:p>'+
+        return {xml:'<w:p><w:pPr><w:jc w:val="'+(sourceMode?(sourceAsset(item.id)?.align||'center'):'center')+'"/><w:spacing w:after="30"/></w:pPr>'+docxSourceRun(item.id,available,sourceMode?4400:maxHeight,'Original source illustration',false,!sourceMode)+'</w:p>'+
             (item.caption ? docxRichParagraph(item.caption,{center:true,size:22,after:40,available}) : '')+
             (item.answer ? docxAnswerBoxParagraph(available) : '')};
-    })],widths,{bordered:false});
+    })],widths,{bordered:false,grid:!sourceMode,padding:45,keepTogether:true,centerVertically:true,minHeight:sourceMode?undefined:maxHeight+200});
 }
 function layoutBitHeading(line){
     const row=String(line||'').trim().match(/^\[\[SECTION_ROW:\s*([^|\]]+?)(?:\s*\|\|[^\]]*)?\]\]$/i);
@@ -6278,7 +6324,8 @@ function layoutColumnsForTitle(title){
     const text=String(current?.text||'');
     if(!current?.layoutPlan||current.layoutPlanText!==text)return 5;
     const type=current.layoutPlan.find(section=>section.title===title);
-    return type?.kind==='pictures'?Math.max(1,Math.min(5,type.imageColumns||5)):5;
+    // Pictures also occur inside matching and multiple-choice bits.
+    return type?Math.max(1,Math.min(5,type.imageColumns||5)):5;
 }
 function layoutTypeHints(){
     const current=typeof lastResult==='undefined'?null:lastResult;
@@ -6288,19 +6335,30 @@ function layoutTypeHints(){
 function packSourceFigureRows(value,media=extractedMedia) {
     const lines=String(value||'').split('\n'),out=[];
     let imageColumns=5;
-    const parse=line=>String(line||'').trim().match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
+    const parse=line=>String(line||'').trim().match(/^\[\[(SOURCE_FIGURE(?:_ROW)?):\s*([\s\S]*?)\]\]$/i);
     for(let i=0;i<lines.length;){
-        if(!parse(lines[i])){
+        const found=parse(lines[i]);
+        if(!found){
             const line=lines[i++];
             const heading=layoutBitHeading(line);
             if(heading)imageColumns=layoutColumnsForTitle(heading);
             out.push(line);continue;
         }
+        if(found[1].toUpperCase()==='SOURCE_FIGURE_ROW'){
+            // OCR already grouped these pictures on one physical source row.
+            // A separate 2+2 arrangement must stay two rows, not become 4+0.
+            const values=worksheetCells(found[2],32);
+            for(let start=0;start<values.length;start+=5){
+                const group=values.slice(start,start+5);
+                out.push('[[SOURCE_FIGURE'+(group.length>1?'_ROW':'')+': '+group.join(' || ')+']]');
+            }
+            i++;continue;
+        }
         const cells=[];let j=i;
         while(j<lines.length){
-            const found=parse(lines[j]);
-            if(found){cells.push(...worksheetCells(found[1],32));j++;continue;}
-            if(!lines[j].trim()&&parse(lines[j+1])){j++;continue;}
+            const next=parse(lines[j]);
+            if(next?.[1].toUpperCase()==='SOURCE_FIGURE'){cells.push(...worksheetCells(next[2],32));j++;continue;}
+            if(!lines[j].trim()&&parse(lines[j+1])?.[1].toUpperCase()==='SOURCE_FIGURE'){j++;continue;}
             break;
         }
         const placed=cells.map((value,index)=>{const info=PaperAILayout.source(value),asset=media.find(item=>item.id===info.id);return asset?.region?{...asset.region,value,index}:{value,index};});
@@ -6667,11 +6725,19 @@ function compactLayoutEvidence(source){
     let current=null;
     for(const line of lines){
         const title=layoutBitHeading(line);
-        if(title){current={text:line+'\n',chars:line.length+1,items:0};sections.push(current);continue;}
-        if(!current||current.chars>600||current.items>=8||!line.trim())continue;
-        current.text+=line.slice(0,150)+'\n';current.chars+=Math.min(line.length,150)+1;current.items++;
+        if(title){current={text:line+'\n',chars:line.length+1,items:0,images:0,extra:[]};sections.push(current);continue;}
+        if(!current||!line.trim())continue;
+        const image=/\[\[SOURCE_FIGURE(?:_ROW)?:/i.test(line);
+        if(current.items<8&&current.chars<650){
+            const excerpt=line.slice(0,image?400:150);
+            current.text+=excerpt+'\n';current.chars+=excerpt.length+1;current.items++;
+        }else if(image&&current.images<4){
+            // A picture exercise may put the drawings after many labels.
+            // Pass only marker evidence, never whole pages, to the layout AI.
+            current.extra.push(line.slice(0,400));current.images++;
+        }
     }
-    return sections.map(s=>s.text).join('\n').slice(0,16000);
+    return sections.map(s=>s.text+s.extra.join('\n')).join('\n').slice(0,16000);
 }
 async function runAiBitLayout(btn,automatic=false){
     if(!lastResult?.text)return;
