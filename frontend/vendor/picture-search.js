@@ -12,7 +12,9 @@
         // that named object, never the entire OCR document or question.
         const direct=line.match(/^(?:\d+[.)]\s*)?([\p{L}\p{M} -]{1,35}?)\s+pic(?:ture)?\b/iu);
         const instruction=line.match(/^(?:\d+[.)]\s*)?(?:add|paste|insert|draw|attach|find)\s+(?:(?:a|an|the)\s+)?(?:pic(?:ture)?\s+of\s+)?([\p{L}\p{M} -]{1,35}?)(?:\s+pic(?:ture)?)?\s*[.!]?$/iu);
-        const m=direct||instruction;
+        // Prefer an explicit verb instruction: `Add picture of apple` must
+        // resolve to apple, not the misleading direct match `Add picture`.
+        const m=instruction||direct;
         if(!m)return null;
         const name=m[1].toLowerCase().trim().replace(/^n\s+tube$/,'tube');
         return subjects[name]||aliases[name]?{name,query:query(name)}:null;
