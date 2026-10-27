@@ -26,3 +26,11 @@ Applies repository-wide. Consult `README.md`, `ARCHITECTURE.md`, and `docs/ONLIN
 - Test positive and negative image-match scenarios, no-results/offline behavior, licensing, input validation, file signatures, dimensions, source image preservation, Word embedded media and correct image placement.
 - Never claim a live external search, real model-based image validation, successful DOCX visual comparison, or production deployment without actually verifying it.
 - Prefer small, reviewable changes that preserve existing APIs. Document any unimplemented requirement explicitly rather than describing it as completed.
+
+## OCR fidelity, multilingual corrections and UI
+- Never print internal statuses such as `[picture needs review]`, debug labels, AI confidence, or operational hints as part of source worksheet content. Show actionable warnings in a separate UI region.
+- OCR must preserve original Hindi, Telugu, English and other scripts, figures, order, marks and punctuation. Model suggestions are proposals, not automatic rewriting of exam content. Show original / suggested forms with explicit teacher approval and reversible edits.
+- Persist teacher-approved spelling corrections into the existing dictionary/training store with language, source, corrected form and consent. Never claim that submitting a correction retrains the underlying Gemini or OCR foundation model.
+- Avoid autonomously learning from unreviewed OCR guesses; do not introduce unbounded training data collection or expose student/teacher content.
+- Prefer fewer, clearly labeled mobile controls: paper preview, edit text, adjust layout, pictures, export Word. Advanced settings should remain optional.
+- Preserve source PDF figures and never replace them with unverified web-search image matches.
