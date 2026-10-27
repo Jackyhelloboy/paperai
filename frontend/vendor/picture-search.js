@@ -11,7 +11,7 @@
         // A question may request a picture without supplying one. Search only
         // that named object, never the entire OCR document or question.
         const direct=line.match(/^(?:\d+[.)]\s*)?([\p{L}\p{M} -]{1,35}?)\s+pic(?:ture)?\b/iu);
-        const instruction=line.match(/^(?:\d+[.)]\s*)?(?:add|paste|insert|draw|attach|find)\s+(?:a|an|the)?\s*(?:pic(?:ture)?\s+of\s+)?([\p{L}\p{M} -]{1,35}?)(?:\s+pic(?:ture)?)?\s*[.!]?$/iu);
+        const instruction=line.match(/^(?:\d+[.)]\s*)?(?:add|paste|insert|draw|attach|find)\s+(?:(?:a|an|the)\s+)?(?:pic(?:ture)?\s+of\s+)?([\p{L}\p{M} -]{1,35}?)(?:\s+pic(?:ture)?)?\s*[.!]?$/iu);
         const m=direct||instruction;
         if(!m)return null;
         const name=m[1].toLowerCase().trim().replace(/^n\s+tube$/,'tube');
