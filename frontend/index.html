@@ -6167,9 +6167,17 @@ async function materializeDefaultPictureNotes(text) {
     return text.replace(marker,(_,body)=>{
         const cells=body.split(/\s*\|\|\s*/),parts=[];
         if(cells.length<1||cells.length>5)return body;
-        // Keep every caption/answer position when a search fails. Never draw a substitute.
-        if(cells.some(caption=>!decoded[PaperAIPictures.placeholder(caption)?.name]))
-            return cells.map(caption=>caption.trim()+' [picture needs review]').join('\n');
+        // Missing candidates must not erase other successfully retrieved pictures
+        // from the same worksheet row. Keep failed requests as reviewable notes.
+        if(cells.some(caption=>!decoded[PaperAIPictures.placeholder(caption)?.name])){
+            return cells.map(caption=>{
+                const name=PaperAIPictures.placeholder(caption)?.name;
+                if(!name||!decoded[name])return caption.trim()+' [picture needs review]';
+                const id='web-picture-'+crypto.randomUUID();
+                extractedMedia.push({id,...decoded[name],defaultIllustration:name});
+                return '[[SOURCE_FIGURE: '+id+'|'+caption.trim()+'|none]]';
+            }).join('\n');
+        }
         for(const caption of cells){
             const name=PaperAIPictures.placeholder(caption).name;
             const id='web-picture-'+crypto.randomUUID();
@@ -6228,8 +6236,15 @@ async function prepareQuestionPicture(imageBlob,{generated=false,webSource=null,
         const context=canvas.getContext('2d');
         if(!context)throw new Error('Picture canvas unavailable.');
         context.fillStyle='#ffffff';context.fillRect(0,0,canvas.width,canvas.height);
+        // Capture only the licensed image pixels, not browser chrome, text or
+        // third-party page decorations. This is a raster screenshot of the
+        // decoded image, saved locally as PNG before being embedded in Word.
+        context.imageSmoothingEnabled=true;
+        context.imageSmoothingQuality='high';
         context.drawImage(source,0,0,canvas.width,canvas.height);
-        return {dataUrl:canvas.toDataURL('image/png'),w:canvas.width,h:canvas.height,generated,webSource,widthTwips};
+        const screenshot=canvas.toDataURL('image/png');
+        if(!screenshot.startsWith('data:image/png;base64,'))throw new Error('Unable to capture a PNG screenshot of this picture.');
+        return {dataUrl:screenshot,w:canvas.width,h:canvas.height,generated,webSource,widthTwips,captureMethod:'image-pixels-screenshot'};
     }finally{if(source.close)source.close();}
 }
 async function insertQuestionPicture(imageBlob,{generated=false,caption='',webSource=null,target=$('pictureQuestion').value}={}){

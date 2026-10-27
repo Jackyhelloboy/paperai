@@ -9,6 +9,12 @@ const COMMONS = 'https://commons.wikimedia.org/w/api.php';
 const MAX_BYTES = 4 * 1024 * 1024;
 const unsafe = /\b(?:porn|nude|naked|sexual|genital|gore|corpse|fetish|hentai)\b/i;
 const unrelated = /\b(?:dead|hunt|hunting|skeleton|dissected|digesting|aircraft|netsuke|adhesive|logo|illusion|stamp contest|patent|grinder|blossoms|industries|cotton|textile)\b/i;
+const outlineSearchPhrases = subject => [
+  subject + ' black and white outline clipart',
+  subject + ' black and white line drawing',
+  subject + ' outline coloring page',
+  subject + ' drawing'
+];
 const schoolSubjects = new Set(['duck','apple','fish','banana','cherry','coconut','fig','grapes','guava','lemon','mango','papaya','peach','pear','pineapple','plum','pomegranate','strawberry','watermelon','cat','dog','cow','lion','elephant','fruit']);
 const plain = value => String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
 const words = value => plain(value).toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) || [];
@@ -43,12 +49,20 @@ function candidate(page, query = '') {
   const relevant = !terms.length || terms.every(term => titleWords.includes(term) || descriptionWords.includes(term));
   if (!relevant) return null;
   const simple = /drawing|illustration|clip.?art|outline|isolated|white background/i.test(title + ' ' + description);
+  const outlineStyle = /outline|line[ -]?art|line drawing|black and white|black-and-white|colouring|coloring|clip.?art/i.test(title + ' ' + description);
+  // Filename relevance is not the same as visual correctness. Distinguish an
+  // exact depicted subject from a labelled diagram, collection or scene.
+  // Auto-insertion must not rely on description-only matches or a compound
+  // ambiguous title; those candidates stay available in the teacher picker.
+  const allowedTitleModifiers = /^(?:a|an|the|simple|clean|clear|black|white|and|of|on|isolated|outline|outlined|drawing|illustration|clipart|clip|art|picture|photo|photograph|icon|coloring|colouring|page|public|domain|psf|png|jpg|jpeg|webp|transparent|background|side|view|single|one|animal|fruit)$/i;
+  const extraTitleWords=titleWords.filter(word=>!terms.includes(word)&&!allowedTitleModifiers.test(word));
+  const autoSafe=terms.length>0 && matched===terms.length && extraTitleWords.length===0;
   return {title: page.title, label: title, width, height, license,
     creator: plain(meta.Artist?.value), sourceUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(page.title.replace(/ /g, '_')),
     assetUrl: '/api/pictures/asset?title=' + encodeURIComponent(page.title),
     // A conservative text match, not a claim of visual verification.
-    confident: terms.length > 0 && matched === terms.length,
-    score: matched * 10 + (/\(PSF\)/i.test(title)?30:0) + (/drawing|illustration|clip.?art|outline/i.test(title)?10:0) + (simple ? 6 : 0) - Math.abs(Math.log(width / height)), image, mime};
+    confident: autoSafe,
+    score: matched * 10 + (outlineStyle ? 24 : 0) + (/\(PSF\)/i.test(title)?30:0) + (/drawing|illustration|clip.?art|outline/i.test(title)?10:0) + (simple ? 6 : 0) - Math.abs(Math.log(width / height)), image, mime};
 }
 async function metadata(params, fetcher) {
   const url = new URL(COMMONS);
@@ -98,8 +112,8 @@ async function handlePictureSearch(request, corsHeaders = {}, fetcher = (...args
       const query = raw.normalize('NFKC').replace(/[^\p{L}\p{M}\p{N}\s-]/gu, ' ').replace(/\s+/g, ' ').trim();
       if (query.length < 2 || query.length > 80 || raw.length > 120 || unsafe.test(query)) return fail('Enter a short school picture subject, such as duck or mango.', 400);
       const subject = query.toLowerCase();
-      const lookups = [metadata({generator: 'search', gsrnamespace: '6', gsrlimit: '30',
-        gsrsearch: query + ' drawing'}, fetcher)];
+      const lookups = outlineSearchPhrases(query).slice(0,3).map(phrase => metadata({generator: 'search', gsrnamespace: '6', gsrlimit: '20',
+        gsrsearch: phrase}, fetcher));
       // The publisher's donated textbook illustrations are preferred when present.
       // Missing files simply disappear; every returned file still passes current licensing checks.
       if (schoolSubjects.has(subject)) lookups.push(metadata({titles: 'File:' + subject[0].toUpperCase() + subject.slice(1) + ' (PSF).png'}, fetcher));

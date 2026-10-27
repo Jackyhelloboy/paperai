@@ -34,3 +34,27 @@ These rules apply to future automatic selection, teacher-assisted selection, pre
 ### Implementation status boundary
 
 The existing Commons metadata search, image download, preview picker, PNG conversion, and Word embedding are already documented above. **Automated visual verification of candidates is not established by the current metadata matching**. A future vision-verification stage must be implemented and tested before describing this pipeline as fully automatic or vision-verified. New code must preserve the original-paper transcription invariants in `ARCHITECTURE.md` and avoid exposing credentials to browser code.
+
+
+## Image-only screenshot capture for Word
+
+The browser takes a clean PNG raster capture of the selected, licensed image pixels on its own canvas before export. This is an **image screenshot**, not a screenshot of a search page or browser window. The capture retains proportions, uses a white background and high-quality resampling, and is stored as an embedded PNG image object in Word. No remote image URL is needed to open the DOCX. The screenshot does not create new image rights: Commons public-domain/CC0 checks still apply before capture.
+
+This screenshot path is implemented by `prepareQuestionPicture` in `frontend/index.html`, which exports `captureMethod: 'image-pixels-screenshot'`. Search still retrieves the source picture pixels first; there is no way to screenshot an online image without first receiving its pixels. Screenshot capture does not verify that the selected object is semantically correct. Teacher review is still required for uncertain choices and source scans are never silently replaced.
+
+
+## Reference worksheet image style (October 2026)
+
+The requested visual style matches the supplied reference ZIP: bold, recognizable black-and-white outlines, clean white backgrounds and straightforward school worksheet clipart (for example duck, camel, classroom and book). A search for an object such as `apple` first uses the phrase `apple black and white outline clipart`, then `apple black and white line drawing`, then `apple outline coloring page`. Such style-matched Commons results are ranked higher than generic photos or scene illustrations. Search candidates still require public-domain/CC0 verification and the existing unambiguous subject safeguards. Results without a reliable single-object title remain for teacher review. The PNG screenshot is made from the licensed image pixels before the editable Word export; do not screenshot the search webpage itself.
+
+The ZIP is a visual reference, **not** an authorization to redistribute its files; do not commit those images or infer their licenses without provenance.
+
+
+## OCR → Gemini evidence review → specific picture request → Word
+
+1. OCR must extract source page text and original images before interpreting picture requests. The source PDF/image remains authoritative. The existing Gemini OCR/verification route may correct a doubtful OCR token **only if its visual evidence supports that correction**; never rewrite wording by dictionary guess or semantic plausibility, invent missing text, or solve worksheet questions. Uncertain readings require review.
+2. Detect only an explicit object-picture instruction (examples: `apple pic`, `Add picture of apple`, `Draw a duck`, `Paste mango picture`). Parse the single supported object name from that instruction, not a full sentence, full page or entire PDF. Unsupported/ambiguous requests stay reviewable and are not searched automatically.
+3. Before making a new picture request, honor any real original embedded PDF image/figure associated with the question. Such a source picture is never automatically replaced merely because it is line art or SVG.
+4. For an explicit missing image, search Commons for `<object> black and white outline clipart`, then other worksheet-style outline phrases. Apply current per-file license, exact-subject relevance, and suitability constraints. Filename confidence is not vision verification; uncertain matches remain a teacher choice.
+5. For the selected permitted image, capture its **image pixels only** to a white-background PNG canvas, embed the PNG at the corresponding question/row in editable Word, retain source/license information and the surrounding text/answer positions. If search fails, leave the request and a visible review note; do not synthesize an approximate SVG.
+6. Tests must cover spelling/figure evidence preservation, object-only search queries, existing source-image priority, partial row failures, and actual DOCX media plus placement. The presence of code/tests is not proof of a successful end-to-end verification run.

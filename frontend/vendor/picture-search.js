@@ -7,7 +7,12 @@
     const subjects={kite:'toy kite',duck:'duck',fish:'fish',tap:'water tap',fruits:'fruit',fruit:'fruit',tube:'inner tube',bow:'archery bow',apple:'apple',banana:'banana',cherry:'cherry',coconut:'coconut','custard apple':'custard apple',fig:'fig',grapes:'grapes',guava:'guava',kiwi:'kiwi fruit',lemon:'lemon',mango:'mango',orange:'orange fruit',papaya:'papaya',peach:'peach',pear:'pear',pineapple:'pineapple',plum:'plum',pomegranate:'pomegranate',strawberry:'strawberry',watermelon:'watermelon',cat:'cat',dog:'dog',cow:'cow',lion:'lion',elephant:'elephant'};
     function query(value){const clean=String(value||'').trim().toLowerCase().replace(/\s+/g,' ');return aliases[clean]||subjects[clean]||clean;}
     function placeholder(caption){
-        const m=String(caption||'').match(/^\s*(?:\d+[.)]\s*)?([\p{L}\p{M} -]{1,35}?)\s+pic(?:ture)?\b/iu);
+        const line=String(caption||'').trim();
+        // A question may request a picture without supplying one. Search only
+        // that named object, never the entire OCR document or question.
+        const direct=line.match(/^(?:\d+[.)]\s*)?([\p{L}\p{M} -]{1,35}?)\s+pic(?:ture)?\b/iu);
+        const instruction=line.match(/^(?:\d+[.)]\s*)?(?:add|paste|insert|draw|attach|find)\s+(?:a|an|the)?\s*(?:pic(?:ture)?\s+of\s+)?([\p{L}\p{M} -]{1,35}?)(?:\s+pic(?:ture)?)?\s*[.!]?$/iu);
+        const m=direct||instruction;
         if(!m)return null;
         const name=m[1].toLowerCase().trim().replace(/^n\s+tube$/,'tube');
         return subjects[name]||aliases[name]?{name,query:query(name)}:null;
@@ -19,7 +24,10 @@
     }
     function groupRequests(text){
         const lines=String(text||'').split('\n'),out=[];
-        const explicit=line=>/^\s*(?:\d+[.)]\s*)?[\p{L}\p{M} -]{1,35}?\s+pic(?:ture)?\s*(?:[—–_-][^\n]*)?$/iu.test(line)&&placeholder(line);
+        const explicit=line=>!!placeholder(line)&&(
+            /^\s*(?:\d+[.)]\s*)?[\p{L}\p{M} -]{1,35}?\s+pic(?:ture)?\s*(?:[—–_-][^\n]*)?$/iu.test(line)||
+            /^\s*(?:\d+[.)]\s*)?(?:add|paste|insert|draw|attach|find)\s+[^\n]{2,45}$/iu.test(line)
+        );
         for(let i=0;i<lines.length;){
             // Existing pixel evidence takes priority over a nearby written note.
             if(!explicit(lines[i])||/\[\[(?:SOURCE_)?FIGURE/i.test(lines.slice(Math.max(0,i-1),i+3).join('\n'))){out.push(lines[i++]);continue;}
@@ -56,12 +64,25 @@
     async function automatic(subject,fetcher=fetch){
         const q=query(subject);
         if(!pending.has(q))pending.set(q,(async()=>{
-            const items=await search(q,fetcher),item=items.find(item=>item.confident);
-            if(!item)throw new Error('Choose a picture using Find pictures.');
-            return {blob:await download(item,fetcher),source:item};
+            const items=await search(q,fetcher);
+            // Try the best-matched candidates in order. A Commons item may have
+            // disappeared or have invalid pixels since the search was indexed.
+            // Never quietly choose an unrelated or unlicensed fallback.
+            const candidates=items.filter(item=>item.confident===true).slice(0,4);
+            if(!candidates.length)throw new Error('Choose a picture using Find pictures.');
+            for(const item of candidates){
+                try{
+                    const blob=await download(item,fetcher);
+                    if(blob&&blob.size>0)return {blob,source:item};
+                }catch(_){ /* Try the next separately validated Commons candidate. */ }
+            }
+            throw new Error('Matching pictures could not be downloaded. Choose a picture using Find pictures.');
         })());
-        try{return await pending.get(q);}catch(error){pending.delete(q);throw error;}
-        finally{if(pending.size>40)pending.delete(pending.keys().next().value);}
+        // This cache deduplicates concurrent requests only. Never reuse a past
+        // result indefinitely: Commons files, licenses and teacher choices change.
+        const request=pending.get(q);
+        try{return await request;}
+        finally{if(pending.get(q)===request)pending.delete(q);}
     }
     return {query,placeholder,assetURL,search,download,automatic,groupRequests};
 });
