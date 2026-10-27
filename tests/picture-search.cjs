@@ -17,6 +17,13 @@ const req=path=>new Request('https://paper.test/api/pictures/'+path);
  const metadata=async url=>{calls.push(url);return Response.json({query:{pages:[page(),page({title:'File:Other.png'})]}});};
  let response=await ctx.handlePictureSearch(req('search?q=duck'),{},metadata),body=await response.json();
  assert.equal(body.results[0].title,'File:Duck drawing.png');assert(body.results[0].confident);
+
+ const compound=page({title:'File:Duck and boat drawing.png'});
+ response=await ctx.handlePictureSearch(req('search?q=duck'),{},async()=>Response.json({query:{pages:[compound]}}));
+ assert.equal((await response.json()).results[0].confident,false,'Compound picture names require teacher selection');
+ const descriptionOnly=page({title:'File:Waterbird drawing.png'});
+ response=await ctx.handlePictureSearch(req('search?q=duck'),{},async()=>Response.json({query:{pages:[descriptionOnly]}}));
+ assert.equal((await response.json()).results[0].confident,false,'Description-only semantic matches are never auto-inserted');
  assert(!JSON.stringify(body).includes('<a>'));assert(!body.results[0].image,'Do not expose caller-controlled upstream URLs');
  assert.equal(new URL(calls[0]).hostname,'commons.wikimedia.org');
  assert.equal(new URL(calls[0]).searchParams.get('gsrnamespace'),'6');
