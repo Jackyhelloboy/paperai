@@ -5423,7 +5423,7 @@ goBtn.onclick = async () => {
         if (!allPlain) allPlain = allText;
         if (!allPlain.trim() && !allText.trim()) throw new Error('No text found in file');
 
-        allText = PaperAILayout.cleanExamContent(repairLegacyBranchDiagram(allText));
+        allText = PaperAILayout.cleanExamContent(repairLegacyBranchDiagram(PaperAILayout.sanitizeSourceFigureText(allText)));
         if(typeof PaperAIProfessionalPaper!=='undefined'){const formatted=PaperAIProfessionalPaper.format(allText);if(formatted!==allText)nativePdfPages=null;allText=formatted;}
         allPlain = repairLegacyBranchDiagram(allPlain);
         // The preview and editable export must share the same paper-boundary
@@ -6307,11 +6307,11 @@ function docxSourceRow(values,columns=5) {
     const maxHeight=values.length>=5?1750:values.length===4?1950:values.length===3?2250:2600;
     const sourceMode=activeDocxEditingMode==='source';
     return docxTableCells([values.map((value,i)=>{
-        const item=PaperAILayout.source(value),available=docxCellContentWidth(widths[i]);
+        const item=PaperAILayout.source(value),available=docxCellContentWidth(widths[i],{padding:110});
         return {xml:'<w:p><w:pPr><w:jc w:val="'+(sourceMode?(sourceAsset(item.id)?.align||'center'):'center')+'"/><w:spacing w:after="30"/></w:pPr>'+docxSourceRun(item.id,available,sourceMode?4400:maxHeight,'Original source illustration',false,!sourceMode)+'</w:p>'+
             (item.caption ? docxRichParagraph(item.caption,{center:true,size:22,after:40,available}) : '')+
             (item.answer ? docxAnswerBoxParagraph(available) : '')};
-    })],widths,{bordered:false,grid:!sourceMode,padding:45,keepTogether:true,centerVertically:true,minHeight:sourceMode?undefined:maxHeight+200});
+    })],widths,{bordered:false,grid:!sourceMode,padding:110,keepTogether:true,centerVertically:true,minHeight:sourceMode?undefined:maxHeight+200});
 }
 function layoutBitHeading(line){
     const row=String(line||'').trim().match(/^\[\[SECTION_ROW:\s*([^|\]]+?)(?:\s*\|\|[^\]]*)?\]\]$/i);

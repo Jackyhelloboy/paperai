@@ -46,12 +46,13 @@
         const caption=parts.length===2&&/^(?:none|box)$/.test(parts[1].trim()) ? '' : (parts[1]||'').trim();
         return {x,y,w,h,caption, answer:parts[parts.length-1]?.trim() === 'box'};
     }
+    const writtenPictureNote = caption => /^(?:[\p{L}\p{M}][\p{L}\p{M}\s-]{0,45}\s+)?(?:pic|picture)\.?$/iu.test(String(caption||'').trim());
     function literalPictureCaption(value) {
         const item=figure(value);
         if(!item)return '';
         const caption=item.caption.trim();
         // A handwritten “horse picture” label is editable text, not a drawing.
-        return /^(?:[\p{L}\p{M}][\p{L}\p{M}\s-]{0,45}\s+)?(?:pic|picture)\.?$/iu.test(caption)?caption:'';
+        return writtenPictureNote(caption)?caption:'';
     }
     function bannerRegion(spec,text) {
         const banner=figure(spec);if(!banner)return null;
@@ -146,6 +147,21 @@
     function source(value) {
         const [id,caption='',answer=''] = String(value || '').split('|');
         return {id:id.trim(),caption:caption.trim(),answer:answer.trim()==='box'};
+    }
+    // Saved OCR pages can contain image markers created by an older crop rule.
+    // Convert only explicit handwritten picture notes, leaving real drawings
+    // and uncertain captions untouched. This runs again after checkpoint load.
+    function sanitizeSourceFigureText(text) {
+        return String(text||'').replace(/\[\[SOURCE_FIGURE_ROW:\s*([^\]\n]+)\]\]/gi,(marker,body)=>{
+            const cells=body.split(/\s*\|\|\s*/).map(source);
+            const notes=cells.map(cell=>writtenPictureNote(cell.caption)?cell.caption:'');
+            if(notes.every(Boolean))return '[[MATCH_ROW: '+notes.join(' || ')+']]';
+            if(notes.some(Boolean))return body.split(/\s*\|\|\s*/).map((cell,index)=>notes[index]||'[[SOURCE_FIGURE: '+cell.trim()+']]').join('\n');
+            return marker;
+        }).replace(/\[\[SOURCE_FIGURE:\s*([^\]\n]+)\]\]/gi,(marker,body)=>{
+            const item=source(body);
+            return writtenPictureNote(item.caption)?item.caption:marker;
+        });
     }
     function fit(asset, available=profile.contentWidth, maxHeight=4400) {
         const ratio=Math.max(.05, Number(asset?.w || 1)/Math.max(1,Number(asset?.h || 1)));
@@ -1014,5 +1030,5 @@
         }
         return out.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureTextInstead,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
+    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureTextInstead,sanitizeSourceFigureText,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
 });

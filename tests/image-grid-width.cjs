@@ -20,6 +20,7 @@ assert(Math.max(...widths(three))-Math.min(...widths(three))<=2);
 assert.equal(widths(five).length,5);
 assert.equal(widths(five).reduce((a,b)=>a+b,0),10466);
 assert(three.includes('<w:tblLayout w:type="fixed"/>')&&five.includes('<w:cantSplit/>'),'Pictures need stable fixed rows');
+assert(three.includes('<w:left w:w="110" w:type="dxa"/>'),'Adjacent pictures need a visible gutter');
 for(const [xml,limit] of [[three,2250],[five,1750]]){
   const sizes=[...xml.matchAll(/<wp:extent cx="(\d+)" cy="(\d+)"/g)];
   assert.equal(sizes.length,xml===three?3:5);
