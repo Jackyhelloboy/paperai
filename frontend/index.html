@@ -5430,7 +5430,7 @@ goBtn.onclick = async () => {
         // cleanup; keep the unmodified model response in raw_text for review.
         if(batch.every(part=>/\.pdf$/i.test(part.name))){
             allText=PaperAILayout.normalise(allText);
-            allText=PaperAILayout.groupExplicitPictureNotes(allText);
+            allText=PaperAILayout.groupPictureChoiceLabels(PaperAILayout.groupThreePictureLabels(PaperAILayout.groupExplicitPictureNotes(allText)));
             if(/\[\[DEFAULT_PICTURE_ROW:/i.test(allText))allText=await materializeDefaultPictureNotes(allText);
             allPlain=portableText(docxVisibleText(allText));
         }
@@ -6135,10 +6135,11 @@ async function materializeDefaultPictureNotes(text) {
     const marker=/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g;
     if(!marker.test(text))return text;
     marker.lastIndex=0;
-    const pictures={kite:true,duck:true,fish:true,tap:true,fruits:true};
+    const names=[...text.matchAll(/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g)].flatMap(m=>
+        m[1].split(/\s*\|\|\s*/).map(cell=>cell.match(/^\s*(?:[1-5][.)]\s*)?(kite|duck|fish|tap|fruits|n\s*tube|tube|bow)\s+pic(?:ture)?\b/iu)?.[1]?.toLowerCase().replace(/^n\s*tube$/,'tube')).filter(Boolean));
     const decoded={};
     try {
-        await Promise.all(Object.keys(pictures).map(async name=>{
+        await Promise.all([...new Set(names)].map(async name=>{
             const response=await fetch('/default-'+name+'.svg');
             if(!response.ok)throw new Error('Illustration unavailable');
             const blob=await response.blob();
@@ -6162,14 +6163,14 @@ async function materializeDefaultPictureNotes(text) {
     }catch(_){return text.replace(marker,(_,body)=>body.split(/\s*\|\|\s*/).join('\n'));}
     return text.replace(marker,(_,body)=>{
         const cells=body.split(/\s*\|\|\s*/),parts=[];
-        if(cells.length!==5)return body;
+        if(![1,2,3,5].includes(cells.length))return body;
         for(const caption of cells){
-            const found=caption.match(/^\s*[1-5][.)]\s*(kite|duck|fish|tap|fruits)\s+pic(?:ture)?\b/iu);
-            const name=found?.[1]?.toLowerCase();
+            const found=caption.match(/^\s*(?:[1-5][.)]\s*)?(kite|duck|fish|tap|fruits|n\s*tube|tube|bow)\s+pic(?:ture)?\b/iu);
+            const name=found?.[1]?.toLowerCase().replace(/^n\s*tube$/,'tube');
             if(!name||!decoded[name])return body;
             const id='default-picture-'+crypto.randomUUID();
             extractedMedia.push({id,dataUrl:decoded[name],w:320,h:240,widthTwips:1550,defaultIllustration:name});
-            parts.push(id+'|'+caption.trim()+'|none');
+            parts.push(id+'|'+caption.trim()+'|'+(cells.length===3?'box':'none'));
         }
         return '[[SOURCE_FIGURE_ROW: '+parts.join(' || ')+']]';
     });

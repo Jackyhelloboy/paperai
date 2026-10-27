@@ -174,12 +174,12 @@
         const item=/^\s*([1-5][.)]\s*)(kite|duck|fish|tap|fruits)(\s+pic(?:ture)?\b)(.*)$/iu;
         for(let i=0;i<lines.length;i++){
             if(!tokenise(lines[i]).some(cell=>item.test(cell)))continue;
-            const heading=lines.slice(Math.max(0,i-8),i).reverse().find(line=>/^\s*(?:\[\[SECTION_ROW:|[IVX]{1,6}[.)\s])/i.test(line));
+            const heading=lines.slice(Math.max(0,i-5),i).reverse().find(line=>/(?:चित्र\s+देखकर|चित्रों?\s+को\s+देखकर|look\s+at\s+the\s+pictures)/iu.test(line));
             if(!heading||!/(?:चित्र|picture|pic\b)/iu.test(heading))continue;
             const cells=[],notes=[];let end=i;
-            for(;end<Math.min(lines.length,i+12)&&notes.length<5;end++){
+            for(;end<Math.min(lines.length,i+12)&&(notes.length<5||/^\s*[—–-]\s*\S/u.test(lines[end]));end++){
                 const line=lines[end];
-                if(end>i&&/^\s*(?:\[\[SECTION_ROW:|[IVX]{1,6}[.)\s])/i.test(line))break;
+                if(end>i&&(/^\s*\[\[SECTION_ROW:/i.test(line)||/(?:चित्रों?\s+को\s+देखकर|चित्र\s+में\s+रंग|picture.*(?:name|circle))/iu.test(line)))break;
                 const parts=tokenise(line);cells.push(...parts);
                 for(const cell of parts){const match=cell.match(item);if(match)notes.push(match[2].toLowerCase());}
             }
@@ -195,6 +195,59 @@
             return lines.join('\n');
         }
         return String(text||'');
+    }
+    // A visual reader may transcribe obvious drawing labels as plain "pic"
+    // notes. When all three labels of a picture-name exercise are present but
+    // no source crops survived, supply labelled fallback art in the same row.
+    function groupThreePictureLabels(text) {
+        const lines=String(text||'').split('\n');
+        for(let i=0;i<lines.length;i++){
+            if(!/(?:चित्रों?\s+को\s+देखकर|pictures?\s+and\s+write)/iu.test(lines[i]))continue;
+            let end=i+1;
+            while(end<lines.length&&end<i+9&&!/^\s*(?:\[\[SECTION_ROW:|[IVX]{1,6}[.)]\s+|चित्र\s+को\s+पहचानकर)/iu.test(lines[end]))end++;
+            const section=lines.slice(i+1,end).join('\n');
+            if(/\[\[SOURCE_FIGURE(?:_ROW)?:/i.test(section))continue;
+            const labels=[...section.matchAll(/\b(duck|fish|kite)\s+pic(?:ture)?\b/giu)].map(m=>m[1].toLowerCase());
+            if(labels.join(',')!=='duck,fish,kite')continue;
+            const cells=section.match(/\[\[MATCH_ROW:\s*([^\]]+)\]\]/i)?.[1].split(/\s*\|\|\s*/)
+                ||lines.slice(i+1,end).flatMap(line=>[...line.matchAll(/\b(?:duck|fish|kite)\s+pic(?:ture)?\b/giu)].map(m=>m[0]));
+            if(cells.length!==3||cells.some(c=>!/\b(?:duck|fish|kite)\s+pic(?:ture)?\b/iu.test(c)))continue;
+            const retained=lines.slice(i+1,end).filter(line=>!(/\b(?:duck|fish|kite)\s+pic(?:ture)?\b/iu.test(line)));
+            lines.splice(i+1,end-i-1,...retained,'[[DEFAULT_PICTURE_ROW: '+cells.map(c=>c.trim()).join(' || ')+']]');
+            return lines.join('\n');
+        }
+        return String(text||'');
+    }
+    function groupPictureChoiceLabels(text) {
+        const lines=String(text||'').split('\n');
+        const start=lines.findIndex(line=>/(?:चित्र\s+को\s+पहचानकर|identify\s+the\s+picture)/iu.test(line));
+        if(start<0)return String(text||'');
+        let end=start+1;
+        while(end<lines.length&&!/^\s*(?:\[\[SECTION_ROW:|[IVX]{1,6}[.)]\s+)/i.test(lines[end]))end++;
+        const section=lines.slice(start+1,end).join('\n');
+        if(/\[\[SOURCE_FIGURE(?:_ROW)?:/i.test(section))return String(text||'');
+        const pattern=/\b(?:tap|n\s*tube|tube|bow)\s+pic(?:ture)?\b/giu;
+        const seen=[...section.matchAll(pattern)];
+        if(seen.length<2)return String(text||'');
+        for(let i=start+1;i<end;i++){
+            const line=lines[i];
+            const row=line.trim().match(/^\[\[MATCH_ROW:\s*([^\]]+)\]\]$/i);
+            if(row){
+                const cells=row[1].split(/\s*\|\|\s*/);
+                if(cells.length>=2&&cells.length<=5&&cells.every(cell=>/^\s*(?:tap|n\s*tube|tube|bow)\s+pic(?:ture)?\s*$/iu.test(cell))){
+                    lines[i]='[[DEFAULT_PICTURE_ROW: '+cells.join(' || ')+']]';
+                    continue;
+                }
+            }
+            if(!pattern.test(line)){pattern.lastIndex=0;continue;}
+            pattern.lastIndex=0;
+            const label=line.match(pattern)?.[0];pattern.lastIndex=0;
+            if(!label)continue;
+            // Keep visible option letters in their original following line;
+            // a generated drawing is marked as a default, not source pixels.
+            if(line.trim()===label.trim())lines[i]='[[DEFAULT_PICTURE_ROW: '+label.trim()+']]';
+        }
+        return lines.join('\n');
     }
     function fit(asset, available=profile.contentWidth, maxHeight=4400) {
         const ratio=Math.max(.05, Number(asset?.w || 1)/Math.max(1,Number(asset?.h || 1)));
@@ -1063,5 +1116,5 @@
         }
         return out.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,groupExplicitPictureNotes,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureTextInstead,sanitizeSourceFigureText,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
+    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,groupExplicitPictureNotes,groupThreePictureLabels,groupPictureChoiceLabels,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureTextInstead,sanitizeSourceFigureText,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
 });

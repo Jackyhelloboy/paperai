@@ -17,7 +17,7 @@ assert.equal(L.sanitizeSourceFigureText('[[SOURCE_FIGURE: id|bird|none]]'),'[[SO
 const html=require('node:fs').readFileSync('frontend/index.html','utf8');
 assert(html.includes('PaperAILayout.sanitizeSourceFigureText(allText)'),
  'A resumed PDF must not bypass the new picture-note rule');
-assert(require('node:fs').readFileSync('frontend/vendor/scan-checkpoints.js','utf8').includes('v7-visual-section-groups'),
+assert(require('node:fs').readFileSync('frontend/vendor/scan-checkpoints.js','utf8').includes('v8-picture-reread'),
  'Old saved OCR pages require fresh visual verification');
 const truePicture='[[FIGURE: 100,200,420,75|1. leaf|none]]';
 assert.equal(L.deduplicateFigures(truePicture),truePicture,'Do not discard a labelled actual illustration');
