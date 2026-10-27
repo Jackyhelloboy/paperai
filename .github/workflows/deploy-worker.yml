@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'worker/**'
+      - 'frontend/vendor/commons-pictures.js'
       - '.github/workflows/deploy-worker.yml'
       - '.github/scripts/check-gemini.cjs'
       - 'tests/gemini-deployment.cjs'

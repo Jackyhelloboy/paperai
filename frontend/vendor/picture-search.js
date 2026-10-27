@@ -33,22 +33,35 @@
     async function search(subject,fetcher=fetch){
         const q=query(subject);
         if(q.length<2||q.length>80)throw new Error('Enter a short picture subject.');
-        const response=await fetcher('/api/pictures/search?q='+encodeURIComponent(q));
-        const data=await response.json();
-        if(!response.ok)throw new Error(data.error||'Picture search unavailable.');
-        return Array.isArray(data.results)?data.results:[];
+        try{
+            const response=await fetcher('/api/pictures/search?q='+encodeURIComponent(q));
+            const data=await response.json();
+            if(!response.ok)throw new Error(data.error||'Picture search unavailable.');
+            return Array.isArray(data.results)?data.results:[];
+        }catch(error){
+            if(typeof PaperAICommons!=='undefined')return PaperAICommons.search(q);
+            throw error;
+        }
+    }
+    async function download(item,fetcher=fetch){
+        try{
+            const response=await fetcher(assetURL(item));
+            if(!response.ok)throw new Error('Picture download failed.');
+            return await response.blob();
+        }catch(error){
+            if(typeof PaperAICommons!=='undefined')return PaperAICommons.download(item);
+            throw error;
+        }
     }
     async function automatic(subject,fetcher=fetch){
         const q=query(subject);
         if(!pending.has(q))pending.set(q,(async()=>{
             const items=await search(q,fetcher),item=items.find(item=>item.confident);
             if(!item)throw new Error('Choose a picture using Find pictures.');
-            const response=await fetcher(assetURL(item));
-            if(!response.ok)throw new Error('Picture download failed.');
-            return {blob:await response.blob(),source:item};
+            return {blob:await download(item,fetcher),source:item};
         })());
         try{return await pending.get(q);}catch(error){pending.delete(q);throw error;}
         finally{if(pending.size>40)pending.delete(pending.keys().next().value);}
     }
-    return {query,placeholder,assetURL,search,automatic,groupRequests};
+    return {query,placeholder,assetURL,search,download,automatic,groupRequests};
 });

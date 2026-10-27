@@ -23,6 +23,7 @@
 <script src="./vendor/scan-client.js"></script>
 <script src="./vendor/page-pipeline.js"></script>
 <script src="./vendor/scan-checkpoints.js"></script>
+<script src="./vendor/commons-pictures.js"></script>
 <script src="./vendor/picture-search.js"></script>
     <style>
         :root {
@@ -1852,7 +1853,7 @@
                 <label for="picturePrompt">What picture do you need?</label>
                 <textarea id="picturePrompt" rows="2" maxlength="80" style="display:block;width:100%;margin:6px 0 12px;padding:10px;resize:vertical" placeholder="Examples: duck, mango, water tap, सेब, मछली"></textarea>
                 <button class="action-btn" id="searchPicturesBtn" type="button" onclick="searchQuestionPictures()">Search online pictures</button>
-                <div class="teach-sub" style="margin-top:8px">Public-domain and CC0 pictures from Wikimedia Commons. Only the subject you type is sent to search. Check that the picture suits the question and the children.</div>
+                <div class="teach-sub" style="margin-top:8px">Public-domain and CC0 pictures from Wikimedia Commons. Only the picture subject is sent to search. Check that the picture suits the question and the children.</div>
                 <div id="pictureSearchResults" class="picture-search-results" aria-label="Online picture choices"></div>
                 <input id="pictureUpload" type="file" accept="image/png,image/jpeg,image/webp" style="max-width:100%;margin-bottom:10px"/>
                 <div class="teach-actions">
@@ -6266,7 +6267,7 @@ async function searchQuestionPictures(){
         if(sequence!==pictureSearchSequence||lastResult!==documentBefore||lastResult?.text!==textBefore)return;
         for(const item of items){
             const card=document.createElement('div');card.className='picture-search-card';
-            const image=document.createElement('img');image.src=PaperAIPictures.assetURL(item);image.alt=item.label;image.loading='lazy';
+            const image=document.createElement('img');image.src=item.previewUrl||PaperAIPictures.assetURL(item);image.alt=item.label;image.loading='lazy';image.referrerPolicy='no-referrer';
             const name=document.createElement('p');name.textContent=item.label;
             const credit=document.createElement('a');credit.href=item.sourceUrl;credit.target='_blank';credit.rel='noopener noreferrer';credit.textContent=item.license+' · View source';
             const use=document.createElement('button');use.type='button';use.className='action-btn';use.textContent='Use this picture';
@@ -6275,9 +6276,7 @@ async function searchQuestionPictures(){
                 if(lastResult!==documentBefore||lastResult?.text!==textBefore){pictureStatus('The paper changed. Search again before inserting.');return;}
                 use.disabled=true;pictureStatus('Downloading picture…');
                 try{
-                    const response=await fetch(PaperAIPictures.assetURL(item));
-                    if(!response.ok)throw new Error('Picture unavailable. Choose another result.');
-                    const blob=await response.blob();
+                    const blob=await PaperAIPictures.download(item);
                     if(lastResult!==documentBefore||lastResult?.text!==textBefore)throw new Error('The paper changed. Search again before inserting.');
                     await insertQuestionPicture(blob,{webSource:item,target});
                     box.replaceChildren();

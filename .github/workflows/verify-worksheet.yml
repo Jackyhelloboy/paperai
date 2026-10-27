@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'frontend/index.html'
+      - 'frontend/vendor/commons-pictures.js'
+      - 'frontend/vendor/picture-search.js'
       - 'frontend/vendor/professional-paper.js'
       - 'worker/src/ocr-output-guard.js'
       - 'tests/strict-section-layout.cjs'

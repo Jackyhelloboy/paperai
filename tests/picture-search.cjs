@@ -1,8 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const Pictures=require('../frontend/vendor/picture-search.js');
-const workerSource=fs.readFileSync('worker/src/picture-search.js','utf8');
-const ctx=vm.createContext({URL,Response,Request,AbortSignal,Uint8Array,fetch});
-vm.runInContext(workerSource.replace('export async function','async function'),ctx);
+const ctx=require('../frontend/vendor/commons-pictures.js');
 const page=(changes={})=>({ns:6,title:'File:Duck drawing.png',imageinfo:[{
  url:'https://upload.wikimedia.org/wikipedia/commons/a/ab/Duck.png',mime:'image/png',width:800,height:600,
  extmetadata:{LicenseShortName:{value:'Public domain'},Artist:{value:'<a>Artist</a>'},ImageDescription:{value:'A simple duck drawing.'}}
@@ -52,5 +50,9 @@ const req=path=>new Request('https://paper.test/api/pictures/'+path);
  const fakeFetch=async url=>{count++;return url.includes('/search?')?Response.json({results:[{title:'File:Duck.png',confident:true}]}):new Response(png);};
  await Promise.all([Pictures.automatic('duck',fakeFetch),Pictures.automatic('duck',fakeFetch)]);
  assert.equal(count,2,'Repeated placeholders share one lookup and download');
+ const browser=vm.createContext({PaperAICommons:{search:async q=>[{title:'File:Duck.png',subject:q}],download:async()=>new Blob([png],{type:'image/png'})},fetch:async()=>{throw Error('Gateway unavailable');}});
+ vm.runInContext(fs.readFileSync('frontend/vendor/picture-search.js','utf8'),browser);
+ assert.equal((await browser.PaperAIPictures.search('duck'))[0].subject,'duck');
+ assert.equal((await browser.PaperAIPictures.download({title:'File:Duck.png'})).type,'image/png');
  console.log('Picture retrieval: subject identification, relevance, license, SSRF, MIME/size restrictions, source preservation, missing service and shared downloads passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
