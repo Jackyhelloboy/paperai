@@ -5851,7 +5851,7 @@ function docxPictureRow(labels) {
         const number = String(raw).match(/^\d+[.)]/)?.[0] || '';
         const label = String(raw).replace(/^\d+[.)]\s*/, '').trim() || 'Picture';
         return {xml:(number ? docxParagraph(number,{size:17,after:0}) : '') +
-            docxParagraph('[picture needs review]',{size:18,after:40}) + docxParagraph(label,{size:20,after:40}) +
+            docxParagraph(label,{size:20,after:40}) +
             docxAnswerBoxParagraph(docxCellContentWidth(widths[index]))};
     })];
     return docxTableCells(rows,widths,{bordered:false});
@@ -5935,7 +5935,7 @@ function docxRichParagraph(raw, options = {}) {
         if(recovered){const item=PaperAILayout.source(recovered[1]);return docxSourceRun(item.id,options.available||2400,2200)+docxRun(item.caption+(item.answer?'  ☐':''),{size:24});}
         const picture = token.match(/^\[\[(PICTURE|PICTURE_OPTION):\s*([\s\S]*?)\]\]$/i);
         if (!picture) return docxRun(docxVisibleText(token),{size:options.size || 22,actualSize:options.actualSize,font:options.font,bold:!!options.bold});
-        return docxRun('[picture needs review] ' + picture[2].trim() +
+        return docxRun(picture[2].trim() +
             (picture[1].toUpperCase() === 'PICTURE_OPTION' ? '  ☐' : ''),{size:18});
     }).join('');
     const rtl=(String(raw).match(/\p{Script=Arabic}/gu)||[]).length>(String(raw).match(/[A-Za-z]/g)||[]).length;
@@ -6154,7 +6154,7 @@ async function materializeDefaultPictureNotes(text) {
     const marker=/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g;
     if(!marker.test(text))return text;
     marker.lastIndex=0;
-    if(typeof PaperAIPictures==='undefined')return text.replace(marker,(_,body)=>body.split(/\s*\|\|\s*/).map(caption=>caption+' [picture needs review]').join('\n'));
+    if(typeof PaperAIPictures==='undefined')return text.replace(marker,(_,body)=>body.split(/\s*\|\|\s*/).map(caption=>caption).join('\n'));
     const names=[...text.matchAll(/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g)].flatMap(m=>
         m[1].split(/\s*\|\|\s*/).map(cell=>PaperAIPictures.placeholder(cell)).filter(Boolean));
     const decoded={};
@@ -6172,7 +6172,7 @@ async function materializeDefaultPictureNotes(text) {
         if(cells.some(caption=>!decoded[PaperAIPictures.placeholder(caption)?.name])){
             return cells.map(caption=>{
                 const name=PaperAIPictures.placeholder(caption)?.name;
-                if(!name||!decoded[name])return caption.trim()+' [picture needs review]';
+                if(!name||!decoded[name])return caption.trim();
                 const id='web-picture-'+crypto.randomUUID();
                 extractedMedia.push({id,...decoded[name],defaultIllustration:name});
                 return '[[SOURCE_FIGURE: '+id+'|'+caption.trim()+'|none]]';
