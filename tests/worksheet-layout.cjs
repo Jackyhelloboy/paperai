@@ -74,7 +74,7 @@ wordCtx.configureAutomaticPaper(fixture,true);
 const xml=wordCtx.docxDocumentXml(fixture);
 assert(xml.includes('xmlns:pic=') && xml.includes('xmlns:r='));
 assert(!xml.includes('r:embed="rId2"'),'Missing illustrations must not become invented pictures');
-assert(xml.includes('[picture needs review]'),'Unrecovered picture must be flagged');
+assert(!xml.includes('[picture needs review]'),'Internal review status must not print in Word');
 assert.equal((xml.match(/<wp:inline /g)||[]).length,4,'Text-only picture requests are not original images');
 assert((xml.match(/<w:tbl>/g)||[]).length >= 6,'grids/tables exported as flattened text');
 assert(xml.includes('<w:tblGrid>') && xml.includes('<w:tblBorders>'));
