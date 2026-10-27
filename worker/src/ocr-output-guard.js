@@ -69,6 +69,15 @@ export function verifiedFigureCrops(first, verified) {
  return String(first).replace(/\[\[(FIGURE(?:_ROW)?):\s*([^\n]*?)\]\]/gi,(_,kind,body)=>'[['+kind+': '+body.split(/\s*\|\|\s*/).map(spec=>fresh[i++].split('|')[0].trim()+spec.slice(spec.indexOf('|')<0?spec.length:spec.indexOf('|'))).join(' || ')+']]');
 }
 
+// Source row topology may differ even when a coordinate-only correction
+// cannot express the change. The caller independently guards literal text.
+export function figureLayoutChanged(first, verified) {
+ const widths=text=>[...String(text||'').matchAll(/\[\[(FIGURE(?:_ROW)?):\s*([^\]\n]*?)\]\]/gi)]
+   .map(m=>m[1].toUpperCase()==='FIGURE_ROW'?m[2].split(/\s*\|\|\s*/).filter(Boolean).length:1);
+ const a=widths(first),b=widths(verified);
+ return a.length>0&&b.length>0&&a.join(',')!==b.join(',')&&!invalidLayoutMarkers(verified);
+}
+
 // Evidence of a structural omission only: request another source-image read.
 // Never decide where a missing blank belongs or manufacture its answer.
 export function missingResponsePositions(text) {

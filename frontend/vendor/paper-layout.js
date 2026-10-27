@@ -163,6 +163,39 @@
             return writtenPictureNote(item.caption)?item.caption:marker;
         });
     }
+    // Group only this complete known exercise. Original missing-letter text is
+    // kept verbatim below its illustration; no answer is inferred.
+    function groupExplicitPictureNotes(text) {
+        const lines=String(text||'').split('\n');
+        const tokenise=line=>{
+            const row=String(line).trim().match(/^\[\[MATCH_ROW:\s*([\s\S]*?)\]\]$/i);
+            return row?row[1].split(/\s*\|\|\s*/):[line];
+        };
+        const item=/^\s*([1-5][.)]\s*)(kite|duck|fish|tap|fruits)(\s+pic(?:ture)?\b)(.*)$/iu;
+        for(let i=0;i<lines.length;i++){
+            if(!tokenise(lines[i]).some(cell=>item.test(cell)))continue;
+            const heading=lines.slice(Math.max(0,i-8),i).reverse().find(line=>/^\s*(?:\[\[SECTION_ROW:|[IVX]{1,6}[.)\s])/i.test(line));
+            if(!heading||!/(?:चित्र|picture|pic\b)/iu.test(heading))continue;
+            const cells=[],notes=[];let end=i;
+            for(;end<Math.min(lines.length,i+12)&&notes.length<5;end++){
+                const line=lines[end];
+                if(end>i&&/^\s*(?:\[\[SECTION_ROW:|[IVX]{1,6}[.)\s])/i.test(line))break;
+                const parts=tokenise(line);cells.push(...parts);
+                for(const cell of parts){const match=cell.match(item);if(match)notes.push(match[2].toLowerCase());}
+            }
+            if(notes.join(',')!=='kite,duck,fish,tap,fruits')continue;
+            const captions=[],leftovers=[];
+            for(const cell of cells){
+                if(item.test(cell))captions.push(cell.trim());
+                else if(captions.length&&/^\s*[—–-]\s*\S/u.test(cell))captions[captions.length-1]+=' '+cell.trim();
+                else if(cell.trim())leftovers.push(cell);
+            }
+            if(captions.length!==5||captions.some(c=>/[\[\]|\n]/.test(c)))continue;
+            lines.splice(i,end-i,'[[DEFAULT_PICTURE_ROW: '+captions.join(' || ')+']]',...leftovers);
+            return lines.join('\n');
+        }
+        return String(text||'');
+    }
     function fit(asset, available=profile.contentWidth, maxHeight=4400) {
         const ratio=Math.max(.05, Number(asset?.w || 1)/Math.max(1,Number(asset?.h || 1)));
         let w=Math.min(available,asset?.widthTwips || Math.min(available,2260));
@@ -1030,5 +1063,5 @@
         }
         return out.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureTextInstead,sanitizeSourceFigureText,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
+    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,groupExplicitPictureNotes,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureTextInstead,sanitizeSourceFigureText,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
 });

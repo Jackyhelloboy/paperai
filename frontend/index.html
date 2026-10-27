@@ -5430,6 +5430,8 @@ goBtn.onclick = async () => {
         // cleanup; keep the unmodified model response in raw_text for review.
         if(batch.every(part=>/\.pdf$/i.test(part.name))){
             allText=PaperAILayout.normalise(allText);
+            allText=PaperAILayout.groupExplicitPictureNotes(allText);
+            if(/\[\[DEFAULT_PICTURE_ROW:/i.test(allText))allText=await materializeDefaultPictureNotes(allText);
             allPlain=portableText(docxVisibleText(allText));
         }
 
@@ -6129,6 +6131,49 @@ let defaultBannerPngPromise = null;
 let extractedMedia = [];
 let docxMediaUsed = new Map();
 function sourceAsset(id) { return extractedMedia.find(item => item.id === id); }
+async function materializeDefaultPictureNotes(text) {
+    const marker=/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g;
+    if(!marker.test(text))return text;
+    marker.lastIndex=0;
+    const pictures={kite:true,duck:true,fish:true,tap:true,fruits:true};
+    const decoded={};
+    try {
+        await Promise.all(Object.keys(pictures).map(async name=>{
+            const response=await fetch('/default-'+name+'.svg');
+            if(!response.ok)throw new Error('Illustration unavailable');
+            const blob=await response.blob();
+            let bitmap;
+            try{bitmap=await createImageBitmap(blob);}catch(_){
+                bitmap=await new Promise((resolve,reject)=>{
+                    const image=new Image(),url=URL.createObjectURL(blob);
+                    image.onload=()=>{URL.revokeObjectURL(url);resolve(image);};
+                    image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Illustration unavailable'));};
+                    image.src=url;
+                });
+            }
+            const canvas=document.createElement('canvas');canvas.width=320;canvas.height=240;
+            const context=canvas.getContext('2d');
+            if(!context)throw new Error('Illustration canvas unavailable');
+            context.fillStyle='#fff';context.fillRect(0,0,320,240);
+            context.drawImage(bitmap,0,0,320,240);
+            if(bitmap.close)bitmap.close();
+            decoded[name]=canvas.toDataURL('image/png');
+        }));
+    }catch(_){return text.replace(marker,(_,body)=>body.split(/\s*\|\|\s*/).join('\n'));}
+    return text.replace(marker,(_,body)=>{
+        const cells=body.split(/\s*\|\|\s*/),parts=[];
+        if(cells.length!==5)return body;
+        for(const caption of cells){
+            const found=caption.match(/^\s*[1-5][.)]\s*(kite|duck|fish|tap|fruits)\s+pic(?:ture)?\b/iu);
+            const name=found?.[1]?.toLowerCase();
+            if(!name||!decoded[name])return body;
+            const id='default-picture-'+crypto.randomUUID();
+            extractedMedia.push({id,dataUrl:decoded[name],w:320,h:240,widthTwips:1550,defaultIllustration:name});
+            parts.push(id+'|'+caption.trim()+'|none');
+        }
+        return '[[SOURCE_FIGURE_ROW: '+parts.join(' || ')+']]';
+    });
+}
 function pictureStatus(message){$('pictureStatus').textContent=message;}
 function closePicturePanel(){$('picturePanel').classList.remove('show');}
 function openPicturePanel(){
@@ -6282,7 +6327,7 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
 function sourceFigureHtml(value) {
     const info=PaperAILayout.source(value), asset=sourceAsset(info.id);
     return '<div class="ocr-figure-cell" style="align-items:'+(asset?.align==='left'?'flex-start':asset?.align==='right'?'flex-end':'center')+'">'+(asset
-        ? '<img src="'+esc(asset.dataUrl)+'" alt="Original source illustration">'
+        ? '<img src="'+esc(asset.dataUrl)+'" alt="'+(asset.defaultIllustration?'Default '+esc(asset.defaultIllustration)+' illustration':'Original source illustration')+'">'
         : '<span class="ocr-picture-label">[source image needs review]</span>')+
         (info.caption ? '<span class="ocr-picture-label">'+formatOutputLine(info.caption)+'</span>' : '')+
         (info.answer ? '<span class="ocr-figure-answer"></span>' : '')+'</div>';

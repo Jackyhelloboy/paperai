@@ -14,7 +14,7 @@ function setup(){
  const nodes={};const field=id=>nodes[id]||=( {value:'',checked:false,disabled:false,textContent:'',innerHTML:'',style:{},classList:classes(),attrs:{},
   setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];}} );
  const files=[];let finish,reading=0;
- const ctx=vm.createContext({PaperAILayout:Layout,$:field,console,
+ const ctx=vm.createContext({PaperAILayout:Layout,$:field,console,materializeDefaultPictureNotes:async text=>text,
   file:null,fileBatch:[],lastResult:null,showingRaw:false,processingUpload:false,uploadRun:0,activeScanController:null,scanCancelled:false,extractedMedia:[],
   ...Object.fromEntries(['dropZone','fileInput','goBtn','languageSelect','filePreview','fileThumb','fileTypeIcon','fileName','fileMeta','clearBtn','prog','pFill','pPct','pMsg','resBox','teachPanel','textOut'].map(k=>[k,field(k)])),
   IMAGE_EXTS:['png','jpg'],PDF_EXTS:['pdf'],DOC_EXTS:['docx'],PPT_EXTS:[],XLS_EXTS:[],TXT_EXTS:['txt'],ALLOWED_EXTS:['png','jpg','pdf','docx','txt'],BLOCKED_EXTS:['mp4'],
@@ -30,7 +30,7 @@ function setup(){
  return {ctx,nodes,files,complete:part=>finish.resolve(part),fail:()=>finish.reject(new Error('Free AI scanning paused')),reads:()=>reading};
 }
 const page={text:'Subject: Science\nI. Name the shapes. 2M\n[[SHAPE_ROW: circle|none || square|box]]\n[[TABLE_ROW: Name || Class]]',plain:'Subject: Science\nI. Name the shapes. 2M',raw:'original wording'};
-const settle=async()=>{for(let i=0;i<5;i++)await Promise.resolve();};
+const settle=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 (async()=>{
  const f={name:'photo.png',type:'image/png',size:1024},pdf={name:'paper.pdf',type:'application/pdf',size:1234};
  const t=setup();t.ctx.setFiles([f]);

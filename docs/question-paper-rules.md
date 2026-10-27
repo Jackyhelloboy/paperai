@@ -57,3 +57,7 @@ The second page has a genuine adjacent drawing group, followed by another bit an
 ### Reused scan pages after a picture-rule update
 
 A completed page may contain `SOURCE_FIGURE` markers from an earlier OCR run even after its original `FIGURE` markers are gone. Recheck those markers for literal `* pic` or `* picture` notes before preview and Word export, including pages restored from browser checkpoints. A new picture-evidence scan version starts a fresh OCR read of the original PDF so earlier wrong crop coordinates do not persist. The visible **Fresh rescan PDF** action remains available if a teacher needs to force a new read. The existing exported Word file is a static artifact and cannot repair its own old screenshots.
+
+### Picture ownership and explicit requests
+
+Keep picture requests in the bit that asks for them; do not reuse actual drawings from the next instruction. For the observed five explicit kite/duck/fish/tap/fruits `pic` requests with no supplied pictures, the site inserts clearly identified black-and-white defaults and retains the literal unfinished Hindi text without supplying answers. A subsequent picture-name exercise keeps its three real drawings and answer positions together. A circle-the-first-letter exercise pairs each real drawing with the letters printed beneath that drawing, preserving its source 2-by-2 arrangement and leaving uncertain letters for review. The independent visual reader may repair row grouping or missing drawings only when literal questions, marks, scripts and crop geometry pass the safety checks.
