@@ -56,9 +56,19 @@
     async function automatic(subject,fetcher=fetch){
         const q=query(subject);
         if(!pending.has(q))pending.set(q,(async()=>{
-            const items=await search(q,fetcher),item=items.find(item=>item.confident);
-            if(!item)throw new Error('Choose a picture using Find pictures.');
-            return {blob:await download(item,fetcher),source:item};
+            const items=await search(q,fetcher);
+            // Try the best-matched candidates in order. A Commons item may have
+            // disappeared or have invalid pixels since the search was indexed.
+            // Never quietly choose an unrelated or unlicensed fallback.
+            const candidates=items.filter(item=>item.confident===true).slice(0,4);
+            if(!candidates.length)throw new Error('Choose a picture using Find pictures.');
+            for(const item of candidates){
+                try{
+                    const blob=await download(item,fetcher);
+                    if(blob&&blob.size>0)return {blob,source:item};
+                }catch(_){ /* Try the next separately validated Commons candidate. */ }
+            }
+            throw new Error('Matching pictures could not be downloaded. Choose a picture using Find pictures.');
         })());
         try{return await pending.get(q);}catch(error){pending.delete(q);throw error;}
         finally{if(pending.size>40)pending.delete(pending.keys().next().value);}
