@@ -43,11 +43,18 @@ function candidate(page, query = '') {
   const relevant = !terms.length || terms.every(term => titleWords.includes(term) || descriptionWords.includes(term));
   if (!relevant) return null;
   const simple = /drawing|illustration|clip.?art|outline|isolated|white background/i.test(title + ' ' + description);
+  // Filename relevance is not the same as visual correctness. Distinguish an
+  // exact depicted subject from a labelled diagram, collection or scene.
+  // Auto-insertion must not rely on description-only matches or a compound
+  // ambiguous title; those candidates stay available in the teacher picker.
+  const allowedTitleModifiers = /^(?:a|an|the|simple|clean|clear|black|white|and|of|on|isolated|outline|outlined|drawing|illustration|clipart|clip|art|picture|photo|photograph|icon|coloring|colouring|page|public|domain|psf|png|jpg|jpeg|webp|transparent|background|side|view|single|one|animal|fruit)$/i;
+  const extraTitleWords=titleWords.filter(word=>!terms.includes(word)&&!allowedTitleModifiers.test(word));
+  const autoSafe=terms.length>0 && matched===terms.length && extraTitleWords.length===0;
   return {title: page.title, label: title, width, height, license,
     creator: plain(meta.Artist?.value), sourceUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(page.title.replace(/ /g, '_')),
     assetUrl: '/api/pictures/asset?title=' + encodeURIComponent(page.title),
     // A conservative text match, not a claim of visual verification.
-    confident: terms.length > 0 && matched === terms.length,
+    confident: autoSafe,
     score: matched * 10 + (/\(PSF\)/i.test(title)?30:0) + (/drawing|illustration|clip.?art|outline/i.test(title)?10:0) + (simple ? 6 : 0) - Math.abs(Math.log(width / height)), image, mime};
 }
 async function metadata(params, fetcher) {
