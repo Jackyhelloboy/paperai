@@ -10,11 +10,12 @@
         const line=String(caption||'').trim();
         // A question may request a picture without supplying one. Search only
         // that named object, never the entire OCR document or question.
+        const pictureOf=line.match(/^(?:\d+[.)]\s*)?(?:add|paste|insert|draw|attach|find)\s+(?:(?:a|an|the)\s+)?pic(?:ture)?\s+of\s+([\p{L}\p{M} -]{1,35}?)\s*[.!]?$/iu);
+        const instruction=line.match(/^(?:\d+[.)]\s*)?(?:add|paste|insert|draw|attach|find)\s+(?:(?:a|an|the)\s+)?([\p{L}\p{M} -]{1,35}?)(?:\s+pic(?:ture)?)?\s*[.!]?$/iu);
         const direct=line.match(/^(?:\d+[.)]\s*)?([\p{L}\p{M} -]{1,35}?)\s+pic(?:ture)?\b/iu);
-        const instruction=line.match(/^(?:\d+[.)]\s*)?(?:add|paste|insert|draw|attach|find)\s+(?:(?:a|an|the)\s+)?(?:pic(?:ture)?\s+of\s+)?([\p{L}\p{M} -]{1,35}?)(?:\s+pic(?:ture)?)?\s*[.!]?$/iu);
-        // Prefer an explicit verb instruction: `Add picture of apple` must
-        // resolve to apple, not the misleading direct match `Add picture`.
-        const m=instruction||direct;
+        // An exact "picture of X" instruction takes priority over loose
+        // patterns, so "picture of apple" never becomes the subject name.
+        const m=pictureOf||instruction||direct;
         if(!m)return null;
         const name=m[1].toLowerCase().trim().replace(/^n\s+tube$/,'tube');
         return subjects[name]||aliases[name]?{name,query:query(name)}:null;
