@@ -6198,8 +6198,10 @@ function openPicturePanel(){
     }
     lines.forEach((line,index)=>{
         if(!line.trim()||/^\[\[(?:SOURCE_FIGURE|SOURCE_BANNER|PAGE_BREAK)/i.test(line.trim()))return;
+        const label=portableText(docxVisibleText(line)).replace(/<br\s*\/?>/gi,' · ').replace(/\s+/g,' ').trim();
+        if(!label)return;
         const option=document.createElement('option');option.value=String(index);
-        option.textContent='Line '+(index+1)+': '+line.replace(/\[\[[^\]]*\]\]/g,'').slice(0,95);
+        option.textContent='Line '+(index+1)+': '+label.slice(0,95);
         select.appendChild(option);
     });
     if(!select.options.length)pictureStatus('No question lines available yet.');

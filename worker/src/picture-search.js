@@ -53,7 +53,7 @@ async function metadata(params, fetcher) {
   for (const [key, value] of Object.entries(all)) url.searchParams.set(key, value);
   const response = await fetcher(url.href, {redirect: 'error', signal: AbortSignal.timeout(15000),
     headers: {'User-Agent': 'PaperAI/1.0 (https://github.com/Jackyhelloboy/paperai)'}, cf: {cacheTtl: 1800, cacheEverything: true}});
-  if (!response.ok) throw new Error('Picture search unavailable');
+  if (!response.ok) throw new Error('PICTURE_SOURCE_HTTP_' + response.status);
   const data = await response.json();
   if (data.error || !Array.isArray(data.query?.pages)) return [];
   return data.query.pages;
@@ -84,7 +84,7 @@ function realImage(bytes, mime) {
 
 export async function handlePictureSearch(request, corsHeaders = {}, fetcher = fetch) {
   const url = new URL(request.url);
-  const fail = (message, status = 503) => Response.json({code: 'PICTURE_SEARCH_UNAVAILABLE', error: message},
+  const fail = (message, status = 503, sourceStatus = undefined) => Response.json({code: 'PICTURE_SEARCH_UNAVAILABLE', error: message, source_status: sourceStatus},
     {status, headers: {...corsHeaders, 'Cache-Control': 'no-store'}});
   if (request.method !== 'GET') return fail('Use GET for picture search.', 405);
   try {
@@ -99,7 +99,7 @@ export async function handlePictureSearch(request, corsHeaders = {}, fetcher = f
       // Missing files simply disappear; every returned file still passes current licensing checks.
       if (schoolSubjects.has(subject)) lookups.push(metadata({titles: 'File:' + subject[0].toUpperCase() + subject.slice(1) + ' (PSF).png'}, fetcher));
       const lookedUp = await Promise.allSettled(lookups);
-      if (lookedUp.every(result=>result.status==='rejected')) throw new Error('Picture search unavailable');
+      if (lookedUp.every(result=>result.status==='rejected')) throw lookedUp[0].reason;
       let pages = lookedUp.filter(result=>result.status==='fulfilled').flatMap(result=>result.value);
       let items = pages.map(page => candidate(page, query)).filter(Boolean);
       if (!items.length) {
@@ -124,5 +124,8 @@ export async function handlePictureSearch(request, corsHeaders = {}, fetcher = f
       return new Response(bytes, {headers: {...corsHeaders, 'Content-Type': mime, 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff'}});
     }
     return fail('Picture route not found.', 404);
-  } catch (_) { return fail('Online pictures are temporarily unavailable. Retry or upload a picture.'); }
+  } catch (error) {
+    const status = /^PICTURE_SOURCE_HTTP_(\d{3})$/.exec(error?.message || '');
+    return fail('Online pictures are temporarily unavailable. Retry or upload a picture.',503,status?Number(status[1]):undefined);
+  }
 }
