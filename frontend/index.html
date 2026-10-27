@@ -1827,7 +1827,7 @@
             </div>
 
             <div class="results-actions" aria-label="Question paper actions">
-                <button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
+                <label for="wordEditMode" style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:wrap;font-size:.83rem">Word picture layout <select id="wordEditMode" style="padding:9px;border:1px solid var(--border);border-radius:8px"><option value="easy" selected>Inline</option><option value="move">Movable</option><option value="background">Behind text</option><option value="source">Original PDF layout</option></select></label><button class="action-btn" id="downloadWordBtn" onclick="downloadWord(this)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     Download Word
                 </button>
@@ -5815,13 +5815,13 @@ let docxPictureCounter = 0;
 function docxPictureRun(width = 850000, height = 610000, rid = 'rId2', description = 'Unrecovered picture', movable = false) {
     const id = ++docxPictureCounter;
     const start=movable
-        ? '<wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="0" allowOverlap="0">'+
+        ? '<wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" behindDoc="'+(activeDocxEditingMode==='background'?'1':'0')+'" locked="0" layoutInCell="0" allowOverlap="1">'+
           '<wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:align>left</wp:align></wp:positionH>'+
           '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>'
         : '<wp:inline distT="0" distB="0" distL="0" distR="0">';
     return '<w:r><w:drawing>'+start+
         '<wp:extent cx="' + width + '" cy="' + height + '"/>' +
-        (movable?'<wp:wrapTopAndBottom/>':'')+
+        (movable?(activeDocxEditingMode==='background'?'<wp:wrapNone/>':'<wp:wrapTopAndBottom/>'):'')+
         '<wp:docPr id="' + id + '" name="Worksheet picture ' + id +
         '" descr="' + xmlEscape(description) + '"/>' +
         '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
@@ -5912,7 +5912,7 @@ function docxRichParagraph(raw, options = {}) {
         const item=PaperAILayout.source(standalone[1]), asset=sourceAsset(item.id);
         return '<w:p><w:pPr><w:jc w:val="'+(asset?.align||'center')+'"/>'+
             (options.keepNext?'<w:keepNext/>':'')+'<w:spacing w:after="'+(options.after??70)+'"/></w:pPr>'+
-            docxSourceRun(item.id,options.available||DOCX_CONTENT_W,4400,'Original source illustration',activeDocxEditingMode==='move')+'</w:p>'+
+            docxSourceRun(item.id,options.available||DOCX_CONTENT_W,4400,'Original source illustration',['move','background'].includes(activeDocxEditingMode))+'</w:p>'+
             (item.caption?docxParagraph(item.caption,{size:options.size||24,after:0}):'')+
             (item.answer?docxAnswerBoxParagraph(options.available||DOCX_CONTENT_W):'');
     }
@@ -6772,7 +6772,7 @@ async function downloadWord(btn) {
     if (!structuredText.trim()) return;
 
     const selectedMode=(typeof $==='function' ? $('wordEditMode')?.value : null)||'easy';
-    activeDocxEditingMode=['easy','move','source'].includes(selectedMode)?selectedMode:'easy';
+    activeDocxEditingMode=['easy','move','background','source'].includes(selectedMode)?selectedMode:'easy';
     const keepWord=lastResult.native_docx_file&&structuredText===lastResult.native_docx_text;
     const missingSource=[...structuredText.matchAll(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi)].some(m=>worksheetCells(m[1],32).some(value=>!sourceAsset(PaperAILayout.source(value).id)));
     if(!keepWord&&(missingSource||/\[\[PICTURE(?:_ROW|_OPTION)?:/i.test(structuredText))){showErr('A source illustration could not be recovered. Please upload a clearer source page.');return;}
@@ -6790,7 +6790,7 @@ async function downloadWord(btn) {
             .replace(/\.[^.]+$/, '')
             .replace(/[^\p{L}\p{N}_-]+/gu, '-')
             .replace(/^-+|-+$/g, '') || 'paperai';
-        dlBlob(blob, base + (activeDocxEditingMode==='move'?'-movable-pictures':activeDocxEditingMode==='easy'?'-easy-to-edit':'-original-layout') + '.docx');
+        dlBlob(blob, base + (activeDocxEditingMode==='background'?'-behind-text':activeDocxEditingMode==='move'?'-movable-pictures':activeDocxEditingMode==='easy'?'-easy-to-edit':'-original-layout') + '.docx');
     } catch (error) {
         showErr(error?.message || 'Could not create Word file.');
     } finally {
