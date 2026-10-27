@@ -58,3 +58,10 @@ The ZIP is a visual reference, **not** an authorization to redistribute its file
 4. For an explicit missing image, search Commons for `<object> black and white outline clipart`, then other worksheet-style outline phrases. Apply current per-file license, exact-subject relevance, and suitability constraints. Filename confidence is not vision verification; uncertain matches remain a teacher choice.
 5. For the selected permitted image, capture its **image pixels only** to a white-background PNG canvas, embed the PNG at the corresponding question/row in editable Word, retain source/license information and the surrounding text/answer positions. If search fails, leave the request and a visible review note; do not synthesize an approximate SVG.
 6. Tests must cover spelling/figure evidence preservation, object-only search queries, existing source-image priority, partial row failures, and actual DOCX media plus placement. The presence of code/tests is not proof of a successful end-to-end verification run.
+
+
+## Optional broad image discovery (Brave)
+
+The Worker now accepts the server-side `BRAVE_SEARCH_API_KEY` secret for opt-in discovery at `/api/pictures/search?q=apple&discover=1`. Its query is expanded to `apple black and white outline clipart` with strict safe search. Results are only search candidates: their reuse rights and image content have not been verified. They are intentionally marked `confident:false` and `license:Unverified`; the existing automatic Word insertion continues using the Commons-licensed image path without `discover=1`. No API token is stored in the frontend.
+
+The broad search provider is **not active** until a valid secret is set in the Cloudflare Worker environment. The remaining work is a rights-aware image ingestion/visual verification path before Brave results may be used for unattended Word document generation. Screenshots do not change copyright status. Without the secret, the discovery route gracefully falls back to Commons results. Do not claim a fully automatic Brave-to-Word flow is shipped yet.
