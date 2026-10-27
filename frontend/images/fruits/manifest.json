@@ -1,0 +1,162 @@
+[
+  {
+    "id": "apple",
+    "label": "Apple",
+    "png": "apple.png",
+    "svg": "apple.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "pear",
+    "label": "Pear",
+    "png": "pear.png",
+    "svg": "pear.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "banana",
+    "label": "Banana",
+    "png": "banana.png",
+    "svg": "banana.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "mango",
+    "label": "Mango",
+    "png": "mango.png",
+    "svg": "mango.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "orange",
+    "label": "Orange",
+    "png": "orange.png",
+    "svg": "orange.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "lemon",
+    "label": "Lemon",
+    "png": "lemon.png",
+    "svg": "lemon.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "grapes",
+    "label": "Grapes",
+    "png": "grapes.png",
+    "svg": "grapes.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "watermelon",
+    "label": "Watermelon",
+    "png": "watermelon.png",
+    "svg": "watermelon.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "pineapple",
+    "label": "Pineapple",
+    "png": "pineapple.png",
+    "svg": "pineapple.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "strawberry",
+    "label": "Strawberry",
+    "png": "strawberry.png",
+    "svg": "strawberry.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "cherry",
+    "label": "Cherry",
+    "png": "cherry.png",
+    "svg": "cherry.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "peach",
+    "label": "Peach",
+    "png": "peach.png",
+    "svg": "peach.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "plum",
+    "label": "Plum",
+    "png": "plum.png",
+    "svg": "plum.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "guava",
+    "label": "Guava",
+    "png": "guava.png",
+    "svg": "guava.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "pomegranate",
+    "label": "Pomegranate",
+    "png": "pomegranate.png",
+    "svg": "pomegranate.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "papaya",
+    "label": "Papaya",
+    "png": "papaya.png",
+    "svg": "papaya.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "coconut",
+    "label": "Coconut",
+    "png": "coconut.png",
+    "svg": "coconut.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "kiwi",
+    "label": "Kiwi",
+    "png": "kiwi.png",
+    "svg": "kiwi.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "custard-apple",
+    "label": "Custard Apple",
+    "png": "custard-apple.png",
+    "svg": "custard-apple.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  },
+  {
+    "id": "fig",
+    "label": "Fig",
+    "png": "fig.png",
+    "svg": "fig.svg",
+    "style": "black-and-white-line-art",
+    "source": "original-vector-art"
+  }
+]
