@@ -1,10 +1,10 @@
 import CommonsPictures from '../../frontend/vendor/commons-pictures.js';
 
-// Broad image discovery is opt-in. Without a server-side Brave key, preserve
+// Broad image discovery is opt-in and separate from embeddable media search. Without a server-side Brave key, preserve
 // the current licensed Wikimedia flow and its Word-export compatibility.
 export async function handlePictureSearch(request, corsHeaders = {}, env = {}, fetcher = fetch) {
   const url = new URL(request.url);
-  if (url.pathname !== '/api/pictures/search' || !String(env.BRAVE_SEARCH_API_KEY || '').trim()) {
+  if (url.pathname !== '/api/pictures/search' || url.searchParams.get('discover') !== '1' || !String(env.BRAVE_SEARCH_API_KEY || '').trim()) {
     return CommonsPictures.handlePictureSearch(request, corsHeaders, fetcher);
   }
   const q = (url.searchParams.get('q') || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
