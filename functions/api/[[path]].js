@@ -3,6 +3,7 @@ const API_BACKEND = 'https://paperai-ocr.mdjawaadkhan57.workers.dev';
 const ROUTES = Object.freeze({
   '/api/ocr': 'POST', '/api/ocr-status': 'GET', '/api/suggest-word': 'POST', '/api/generate-picture': 'POST',
   '/api/usage': 'GET', '/api/live': 'GET', '/api/health': 'GET',
+  '/api/pictures/search': 'GET', '/api/pictures/asset': 'GET',
 });
 const ERRORS = Object.freeze({
   FREE_AI_LIMIT_REACHED: 'Scanning is temporarily unavailable. Please retry later. Editing and Word export remain available.',
@@ -17,6 +18,7 @@ const ERRORS = Object.freeze({
   IMAGE_GENERATION_UNAVAILABLE: 'AI pictures are not enabled for this website. You can still insert an uploaded picture.',
   IMAGE_GENERATION_LIMIT: 'AI picture generation has reached its daily limit. Try again tomorrow or upload a picture.',
   IMAGE_GENERATION_FAILED: 'AI could not generate this picture. Try another description or upload an image.',
+  PICTURE_SEARCH_UNAVAILABLE: 'Online pictures are temporarily unavailable. Try another subject or upload a picture.',
   SCAN_NOT_FOUND: 'This page has not been submitted.',
 });
 function json(body, status = 200, extra = {}) {
@@ -43,6 +45,7 @@ export async function onRequest({request, env = {}, fetcher = fetch}) {
     return json({error: 'Please upload a file smaller than 50 MB.', code: 'FILE_TOO_LARGE'}, 413);
   const target = new URL(url.pathname === '/api/health' ? '/health' : url.pathname,
     env.PAPERAI_BACKEND_URL || API_BACKEND);
+  if (url.pathname.startsWith('/api/pictures/')) target.search = url.search;
   const headers = new Headers();
   for (const name of ['Content-Type','X-PaperAI-Request-ID','Upgrade','Sec-WebSocket-Key','Sec-WebSocket-Version','Sec-WebSocket-Protocol']) {
     if (request.headers.has(name)) headers.set(name, request.headers.get(name));
@@ -54,6 +57,8 @@ export async function onRequest({request, env = {}, fetcher = fetch}) {
     }));
     // Preserve the original upgrade response and its live socket.
     if (upstream.status === 101 && url.pathname === '/api/live') return upstream;
+    if (url.pathname === '/api/pictures/asset' && upstream.ok && /^image\/(png|jpeg|webp)(?:;|$)/.test(upstream.headers.get('Content-Type') || ''))
+      return new Response(upstream.body, {headers: {'Content-Type': upstream.headers.get('Content-Type'), 'Cache-Control':'public, max-age=86400', 'X-Content-Type-Options':'nosniff'}});
     if (!(upstream.headers.get('Content-Type') || '').includes('application/json'))
       return json({error: ERRORS.OCR_PROXY_UNREACHABLE, code: 'OCR_PROXY_UNREACHABLE'}, 502);
     const body = await upstream.json();
@@ -71,8 +76,10 @@ export async function onRequest({request, env = {}, fetcher = fetch}) {
     });
     if (url.pathname === '/api/suggest-word') return json({suggestions: body.suggestions || []});
     if (url.pathname === '/api/generate-picture') return json({image:body.image || null});
+    if (url.pathname === '/api/pictures/search') return json({query:body.query, results:body.results || []});
     return json(publicResult(body),upstream.status,upstream.status===202?{'Retry-After':'2'}:{});
   } catch (_) {
     return json({error: ERRORS.OCR_PROXY_UNREACHABLE, code: 'OCR_PROXY_UNREACHABLE'}, 502);
   }
 }
+

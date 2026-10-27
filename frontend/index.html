@@ -23,6 +23,7 @@
 <script src="./vendor/scan-client.js"></script>
 <script src="./vendor/page-pipeline.js"></script>
 <script src="./vendor/scan-checkpoints.js"></script>
+<script src="./vendor/picture-search.js"></script>
     <style>
         :root {
             --bg: #f8f9fb;
@@ -768,6 +769,11 @@
         }
 
         .simplified-hidden { display: none !important; }
+        .picture-search-results {display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0;}
+        .picture-search-card {padding:10px;border:1px solid var(--border);border-radius:10px;min-width:0;}
+        .picture-search-card img {display:block;width:100%;height:130px;object-fit:contain;background:#fff;}
+        .picture-search-card p {font-size:12px;overflow-wrap:anywhere;margin:8px 0;}
+        .picture-search-card a {font-size:12px;}
 
         .action-btn {
             flex: 0 1 auto;
@@ -1825,6 +1831,7 @@
                     Download Word
                 </button>
                 <button class="action-btn" type="button" onclick="openTeachPanel()">Teach / Edit</button>
+                <button class="action-btn" type="button" onclick="openPicturePanel()">Find pictures</button>
                 <button class="action-btn" type="button" onclick="clearPaperData()" title="Clear the current paper and locally saved scan pages.">Clear data</button>
             </div>
 
@@ -1836,18 +1843,21 @@
             </div>
             <div class="teach-sub simplified-hidden" id="aiLayoutStatus" role="status" aria-live="polite" style="display:none;padding:8px 10px">AI layout is ready to check this paper.</div>
 
-            <div class="teach-panel simplified-hidden" id="picturePanel" aria-label="Question picture editor">
+            <div class="teach-panel" id="picturePanel" aria-label="Question picture editor">
                 <div class="teach-title">Pictures in this question paper</div>
-                <div class="teach-sub">Original PDF pictures remain unchanged. Add a picture only when needed; AI pictures are labelled as generated and never replace source evidence automatically.</div>
+                <div class="teach-sub">Search for a clear picture, review it, then insert it beside the right question. Choose an existing picture below to replace it. Pictures are embedded in Word so they work offline.</div>
                 <div id="paperPictureGallery" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0"></div>
-                <label for="pictureQuestion">Place after question or line</label>
+                <label for="pictureQuestion">Add after a line, or replace a picture</label>
                 <select id="pictureQuestion" style="display:block;width:100%;max-width:100%;margin:6px 0 12px;padding:10px"></select>
-                <label for="picturePrompt">Picture description (English, Hindi, Telugu, or another language)</label>
-                <textarea id="picturePrompt" rows="2" maxlength="240" style="display:block;width:100%;margin:6px 0 12px;padding:10px;resize:vertical" placeholder="Example: black-and-white textbook illustration of a mango tree"></textarea>
+                <label for="picturePrompt">What picture do you need?</label>
+                <textarea id="picturePrompt" rows="2" maxlength="80" style="display:block;width:100%;margin:6px 0 12px;padding:10px;resize:vertical" placeholder="Examples: duck, mango, water tap, सेब, मछली"></textarea>
+                <button class="action-btn" id="searchPicturesBtn" type="button" onclick="searchQuestionPictures()">Search online pictures</button>
+                <div class="teach-sub" style="margin-top:8px">Public-domain and CC0 pictures from Wikimedia Commons. Only the subject you type is sent to search. Check that the picture suits the question and the children.</div>
+                <div id="pictureSearchResults" class="picture-search-results" aria-label="Online picture choices"></div>
                 <input id="pictureUpload" type="file" accept="image/png,image/jpeg,image/webp" style="max-width:100%;margin-bottom:10px"/>
                 <div class="teach-actions">
                     <button class="action-btn" type="button" onclick="addUploadedQuestionPicture()">Insert uploaded picture</button>
-                    <button class="action-btn teach-ai-btn" id="generatePictureBtn" type="button" onclick="generateQuestionPicture()">✦ Generate AI picture</button>
+                    <button class="action-btn teach-ai-btn simplified-hidden" id="generatePictureBtn" type="button" onclick="generateQuestionPicture()">✦ Generate AI picture</button>
                     <button class="action-btn" type="button" onclick="closePicturePanel()">Done</button>
                 </div>
                 <div id="pictureStatus" role="status" aria-live="polite" style="margin-top:10px"></div>
@@ -5431,12 +5441,20 @@ goBtn.onclick = async () => {
         if(batch.every(part=>/\.pdf$/i.test(part.name))){
             allText=PaperAILayout.normalise(allText);
             allText=PaperAILayout.groupPictureChoiceLabels(PaperAILayout.groupThreePictureLabels(PaperAILayout.groupExplicitPictureNotes(allText)));
-            if(/\[\[DEFAULT_PICTURE_ROW:/i.test(allText))allText=await materializeDefaultPictureNotes(allText);
+            allPlain=portableText(docxVisibleText(allText));
+        }
+        const beforePictureRequests=allText;
+        if(typeof PaperAIPictures!=='undefined')allText=PaperAIPictures.groupRequests(allText);
+        if(/\[\[DEFAULT_PICTURE_ROW:/i.test(allText)){
+            setProg(95,'Finding clear pictures for written picture requests…');
+            const beforePictures=allText;
+            allText=await materializeDefaultPictureNotes(allText);
+            if(allText!==beforePictures)nativePdfPages=null;
             allPlain=portableText(docxVisibleText(allText));
         }
 
         if (file !== sourceFile) return;
-        const nativeWord=batch.length===1&&/\.docx$/i.test(sourceFile.name);
+        const nativeWord=batch.length===1&&/\.docx$/i.test(sourceFile.name)&&allText===beforePictureRequests;
         configureAutomaticPaper(allText,!!nativePdfPages||nativeWord);
         const charCount = allPlain.length;
         let badges = '<span class="badge badge-gray">' + (documentPageTexts.length ? documentPageTexts.length + ' pages' : charCount + ' characters') + '</span>';
@@ -5447,7 +5465,7 @@ goBtn.onclick = async () => {
 
         if (file !== sourceFile) return;
         lastResult = { text: allText, plain_text: allPlain, raw_text: allRaw, source_file: sourceFile,
-            native_docx_file:batch.length===1&&/\.docx$/i.test(sourceFile.name)?sourceFile:null,native_docx_text:allText,
+            native_docx_file:nativeWord?sourceFile:null,native_docx_text:allText,
             native_pdf_pages:nativePdfPages,native_pdf_text:allText,native_pdf_preview:nativePdfPages?PaperAIPdfEditable.preview(nativePdfPages):null,
             page_texts:documentPageTexts };
         teachPanel.classList.remove('show');
@@ -6135,41 +6153,26 @@ async function materializeDefaultPictureNotes(text) {
     const marker=/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g;
     if(!marker.test(text))return text;
     marker.lastIndex=0;
+    if(typeof PaperAIPictures==='undefined')return text.replace(marker,(_,body)=>body.split(/\s*\|\|\s*/).map(caption=>caption+' [picture needs review]').join('\n'));
     const names=[...text.matchAll(/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g)].flatMap(m=>
-        m[1].split(/\s*\|\|\s*/).map(cell=>cell.match(/^\s*(?:[1-5][.)]\s*)?(kite|duck|fish|tap|fruits|n\s*tube|tube|bow)\s+pic(?:ture)?\b/iu)?.[1]?.toLowerCase().replace(/^n\s*tube$/,'tube')).filter(Boolean));
+        m[1].split(/\s*\|\|\s*/).map(cell=>PaperAIPictures.placeholder(cell)).filter(Boolean));
     const decoded={};
-    try {
-        await Promise.all([...new Set(names)].map(async name=>{
-            const response=await fetch('/default-'+name+'.svg');
-            if(!response.ok)throw new Error('Illustration unavailable');
-            const blob=await response.blob();
-            let bitmap;
-            try{bitmap=await createImageBitmap(blob);}catch(_){
-                bitmap=await new Promise((resolve,reject)=>{
-                    const image=new Image(),url=URL.createObjectURL(blob);
-                    image.onload=()=>{URL.revokeObjectURL(url);resolve(image);};
-                    image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Illustration unavailable'));};
-                    image.src=url;
-                });
-            }
-            const canvas=document.createElement('canvas');canvas.width=320;canvas.height=240;
-            const context=canvas.getContext('2d');
-            if(!context)throw new Error('Illustration canvas unavailable');
-            context.fillStyle='#fff';context.fillRect(0,0,320,240);
-            context.drawImage(bitmap,0,0,320,240);
-            if(bitmap.close)bitmap.close();
-            decoded[name]=canvas.toDataURL('image/png');
-        }));
-    }catch(_){return text.replace(marker,(_,body)=>body.split(/\s*\|\|\s*/).join('\n'));}
+    // Two independent retrievals at a time; one missing subject never loses another row.
+    const unique=[...new Map(names.map(item=>[item.name,item])).values()];
+    for(let start=0;start<unique.length;start+=2)await Promise.allSettled(unique.slice(start,start+2).map(async item=>{
+        const found=await PaperAIPictures.automatic(item.query);
+        decoded[item.name]=await prepareQuestionPicture(found.blob,{webSource:found.source,widthTwips:1550});
+    }));
     return text.replace(marker,(_,body)=>{
         const cells=body.split(/\s*\|\|\s*/),parts=[];
-        if(![1,2,3,5].includes(cells.length))return body;
+        if(cells.length<1||cells.length>5)return body;
+        // Keep every caption/answer position when a search fails. Never draw a substitute.
+        if(cells.some(caption=>!decoded[PaperAIPictures.placeholder(caption)?.name]))
+            return cells.map(caption=>caption.trim()+' [picture needs review]').join('\n');
         for(const caption of cells){
-            const found=caption.match(/^\s*(?:[1-5][.)]\s*)?(kite|duck|fish|tap|fruits|n\s*tube|tube|bow)\s+pic(?:ture)?\b/iu);
-            const name=found?.[1]?.toLowerCase().replace(/^n\s*tube$/,'tube');
-            if(!name||!decoded[name])return body;
-            const id='default-picture-'+crypto.randomUUID();
-            extractedMedia.push({id,dataUrl:decoded[name],w:320,h:240,widthTwips:1550,defaultIllustration:name});
+            const name=PaperAIPictures.placeholder(caption).name;
+            const id='web-picture-'+crypto.randomUUID();
+            extractedMedia.push({id,...decoded[name],defaultIllustration:name});
             parts.push(id+'|'+caption.trim()+'|'+(cells.length===3?'box':'none'));
         }
         return '[[SOURCE_FIGURE_ROW: '+parts.join(' || ')+']]';
@@ -6187,6 +6190,12 @@ function openPicturePanel(){
     $('picturePanel').classList.add('show');
     const lines=String(lastResult.text||'').split('\n');
     const select=$('pictureQuestion');select.replaceChildren();
+    for(const asset of extractedMedia){
+        if(asset.role==='banner'||!String(lastResult.text).includes(asset.id+'|'))continue;
+        const option=document.createElement('option');option.value='asset:'+asset.id;
+        option.textContent='Replace picture: '+(asset.webSource?.label||asset.defaultIllustration||'picture '+(select.options.length+1));
+        select.appendChild(option);
+    }
     lines.forEach((line,index)=>{
         if(!line.trim()||/^\[\[(?:SOURCE_FIGURE|SOURCE_BANNER|PAGE_BREAK)/i.test(line.trim()))return;
         const option=document.createElement('option');option.value=String(index);
@@ -6194,41 +6203,90 @@ function openPicturePanel(){
         select.appendChild(option);
     });
     if(!select.options.length)pictureStatus('No question lines available yet.');
-    else pictureStatus('Choose a question, then upload or generate an illustration.');
+    else pictureStatus('Choose where the picture belongs, then search or upload.');
     const gallery=$('paperPictureGallery');gallery.replaceChildren();
     for(const asset of extractedMedia){
-        if(!asset.dataUrl||asset.role==='banner')continue;
+        if(!asset.dataUrl||asset.role==='banner'||!String(lastResult.text).includes(asset.id+'|'))continue;
         const item=document.createElement('div');item.style.cssText='width:110px;font-size:11px;overflow-wrap:anywhere';
-        const img=document.createElement('img');img.src=asset.dataUrl;img.alt=asset.generated?'AI-generated illustration':'Original PDF illustration';img.style.cssText='width:100%;height:85px;object-fit:contain;border:1px solid #ddd;border-radius:6px';
-        const label=document.createElement('div');label.textContent=asset.generated?'AI generated':'From source / uploaded';
+        const img=document.createElement('img');img.src=asset.dataUrl;img.alt=asset.webSource?.label||(asset.generated?'AI-generated illustration':'Original PDF illustration');img.style.cssText='width:100%;height:85px;object-fit:contain;border:1px solid #ddd;border-radius:6px';
+        const label=document.createElement('div');label.textContent=asset.webSource?'Online · '+asset.webSource.license:asset.generated?'AI generated':'From source / uploaded';
         item.append(img,label);gallery.append(item);
     }
 }
-async function insertQuestionPicture(imageBlob,{generated=false,caption=''}={}){
-    if(!lastResult)throw new Error('Upload and extract a question paper first.');
-    const lines=String(lastResult.text||'').split('\n');
-    const index=Number($('pictureQuestion').value);
-    if(!Number.isSafeInteger(index)||index<0||index>=lines.length)throw new Error('Select a question first.');
+async function prepareQuestionPicture(imageBlob,{generated=false,webSource=null,widthTwips=2600}={}){
     if(imageBlob.size>8*1024*1024)throw new Error('Pictures must be smaller than 8 MB.');
     const source=await decodeImageSource(imageBlob);
     try{
         const w=source.width||source.naturalWidth,h=source.height||source.naturalHeight;
         if(!w||!h)throw new Error('This image could not be decoded.');
+        if(w*h>25000000)throw new Error('Picture dimensions are too large.');
         const scale=Math.min(1,1400/Math.max(w,h));
         const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
-        canvas.getContext('2d').drawImage(source,0,0,canvas.width,canvas.height);
+        const context=canvas.getContext('2d');
+        if(!context)throw new Error('Picture canvas unavailable.');
+        context.fillStyle='#ffffff';context.fillRect(0,0,canvas.width,canvas.height);
+        context.drawImage(source,0,0,canvas.width,canvas.height);
+        return {dataUrl:canvas.toDataURL('image/png'),w:canvas.width,h:canvas.height,generated,webSource,widthTwips};
+    }finally{if(source.close)source.close();}
+}
+async function insertQuestionPicture(imageBlob,{generated=false,caption='',webSource=null,target=$('pictureQuestion').value}={}){
+    if(!lastResult)throw new Error('Upload and extract a question paper first.');
+    const documentBefore=lastResult,textBefore=String(lastResult.text||''),lines=textBefore.split('\n');
+    const replace=String(target).startsWith('asset:')?sourceAsset(String(target).slice(6)):null;
+    const index=Number(target);
+    if(!replace&&(!Number.isSafeInteger(index)||index<0||index>=lines.length))throw new Error('Select a question first.');
+    const prepared=await prepareQuestionPicture(imageBlob,{generated,webSource,widthTwips:replace?.widthTwips||2600});
+    if(lastResult!==documentBefore||lastResult.text!==textBefore)throw new Error('The paper changed. Choose the question and insert again.');
+    if(replace){Object.assign(replace,prepared);delete replace.defaultIllustration;}
+    else{
         const id='teacher-picture-'+crypto.randomUUID();
-        extractedMedia.push({id,dataUrl:canvas.toDataURL('image/png'),w:canvas.width,h:canvas.height,generated,widthTwips:Math.min(DOCX_CONTENT_W,6000)});
+        extractedMedia.push({id,...prepared});
         const pictureMarker='[[SOURCE_FIGURE: '+id+'|'+String(caption||' ').replace(/[\[\]|\n]/g,' ').slice(0,100)+'|none]]';
         lines.splice(index+1,0,pictureMarker);
         lastResult.text=lines.join('\n');
+    }
+        // Changing a native Word picture must rebuild the package from these pixels.
+        delete lastResult.native_docx_file;delete lastResult.native_pdf_pages;
         lastResult.plain=portableText(docxVisibleText(lastResult.text));
         delete lastResult.preview_text;delete lastResult.preview_layout_text;
         showingRaw=false;$('tabVerified').classList.add('active');$('tabRaw').classList.remove('active');
         textOut.innerHTML=formatOutput(lastResult.text);textOut.className='output-body';
         updateResultActionsForTab();openPicturePanel();
-        pictureStatus('Picture inserted after the selected question. It will appear in the Word download.');
-    }finally{if(source.close)source.close();}
+        pictureStatus(replace?'Picture replaced. Download Word to keep this picture.':'Picture inserted after the selected question. It will appear in the Word download.');
+}
+let pictureSearchSequence=0;
+async function searchQuestionPictures(){
+    const button=$('searchPicturesBtn'),box=$('pictureSearchResults'),sequence=++pictureSearchSequence;
+    const documentBefore=lastResult,textBefore=lastResult?.text;
+    button.disabled=true;box.replaceChildren();pictureStatus('Searching for clear pictures…');
+    try{
+        const items=await PaperAIPictures.search($('picturePrompt').value);
+        if(sequence!==pictureSearchSequence||lastResult!==documentBefore||lastResult?.text!==textBefore)return;
+        for(const item of items){
+            const card=document.createElement('div');card.className='picture-search-card';
+            const image=document.createElement('img');image.src=PaperAIPictures.assetURL(item);image.alt=item.label;image.loading='lazy';
+            const name=document.createElement('p');name.textContent=item.label;
+            const credit=document.createElement('a');credit.href=item.sourceUrl;credit.target='_blank';credit.rel='noopener noreferrer';credit.textContent=item.license+' · View source';
+            const use=document.createElement('button');use.type='button';use.className='action-btn';use.textContent='Use this picture';
+            use.onclick=async()=>{
+                const target=$('pictureQuestion').value;
+                if(lastResult!==documentBefore||lastResult?.text!==textBefore){pictureStatus('The paper changed. Search again before inserting.');return;}
+                use.disabled=true;pictureStatus('Downloading picture…');
+                try{
+                    const response=await fetch(PaperAIPictures.assetURL(item));
+                    if(!response.ok)throw new Error('Picture unavailable. Choose another result.');
+                    const blob=await response.blob();
+                    if(lastResult!==documentBefore||lastResult?.text!==textBefore)throw new Error('The paper changed. Search again before inserting.');
+                    await insertQuestionPicture(blob,{webSource:item,target});
+                    box.replaceChildren();
+                }catch(error){pictureStatus(error.message);}finally{use.disabled=false;}
+            };
+            image.onerror=()=>{use.disabled=true;name.textContent=item.label+' — preview unavailable';};
+            card.append(image,name,credit,use);box.appendChild(card);
+        }
+        pictureStatus(items.length?'Choose a picture and check the placement before inserting.':'No suitable public-domain picture found. Try a shorter subject or upload your own picture.');
+    }catch(error){if(sequence===pictureSearchSequence)pictureStatus(error.message||'Picture search failed.');}
+    finally{if(sequence===pictureSearchSequence)button.disabled=false;}
 }
 async function addUploadedQuestionPicture(){
     const photo=$('pictureUpload').files?.[0];
@@ -6328,7 +6386,7 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
 function sourceFigureHtml(value) {
     const info=PaperAILayout.source(value), asset=sourceAsset(info.id);
     return '<div class="ocr-figure-cell" style="align-items:'+(asset?.align==='left'?'flex-start':asset?.align==='right'?'flex-end':'center')+'">'+(asset
-        ? '<img src="'+esc(asset.dataUrl)+'" alt="'+(asset.defaultIllustration?'Default '+esc(asset.defaultIllustration)+' illustration':'Original source illustration')+'">'
+        ? '<img src="'+esc(asset.dataUrl)+'" alt="'+esc(asset.webSource?.label||'Original source illustration')+'">'
         : '<span class="ocr-picture-label">[source image needs review]</span>')+
         (info.caption ? '<span class="ocr-picture-label">'+formatOutputLine(info.caption)+'</span>' : '')+
         (info.answer ? '<span class="ocr-figure-answer"></span>' : '')+'</div>';
@@ -6336,6 +6394,7 @@ function sourceFigureHtml(value) {
 function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400, description='Original source illustration', movable=false, fitCell=false) {
     const asset=sourceAsset(id);
     if(!asset) return docxRun('[source image needs review]',{size:18});
+    if(asset.webSource)description=[asset.webSource.label,asset.webSource.creator,asset.webSource.license,asset.webSource.sourceUrl].filter(Boolean).join(' · ');
     if(!docxMediaUsed.has(id)) docxMediaUsed.set(id,{asset,rid:'rIdSource'+(docxMediaUsed.size+1)});
     // A row owns equal-width cells; fit each picture inside its cell without
     // distorting the original pixels or allowing a tall crop to consume a page.
@@ -6822,3 +6881,4 @@ function copyText(btn){
 </script>
 </body>
 </html>
+

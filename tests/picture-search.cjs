@@ -1,0 +1,56 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const Pictures=require('../frontend/vendor/picture-search.js');
+const workerSource=fs.readFileSync('worker/src/picture-search.js','utf8');
+const ctx=vm.createContext({URL,Response,Request,AbortSignal,Uint8Array,fetch});
+vm.runInContext(workerSource.replace('export async function','async function'),ctx);
+const page=(changes={})=>({ns:6,title:'File:Duck drawing.png',imageinfo:[{
+ url:'https://upload.wikimedia.org/wikipedia/commons/a/ab/Duck.png',mime:'image/png',width:800,height:600,
+ extmetadata:{LicenseShortName:{value:'Public domain'},Artist:{value:'<a>Artist</a>'},ImageDescription:{value:'A simple duck drawing.'}}
+}],...changes});
+const req=path=>new Request('https://paper.test/api/pictures/'+path);
+(async()=>{
+ assert.equal(Pictures.query('सेब'),'apple');assert.equal(Pictures.query('మామిడి'),'mango');
+ assert.equal(Pictures.placeholder('4. apple pic — अ').query,'apple');
+ assert.equal(Pictures.placeholder('2. n tube pic').query,'inner tube');
+ assert.equal(Pictures.placeholder('What do you see?'),null);
+ assert.match(Pictures.groupRequests('Name the fruit\n1. mango pic\n2. banana pic'),/DEFAULT_PICTURE_ROW: 1. mango pic \|\| 2. banana pic/);
+ const source='duck pic\n[[SOURCE_FIGURE: original| |none]]';assert.equal(Pictures.groupRequests(source),source);
+ let calls=[];
+ const metadata=async url=>{calls.push(url);return Response.json({query:{pages:[page(),page({title:'File:Other.png'})]}});};
+ let response=await ctx.handlePictureSearch(req('search?q=duck'),{},metadata),body=await response.json();
+ assert.equal(body.results[0].title,'File:Duck drawing.png');assert(body.results[0].confident);
+ assert(!JSON.stringify(body).includes('<a>'));assert(!body.results[0].image,'Do not expose caller-controlled upstream URLs');
+ assert.equal(new URL(calls[0]).hostname,'commons.wikimedia.org');
+ assert.equal(new URL(calls[0]).searchParams.get('gsrnamespace'),'6');
+ const thumbnail=page();thumbnail.imageinfo[0].thumburl='https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Duck.png/960px-Duck.png?utm_source=commons.wikimedia.org';
+ thumbnail.imageinfo[0].thumbwidth=800;thumbnail.imageinfo[0].thumbheight=600;
+ response=await ctx.handlePictureSearch(req('search?q=duck'),{},async()=>Response.json({query:{pages:[thumbnail]}}));
+ assert.equal((await response.json()).results.length,1,'Support the current official thumbnail host and tracking URLs');
+ for(const mutate of [p=>p.imageinfo[0].extmetadata.LicenseShortName.value='CC BY-SA 4.0',
+  p=>p.imageinfo[0].extmetadata.LicenseShortName.value='',p=>p.imageinfo[0].url='https://evil.test/Duck.png',
+  p=>p.imageinfo[0].mime='image/svg+xml',p=>p.imageinfo[0].width=20,
+  p=>p.imageinfo[0].extmetadata.AttributionRequired={value:'true'}]){
+   const p=page();mutate(p);
+   response=await ctx.handlePictureSearch(req('search?q=duck'),{},async()=>Response.json({query:{pages:[p]}}));
+   assert.equal((await response.json()).results.length,0);
+ }
+ assert.equal((await ctx.handlePictureSearch(req('asset?title=https://127.0.0.1/secret'),{},metadata)).status,400);
+ assert.equal((await ctx.handlePictureSearch(req('search?q='+encodeURIComponent('x'.repeat(130))),{},metadata)).status,400);
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB9sAAAAASUVORK5CYII=','base64');
+ const assetFetch=async(url,opts)=>{
+   assert.equal(opts.redirect,'error');
+   if(url.startsWith('https://commons.wikimedia.org/'))return Response.json({query:{pages:[page()]}});
+   assert(url.startsWith('https://upload.wikimedia.org/wikipedia/commons/'));
+   return new Response(png,{headers:{'Content-Type':'image/png'}});
+ };
+ response=await ctx.handlePictureSearch(req('asset?title=File%3ADuck%20drawing.png'),{},assetFetch);
+ assert.equal(response.status,200);assert.deepEqual(Buffer.from(await response.arrayBuffer()),png);
+ const badAsset=async url=>url.startsWith('https://commons.wikimedia.org/')?Response.json({query:{pages:[page()]}}):new Response('<script>bad</script>',{headers:{'Content-Type':'image/png'}});
+ assert.equal((await ctx.handlePictureSearch(req('asset?title=File%3ADuck.png'),{},badAsset)).status,502);
+ assert.equal((await ctx.handlePictureSearch(req('search?q=duck'),{},async()=>{throw Error('private upstream details');})).status,503);
+ let count=0;
+ const fakeFetch=async url=>{count++;return url.includes('/search?')?Response.json({results:[{title:'File:Duck.png',confident:true}]}):new Response(png);};
+ await Promise.all([Pictures.automatic('duck',fakeFetch),Pictures.automatic('duck',fakeFetch)]);
+ assert.equal(count,2,'Repeated placeholders share one lookup and download');
+ console.log('Picture retrieval: subject identification, relevance, license, SSRF, MIME/size restrictions, source preservation, missing service and shared downloads passed.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

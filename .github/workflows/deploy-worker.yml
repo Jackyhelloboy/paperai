@@ -36,6 +36,7 @@ jobs:
           node tests/answer-bracket-evidence.cjs
           node tests/scan-transport.cjs
           node tests/gemini-deployment.cjs
+          node tests/picture-search.cjs
 
       - name: Verify backup credential and model access securely
         env:
@@ -84,3 +85,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node .github/scripts/check-worker-scanning.cjs
+

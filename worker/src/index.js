@@ -5,6 +5,7 @@ import { degenerateOcr, blankSafeDraft, invalidLayoutMarkers, ocrReviewWarnings,
 import { handleScanJob } from './scan-jobs.js';
 import { localPrintIssues, sanitizePrintIssues } from './print-review.js';
 import { layoutSections, safeLayoutPlan } from './layout-plan.js';
+import { handlePictureSearch } from './picture-search.js';
 
 const DAILY_FREE_NEURONS = 10000;
 const GEMMA4_INPUT_NEURONS_PER_MILLION = 9091;
@@ -94,6 +95,9 @@ export default {
       }
     }
 
+    if (url.pathname === '/api/pictures/search' || url.pathname === '/api/pictures/asset') {
+      return handlePictureSearch(request, corsHeaders);
+    }
     if (url.pathname === '/api/generate-picture' && request.method === 'POST') {
       return generateQuestionPicture(request, env, corsHeaders);
     }
@@ -3058,3 +3062,4 @@ async function applyLearnedCorrections(request, env, corsHeaders) {
     pairs_considered: pairs.length,
   }, { headers: corsHeaders });
 }
+

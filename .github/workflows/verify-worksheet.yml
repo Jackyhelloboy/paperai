@@ -51,6 +51,9 @@ jobs:
           node tests/image-grid-width.cjs
           node tests/image-crop-evidence.cjs
           node tests/simplified-results-ui.cjs
+          node tests/picture-search.cjs
+          node tests/default-picture-materialization.cjs
+          node tests/online-picture-word.cjs
           node tests/mixed-language-suggestions.cjs
           node tests/strict-section-layout.cjs
       - name: Check Worker JavaScript
@@ -65,3 +68,4 @@ jobs:
           node tests/gemini-fallback.cjs
           node tests/provider-reserve-handoff.cjs
           node tests/public-gateway.cjs
+

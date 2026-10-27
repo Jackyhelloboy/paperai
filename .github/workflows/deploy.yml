@@ -64,6 +64,9 @@ jobs:
           node tests/automatic-upload.cjs
           node tests/gemini-fallback.cjs
           node tests/public-gateway.cjs
+          node tests/picture-search.cjs
+          node tests/default-picture-materialization.cjs
+          node tests/online-picture-word.cjs
 
       - name: Ensure one production deployment path
         env:
@@ -99,3 +102,4 @@ jobs:
         with:
           name: paperai-production-verification
           path: build/production-verification.json
+

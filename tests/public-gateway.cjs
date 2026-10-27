@@ -36,6 +36,12 @@ async function gateway(path,upstream,options={}){
   assert.deepEqual(await res.json(),{date_utc:'2026-10-11',provider_limit_reached:true,reset_at:'2026-10-12T00:00:00Z'});
   res=await gateway('/api/health',Response.json({status:'healthy',model:'private-model'}));assert.deepEqual(await res.json(),{status:'healthy'});
   assert.equal(new URL(upstreamRequest.url).pathname,'/health');
+  res=await gateway('/api/pictures/search?q=duck',Response.json({query:'duck',results:[{title:'File:Duck.png'}]}));
+  assert.equal((await res.json()).results[0].title,'File:Duck.png');
+  assert.equal(new URL(upstreamRequest.url).searchParams.get('q'),'duck');
+  res=await gateway('/api/pictures/asset?title=File%3ADuck.png',new Response('image bytes',{headers:{'Content-Type':'image/png'}}));
+  assert.equal(res.headers.get('Content-Type'),'image/png');assert.equal(await res.text(),'image bytes');
+  assert.equal(new URL(upstreamRequest.url).searchParams.get('title'),'File:Duck.png');
   const before=calls;
   assert.equal((await gateway('/api/debug',null)).status,404);
   assert.equal((await gateway('/api/train/export',null)).status,404);
@@ -74,3 +80,4 @@ assert(fs.readFileSync('.github/scripts/build-pages.cjs','utf8').includes('/vend
  await assert.rejects(()=>ensureConfig({fetcher,repository:'another/repository',log(){}}),/does not match/);
  console.log('Production configuration: repository verified, competing trigger disabled, preview recipe aligned, unrelated settings preserved.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+

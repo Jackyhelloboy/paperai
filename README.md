@@ -39,6 +39,10 @@ On a Worker deployment, the workflow validates Gemini model access, installs `GE
 
 No AI credential is included in browser JavaScript or sent in a URL. Gemini requests use a credential header and reject redirects.
 
+## Clear online pictures
+
+Use **Find pictures** after scanning to search Wikimedia Commons, preview public-domain/CC0 pictures, and insert one after a question or replace an existing picture. Explicit supported requests such as `duck pic` and `mango picture` can retrieve pictures automatically. The original scanned drawings remain authoritative. Downloaded images keep their proportions and are embedded inside Word, including source information in their alternative text. No extra GPU or paid image model is required. See [Online worksheet pictures](docs/ONLINE_PICTURES.md) for the retrieval flow, review limits and checks.
+
 ## Verify and develop
 
 Use Node.js 22 or newer:
@@ -91,4 +95,5 @@ The separate AI print-review panel is hidden in the simplified result screen. In
 ## Fast-mode AI bit arrangement
 
 After extraction, PaperAI shows the paper immediately and asks the configured Gemini model to classify the visible question bits in the background. This automatic step does not add another button to the result screen. Gemini only returns the type of each existing bit and an image-grid column count (1–5). The server and browser validate exact bit titles and allowed layout types before applying them. This can change the geometry of original, intact source images in the preview and editable Word file; it never asks the model to repaint a PDF crop, rewrite a question, add an answer or change a mark. A compact snippet of each bit keeps the request small even for long papers. Standard five-column image grids remain available when Gemini cannot respond; the public layout helper is covered by a small daily KV-backed AI budget.
+
 

@@ -5,9 +5,9 @@ const source=html.slice(html.indexOf('async function materializeDefaultPictureNo
 const requested=[],media=[];
 const ctx=vm.createContext({
  extractedMedia:media,crypto:{randomUUID:()=>String(media.length+1)},
- fetch:async url=>{requested.push(url);return {ok:true,blob:async()=>({})}},
- createImageBitmap:async()=>({close(){}}),
- document:{createElement:()=>({getContext:()=>({fillRect(){},drawImage(){},set fillStyle(v){}}),toDataURL:()=> 'data:image/png;base64,iVBORw0KGgo='})},
+ PaperAIPictures:{placeholder:require('../frontend/vendor/picture-search.js').placeholder,
+ automatic:async query=>{requested.push(query);return {blob:{},source:{label:query,license:'Public domain'}};}},
+ prepareQuestionPicture:async(blob,options)=>({dataUrl:'data:image/png;base64,iVBORw0KGgo=',w:800,h:600,...options}),
 });
 vm.runInContext(source,ctx);
 (async()=>{
@@ -19,7 +19,13 @@ vm.runInContext(source,ctx);
  assert(media.every(m=>m.dataUrl.startsWith('data:image/png;base64,')&&m.defaultIllustration));
  assert.match(result,/kite pic — तंग\|none/);
  assert.match(result,/duck pic\|box/,'Picture-name row retains answer boxes');
- assert(requested.includes('/default-tube.svg')&&requested.includes('/default-bow.svg'));
+ assert(requested.includes('inner tube')&&requested.includes('archery bow'));
  assert.equal(requested.length,7,'Fetch only distinct required illustration assets');
- console.log('Picture fallback becomes PNG-backed editable Word image rows, preserving visible text and answer spaces.');
+ assert(media.every(m=>m.webSource&&m.w===800),'Preserve source credit and high-resolution pixels');
+ ctx.PaperAIPictures.automatic=async()=>{throw Error('Offline');};
+ const unavailable=await ctx.materializeDefaultPictureNotes('[[DEFAULT_PICTURE_ROW: 1. duck pic || 2. fish pic]]');
+ assert(unavailable.includes('1. duck pic [picture needs review]')&&unavailable.includes('2. fish pic [picture needs review]'));
+ assert.equal(media.length,10,'Failed searches must never insert synthetic substitutes');
+ console.log('Online pictures become PNG-backed editable Word rows, with source credits, captions, answer spaces and explicit missing-picture review.');
 })().catch(e=>{console.error(e);process.exitCode=1});
+
