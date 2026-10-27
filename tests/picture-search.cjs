@@ -50,6 +50,8 @@ const req=path=>new Request('https://paper.test/api/pictures/'+path);
  const fakeFetch=async url=>{count++;return url.includes('/search?')?Response.json({results:[{title:'File:Duck.png',confident:true}]}):new Response(png);};
  await Promise.all([Pictures.automatic('duck',fakeFetch),Pictures.automatic('duck',fakeFetch)]);
  assert.equal(count,2,'Repeated placeholders share one lookup and download');
+ await Pictures.automatic('duck',fakeFetch);
+ assert.equal(count,4,'Completed picture requests must recheck current metadata and license');
  // Failed image bytes must not prevent trying the next already licensed,
  // metadata-matched illustration. Unmatched results are never downloaded.
  let tried=[];
