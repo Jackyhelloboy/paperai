@@ -6167,9 +6167,17 @@ async function materializeDefaultPictureNotes(text) {
     return text.replace(marker,(_,body)=>{
         const cells=body.split(/\s*\|\|\s*/),parts=[];
         if(cells.length<1||cells.length>5)return body;
-        // Keep every caption/answer position when a search fails. Never draw a substitute.
-        if(cells.some(caption=>!decoded[PaperAIPictures.placeholder(caption)?.name]))
-            return cells.map(caption=>caption.trim()+' [picture needs review]').join('\n');
+        // Missing candidates must not erase other successfully retrieved pictures
+        // from the same worksheet row. Keep failed requests as reviewable notes.
+        if(cells.some(caption=>!decoded[PaperAIPictures.placeholder(caption)?.name])){
+            return cells.map(caption=>{
+                const name=PaperAIPictures.placeholder(caption)?.name;
+                if(!name||!decoded[name])return caption.trim()+' [picture needs review]';
+                const id='web-picture-'+crypto.randomUUID();
+                extractedMedia.push({id,...decoded[name],defaultIllustration:name});
+                return '[[SOURCE_FIGURE: '+id+'|'+caption.trim()+'|none]]';
+            }).join('\n');
+        }
         for(const caption of cells){
             const name=PaperAIPictures.placeholder(caption).name;
             const id='web-picture-'+crypto.randomUUID();
