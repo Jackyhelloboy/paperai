@@ -50,6 +50,23 @@ const req=path=>new Request('https://paper.test/api/pictures/'+path);
  const fakeFetch=async url=>{count++;return url.includes('/search?')?Response.json({results:[{title:'File:Duck.png',confident:true}]}):new Response(png);};
  await Promise.all([Pictures.automatic('duck',fakeFetch),Pictures.automatic('duck',fakeFetch)]);
  assert.equal(count,2,'Repeated placeholders share one lookup and download');
+ // Failed image bytes must not prevent trying the next already licensed,
+ // metadata-matched illustration. Unmatched results are never downloaded.
+ let tried=[];
+ const failover=async url=>{
+   tried.push(url);
+   if(url.includes('/search?'))return Response.json({results:[
+     {title:'File:Duck first.png',confident:true},
+     {title:'File:Unrelated.png',confident:false},
+     {title:'File:Duck second.png',confident:true}
+   ]});
+   if(url.includes('Duck%20first'))return new Response('Unavailable',{status:503});
+   return new Response(png);
+ };
+ const alternate=await Pictures.automatic('duck drawing',failover);
+ assert.equal(alternate.source.title,'File:Duck second.png');
+ assert.equal(tried.length,3,'Try alternate validated result without downloading unrelated pictures');
+
  const browser=vm.createContext({PaperAICommons:{search:async q=>[{title:'File:Duck.png',subject:q}],download:async()=>new Blob([png],{type:'image/png'})},fetch:async()=>{throw Error('Gateway unavailable');}});
  vm.runInContext(fs.readFileSync('frontend/vendor/picture-search.js','utf8'),browser);
  assert.equal((await browser.PaperAIPictures.search('duck'))[0].subject,'duck');
