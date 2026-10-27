@@ -2,6 +2,8 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 const html=fs.readFileSync('frontend/index.html','utf8');
 const source=html.slice(html.indexOf('async function materializeDefaultPictureNotes('),html.indexOf('function pictureStatus(',html.indexOf('async function materializeDefaultPictureNotes(')));
+assert.match(html,/captureMethod:'image-pixels-screenshot'/,'Image capture records the PNG screenshot method');
+assert.match(html,/context\.drawImage\(source,0,0,canvas\.width,canvas\.height\)/,'Image-only canvas screenshot is taken before Word export');
 const requested=[],media=[];
 const ctx=vm.createContext({
  extractedMedia:media,crypto:{randomUUID:()=>String(media.length+1)},
