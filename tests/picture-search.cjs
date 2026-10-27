@@ -27,6 +27,12 @@ const req=path=>new Request('https://paper.test/api/pictures/'+path);
  assert(!JSON.stringify(body).includes('<a>'));assert(!body.results[0].image,'Do not expose caller-controlled upstream URLs');
  assert.equal(new URL(calls[0]).hostname,'commons.wikimedia.org');
  assert.equal(new URL(calls[0]).searchParams.get('gsrnamespace'),'6');
+ assert.match(new URL(calls[0]).searchParams.get('gsrsearch'),/duck black and white outline clipart/,'Searches outline clipart first');
+ const outline=page({title:'File:Duck black and white outline clipart.png'});
+ response=await ctx.handlePictureSearch(req('search?q=duck'),{},async()=>Response.json({query:{pages:[outline,page()]}}));
+ const ranked=await response.json();
+ assert.equal(ranked.results[0].title,outline.title,'Prefer simple black and white worksheet outline drawings');
+
  const thumbnail=page();thumbnail.imageinfo[0].thumburl='https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Duck.png/960px-Duck.png?utm_source=commons.wikimedia.org';
  thumbnail.imageinfo[0].thumbwidth=800;thumbnail.imageinfo[0].thumbheight=600;
  response=await ctx.handlePictureSearch(req('search?q=duck'),{},async()=>Response.json({query:{pages:[thumbnail]}}));
