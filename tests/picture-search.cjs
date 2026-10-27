@@ -27,6 +27,16 @@ const req=path=>new Request('https://paper.test/api/pictures/'+path);
  const compound=page({title:'File:Duck and boat drawing.png'});
  response=await ctx.handlePictureSearch(req('search?q=duck'),{},async()=>Response.json({query:{pages:[compound]}}));
  assert.equal((await response.json()).results[0].confident,false,'Compound picture names require teacher selection');
+ let broadSearchUsed=false;
+ response=await ctx.handlePictureSearch(req('search?q=fish'),{},async url=>{
+   const u=new URL(url);
+   if(u.searchParams.get('gsrsearch')==='fish') broadSearchUsed=true;
+   const pages=u.searchParams.get('gsrsearch')==='fish'?[page({title:'File:Fish drawing.png'})]:[page({title:'File:Fish and boat drawing.png'})];
+   return Response.json({query:{pages}});
+ });
+ assert(broadSearchUsed,'Retry object-only search when styled searches lack auto-safe matches');
+ assert.equal((await response.json()).results[0].title,'File:Fish drawing.png');
+
  const descriptionOnly=page({title:'File:Waterbird drawing.png'});
  response=await ctx.handlePictureSearch(req('search?q=duck'),{},async()=>Response.json({query:{pages:[descriptionOnly]}}));
  assert.equal((await response.json()).results[0].confident,false,'Description-only semantic matches are never auto-inserted');
