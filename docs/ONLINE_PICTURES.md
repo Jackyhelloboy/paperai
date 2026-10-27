@@ -34,3 +34,10 @@ These rules apply to future automatic selection, teacher-assisted selection, pre
 ### Implementation status boundary
 
 The existing Commons metadata search, image download, preview picker, PNG conversion, and Word embedding are already documented above. **Automated visual verification of candidates is not established by the current metadata matching**. A future vision-verification stage must be implemented and tested before describing this pipeline as fully automatic or vision-verified. New code must preserve the original-paper transcription invariants in `ARCHITECTURE.md` and avoid exposing credentials to browser code.
+
+
+## Image-only screenshot capture for Word
+
+The browser takes a clean PNG raster capture of the selected, licensed image pixels on its own canvas before export. This is an **image screenshot**, not a screenshot of a search page or browser window. The capture retains proportions, uses a white background and high-quality resampling, and is stored as an embedded PNG image object in Word. No remote image URL is needed to open the DOCX. The screenshot does not create new image rights: Commons public-domain/CC0 checks still apply before capture.
+
+This screenshot path is implemented by `prepareQuestionPicture` in `frontend/index.html`, which exports `captureMethod: 'image-pixels-screenshot'`. Search still retrieves the source picture pixels first; there is no way to screenshot an online image without first receiving its pixels. Screenshot capture does not verify that the selected object is semantically correct. Teacher review is still required for uncertain choices and source scans are never silently replaced.
