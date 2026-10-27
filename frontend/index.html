@@ -4949,6 +4949,8 @@ function isOutputHeadingLine(line, index, firstNonEmptyIndex) {
 }
 
 function formatOutputLine(line, depth=0) {
+    // Review status belongs in the editor, never in the printed worksheet.
+    line=String(line||'').replace(/\s*\[picture needs review\]/gi,'');
     if(typeof PaperAILayout!=='undefined')line=PaperAILayout.cleanQuestionPaper(line);
     if(depth>8)return formatVisibleText(line);
     return PaperAILayout.inlineParts(line).map(part=>{
@@ -5003,7 +5005,7 @@ function worksheetPictureCell(label, withAnswer = true) {
     const number = String(label || '').match(/^\d+[.)]/)?.[0] || '';
     return '<div class="ocr-figure-cell">' +
         (number ? '<span class="ocr-figure-number">' + esc(number) + '</span>' : '') +
-        '<span class="ocr-picture-placeholder"><span>[picture needs review]</span>' +
+        '<span class="ocr-picture-placeholder" aria-label="Missing picture, add in editor"><span aria-hidden="true">□</span>' +
         '<span class="ocr-picture-label">' + safe + '</span></span>' +
         (withAnswer ? '<span class="ocr-figure-answer" aria-label="blank answer box"></span>' : '') +
     '</div>';
@@ -5905,6 +5907,7 @@ function docxEmphasisRuns(raw,style,depth=0) {
     }).join('');
 }
 function docxRichParagraph(raw, options = {}) {
+    raw=String(raw||'').replace(/\s*\[picture needs review\]/gi,'');
     if(typeof PaperAILayout!=='undefined')raw=PaperAILayout.cleanQuestionPaper(raw);
     // Embedded pictures stay real replaceable Word drawings even when inline.
     const standalone=String(raw||'').trim().match(/^\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]$/i);
