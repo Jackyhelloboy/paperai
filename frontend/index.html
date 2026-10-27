@@ -6151,41 +6151,12 @@ let extractedMedia = [];
 let docxMediaUsed = new Map();
 function sourceAsset(id) { return extractedMedia.find(item => item.id === id); }
 async function materializeDefaultPictureNotes(text) {
-    const marker=/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g;
-    if(!marker.test(text))return text;
-    marker.lastIndex=0;
-    if(typeof PaperAIPictures==='undefined')return text.replace(marker,(_,body)=>body.split(/\s*\|\|\s*/).map(caption=>caption).join('\n'));
-    const names=[...text.matchAll(/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g)].flatMap(m=>
-        m[1].split(/\s*\|\|\s*/).map(cell=>PaperAIPictures.placeholder(cell)).filter(Boolean));
-    const decoded={};
-    // Two independent retrievals at a time; one missing subject never loses another row.
-    const unique=[...new Map(names.map(item=>[item.name,item])).values()];
-    for(let start=0;start<unique.length;start+=2)await Promise.allSettled(unique.slice(start,start+2).map(async item=>{
-        const found=await PaperAIPictures.automatic(item.query);
-        decoded[item.name]=await prepareQuestionPicture(found.blob,{webSource:found.source,widthTwips:1550});
-    }));
-    return text.replace(marker,(_,body)=>{
-        const cells=body.split(/\s*\|\|\s*/),parts=[];
-        if(cells.length<1||cells.length>5)return body;
-        // Missing candidates must not erase other successfully retrieved pictures
-        // from the same worksheet row. Keep failed requests as reviewable notes.
-        if(cells.some(caption=>!decoded[PaperAIPictures.placeholder(caption)?.name])){
-            return cells.map(caption=>{
-                const name=PaperAIPictures.placeholder(caption)?.name;
-                if(!name||!decoded[name])return caption.trim();
-                const id='web-picture-'+crypto.randomUUID();
-                extractedMedia.push({id,...decoded[name],defaultIllustration:name});
-                return '[[SOURCE_FIGURE: '+id+'|'+caption.trim()+'|none]]';
-            }).join('\n');
-        }
-        for(const caption of cells){
-            const name=PaperAIPictures.placeholder(caption).name;
-            const id='web-picture-'+crypto.randomUUID();
-            extractedMedia.push({id,...decoded[name],defaultIllustration:name});
-            parts.push(id+'|'+caption.trim()+'|'+(cells.length===3?'box':'none'));
-        }
-        return '[[SOURCE_FIGURE_ROW: '+parts.join(' || ')+']]';
-    });
+    // Never place a web image solely because its filename matched an OCR
+    // caption: unrelated pictures can be harmful to a school worksheet.
+    // Source PDF crops are retained elsewhere; explicitly requested images
+    // can still be selected by the teacher using Find pictures.
+    return String(text||'').replace(/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g,
+        (_,body)=>body.split(/\s*\|\|\s*/).map(caption=>caption.trim()).join('\n'));
 }
 function pictureStatus(message){$('pictureStatus').textContent=message;}
 function closePicturePanel(){$('picturePanel').classList.remove('show');}
