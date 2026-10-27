@@ -15,7 +15,7 @@ const req=path=>new Request('https://paper.test/api/pictures/'+path);
  assert.equal(Pictures.placeholder('Draw a duck').query,'duck');
  assert.equal(Pictures.placeholder('Paste mango picture').query,'mango');
  assert.equal(Pictures.placeholder('Search the whole question paper'),null);
- assert.match(Pictures.groupRequests('1. Add picture of apple\\n2. Draw a duck'),/DEFAULT_PICTURE_ROW/);
+ assert.match(Pictures.groupRequests('1. Add picture of apple\n2. Draw a duck'),/DEFAULT_PICTURE_ROW/);
 
  assert.match(Pictures.groupRequests('Name the fruit\n1. mango pic\n2. banana pic'),/DEFAULT_PICTURE_ROW: 1. mango pic \|\| 2. banana pic/);
  const source='duck pic\n[[SOURCE_FIGURE: original| |none]]';assert.equal(Pictures.groupRequests(source),source);
