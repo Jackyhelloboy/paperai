@@ -1070,6 +1070,7 @@ async function handleWordSuggestion(request, env, corsHeaders) {
       'If the selected Latin word is Romanized Hindi or another native language, use context to offer its natural spelling in that language.',
       'When the language is ambiguous, offer plausible alternatives instead of assuming a translation.',
       'Return the entire selected phrase, preserving names, question wording, source numbers and mathematical content.',
+      'Use the supplied class, subject, current bit instruction and selected item together to interpret the teacher intent. Picture captions and letter options belong only to their own item; never merge neighbouring options or remove item numbers. Keep incomplete letter exercises incomplete, preserve blanks and every option. If layout context is insufficient, return no suggestion rather than inventing a correction.',
       'Never translate an English question into another language. Never complete a blank, solve a question or add an answer.'
     ].join('\n');
   } else if (sourceLanguage === language) {

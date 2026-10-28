@@ -1718,6 +1718,40 @@
             .language-select { width:100%; height:40px; font-size:.8rem; }
             .results-actions .action-btn { padding:.55rem .35rem; gap:.25rem; font-size:.74rem; }
         }
+
+        /* One responsive workspace: document geometry stays independent of UI. */
+        label[for="wordEditMode"] {display:none!important;}
+        .results-actions {grid-template-columns:repeat(2,minmax(0,1fr));}
+        .preview-controls {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:.8rem;color:var(--text2);}
+        .preview-controls button {min-height:44px;padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);font:inherit;color:var(--text);cursor:pointer;}
+        .review-workspace {min-width:0;}
+        .review-workspace>* {min-width:0;}
+        #textOut {overflow:auto;overscroll-behavior:contain;max-height:75vh;}
+        #textOut.readable-paper {min-width:0;container-type:normal;padding:12px;}
+        #textOut.readable-paper>.paper-preview {width:740px;container-type:inline-size;font-size:15.56px!important;}
+        .action-btn,.teach-tool,.output-tab {font-size:.875rem;line-height:1.3;min-height:44px;white-space:normal;overflow-wrap:anywhere;}
+        .teach-editor {font-size:16px;line-height:1.6;width:100%;max-width:100%;box-sizing:border-box;}
+        .ocr-figure-cell {min-width:0;break-inside:avoid;}
+        .paper-preview .ocr-picture-label,.paper-preview .ocr-figure-number {font-size:inherit!important;line-height:1.4;font-weight:400;white-space:normal;}
+        .paper-preview .ocr-figure-number {align-self:center;}
+        .ocr-figure-caption {width:100%;text-align:center;overflow-wrap:anywhere;}
+        @media(min-width:768px){
+            .main {width:100%;max-width:1120px;box-sizing:border-box;padding:2rem;}
+            .hero,.upload-card {max-width:620px;margin-left:auto;margin-right:auto;}
+            .review-workspace:has(#teachPanel.show) {display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:18px;align-items:start;}
+            .review-workspace:has(#teachPanel.show)>.teach-panel {margin:0;}
+            .teach-editor {min-height:400px;}
+        }
+        @media(max-width:767px){
+            .main {max-width:100%;box-sizing:border-box;padding:16px 12px 32px;}
+            .results-actions {flex-wrap:wrap;gap:8px;}
+            .results-actions>* {min-width:0;max-width:100%;}
+            .teach-panel {padding:14px;}
+            .teach-toolbar,.teach-actions {flex-wrap:wrap;gap:8px;}
+            .teach-editor {min-height:260px;}
+            .output-body {padding:12px;}
+            .preview-controls {flex-wrap:wrap;}
+        }
     </style>
 </head>
 <body>
@@ -1866,6 +1900,7 @@
                 <div id="pictureStatus" role="status" aria-live="polite" style="margin-top:10px"></div>
             </div>
 
+            <div class="review-workspace">
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct your question paper</div>
                 <div class="teach-sub">Edit the questions before exporting. Suggestions apply only when you select them. Save &amp; apply keeps your chosen wording.</div>
@@ -1899,7 +1934,10 @@
                     <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Paper preview</button>
                     <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Extracted text</button>
                 </div>
-                <div class="output-body" id="textOut"></div>
+                <div class="preview-controls"><span id="previewStatus">Paper layout</span><button type="button" id="previewZoomBtn" aria-pressed="false" onclick="togglePaperZoom()">Zoom to read</button></div>
+                <div class="output-body" id="textOut" tabindex="0" aria-label="Live question paper preview"></div>
+            </div>
+
             </div>
 
             <div class="output-card simplified-hidden" id="pageReviewPanel" style="display:none" aria-label="All source pages and extracted text">
@@ -3962,13 +4000,16 @@ function getLearnedCorrectionSuggestions(input, localCandidates = []) {
 function getTeachContext(position) {
     const text = teachEditor.value || '';
     const at = Math.max(0, Math.min(text.length, Number(position) || 0));
-    const before = text.slice(Math.max(0, at - 1800), at);
+    const before = text.slice(0, at);
     const heading = before.split('\n').reverse().find(line =>
         /^\s*(?:\[\[SECTION_ROW:|[IVXLCDM]+[.)]\s+)(?:[^\n]{3,180})/iu.test(line)) || '';
-    const nearby = text.slice(Math.max(0, at - 220), Math.min(text.length, at + 220));
+    const lineStart=text.lastIndexOf('\n',Math.max(0,at-1))+1;
+    const lineEnd=text.indexOf('\n',at);
+    const nearby=text.slice(lineStart,lineEnd<0?text.length:lineEnd).slice(0,280);
+    const metadata=text.slice(0,900).split('\n').filter(line=>/class|subject|कक्षा|विषय|తరగతి|విషయం/i.test(line)).slice(0,2).join(' ').slice(0,100);
     // The bit instruction distinguishes a spelling correction from a question
     // answer or a picture request. The source excerpt stays under the API cap.
-    return ((heading ? heading.trim().slice(0, 150) + ' | ' : '') + nearby)
+    return ((metadata?metadata+' | ':'')+(heading ? heading.trim().slice(0, 180) + ' | ' : '') + nearby)
         .replace(/\s+/g, ' ').trim().slice(0, 600);
 }
 
@@ -3998,7 +4039,7 @@ function findInputSegmentAtCaret() {
 
 async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage, localSuggestions, learnedSuggestions, sequence, mode = 'contextual') {
     const normalized = String(sourceText || '').replace(/\s+/g, ' ').trim();
-    const context = getTeachContext(smartComposition?.start || teachEditor.selectionStart);
+    const context = getTeachContext(smartComposition?.start ?? teachEditor.selectionStart);
     const cacheKey = sourceLanguage + '\u0000' + targetLanguage + '\u0000' + mode + '\u0000' +
         normalized + '\u0000' + context;
 
@@ -4246,6 +4287,7 @@ function renderTeachPreview() {
     if (!showingRaw) {
         textOut.innerHTML = formatOutput(layoutPreview);
         textOut.className = 'output-body';
+        if(typeof applyPaperZoom==='function')applyPaperZoom();
     } else {
         // Plain text tab stays in sync with Teach edits as they happen.
         textOut.textContent = currentPlainText();
@@ -4321,6 +4363,12 @@ function refreshSmartComposition() {
     showSmartSuggestions();
 }
 
+let paperPreviewZoomed=typeof matchMedia==='function'&&matchMedia('(max-width:767px)').matches;
+function applyPaperZoom() {
+    textOut.classList.toggle('readable-paper',paperPreviewZoomed&&!showingRaw);
+    const button=$('previewZoomBtn');if(button){button.textContent=paperPreviewZoomed?'Fit page':'Zoom to read';button.setAttribute('aria-pressed',String(paperPreviewZoomed));}
+}
+function togglePaperZoom(){paperPreviewZoomed=!paperPreviewZoomed;applyPaperZoom();}
 function openTeachPanel() {
     if (!lastResult) return;
     teachOriginalText = publicPlainTextFromStructured(lastResult.plain_text || lastResult.text || '');
@@ -4333,6 +4381,7 @@ function openTeachPanel() {
     aiSuggestionSequence++;
 
     teachPanel.classList.add('show');
+    if(typeof $==='function'&&$('previewStatus'))$('previewStatus').textContent='Live preview · edits are not saved yet';
     updateTeachLanguageStatus();
     showSmartSuggestions();
     updateTeachButtons();
@@ -4344,6 +4393,7 @@ function openTeachPanel() {
 
 function closeTeachPanel() {
     teachPanel.classList.remove('show');
+    if(typeof $==='function'&&$('previewStatus'))$('previewStatus').textContent='Paper layout';
     smartComposition = null;
     aiSuggestionSequence++;
     if (aiSuggestionTimer) clearTimeout(aiSuggestionTimer);
@@ -4357,6 +4407,7 @@ function closeTeachPanel() {
     if (lastResult && !showingRaw) {
         textOut.innerHTML = formatOutput(lastResult.text || '');
         textOut.className = 'output-body';
+        if(typeof applyPaperZoom==='function')applyPaperZoom();
     }
 }
 
@@ -4467,6 +4518,7 @@ function saveLearning() {
     closeTeachPanel();
     textOut.innerHTML = formatOutput(lastResult.text || '');
     textOut.className = 'output-body';
+        if(typeof applyPaperZoom==='function')applyPaperZoom();
 
     const learned = pairs.length;
     if (learned) $('statsBar').innerHTML += '<span class="badge badge-gray">' + learned + ' learned</span>';
@@ -4675,6 +4727,7 @@ function showTab(tab) {
 
             textOut.innerHTML = formatOutput(extractedText);
             textOut.className = 'output-body';
+        if(typeof applyPaperZoom==='function')applyPaperZoom();
         }
     }
 }
@@ -5503,6 +5556,7 @@ goBtn.onclick = async () => {
             native_pdf_pages:nativePdfPages,native_pdf_text:allText,native_pdf_preview:nativePdfPages?PaperAIPdfEditable.preview(nativePdfPages):null,
             page_texts:documentPageTexts };
         teachPanel.classList.remove('show');
+    if(typeof $==='function'&&$('previewStatus'))$('previewStatus').textContent='Paper layout';
         showingRaw = false;
         $('tabVerified').classList.add('active');
         $('tabRaw').classList.remove('active');
@@ -5510,6 +5564,7 @@ goBtn.onclick = async () => {
         textOut.innerHTML = formatOutput(lastResult.text || '');
         if(typeof runAiBitLayout==='function')void runAiBitLayout(null,true);
         textOut.className = 'output-body';
+        if(typeof applyPaperZoom==='function')applyPaperZoom();
         $('pageReviewPanel').style.display='none';
         $('flaggedBox').classList.remove('show');
         resBox.classList.add('show');
@@ -5812,6 +5867,29 @@ function docxCellContentWidth(width, options = {}) {
 }
 // Layout columns are ordinary paragraphs in the default editable export.
 // Genuine source grids remain tables; hidden layout cells never trap text.
+function docxInlineWidth(xml) {
+    let width=0;
+    for(const match of String(xml).matchAll(/<w:r(?: [^>]*)?>([\s\S]*?)<\/w:r>/g)){
+        const run=match[1],image=run.match(/<wp:extent[^>]*cx="(\d+)"/);
+        if(image){width+=Number(image[1])/635;continue;}
+        const size=Number(run.match(/<w:sz w:val="(\d+)"/)?.[1]||22);
+        const raw=[...run.matchAll(/<w:t(?: [^>]*)?>([\s\S]*?)<\/w:t>/g)].map(m=>m[1]).join('');
+        const text=raw.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'");
+        if(typeof document!=='undefined'&&document.createElement){
+            const canvas=docxInlineWidth.canvas||(docxInlineWidth.canvas=document.createElement('canvas'));
+            const ctx=canvas.getContext('2d');ctx.font=(/<w:b(?:\s|\/|>)/.test(run)?'bold ':'')+(size/2)+'pt Tahoma, "Noto Sans Devanagari", "Noto Sans Telugu", sans-serif';
+            width+=ctx.measureText(text).width*15;
+        }else width+=Array.from(text).reduce((n,c)=>n+(/\p{M}/u.test(c)?0:/\s/.test(c)?size*2.5:/[\u0900-\u0D7F]/.test(c)?size*6:size*5),0);
+    }
+    return width;
+}
+function docxInlineSpacer(twips) {
+    const count=Math.max(0,Math.floor(twips/120));
+    if(!count)return '';
+    // Literal fixed-width spaces survive viewers that flatten tab stops or
+    // custom character advances. No text box/table is introduced.
+    return '<w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New" w:cs="Courier New"/><w:sz w:val="20"/><w:szCs w:val="20"/><w:spacing w:val="0"/></w:rPr><w:t xml:space="preserve">'+' '.repeat(count)+'</w:t></w:r>';
+}
 function docxTabbedRows(rows, widths, options = {}) {
     const centered=!!(options.center||options.centerVertically||options.grid);
     let offset=0;
@@ -5836,8 +5914,14 @@ function docxTabbedRows(rows, widths, options = {}) {
         return Array.from({length:lineCount},(_,line)=>
             '<w:p><w:pPr>'+tabs+((options.keepNext||line<lineCount-1)?'<w:keepNext/>':'')+
             '<w:spacing w:before="0" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr>'+
-            (centered?'<w:r><w:tab/></w:r>':'')+
-            columns.map(column=>column[line]||'').join('<w:r><w:tab/></w:r>')+'</w:p>').join('');
+            (centered?(()=>{
+                let cursor=0,result='';
+                columns.forEach((column,index)=>{
+                    const content=column[line]||'',measured=docxInlineWidth(content);
+                    const start=Math.max(cursor,positions[index]-measured/2);
+                    result+=docxInlineSpacer(start-cursor)+content;cursor=start+measured;
+                });return result;
+            })():columns.map(column=>column[line]||'').join('<w:r><w:tab/></w:r>'))+'</w:p>').join('');
     }).join('');
 }
 function docxTableCells(rows, widths, options = {}) {
@@ -6462,10 +6546,11 @@ async function recoverSourceFigures(text, blob, media = extractedMedia) {
 }
 function sourceFigureHtml(value) {
     const info=PaperAILayout.source(value), asset=sourceAsset(info.id);
-    return '<div class="ocr-figure-cell" style="align-items:'+(asset?.align==='left'?'flex-start':asset?.align==='right'?'flex-end':'center')+'">'+(asset
+    const label=info.caption.match(/^(\d+[.)])(?:\s*<br>\s*|\s+)?([\s\S]*)$/i);
+    return '<div class="ocr-figure-cell" style="align-items:'+(asset?.align==='left'?'flex-start':asset?.align==='right'?'flex-end':'center')+'">'+(label?'<span class="ocr-figure-number">'+esc(label[1])+'</span>':'')+(asset
         ? '<img src="'+esc(asset.dataUrl)+'" alt="'+esc(asset.webSource?.label||'Original source illustration')+'">'
         : '<span class="ocr-picture-label">[source image needs review]</span>')+
-        (info.caption ? '<span class="ocr-picture-label">'+formatOutputLine(info.caption)+'</span>' : '')+
+        ((label?label[2]:info.caption) ? '<span class="ocr-picture-label ocr-figure-caption">'+String(label?label[2]:info.caption).split(/<br\s*\/?\s*>/i).map(formatOutputLine).join('<br>')+'</span>' : '')+
         (info.answer ? '<span class="ocr-figure-answer"></span>' : '')+'</div>';
 }
 function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400, description='Original source illustration', movable=false, fitCell=false) {
@@ -6490,8 +6575,10 @@ function docxSourceRow(values,columns=5) {
     const sourceMode=activeDocxEditingMode==='source';
     return docxTableCells([values.map((value,i)=>{
         const item=PaperAILayout.source(value),available=docxCellContentWidth(widths[i],{padding:110});
-        return {xml:'<w:p><w:pPr><w:jc w:val="'+(sourceMode?(sourceAsset(item.id)?.align||'center'):'center')+'"/><w:spacing w:after="30"/></w:pPr>'+docxSourceRun(item.id,available,sourceMode?4400:maxHeight,'Original source illustration',false,!sourceMode)+'</w:p>'+
-            (item.caption ? docxRichParagraph(item.caption,{center:true,size:22,after:40,available}) : '')+
+        const label=item.caption.match(/^(\d+[.)])(?:\s*<br>\s*|\s+)?([\s\S]*)$/i);
+        const caption=label?label[2]:item.caption;
+        return {xml:(label?docxRichParagraph(label[1],{center:true,size:22,after:40,available}):'')+'<w:p><w:pPr><w:jc w:val="'+(sourceMode?(sourceAsset(item.id)?.align||'center'):'center')+'"/><w:spacing w:after="30"/></w:pPr>'+docxSourceRun(item.id,available,sourceMode?4400:maxHeight,'Original source illustration',false,!sourceMode)+'</w:p>'+
+            (caption ? caption.split(/<br\s*\/?\s*>/i).map(text=>docxRichParagraph(text,{center:true,size:22,after:40,available})).join('') : '')+
             (item.answer ? docxAnswerBoxParagraph(available) : '')};
     })],widths,{bordered:false,grid:!sourceMode,padding:110,keepTogether:true,centerVertically:true,minHeight:sourceMode?undefined:maxHeight+200});
 }
@@ -6516,20 +6603,31 @@ function layoutTypeHints(){
 }
 function packSourceFigureRows(value,media=extractedMedia) {
     const lines=String(value||'').split('\n'),out=[];
-    let imageColumns=5;
+    let imageColumns=5,pictureOrdinal=0;
+    const numberCell=value=>{
+        const item=PaperAILayout.source(value),existing=item.caption.match(/^(\d+)[.)](?:\s|<br>|$)/i);
+        pictureOrdinal=existing?Math.max(pictureOrdinal,Number(existing[1])):pictureOrdinal+1;
+        let caption=existing?item.caption:pictureOrdinal+'.'+(item.caption?' <br>'+item.caption:'');
+        const asset=media.find(asset=>asset.id===item.id);
+        if(asset?.defaultIllustration){
+            const request=item.caption.match(/^(?:\d+[.)]\s*)?[\p{L}\p{M} -]{1,35}?\s+pic(?:ture)?\b(.*)$/iu);
+            if(request){const prompt=request[1].trim().replace(/^[—–-]\s*/,'____ ');caption=(existing?existing[1]:pictureOrdinal)+'.'+(prompt?' <br>'+prompt:'');}
+        }
+        return item.id+'|'+caption+'|'+(item.answer?'box':'none');
+    };
     const parse=line=>String(line||'').trim().match(/^\[\[(SOURCE_FIGURE(?:_ROW)?):\s*([\s\S]*?)\]\]$/i);
     for(let i=0;i<lines.length;){
         const found=parse(lines[i]);
         if(!found){
             const line=lines[i++];
             const heading=layoutBitHeading(line);
-            if(heading)imageColumns=layoutColumnsForTitle(heading);
+            if(heading){imageColumns=layoutColumnsForTitle(heading);pictureOrdinal=0;}
             out.push(line);continue;
         }
         if(found[1].toUpperCase()==='SOURCE_FIGURE_ROW'){
             // OCR already grouped these pictures on one physical source row.
             // A separate 2+2 arrangement must stay two rows, not become 4+0.
-            const values=worksheetCells(found[2],32);
+            const values=worksheetCells(found[2],32).map(numberCell);
             for(let start=0;start<values.length;start+=5){
                 const group=values.slice(start,start+5);
                 out.push('[[SOURCE_FIGURE'+(group.length>1?'_ROW':'')+': '+group.join(' || ')+']]');
@@ -6539,7 +6637,7 @@ function packSourceFigureRows(value,media=extractedMedia) {
         const cells=[];let j=i;
         while(j<lines.length){
             const next=parse(lines[j]);
-            if(next?.[1].toUpperCase()==='SOURCE_FIGURE'){cells.push(...worksheetCells(next[2],32));j++;continue;}
+            if(next?.[1].toUpperCase()==='SOURCE_FIGURE'){cells.push(...worksheetCells(next[2],32).map(numberCell));j++;continue;}
             if(!lines[j].trim()&&parse(lines[j+1])?.[1].toUpperCase()==='SOURCE_FIGURE'){j++;continue;}
             break;
         }

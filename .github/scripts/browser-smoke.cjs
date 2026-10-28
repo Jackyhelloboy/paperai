@@ -19,7 +19,7 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
  let browser;
  try{
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-  for(const width of [390,1280]){
+  for(const width of [320,390,768,1280]){
    const context=await browser.newContext({viewport:{width,height:900},acceptDownloads:true});
    const page=await context.newPage(),errors=[];
    page.on('pageerror',error=>errors.push(error.message));
@@ -53,9 +53,18 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
    await page.locator('#fileInput').setInputFiles({name:'browser-reference.txt',mimeType:'text/plain',buffer:Buffer.from(fixture)});
    await page.locator('#resBox.show').waitFor({timeout:20000});
    assert.equal(await page.locator('#textOut .ocr-figure-cell img').count(),5,'Five requested pictures must appear in the actual browser');
+   const cells=await page.locator('#textOut .ocr-figure-cell').evaluateAll(items=>items.map(item=>({number:item.querySelector('.ocr-figure-number')?.textContent,caption:item.querySelector('.ocr-figure-caption')?.textContent||''})));
+   assert.deepEqual(cells.map(cell=>cell.number),['1.','2.','3.','4.','5.'],'Every image needs its own number');
+   for(let i=0;i<cells.length;i++)assert(cells[i].caption.includes(['तंग','तख','छली','ल','ल'][i]),'Each image must retain its own letter prompt');
+   if(await page.locator('#previewZoomBtn').getAttribute('aria-pressed')!=='true')await page.locator('#previewZoomBtn').click();
+   assert.equal(await page.locator('#previewZoomBtn').getAttribute('aria-pressed'),'true');
+   assert(await page.locator('#textOut .paper-preview').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))>=14,'Zoomed paper text must be readable');
+   assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'Paper zoom must scroll inside the preview only');
+   await page.locator('#previewZoomBtn').click();
    await page.evaluate(()=>openTeachPanel());
    const original=await page.locator('#teachEditor').inputValue();
    await page.locator('#teachEditor').fill(original.replace('1. घर','1. मेरा घर'));
+   assert((await page.locator('#textOut').innerText()).includes('मेरा घर'),'Live preview must update before saving');
    await page.locator('#teachUndoBtn').click();assert.equal(await page.locator('#teachEditor').inputValue(),original);
    await page.locator('#teachRedoBtn').click();assert((await page.locator('#teachEditor').inputValue()).includes('मेरा घर'));
    await page.getByRole('button',{name:'Save & apply',exact:true}).click();
@@ -69,7 +78,7 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
    assert.deepEqual(errors,[],'No uncaught browser errors');
    await page.evaluate(()=>document.fonts.ready);
    if(process.env.PAPERAI_BROWSER_QA_DIR){fs.mkdirSync(process.env.PAPERAI_BROWSER_QA_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.PAPERAI_BROWSER_QA_DIR,'browser-'+width+'.png'),fullPage:true});if(width===390)fs.copyFileSync(file,path.join(process.env.PAPERAI_BROWSER_QA_DIR,'browser-paper.docx'));}
-   console.log(JSON.stringify({viewport:width,pdfPages:pdf.pages,pdfRendered:true,pictures:5,wordMedia:5,localScriptFonts:fonts.length,undoRedo:true,horizontalOverflow:overflow,uncaughtErrors:errors.length,ai:'stubbed'}));
+   console.log(JSON.stringify({viewport:width,pdfPages:pdf.pages,pdfRendered:true,pictures:5,wordMedia:5,localScriptFonts:fonts.length,numberedPictures:true,livePreview:true,previewZoom:true,undoRedo:true,horizontalOverflow:overflow,uncaughtErrors:errors.length,ai:'stubbed'}));
    await page.evaluate(()=>clearPaperData());assert.equal(await page.locator('#fileInput').inputValue(),'');assert.equal(await page.evaluate(()=>lastResult),null);assert.equal(await page.locator('#teachEditor').inputValue(),'');assert.equal(await page.locator('#textOut').textContent(),'');
    await context.close();
   }

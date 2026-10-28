@@ -18,7 +18,7 @@ assert.equal(stops(three).length,3,'Three pictures use three paragraph tab stops
 assert.equal(stops(five).length,5,'Five pictures use five paragraph tab stops');
 assert.deepEqual(stops(three),[1744,5232,8721]);
 assert(!three.includes('<w:tbl>')&&!five.includes('<w:tbl>'),'Picture layout must not trap text in invisible cells');
-assert(three.includes('<w:r><w:tab/></w:r>'),'Pictures need explicit spacing');
+assert(three.includes('<w:spacing w:val='),'Pictures need explicit inline spacing independent of tab support');
 for(const [xml,limit] of [[three,2250],[five,1750]]){
   const sizes=[...xml.matchAll(/<wp:extent cx="(\d+)" cy="(\d+)"/g)];
   assert.equal(sizes.length,xml===three?3:5);
