@@ -41,6 +41,8 @@ No AI credential is included in browser JavaScript or sent in a URL. Gemini requ
 
 ## Clear online pictures
 
+Common explicit picture requests can use a small, visually reviewed collection of published OpenMoji outline illustrations stored as high-resolution PNGs. This avoids a live-search dependency for the supported objects; source PDF pictures remain authoritative. Other web results still require teacher choice. The reviewed collection carries CC BY-SA 4.0 credits in the site and exported image alternative text.
+
 Use **Find pictures** after scanning to search Wikimedia Commons, preview public-domain/CC0 pictures, and insert one after a question or replace an existing picture. Explicit supported requests such as `duck pic` and `mango picture` can retrieve pictures automatically. The original scanned drawings remain authoritative. Downloaded images keep their proportions and are embedded inside Word, including source information in their alternative text. No extra GPU or paid image model is required. See [Online worksheet pictures](docs/ONLINE_PICTURES.md) for the retrieval flow, review limits and checks.
 
 ## Verify and develop

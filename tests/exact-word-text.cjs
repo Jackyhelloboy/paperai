@@ -43,7 +43,7 @@ ctx.$=()=>({value:'source'});
     assert(visible.includes('गाड़ी और लड़के चाहिए?'),'Hindi matras/nukta or the selected correction changed on export');
     assert(!visible.includes('लड़की')&&!visible.includes('stale'));
     assert(xml.includes('<w:jc w:val="right"/>'),'Marks must remain on the right');
-    assert(xml.includes('w:ascii="Noto Sans Devanagari"')&&xml.includes('w:bidi="hi-IN"'),'Hindi needs explicit script fonts and language tags');
+    assert(xml.includes('w:ascii="Tahoma"')&&xml.includes('w:bidi="hi-IN"'),'Standard Tahoma must retain the Hindi language tag');
     assert.equal(doc.getElementsByTagName('w:tc').length,17,'Native table and blank answer-grid cells were lost');
     assert(!xml.includes('[[')&&!xml.includes('<w:strike')&&!/<w:ins(?:\s|>)/.test(xml));
     assert.equal(ctx.lastResult.preview_layout_text,expected,'Downloading must rebuild the current editor preview');
@@ -62,7 +62,7 @@ ctx.$=()=>({value:'source'});
     }
     assert.equal((englishXml.match(/Answer the following questions/g)||[]).length,1,'Do not repeat the bit instruction');
     for(const [word,font] of [['தமிழ்','Noto Sans Tamil'],['ಕನ್ನಡ','Noto Sans Kannada'],['മലയാളം','Noto Sans Malayalam'],['বাংলা','Noto Sans Bengali'],['ગુજરાતી','Noto Sans Gujarati'],['ਪੰਜਾਬੀ','Noto Sans Gurmukhi'],['ଓଡ଼ିଆ','Noto Sans Oriya'],['اردو','Noto Naskh Arabic']])
-        assert(ctx.docxRun('English '+word).includes('w:ascii="'+font+'"'),'Script-specific Word font missing for '+word);
+        assert(ctx.docxRun('English '+word).includes('w:ascii="Tahoma"')&&ctx.docxRun('English '+word).includes(word),'Standard font must retain native script text for '+word);
     assert(ctx.docxParagraph('اردو سوال').includes('<w:bidi/>'),'Urdu paragraphs need right-to-left direction');
     if(process.env.PAPERAI_LAYOUT_QA_OUTPUT)fs.writeFileSync(process.env.PAPERAI_LAYOUT_QA_OUTPUT,Buffer.from(await (await ctx.makeExtractedDocx(english)).arrayBuffer()));
     if(process.env.PAPERAI_TEXT_QA_OUTPUT)fs.writeFileSync(process.env.PAPERAI_TEXT_QA_OUTPUT,Buffer.from(await downloaded.blob.arrayBuffer()));

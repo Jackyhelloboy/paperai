@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const html=fs.readFileSync('frontend/index.html','utf8');
 const worker=fs.readFileSync('worker/src/index.js','utf8');
 const gateway=fs.readFileSync('functions/api/[[path]].js','utf8');
-assert.match(html,/class="teach-panel simplified-hidden" id="picturePanel"/);
+assert.match(html,/class="teach-panel" id="picturePanel"/);
 assert.match(html,/onclick="addUploadedQuestionPicture\(\)"/);
 assert.match(html,/onclick="generateQuestionPicture\(\)"/);
 assert(html.includes("lastResult.text=lines.join('\\n')"));

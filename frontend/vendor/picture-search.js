@@ -20,6 +20,30 @@
         const name=m[1].toLowerCase().trim().replace(/^n\s+tube$/,'tube');
         return subjects[name]||aliases[name]?{name,query:query(name)}:null;
     }
+    // These individual source artworks were visually inspected together at
+    // worksheet size. This is a finite curated catalog, not a filename match
+    // or a claim that arbitrary internet search results passed a vision model.
+    const reviewedCodes={kite:'1FA81',duck:'1F986',fish:'1F41F',tap:'1F6B0',apple:'1F34E',banana:'1F34C',grapes:'1F347',bow:'1F3F9',fruit:null};
+    function reviewedArtwork(subject){
+        const canonical=query(subject),name=({'toy kite':'kite','water tap':'tap','archery bow':'bow'})[canonical]||canonical;
+        if(!Object.prototype.hasOwnProperty.call(reviewedCodes,name))return null;
+        const code=reviewedCodes[name];
+        return {name,label:name==='fruit'?'Fruit assortment':name[0].toUpperCase()+name.slice(1),
+            assetUrl:'/images/worksheet-reviewed/'+name+'.png',creator:'OpenMoji contributors',license:'CC BY-SA 4.0',
+            sourceUrl:code?'https://openmoji.org/library/emoji-'+code+'/':'https://openmoji.org/library/',
+            reviewMethod:'curated visual inspection',adaptation:name==='fruit'?'Rasterized apple, banana and grapes composition':'Rasterized original outline artwork'};
+    }
+    async function reviewed(subject,fetcher=fetch){
+        const source=reviewedArtwork(subject);
+        if(!source)return null;
+        const response=await fetcher(source.assetUrl,{credentials:'omit',redirect:'error'});
+        if(!response.ok)throw new Error('Reviewed picture unavailable.');
+        const blob=await response.blob();
+        if(blob.type!=='image/png'||blob.size>1024*1024)throw new Error('Invalid reviewed picture.');
+        const bytes=new Uint8Array(await blob.arrayBuffer());
+        if(![137,80,78,71,13,10,26,10].every((n,i)=>bytes[i]===n))throw new Error('Invalid reviewed picture pixels.');
+        return {blob,source};
+    }
     function assetURL(item){
         const title=String(item?.title||'');
         if(!/^File:[^|\[\]{}<>\r\n]{1,220}\.(png|jpe?g|webp|svg)$/i.test(title))throw new Error('Invalid picture selection.');
@@ -87,5 +111,5 @@
         try{return await request;}
         finally{if(pending.get(q)===request)pending.delete(q);}
     }
-    return {query,placeholder,assetURL,search,download,automatic,groupRequests};
+    return {query,placeholder,assetURL,search,download,automatic,groupRequests,reviewedArtwork,reviewed};
 });

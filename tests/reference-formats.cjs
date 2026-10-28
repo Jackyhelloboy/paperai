@@ -20,8 +20,9 @@ const fixtures={
 (async()=>{
     for(const [name,text] of Object.entries(fixtures)){
         ctx.configureAutomaticPaper(text);
-        assert.equal(ctx.paperLayoutOptions().format,name,'The source header must select its reference format automatically');
-        const preset=Layout.referenceFormats[name],blob=await ctx.makeExtractedDocx(text),zip=await JSZip.loadAsync(await blob.arrayBuffer());
+        assert.equal(Layout.automaticFormat(text).name,name,'Source header classification must remain available');
+        assert.equal(ctx.paperLayoutOptions().format,'school-standard','Every reconstructed paper uses the documented school typography');
+        const preset={font:'Tahoma',headingFont:'Tahoma',body:11,heading:12,line:1},blob=await ctx.makeExtractedDocx(text),zip=await JSZip.loadAsync(await blob.arrayBuffer());
         const xml=await zip.file('word/document.xml').async('text'),doc=new DOMParser().parseFromString(xml,'application/xml');
         assert.equal(doc.getElementsByTagName('parsererror').length,0);
         assert(xml.includes('w:ascii="'+preset.font+'"'),'Selected reference font did not reach Word');
@@ -33,14 +34,14 @@ const fixtures={
         assert(xml.includes('<w:jc w:val="right"/>'),'Marks must stay right aligned');
         assert(!xml.includes('[[')&&!xml.includes('suggestion')&&!xml.includes('AUTO-FORMATTED'),'Annotations or extra commentary reached the paper');
         const defaults=await zip.file('word/styles.xml').async('text');assert(defaults.includes('w:ascii="'+preset.font+'"'));
-        if(name==='science')assert(xml.includes('w:left="360" w:hanging="240"'),'Measured question indentation was lost');
+        if(name==='science')assert(xml.includes('w:left="150"'),'Standard question indentation was lost');
         if(name==='humanities'){
             const run=Array.from(doc.getElementsByTagName('w:r')).find(r=>r.textContent==='passage');
             assert.equal(run.getElementsByTagName('w:u')[0].getAttribute('w:val'),'single','Underlined question cues were lost');
             assert(xml.includes('w:val="double"')&&!xml.includes('<w:strike/>')&&xml.includes('<w:bdr'));
             assert(xml.indexOf('Leaf')<xml.indexOf('Root')&&xml.indexOf('Stem')<xml.indexOf('Flower'),'Matching choices were reordered or solved');
         }
-        if(name==='worksheet')assert(xml.includes('w:trHeight w:val="454"'),'Automatic grid height was ignored');
+        if(name==='worksheet')assert(xml.includes('w:trHeight w:val="350"'),'Automatic grid height was ignored');
         if(process.env.PAPERAI_FORMAT_OUT){fs.mkdirSync(process.env.PAPERAI_FORMAT_OUT,{recursive:true});fs.writeFileSync(path.join(process.env.PAPERAI_FORMAT_OUT,'Format-'+name+'.docx'),Buffer.from(await blob.arrayBuffer()));}
     }
     ctx.lastResult=null;ctx.esc=String;ctx.formatOutputLine=String;ctx.parseBranchBlock=()=>null;ctx.formatSingleAnswerBlankLine=()=>null;ctx.isAnswerBlankContinuationLine=()=>false;

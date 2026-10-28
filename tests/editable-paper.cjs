@@ -45,7 +45,7 @@ const fixture=[
     assert.equal(size.getAttributeNS(ns,'w'),'11906');assert.equal(size.getAttributeNS(ns,'h'),'16838');
     for(const side of ['top','bottom','left','right'])assert.equal(margins.getAttributeNS(ns,side),'720');
     assert(xml.includes('<w:keepNext/>'),'Section must stay attached to its first question');
-    assert.equal((xml.match(/<w:pageBreakBefore\/>/g)||[]).length,1,'Consecutive/trailing breaks made blank pages');
+    assert.equal((xml.match(/<w:pageBreakBefore\/>/g)||[]).length,0,'Source scan boundaries must reflow in the compact school layout');
     assert.equal((xml.match(/<wp:inline /g)||[]).length,5,'Original source figure lost');
     assert(xml.includes('cx="1143000" cy="381000"'),'Source picture aspect ratio changed');
     assert(xml.includes('<a:prstGeom prst="triangle">'),'Triangle must be native preset geometry');

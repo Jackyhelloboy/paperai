@@ -62,7 +62,7 @@ function candidate(page, query = '') {
     assetUrl: '/api/pictures/asset?title=' + encodeURIComponent(page.title),
     // A conservative text match, not a claim of visual verification.
     confident: autoSafe,
-    score: matched * 10 + (outlineStyle ? 24 : 0) + (/\(PSF\)/i.test(title)?30:0) + (/drawing|illustration|clip.?art|outline/i.test(title)?10:0) + (simple ? 6 : 0) - Math.abs(Math.log(width / height)), image, mime};
+    score: matched * 10 + (autoSafe ? 40 : 0) + (outlineStyle ? 24 : 0) + (/\(PSF\)/i.test(title)?30:0) + (/drawing|illustration|clip.?art|outline/i.test(title)?10:0) + (simple ? 6 : 0) - Math.abs(Math.log(width / height)), image, mime};
 }
 async function metadata(params, fetcher) {
   const url = new URL(COMMONS);

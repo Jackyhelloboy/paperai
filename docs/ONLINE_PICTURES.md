@@ -1,5 +1,15 @@
 # Online worksheet pictures
 
+## Reviewed raster artwork for common requests
+
+Exact missing-picture requests for kite, duck, fish, water tap, apple, banana, grapes, fruit assortment and archery bow can use a finite, visually inspected OpenMoji outline-art catalog. These are downloaded published illustrations, rasterized to 640-pixel PNG files in `frontend/images/worksheet-reviewed/`, not newly drawn object approximations. The fruit assortment combines three original fruit illustrations. Unknown or ambiguous subjects such as `tube` remain teacher-selected; arbitrary search results are never promoted to this catalog by a filename match.
+
+This local catalog is separate from the public-domain/CC0 Commons search path below. OpenMoji and its PNG adaptations use **CC BY-SA 4.0**. Attribution, source links and adaptation notes are retained in picture metadata and Word alternative text; the site footer links to the complete [picture credits](../frontend/images/worksheet-reviewed/credits.html). Review was visual inspection of these individual artworks, not automated Gemini validation. Source PDF illustrations still take precedence. Failed artwork loads retain the literal request without printing operational error text in the question paper.
+
+The catalog removes dependence on live image search for these exact common requests. Other subjects still use the reviewed picker and existing Commons license/host/signature checks. A production Commons check on 28 October 2026 returned HTTP 503 for `duck`; no successful live Commons lookup is claimed by the bundled-catalog tests.
+
+Validation adds `tests/reviewed-artwork.cjs` and `tests/reviewed-picture-word.cjs`. The latter builds an actual five-image Word row from bundled PNG bytes, checks literal Hindi labels, source/license metadata and local embedded image relationships, and can save a DOCX for renderer QA via `PAPERAI_REVIEWED_QA_DOCX`.
+
 The scanning Worker, same-origin Pages gateway, browser preview, and editable Word package now share a picture retrieval path. The existing twenty fruit SVG/PNG assets are preserved, but written picture requests no longer use hand-drawn SVG substitutes.
 
 1. The browser identifies explicit, known object requests such as `duck pic` or `mango picture`. Common Hindi and Telugu object names are mapped to search subjects. It never searches using the whole question paper.

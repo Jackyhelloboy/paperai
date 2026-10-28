@@ -1917,6 +1917,7 @@
 
     <footer class="footer">
         <div class="footer-text">PaperAI — Automatic question papers · Download Word</div>
+        <div class="footer-text" style="font-size:11px;margin-top:6px"><a href="/images/worksheet-reviewed/credits.html" target="_blank" rel="noopener">Picture credits</a></div>
     </footer>
 
 <script>
@@ -6153,12 +6154,28 @@ let extractedMedia = [];
 let docxMediaUsed = new Map();
 function sourceAsset(id) { return extractedMedia.find(item => item.id === id); }
 async function materializeDefaultPictureNotes(text) {
-    // Never place a web image solely because its filename matched an OCR
-    // caption: unrelated pictures can be harmful to a school worksheet.
-    // Source PDF crops are retained elsewhere; explicitly requested images
-    // can still be selected by the teacher using Find pictures.
-    return String(text||'').replace(/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g,
-        (_,body)=>body.split(/\s*\|\|\s*/).map(caption=>caption.trim()).join('\n'));
+    // Only exact explicit requests may use the finite, visually reviewed
+    // online-art catalog. Unreviewed search hits still require teacher choice.
+    const value=String(text||''),matches=[...value.matchAll(/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g)],pending=new Map();
+    const rows=await Promise.all(matches.map(async match=>{
+        const captions=match[1].split(/\s*\|\|\s*/).map(c=>c.trim());
+        const cells=await Promise.all(captions.map(async caption=>{
+            const request=typeof PaperAIPictures==='undefined'?null:PaperAIPictures.placeholder(caption);
+            if(!request||/[|\[\]]/.test(caption)||typeof PaperAIPictures.reviewed!=='function')return {caption};
+            if(!pending.has(request.query))pending.set(request.query,(async()=>{
+                const found=await PaperAIPictures.reviewed(request.query);
+                return found?prepareQuestionPicture(found.blob,{webSource:found.source,widthTwips:1550}):null;
+            })().catch(()=>null));
+            const prepared=await pending.get(request.query);
+            if(!prepared)return {caption};
+            const id='reviewed-picture-'+crypto.randomUUID();
+            extractedMedia.push({id,...prepared,defaultIllustration:request.name});
+            return {caption,marker:id+'|'+caption+'|'+(captions.length===3?'box':'none')};
+        }));
+        return cells.every(cell=>cell.marker)?'[[SOURCE_FIGURE_ROW: '+cells.map(cell=>cell.marker).join(' || ')+']]':
+            cells.map(cell=>cell.marker?'[[SOURCE_FIGURE: '+cell.marker+']]':cell.caption).join('\n');
+    }));
+    let i=0;return value.replace(/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g,()=>rows[i++]);
 }
 function pictureStatus(message){$('pictureStatus').textContent=message;}
 function closePicturePanel(){$('picturePanel').classList.remove('show');}

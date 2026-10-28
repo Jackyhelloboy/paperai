@@ -67,7 +67,7 @@ const fixture=[
     '[[TABLE_ROW: Basket || Cane || Knife]]',
     '[[ANSWER_LINES: 2]]',
     '[[SHAPE_ROW: square || cube || rectangle || circle]]',
-    '[[PAGE_BREAK]]',
+    '[[PAPER_BREAK]]',
     'II. Next page',
 ].join('\n');
 wordCtx.configureAutomaticPaper(fixture,true);

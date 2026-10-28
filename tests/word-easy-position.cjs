@@ -26,7 +26,7 @@ const paper=[
   '[[SOURCE_FIGURE_ROW: image-one|1.|none || image-two|2.|none]]',
   '[[TABLE_ROW: Name || Marks]]',
   '[[TABLE_ROW: Meera || 5]]',
-  '[[PAGE_BREAK]]',
+  '[[PAPER_BREAK]]',
   '3. Continue the question across pages.'
 ].join('\n');
 context.configureAutomaticPaper(paper,true);

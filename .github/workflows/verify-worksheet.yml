@@ -55,6 +55,8 @@ jobs:
           node tests/simplified-results-ui.cjs
           node tests/picture-search.cjs
           node tests/default-picture-materialization.cjs
+          node tests/reviewed-artwork.cjs
+          node tests/reviewed-picture-word.cjs
           node tests/online-picture-word.cjs
           node tests/mixed-language-suggestions.cjs
           node tests/strict-section-layout.cjs
