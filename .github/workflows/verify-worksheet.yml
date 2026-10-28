@@ -25,6 +25,9 @@ on:
       - '.github/scripts/build-pages.cjs'
       - 'frontend/vendor/paper-layout.js'
       - 'frontend/vendor/paper-text.js'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'tests/multilingual-text-engine.cjs'
       - 'tests/exact-word-text.cjs'
       - 'tests/mixed-language-suggestions.cjs'
       - 'worker/src/paper-layout-rules.js'
@@ -59,6 +62,7 @@ jobs:
           node tests/reviewed-picture-word.cjs
           node tests/online-picture-word.cjs
           node tests/mixed-language-suggestions.cjs
+          node tests/multilingual-text-engine.cjs
           node tests/strict-section-layout.cjs
       - name: Check Worker JavaScript
         run: |

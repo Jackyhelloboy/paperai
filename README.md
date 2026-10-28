@@ -4,6 +4,8 @@ Scan question papers into editable Word documents. Upload images, scanned or dig
 
 Live application: https://paperai-5up.pages.dev/
 
+Teach corrections use locally bundled [jsdiff](https://github.com/kpdecker/jsdiff) and [unicode-segmenter](https://github.com/cometkim/unicode-segmenter) to keep distant edits in their original question cells and preserve complete Unicode letter clusters. They need no API key or GPU and do not replace OCR. See [integration research and limits](docs/OPEN_SOURCE_INTEGRATIONS.md).
+
 ## Current architecture
 
 | Component | Location | Deployment |

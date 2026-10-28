@@ -10,6 +10,14 @@ const homeFile=path.join(out,'index.html');
 const home=fs.readFileSync(homeFile,'utf8').replace('<head>','<head>\n<meta name="paperai-release" content="'+release+'">')
     .replace(/(<script\s+src=")(\.?\/?vendor\/[^"?]+\.js)(")/g,(_,open,src,close)=>open+src+'?v='+release+close);
 fs.writeFileSync(homeFile,home);
+// Two small text utilities, bundled locally: no CDN, model or document upload.
+require(path.join(source,'node_modules/esbuild')).buildSync({
+    stdin:{contents:'export { diffArrays } from "diff"; export { graphemeSegments } from "unicode-segmenter/grapheme";',resolveDir:source,sourcefile:'text-engine-entry.js'},
+    bundle:true,format:'iife',globalName:'PaperAITextEngine',minify:true,target:'es2020',
+    legalComments:'linked',outfile:path.join(out,'vendor/text-diff-engine.js')
+});
+for(const [name,to] of [['diff','text-diff-LICENSE.txt'],['unicode-segmenter','text-segmentation-LICENSE.txt']])
+    fs.copyFileSync(path.join(source,'node_modules',name,'LICENSE'),path.join(out,'vendor',to));
 // Advanced-mode code runs on the server, not as a downloadable browser script.
 const gateway=fs.readFileSync(path.join(root,'functions/api/[[path]].js'),'utf8');
 fs.writeFileSync(path.join(out,'_worker.js'),gateway+`\nexport default {fetch(request, env) {

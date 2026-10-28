@@ -1,7 +1,7 @@
 (function(root,factory){
-    if(typeof module==='object'&&module.exports)module.exports=factory();
-    else root.PaperAIText=factory();
-})(typeof globalThis!=='undefined'?globalThis:this,function(){
+    if(typeof module==='object'&&module.exports)module.exports=factory(require('diff'),require('unicode-segmenter/grapheme'));
+    else root.PaperAIText=factory(root.PaperAITextEngine,root.PaperAITextEngine);
+})(typeof globalThis!=='undefined'?globalThis:this,function(differ,unicode){
     'use strict';
     // Keep a position for each editable word. Geometry, image IDs and protocol
     // delimiters never participate in a spelling replacement.
@@ -10,6 +10,21 @@
     const key=value=>value.normalize('NFC');
     function tokens(text,offset=0,leaf=0){
         const out=[];
+        if(unicode?.graphemeSegments){
+            let word=null;
+            const flush=()=>{if(word){out.push({...word,key:key(word.value),leaf});word=null;}};
+            for(const {segment,index} of unicode.graphemeSegments(text)){
+                const start=offset+index,end=start+segment.length;
+                if(/[\p{L}\p{M}\p{N}]/u.test(segment)){
+                    if(word){word.value+=segment;word.end=end;}
+                    else word={value:segment,start,end};
+                }else{
+                    flush();
+                    if(!/^[\s_□☐|\[\]]+$/u.test(segment))out.push({value:segment,key:key(segment),start,end,leaf});
+                }
+            }
+            flush();return out;
+        }
         for(const m of text.matchAll(/[\p{L}\p{M}\p{N}]+|[^\s\p{L}\p{M}\p{N}_□☐|\[\]]/gu)){
             out.push({value:m[0],key:key(m[0]),start:offset+m.index,end:offset+m.index+m[0].length,leaf});
         }
@@ -75,14 +90,27 @@
         scan(0,text.length);return valid?out:null;
     }
     function diff(oldWords,newWords){
+        if(differ?.diffArrays){
+            // Myers diff keeps distant changes separate without a quadratic
+            // document matrix. A work limit safely declines a wholesale paste.
+            const parts=differ.diffArrays(oldWords.map(w=>w.key),newWords.map(w=>w.key),{maxEditLength:512,timeout:60});
+            if(!parts)return null;
+            const changes=[];let a=0,c=0,change=null;
+            const flush=()=>{if(change){changes.push({...change,b:a,d:c});change=null;}};
+            for(const part of parts){
+                if(!part.added&&!part.removed){flush();a+=part.count;c+=part.count;}
+                else{if(!change)change={a,c};if(part.removed)a+=part.count;else c+=part.count;}
+            }
+            flush();return changes;
+        }
         let prefix=0,suffix=0;
         while(prefix<oldWords.length&&prefix<newWords.length&&oldWords[prefix].key===newWords[prefix].key)prefix++;
         while(suffix<oldWords.length-prefix&&suffix<newWords.length-prefix&&oldWords[oldWords.length-1-suffix].key===newWords[newWords.length-1-suffix].key)suffix++;
         const n=oldWords.length-prefix-suffix,m=newWords.length-prefix-suffix;
         if(!n&&!m)return [];
-        // Bound memory for pasted documents. One large edited interval is
-        // handled directly rather than allocating a quadratic document table.
-        if(n*m>1000000)return [{a:prefix,b:prefix+n,c:prefix,d:prefix+m}];
+        // Without the bundled engine, decline a large interval rather than
+        // allocating a quadratic table or collapsing several question cells.
+        if(n*m>1000000)return null;
         const matrix=Array.from({length:n+1},()=>new Uint32Array(m+1));
         for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--){matrix[i][j]=oldWords[prefix+i].key===newWords[prefix+j].key?1+matrix[i+1][j+1]:Math.max(matrix[i+1][j],matrix[i][j+1]);}
         const changes=[];let i=0,j=0,begin=null;
@@ -97,9 +125,11 @@
     function applyEdits(layout,original,edited){
         layout=String(layout||'');original=String(original||'');edited=String(edited||'');
         if(original===edited)return layout;
+        if(/\[\[[A-Z_-]+(?::|\]\])/i.test(edited))return null;
         const spans=positions(layout),oldWords=plainTokens(original),newWords=plainTokens(edited);
         if(!spans||spans.length!==oldWords.length||spans.some((word,i)=>word.key!==oldWords[i].key))return null;
         const changes=diff(oldWords,newWords),patches=[];
+        if(changes===null)return null;
         for(const change of changes){
             const {a,b,c,d}=change;
             const replacement=c<d?edited.slice(newWords[c].start,newWords[d-1].end):'';

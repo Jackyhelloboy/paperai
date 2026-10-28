@@ -58,6 +58,9 @@ async function runGroup(name,count,concurrency,operation){
   checks.push('Single Download Word export; layout and language controls removed');
   const textMapper=await read('/vendor/paper-text.js');assert.equal(textMapper.status,200);assert(textMapper.body.includes('PaperAIText'));
   checks.push('Current-editor text mapper loads');
+  const textEngine=await read('/vendor/text-diff-engine.js');assert.equal(textEngine.status,200);assert(textEngine.body.includes('PaperAITextEngine'));
+  assert(home.body.includes('vendor/text-diff-engine.js?v='+(process.env.GITHUB_SHA||'')));
+  checks.push('Versioned multilingual text comparison and segmentation bundle loads');
   const pagePipeline=await read('/vendor/page-pipeline.js');assert.equal(pagePipeline.status,200);assert(pagePipeline.body.includes('PaperAIPagePipeline'));
   assert(home.body.includes('vendor/page-pipeline.js?v='+(process.env.GITHUB_SHA||'')));
   checks.push('Versioned parallel PDF page scheduler loads');
