@@ -62,7 +62,7 @@ const fixture=[
     await assert.rejects(()=>ctx.makeExtractedDocx('1. क + क = [[कक]]'),/layout annotation needs review/);
     const blob=await ctx.makeExtractedDocx(fixture),zip=await ctx.JSZip.loadAsync(await blob.arrayBuffer());
     const xml=await zip.file('word/document.xml').async('text');
-    assert(xml.includes('4×½=2')&&xml.includes('<w:jc w:val="right"/>'),'Literal fractional marks must occupy the right column');
+    assert(xml.includes('4×½=2')&&xml.includes('<w:tab w:val="right" w:pos="10466"/>'),'Literal fractional marks must occupy the right column');
     assert(!xml.includes('<w:tblHeader/>'),'Exercise cells are not headings');
     assert(xml.includes('+ 12')&&xml.includes('- 21')&&!xml.includes('>46<')&&!xml.includes('>47<'),'Arithmetic must stay unsolved');
     assert.equal((xml.match(/<w:pageBreakBefore\/>/g)||[]).length,1,'Compact mode must reflow scan boundaries but retain new papers');

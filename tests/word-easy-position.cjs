@@ -24,6 +24,8 @@ const paper=[
   '[[SOURCE_FIGURE: image-one| |none]]',
   '[[SECTION_ROW: II. Identify pictures. || 2M]]',
   '[[SOURCE_FIGURE_ROW: image-one|1.|none || image-two|2.|none]]',
+  '[[MATCH_ROW: 1. फूल || (         ) || a. Flower]]',
+  '[[CHOICE_ROW: animal / plant || (         )]]',
   '[[TABLE_ROW: Name || Marks]]',
   '[[TABLE_ROW: Meera || 5]]',
   '[[PAPER_BREAK]]',
@@ -42,8 +44,14 @@ vm.runInContext(`lastResult={text:${JSON.stringify(paper)},layoutPlanText:${JSON
     assert.equal(doc.getElementsByTagName('parsererror').length,0,'All modes must be valid XML');
     assert(xml.includes('1. फूलों से हमें क्या मिलती है?'),'Question text must stay editable');
     assert(xml.includes('3×2=6M'),'Marks must survive every edit mode');
-    assert(xml.includes('<w:gridCol w:w="5233"'),'AI layout-selected two-column picture grid must survive in Word');
+    assert(mode==='source'?xml.includes('<w:gridCol w:w="5233"'):xml.includes('<w:tab w:val="center" w:pos="2616"/>'),'Two-column picture arrangement must survive in Word');
     const firstQuestion=xml.split('</w:p>').find(paragraph=>paragraph.includes('1. फूलों से हमें क्या मिलती है?'));
+    if(mode!=='source'){
+      for(const node of Array.from(doc.getElementsByTagName('w:t')).filter(n=>/फूल|Flower|animal \/ plant|Identify pictures/.test(n.textContent))){
+        for(let parent=node.parentNode;parent;parent=parent.parentNode)assert(!['w:tc','w:txbxContent'].includes(parent.nodeName),'Question text must copy as ordinary paragraphs without invisible cells or boxes');
+      }
+      assert(!xml.includes('<w:txbxContent>'));
+    }
     if(mode!=='source')assert(!firstQuestion.includes('<w:keepLines/>'),'A long Word question must be allowed to wrap across a page instead of leaving a large blank gap');
     assert.equal((xml.match(/<w:pageBreakBefore\/>/g)||[]).length,1,'Explicit page breaks preserved');
     assert(xml.includes('<wp:inline '),'Images in multi-column worksheets must remain stable');

@@ -5735,6 +5735,7 @@ function parseDocxBranchBlock(lines, startIndex) {
 
 function docxBranchTable(root, items) {
     if (!items.length) return docxParagraph(root);
+    if(activeDocxEditingMode!=='source')return docxTabbedRows(items.map((item,index)=>[index===Math.floor(items.length/2)?'○ '+root:'',index<Math.floor(items.length/2)?'↗':index>Math.floor(items.length/2)?'↘':'→',item.left,item.right?'─────────  '+item.right:'']),[1500,650,2000,6316]);
     const center = Math.floor(items.length / 2);
     const rows = items.map((item, index) => {
         const relation = index < center ? '↗' : index > center ? '↘' : '→';
@@ -5770,7 +5771,31 @@ function docxCellPadding(width, options = {}) {
 function docxCellContentWidth(width, options = {}) {
     return Math.max(1,width-2*docxCellPadding(width,options));
 }
+// Layout columns are ordinary paragraphs in the default editable export.
+// Genuine source grids remain tables; hidden layout cells never trap text.
+function docxTabbedRows(rows, widths, options = {}) {
+    const centered=!!(options.center||options.centerVertically||options.grid);
+    let offset=0;
+    const positions=widths.map(width=>{const pos=offset+(centered?Math.floor(width/2):0);offset+=width;return pos;});
+    const tabs='<w:tabs>'+positions.filter(pos=>pos>0).map(pos=>'<w:tab w:val="'+(centered?'center':'left')+'" w:pos="'+pos+'"/>').join('')+'</w:tabs>';
+    return rows.map((row,rowIndex)=>{
+        const columns=widths.map((width,index)=>{
+            const value=row[index]??'';
+            const xml=typeof value==='string'
+                ? value.split(/<br>/i).map(text=>docxRichParagraph(text,{after:0,bold:options.repeatHeader&&rowIndex===0,available:docxCellContentWidth(width,options)})).join('')
+                : String(value.xml||'');
+            return [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)].map(match=>match[1].replace(/<w:pPr>[\s\S]*?<\/w:pPr>/g,''));
+        });
+        const lineCount=Math.max(1,...columns.map(column=>column.length));
+        return Array.from({length:lineCount},(_,line)=>
+            '<w:p><w:pPr>'+tabs+((options.keepNext||line<lineCount-1)?'<w:keepNext/>':'')+
+            '<w:spacing w:before="0" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr>'+
+            (centered?'<w:r><w:tab/></w:r>':'')+
+            columns.map(column=>column[line]||'').join('<w:r><w:tab/></w:r>')+'</w:p>').join('');
+    }).join('');
+}
 function docxTableCells(rows, widths, options = {}) {
+    if(activeDocxEditingMode!=='source'&&options.bordered===false)return docxTabbedRows(rows,widths,options);
     const bordered=options.bordered!==false, total=widths.reduce((a,b)=>a+b,0);
     const borders='<w:tblBorders>'+['top','bottom','left','right','insideH','insideV'].map(side=>
         '<w:'+side+' w:val="'+(bordered?'single':'nil')+'"'+(bordered?' w:sz="6" w:color="333333"':'')+'/>').join('')+'</w:tblBorders>';
@@ -5839,7 +5864,8 @@ function docxDrawingParagraph(label, width = 800000, height = 575000) {
         docxParagraph(label, {size:16,after:45});
 }
 function docxAnswerBoxParagraph(available = 1440) {
-    // A native one-cell table is a stable editable box in Word and LibreOffice.
+    if(activeDocxEditingMode!=='source')return docxParagraph('__________',{after:40});
+    // Source-layout mode retains the original answer box.
     return docxTableCells([['']], [Math.max(1,Math.min(1440,Math.floor(available)))], {bordered:true,minHeight:340,grid:true});
 }
 function docxAnswerRule() {

@@ -13,14 +13,12 @@ const png=fs.readFileSync('tests/fixtures/scanning-smoke.png').toString('base64'
 vm.runInContext(`extractedMedia=Array.from({length:5},(_,i)=>({id:'img'+i,dataUrl:'data:image/png;base64,${png}',w:400,h:i%2?800:220}));docxMediaUsed=new Map();activeDocxEditingMode='easy';`,ctx);
 const make=n=>ctx.docxSourceRow(Array.from({length:n},(_,i)=>'img'+i+'| |none'),5);
 const three=make(3),five=make(5);
-function widths(xml){return [...xml.matchAll(/<w:gridCol w:w="(\d+)"/g)].map(x=>Number(x[1]));}
-assert.equal(widths(three).length,3,'Three pictures require three equal cells, not five mostly empty columns');
-assert.equal(widths(three).reduce((a,b)=>a+b,0),10466,'Short row spans the full printable width');
-assert(Math.max(...widths(three))-Math.min(...widths(three))<=2);
-assert.equal(widths(five).length,5);
-assert.equal(widths(five).reduce((a,b)=>a+b,0),10466);
-assert(three.includes('<w:tblLayout w:type="fixed"/>')&&five.includes('<w:cantSplit/>'),'Pictures need stable fixed rows');
-assert(three.includes('<w:left w:w="110" w:type="dxa"/>'),'Adjacent pictures need a visible gutter');
+function stops(xml){return [...xml.matchAll(/<w:tab w:val="center" w:pos="(\d+)"/g)].map(x=>Number(x[1]));}
+assert.equal(stops(three).length,3,'Three pictures use three paragraph tab stops');
+assert.equal(stops(five).length,5,'Five pictures use five paragraph tab stops');
+assert.deepEqual(stops(three),[1744,5232,8721]);
+assert(!three.includes('<w:tbl>')&&!five.includes('<w:tbl>'),'Picture layout must not trap text in invisible cells');
+assert(three.includes('<w:r><w:tab/></w:r>'),'Pictures need explicit spacing');
 for(const [xml,limit] of [[three,2250],[five,1750]]){
   const sizes=[...xml.matchAll(/<wp:extent cx="(\d+)" cy="(\d+)"/g)];
   assert.equal(sizes.length,xml===three?3:5);
