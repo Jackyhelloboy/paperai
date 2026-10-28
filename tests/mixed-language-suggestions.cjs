@@ -1,12 +1,12 @@
 // Exercise the real suggestion endpoint with deterministic provider responses.
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const requests=[],queue=[];
-const ctx=vm.createContext({Request,Response,Headers,URL,TextDecoder,Uint8Array,btoa,AbortController,AbortSignal,setTimeout,clearTimeout,
+const ctx=vm.createContext({Request,Response,Headers,URL,TextDecoder,TextEncoder,Uint8Array,btoa,AbortController,AbortSignal,setTimeout,clearTimeout,
     console:{log(){}},DurableObject:class{},PAPER_LAYOUT_RULES:'fixture layout rules',normaliseMarkerRows:s=>s,
     DICTIONARY:{},getDictionaryWords:()=>[],isInDictionary:()=>false,autoCorrect:s=>s,verifyWord:()=>({}),getSuggestions:()=>[],CONFUSION_PAIRS:{}});
 vm.runInContext(fs.readFileSync('worker/src/ocr-output-guard.js','utf8').replace(/export /g,''),ctx);
 vm.runInContext(fs.readFileSync('worker/src/index.js','utf8').replace(/^import .*;\n/gm,'').replace('export default {','const handler = {').replace('export class UsageTracker','class UsageTracker')+'\nthis.handler=handler;',ctx);
-const env={AI:{run:async(model,request)=>{requests.push(request);return {response:JSON.stringify({suggestions:queue.shift()}),usage:{}};}}};
+const env={USAGE_TRACKER:{idFromName:s=>s,get:()=>({fetch:async url=>Response.json(url.endsWith('/reserve')?{allowed:true,day:'fixture',reserved:1000}:{estimated_used:0})})},AI:{run:async(model,request)=>{requests.push(request);return {response:JSON.stringify({suggestions:queue.shift()}),usage:{}};}}};
 async function suggest(input,context,candidates){
     queue.push(candidates);
     const response=await ctx.handler.fetch(new Request('https://paperai.test/api/suggest-word',{method:'POST',headers:{'Content-Type':'application/json'},

@@ -25,7 +25,7 @@ assert(!Quota.isDailyError({ code: 'AI_BUSY' })); assert(Quota.isDailyError({ co
 
 let clock = now;
 class Clock extends Date { constructor(...args) { super(...(args.length ? args : [clock])); } static now() { return clock; } }
-const ctx = vm.createContext({ Date: Clock, URL, Request, Response, Headers, TextDecoder, Uint8Array, btoa,
+const ctx = vm.createContext({ Date: Clock, URL, Request, Response, Headers, TextDecoder, TextEncoder, Uint8Array, btoa,
     console: { log() {} }, DurableObject: class { constructor(context, env) { this.ctx = context; this.env = env; } },
     PAPER_LAYOUT_RULES: '', normaliseMarkerRows: s => s, DICTIONARY: {},
     getDictionaryWords: () => [], isInDictionary: () => false, autoCorrect: s => s,
@@ -53,6 +53,10 @@ const imageRequest = () => new Request('https://paperai.test/api/ocr', { method:
 const cors = { 'Access-Control-Allow-Origin': '*' };
 
 async function backend() {
+    const reservations = environment(async()=>({usage:{}}));
+    const reserveRequest=()=>new Request('https://usage.internal/reserve',{method:'POST',body:'{}'});
+    for(let i=0;i<9;i++)assert((await (await reservations.tracker.fetch(reserveRequest())).json()).allowed);
+    assert(!(await (await reservations.tracker.fetch(reserveRequest())).json()).allowed,'Concurrent/incomplete pages must consume admission bookings');
     let calls = 0;
     const good = { response: '1. Write your name. ______', usage: { prompt_tokens: 100, completion_tokens: 20 } };
     const heldAddition = neurons => {
@@ -94,7 +98,7 @@ async function backend() {
     clock = now;
     test = environment(async () => good);
     test.memory.set('daily', { day: '2026-10-11', used: 10000, requests: 4, exhausted: false, history: [] });
-    assert.equal((await ctx.handler.fetch(imageRequest(), test.env)).status, 200, 'Token estimates cannot block inference');
+    assert.equal((await ctx.handler.fetch(imageRequest(), test.env)).status, 429, 'The daily safety cap must block primary inference');
     test = environment(async () => { throw new Error('3040: Capacity temporarily exceeded'); });
     res = await ctx.handler.fetch(imageRequest(), test.env); body = await res.json();
     assert.equal(res.status, 503); assert.equal(body.code, 'AI_BUSY');

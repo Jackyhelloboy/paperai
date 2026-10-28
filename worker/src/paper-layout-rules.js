@@ -32,6 +32,7 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 9, reviewed against scanned multi
 - Repeated headers indicate a new question paper only when visibly present. Read continuous questions across scan pages in order. Do not invent exam titles or copy a school banner from another page or reference.
 - Output the question paper alone. Do not add assistant answers, solutions, answer keys, encouragement, formatting suggestions or explanatory introductions. Remove completed answers, worked solutions, answer keys and grading comments from answer positions; restore those spaces as blanks. Preserve question operands, examples, options, word banks and matching choices: these are question content, not completed answers. Resolve handwritten question corrections to the intended final wording automatically; omit cancelled drafts and insert the final replacement naturally. Do not emit editorial STRIKE, DOUBLE-STRIKE, REPLACE, INSERT or HIGHLIGHT markers.
 - Determine answer positions from visible source layout. Handwriting or an answer-like word alone is not evidence of a completed response. Preserve a complete question sentence before its separate answer rule, including clues and true/false statements; never replace words inside that sentence with blanks. When the boundary is uncertain, retain the source wording. Preserve the count and grouping of separate missing-letter positions.
+- Writing instructions: distinguish alphabet writing, missing-letter completion, tracing and word-building in every script. Preserve literal endpoints, do not put solved letters in empty boxes. Use source-observed cells first. Never infer letter counts from marks alone; ambiguous alphabet conventions/endpoints require teacher review. Verify every visible section/item and its own marks against pixels, including page joins; recover missed source content rather than inventing questions or marks.
 - Letter grids use GRID or consecutive GRID_ROW markers. Up to 52 columns, 32 rows, 600 cells. Use only observed counts; uncertain borders remain [unclear]. Never turn ordinary notebook lines into ANSWER_LINES.
 - CLEAN EXAM OUTPUT OVERRIDE: Omit school logos, school-name banners, addresses, printed administrative Name/Roll/Date/Signature/Time/Total Marks boxes and notebook page furniture. Never output BANNER for these. Preserve visible Class and Subject as plain editable labels for identifying the paper, never as a grid. Preserve the actual exam title at the beginning, section instructions, section marks, questions, options, help boxes, matching columns, maps and illustrations. Preserve source wording literally, including grammar and spelling; never rewrite a question to improve it. All classes can occur in one PDF; changing class starts a separate paper, not a continuation.
 - PROFESSIONAL EXPORT: Read every section number carefully, including III/IV/V and continuations. Preserve all original question numbers. Use SECTION_ROW with the complete instruction and separate literal marks, even when its closing bracket is faint. Empty response brackets contain spaces, never underscores. Slash alternatives remain inside their question sentence. Lettered MCQ options use CHOICE_ROW and never MATCH_ROW. For figure crops, independently verify the whole outline and caption against the full-page image; never crop only a cap fragment or include unrelated notebook words. Preserve all visible illustration strokes without replacing pixels.
@@ -281,8 +282,35 @@ export function cleanQuestionPaper(value, depth=0) {
             return (separate?'\n':'')+'[[TABLE_ROW: '+cells.join(' || ')+']]';
         }).join('\n');
     }
+
+    // Allocate empty exercise cells only for explicit, unambiguous writing ranges.
+    // Marks are preserved, never used as a proxy for the number of letters.
+    function alphabetWritingBoxes(text) {
+        const sequences=[Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ'),Array.from('abcdefghijklmnopqrstuvwxyz'),
+            ['अ','आ','इ','ई','उ','ऊ','ऋ','ए','ऐ','ओ','औ'],
+            ['क','ख','ग','घ','ङ','च','छ','ज','झ','ञ','ट','ठ','ड','ढ','ण','त','थ','द','ध','न','प','फ','ब','भ','म','य','र','ल','व','श','ष','स','ह']];
+        const lines=String(text||'').split('\n'),out=[];
+        for(let i=0;i<lines.length;i++) {
+            const line=lines[i];out.push(line);
+            if(!/(?:write|लिख|लि[खख]|वर्णमाला)/iu.test(line)||!/(?:alphabet|letters?|वर्णमाला|अक्षर)/iu.test(line))continue;
+            if(/(?:missing|complete|fill|रिक्त|खाली|पूर)/iu.test(line))continue;
+            // Existing source boxes/tables and answer material always take priority.
+            const following=lines.slice(i+1,i+4).join('\n');
+            if(/\[\[(?:GRID|TABLE|ANSWER_LINES)|_{3,}|[□▢]/i.test(line+'\n'+following))continue;
+            const range=line.match(/([A-Za-z\u0904-\u0939])\s*[”"'’]?\s*(?:से|to|through|[-–])\s*[“"'‘]?\s*([A-Za-z\u0904-\u0939])(?:\s|[”"'’]|तक|[.,।]|$)/iu);
+            if(!range)continue;
+            const seq=sequences.find(s=>s.includes(range[1])&&s.includes(range[2]));
+            if(!seq)continue;
+            const start=seq.indexOf(range[1]),end=seq.indexOf(range[2]);
+            if(end<start)continue;
+            const count=end-start+1;
+            for(let left=count;left>0;left-=10)out.push('[[GRID: '+Math.min(10,left)+'x1]]');
+        }
+        return out.join('\n');
+    }
+
 export function normaliseMarkerRows(text) {
-    text=nativePipeRows(pipeTableRows(cleanQuestionPaper(text)));
+    text=alphabetWritingBoxes(nativePipeRows(pipeTableRows(cleanQuestionPaper(text))));
     text=text.replace(/\[\[GRID:\s*(\d{1,2})\s*[x×]\s*(\d{1,2})\s*(?:\|\s*(?:\|\s*)?(?:none|box))?\s*\]\](?:[ \t]+(?:none|box)(?=[ \t]*(?:\n|$)))?/gi,(_,columns,rows)=>'[[GRID: '+columns+'x'+rows+']]');
     const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
     const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');

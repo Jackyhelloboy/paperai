@@ -6,6 +6,8 @@ Live application: https://paperai-5up.pages.dev/
 
 Teach corrections use locally bundled [jsdiff](https://github.com/kpdecker/jsdiff) and [unicode-segmenter](https://github.com/cometkim/unicode-segmenter) to keep distant edits in their original question cells and preserve complete Unicode letter clusters. They need no API key or GPU and do not replace OCR. See [integration research and limits](docs/OPEN_SOURCE_INTEGRATIONS.md).
 
+Daily 9,500-neuron safety admission, Gemini continuation and evidence-based writing boxes: [rules and limits](docs/OCR_BUDGET_AND_WRITING_RULES.md).
+
 Current stability findings, verification and known limits: [stability audit](docs/STABILITY_AUDIT.md).
 
 ## Current architecture

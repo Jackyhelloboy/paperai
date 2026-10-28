@@ -5,7 +5,7 @@ let clock=Date.parse('2026-10-11T22:00:00Z'),primaryCalls=0;
 class Clock extends Date {constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}}
 const requests=[],queue=[],endpoints=[],timers=[];
 // Model a runtime without AbortSignal.any/timeout; standard AbortController is sufficient.
-const ctx=vm.createContext({Date:Clock,URL,Request,Response,Headers,TextDecoder,Uint8Array,btoa,AbortSignal:{},AbortController,setTimeout:(fn,ms)=>{timers.push(ms);return setTimeout(fn,ms);},clearTimeout,
+const ctx=vm.createContext({Date:Clock,URL,Request,Response,Headers,TextDecoder,TextEncoder,Uint8Array,btoa,AbortSignal:{},AbortController,setTimeout:(fn,ms)=>{timers.push(ms);return setTimeout(fn,ms);},clearTimeout,
   console:{log(){}},DurableObject:class{constructor(c,e){this.ctx=c;this.env=e;}},
   PAPER_LAYOUT_RULES:fs.readFileSync('worker/src/paper-layout-rules.js','utf8'),normaliseMarkerRows:s=>s,
   DICTIONARY:{},getDictionaryWords:()=>[],isInDictionary:()=>false,autoCorrect:s=>s,

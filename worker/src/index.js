@@ -8,6 +8,8 @@ import { layoutSections, safeLayoutPlan } from './layout-plan.js';
 import { handlePictureSearch } from './picture-search.js';
 
 const DAILY_FREE_NEURONS = 10000;
+const PRIMARY_DAILY_CAP = 9500;
+const PRIMARY_REQUEST_RESERVE = 1000;
 const GEMMA4_INPUT_NEURONS_PER_MILLION = 9091;
 const GEMMA4_OUTPUT_NEURONS_PER_MILLION = 27273;
 
@@ -130,7 +132,7 @@ export default {
         return await handleWordSuggestion(request, env, corsHeaders);
       } catch (e) {
         if (isDailyFreeLimitError(e)) {
-          try { await markUsageExhausted(env); } catch (_) {}
+          try { await markUsageExhausted(env, e); } catch (_) {}
           return freeLimitResponse(corsHeaders, { suggestions: [] });
         }
         if (isPaidModelRequiredError(e)) {
@@ -436,7 +438,7 @@ export class UsageTracker extends DurableObject {
     // Receive the body before reading shared state. Awaiting request input
     // after storage.get() opens a gap where another page can update the ledger.
     // Keep the storage read/modify/write contiguous under Durable Object gates.
-    const addition = request.method === 'POST' && url.pathname === '/add'
+    const addition = request.method === 'POST' && ['/add','/reserve','/settle'].includes(url.pathname)
       ? await request.json() : null;
     const now = new Date();
     const utcDay = now.toISOString().slice(0, 10);
@@ -451,6 +453,23 @@ export class UsageTracker extends DurableObject {
         exhausted: false,
         tracking_started_at: now.toISOString(),
       };
+    }
+
+    // Durable Object storage gates serialize admission across all users/pages.
+    // Missing usage and failed/abandoned work retain their conservative booking.
+    state.booked = Math.max(Number(state.booked)||0, Number(state.used)||0);
+    if (request.method === 'POST' && url.pathname === '/reserve') {
+      const cost = Math.max(PRIMARY_REQUEST_RESERVE, Math.ceil(Number(addition.reserve)||0));
+      const allowed = !state.exhausted && state.booked + cost <= PRIMARY_DAILY_CAP;
+      if (allowed) { state.booked += cost; await this.ctx.storage.put('daily', state); }
+      return Response.json({allowed, day:utcDay, reserved:cost});
+    }
+    if (request.method === 'POST' && url.pathname === '/settle' && addition.day === utcDay) {
+      const actual = Number(addition.neurons);
+      if (Number.isFinite(actual) && actual > 0) {
+        state.booked = Math.max(Number(state.used)||0, state.booked - Math.max(PRIMARY_REQUEST_RESERVE,Math.ceil(Number(addition.reserve)||0)) + actual);
+        await this.ctx.storage.put('daily', state);
+      }
     }
 
     if (request.method === 'POST' && url.pathname === '/add') {
@@ -499,6 +518,9 @@ export class UsageTracker extends DurableObject {
       server_time: now.toISOString(),
       reset_at: reset.toISOString(),
       free_limit: DAILY_FREE_NEURONS,
+      paperai_daily_cap: PRIMARY_DAILY_CAP,
+      committed_neurons: Math.round(state.booked * 100) / 100,
+      paperai_limit_reached: state.booked + PRIMARY_REQUEST_RESERVE > PRIMARY_DAILY_CAP,
       estimated_used: Math.round(used * 100) / 100,
       estimated_remaining: Math.round(remaining * 100) / 100,
       percent_used: Math.round((used / DAILY_FREE_NEURONS) * 10000) / 100,
@@ -590,7 +612,8 @@ async function recordAiUsage(env, usage) {
   });
 }
 
-async function markUsageExhausted(env) {
+async function markUsageExhausted(env, cause) {
+  if (cause?.localBudget) return;
   await getUsageStub(env).fetch('https://usage.internal/exhausted', {
     method: 'POST',
   });
@@ -619,15 +642,35 @@ async function confirmedFreeLimit(env) {
   } catch (_) { return false; }
 }
 
-// The primary provider allows 10,000 neurons per day. Keep a small reserve
-// for in-flight requests; the tracked count is only an estimate, so Gemini
-// gets first chance near 9,500, but a Gemini outage can still use primary
-// until that provider confirms its actual daily rejection.
+// A tracker failure must not silently permit paid primary inference.
 async function nearPrimaryDailyReserve(env) {
   try {
     const status = await withinScanBudget(() => getUsageStatus(env), 2000);
-    return status.provider_limit_reached !== true && Number(status.estimated_used) >= 9500;
-  } catch (_) { return false; }
+    return status.provider_limit_reached === true || status.paperai_limit_reached === true || Number(status.estimated_used) >= PRIMARY_DAILY_CAP;
+  } catch (_) { return true; }
+}
+
+async function runBudgetedPrimary(env, body) {
+  // Deliberately overbook text bytes and image input; actual provider usage
+  // remains an estimate, not an account-level billing guarantee.
+  let inputBytes=0, images=0;
+  for(const message of body.messages||[]) {
+    for(const part of Array.isArray(message.content)?message.content:[{text:message.content}]) {
+      if(part.type==='image_url')images++;
+      else inputBytes+=new TextEncoder().encode(String(part.text||'')).length;
+    }
+  }
+  const reserve=Math.max(PRIMARY_REQUEST_RESERVE,Math.ceil((inputBytes+images*16384)*GEMMA4_INPUT_NEURONS_PER_MILLION/1e6 + (Number(body.max_completion_tokens)||6144)*GEMMA4_OUTPUT_NEURONS_PER_MILLION/1e6));
+  const reservation = await getUsageStub(env).fetch('https://usage.internal/reserve', {method:'POST',body:JSON.stringify({reserve})}).then(r=>r.json());
+  if (!reservation.allowed) throw Object.assign(new Error('3036: PaperAI daily safety cap reached'),{localBudget:true});
+  try {
+    const result = await env.AI.run(PRIMARY_MODEL,body,{rejectIfBusy:true});
+    const neurons = estimateGemma4Neurons(result?.usage);
+    if (neurons > 0) await getUsageStub(env).fetch('https://usage.internal/settle', {
+      method:'POST',body:JSON.stringify({day:reservation.day,neurons,reserve:reservation.reserved})
+    });
+    return result;
+  } catch (error) { throw error; }
 }
 
 const PRIMARY_MODEL = '@cf/google/gemma-4-26b-a4b-it';
@@ -799,22 +842,15 @@ async function runInference(env, body, state = {}, signal) {
     state.provider = 'gemini';
     return runGemini(env, body, signal, state);
   }
-  if (hasBackup && state.fastScan && await nearPrimaryDailyReserve(env)) {
-    const reserveState = {...state, provider: 'gemini'};
-    try {
-      const result = await runGemini(env, body, signal, reserveState);
-      Object.assign(state, reserveState);
-      return result;
-    } catch (error) {
-      // A soft threshold is not an entitlement to fail a page. Confirmed
-      // provider blocks still take precedence in the normal primary path.
-      if (signal?.aborted || !['AI_BUSY', 'AI_TIMEOUT', 'SCAN_SERVICE_UNAVAILABLE', 'OCR_OUTPUT_INVALID'].includes(error?.code)) throw error;
-    }
+  if (await nearPrimaryDailyReserve(env)) {
+    if (!hasBackup) throw Object.assign(new Error('3036: PaperAI daily safety cap reached'),{localBudget:true});
+    state.provider = 'gemini';
+    return runGemini(env, body, signal, state);
   }
   let primary;
   try {
     if (!env.AI) throw scanServiceError('SCAN_SERVICE_UNAVAILABLE', 'Scanning is temporarily unavailable.');
-    primary = Promise.resolve().then(() => env.AI.run(PRIMARY_MODEL, body, {rejectIfBusy: true}));
+    primary = Promise.resolve().then(() => runBudgetedPrimary(env, body));
     // Website scans launch both readers immediately. The existing race below
     // validates the primary and retains it if Gemini is unavailable.
     if(hasBackup && state.parallelProviders)throw scanServiceError('AI_TIMEOUT','Start parallel image readers.');
@@ -822,7 +858,7 @@ async function runInference(env, body, state = {}, signal) {
       Math.min(hasBackup ? (state.fastScan ? 4000 : 10000) : 45000, (state.deadline || Date.now() + PAGE_SCAN_BUDGET_MS) - Date.now()), signal);
   } catch (error) {
     const dailyLimit = isDailyFreeLimitError(error);
-    if (dailyLimit) { try { await markUsageExhausted(env); } catch (_) {} }
+    if (dailyLimit) { try { await markUsageExhausted(env, error); } catch (_) {} }
     if (!signal?.aborted && hasBackup && (dailyLimit || isPaidModelRequiredError(error) || isTransientAiError(error) || isAiTimeoutError(error) || error?.code === 'AI_TIMEOUT' || !env.AI)) {
       if (primary && !dailyLimit && !isPaidModelRequiredError(error) &&
           (error?.code === 'AI_TIMEOUT' || isTransientAiError(error))) {
@@ -833,7 +869,7 @@ async function runInference(env, body, state = {}, signal) {
         // safe. Daily/account failures never enter this retry branch.
         if(error?.code!=='AI_TIMEOUT') primary=sleep(500).then(()=>{
           if(signal?.aborted)throw scanServiceError('AI_TIMEOUT','Scan cancelled.');
-          return env.AI.run(PRIMARY_MODEL,body,{rejectIfBusy:true});
+          return runBudgetedPrimary(env,body);
         });
         const backupState={...state,provider:'gemini'},controller=new AbortController();
         const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});
@@ -1306,7 +1342,7 @@ async function handleOCR(request, env, corsHeaders) {
       },{status:502,headers:corsHeaders});
     }
     if (isDailyFreeLimitError(e)) {
-      try { await markUsageExhausted(env); } catch (_) {}
+      try { await markUsageExhausted(env, e); } catch (_) {}
       return freeLimitResponse(corsHeaders);
     }
     if (e?.code === 'SCAN_SERVICE_UNAVAILABLE') return Response.json({
@@ -1917,7 +1953,7 @@ VERIFICATION RULES:
       if (isDailyFreeLimitError(e)) {
         // Keep a usable first transcription, but publish the provider block
         // immediately so the next page cannot spend a second futile request.
-        try { await markUsageExhausted(env); } catch (_) {}
+        try { await markUsageExhausted(env, e); } catch (_) {}
       }
       if (!isDailyFreeLimitError(e) && !isPaidModelRequiredError(e)) {
         console.log('[Literal verification] skipped');

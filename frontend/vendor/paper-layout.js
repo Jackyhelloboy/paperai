@@ -805,8 +805,35 @@
             return (separate?'\n':'')+'[[TABLE_ROW: '+cells.join(' || ')+']]';
         }).join('\n');
     }
+
+    // Allocate empty exercise cells only for explicit, unambiguous writing ranges.
+    // Marks are preserved, never used as a proxy for the number of letters.
+    function alphabetWritingBoxes(text) {
+        const sequences=[Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ'),Array.from('abcdefghijklmnopqrstuvwxyz'),
+            ['अ','आ','इ','ई','उ','ऊ','ऋ','ए','ऐ','ओ','औ'],
+            ['क','ख','ग','घ','ङ','च','छ','ज','झ','ञ','ट','ठ','ड','ढ','ण','त','थ','द','ध','न','प','फ','ब','भ','म','य','र','ल','व','श','ष','स','ह']];
+        const lines=String(text||'').split('\n'),out=[];
+        for(let i=0;i<lines.length;i++) {
+            const line=lines[i];out.push(line);
+            if(!/(?:write|लिख|लि[खख]|वर्णमाला)/iu.test(line)||!/(?:alphabet|letters?|वर्णमाला|अक्षर)/iu.test(line))continue;
+            if(/(?:missing|complete|fill|रिक्त|खाली|पूर)/iu.test(line))continue;
+            // Existing source boxes/tables and answer material always take priority.
+            const following=lines.slice(i+1,i+4).join('\n');
+            if(/\[\[(?:GRID|TABLE|ANSWER_LINES)|_{3,}|[□▢]/i.test(line+'\n'+following))continue;
+            const range=line.match(/([A-Za-z\u0904-\u0939])\s*[”"'’]?\s*(?:से|to|through|[-–])\s*[“"'‘]?\s*([A-Za-z\u0904-\u0939])(?:\s|[”"'’]|तक|[.,।]|$)/iu);
+            if(!range)continue;
+            const seq=sequences.find(s=>s.includes(range[1])&&s.includes(range[2]));
+            if(!seq)continue;
+            const start=seq.indexOf(range[1]),end=seq.indexOf(range[2]);
+            if(end<start)continue;
+            const count=end-start+1;
+            for(let left=count;left>0;left-=10)out.push('[[GRID: '+Math.min(10,left)+'x1]]');
+        }
+        return out.join('\n');
+    }
+
     function normalise(text) {
-        text=nativePipeRows(pipeTableRows(cleanQuestionPaper(text)));
+        text=alphabetWritingBoxes(nativePipeRows(pipeTableRows(cleanQuestionPaper(text))));
         text=text.replace(/\[\[GRID:\s*(\d{1,2})\s*[x×]\s*(\d{1,2})\s*(?:\|\s*(?:\|\s*)?(?:none|box))?\s*\]\](?:[ \t]+(?:none|box)(?=[ \t]*(?:\n|$)))?/gi,(_,columns,rows)=>'[[GRID: '+columns+'x'+rows+']]');
         const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');

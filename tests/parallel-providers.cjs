@@ -6,7 +6,7 @@ const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;
  for(const winner of ['primary','gemini','primary-after-backup-failure']){
   const primary=defer(),backup=defer();let primaryCalls=0,backupCalls=0;
   const ctx=vm.createContext({console:{log(){}},Date,Promise,AbortController,PRIMARY_MODEL:'primary',PAGE_SCAN_BUDGET_MS:70000,
-   confirmedFreeLimit:async()=>false,nearPrimaryDailyReserve:async()=>false,runGemini:()=>{backupCalls++;return backup.promise;},
+   runBudgetedPrimary:(env,body)=>env.AI.run('primary',body),confirmedFreeLimit:async()=>false,nearPrimaryDailyReserve:async()=>false,runGemini:()=>{backupCalls++;return backup.promise;},
    withinScanBudget:async fn=>fn(),scanServiceError:(code,message)=>Object.assign(new Error(message),{code}),
    isDailyFreeLimitError:()=>false,isPaidModelRequiredError:()=>false,isTransientAiError:()=>false,isAiTimeoutError:()=>false,
    normaliseMarkerRows:String,extractAiText:r=>r.text,degenerateOcr:()=>false,invalidLayoutMarkers:()=>false});

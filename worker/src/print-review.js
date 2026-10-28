@@ -13,6 +13,18 @@ export function localPrintIssues(text,continuation=false) {
   }
   const questions=lines.filter(line=>/^\s*(?:[0-9०-९]+[.)]|\[\[(?:QUESTION_ROW|MATCH_ROW|CHOICE_ROW|QA_ROW):)/iu.test(line)).length;
   if(!questions)add('review','questions','Question numbering','No clearly numbered question items were detected. Compare with every source page.');
+  const roman={I:1,II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10,XI:11,XII:12,XIII:13,XIV:14,XV:15};
+  let previous=0;
+  for(const line of lines){
+    const match=line.match(/^\s*(?:\[\[SECTION_ROW:\s*)?([IVX]+)[.)]?\s+/);
+    if(match&&roman[match[1]]){
+      const current=roman[match[1]];
+      if(previous&&current!==previous+1)add('review','sections',line.slice(0,140),'Section sequence has a gap or duplicate. Recover omitted bits from the PDF; do not invent a question.');
+      previous=current;
+    }
+    const marks=line.match(/(\d+)\s*[x×]\s*(\d+)\s*=\s*(\d+)/);
+    if(marks&&Number(marks[1])*Number(marks[2])!==Number(marks[3]))add('review','marks',marks[0],'Marks arithmetic differs from the printed total. Verify the source before changing marks.');
+  }
   return issues.slice(0,20);
 }
 
