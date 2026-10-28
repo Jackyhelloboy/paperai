@@ -37,7 +37,18 @@
   function create({storage=indexedStorage(),now=()=>Date.now(),ttl=TTL,maxBytes=MAX_BYTES,onUnavailable=()=>{}}={}){
     let queue=Promise.resolve();
     const bytes=value=>new TextEncoder().encode(JSON.stringify(value)).byteLength;
-    const safe=async action=>{try{return await action();}catch(error){onUnavailable(error);return null;}};
+    const safe=async action=>{try{return await action();}catch(error){try{onUnavailable(error);}catch(_){}return null;}};
+    function validPage(page){
+      if(!page||typeof page.text!=='string'||!Array.isArray(page.media??[]))return undefined;
+      const media=page.media||[];
+      if(media.some(asset=>!asset||typeof asset.id!=='string'||!asset.id||typeof asset.dataUrl!=='string'||!/^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(asset.dataUrl)))return undefined;
+      const ids=new Set(media.map(asset=>asset.id));
+      if(ids.size!==media.length)return undefined;
+      for(const match of page.text.matchAll(/\[\[SOURCE_(?:FIGURE(?:_ROW)?|BANNER):\s*([\s\S]*?)\]\]/gi)){
+        for(const cell of match[1].split('||'))if(!ids.has(cell.split('|')[0].trim()))return undefined;
+      }
+      return {...page,media,plain:typeof page.plain==='string'?page.plain:page.text,raw:typeof page.raw==='string'?page.raw:page.text};
+    }
     async function prune(){
       const entries=await storage.all();
       let total=0;
@@ -53,11 +64,14 @@
       return safe(async()=>{
         await prune();const record=await storage.get(key);
         if(!record||record.pageCount!==pageCount||!Array.isArray(record.results))return null;
-        return record.results.slice(0,pageCount);
+        // One damaged page must not poison the other completed pages. Missing
+        // source images make that page eligible for a fresh read, never a
+        // text-only restore that silently discards its illustrations.
+        return record.results.slice(0,pageCount).map(validPage);
       });
     }
     function savePage(key,pageCount,index,result){
-      if(!key||!Number.isInteger(pageCount)||pageCount<1||!Number.isInteger(index)||index<0||index>=pageCount||!result||typeof result.text!=='string')return Promise.resolve(false);
+      if(!key||!Number.isInteger(pageCount)||pageCount<1||!Number.isInteger(index)||index<0||index>=pageCount||!validPage(result))return Promise.resolve(false);
       // Serial read/merge/write avoids losing a peer's result when pages finish together.
       const operation=queue.then(()=>safe(async()=>{
         const prior=await storage.get(key);

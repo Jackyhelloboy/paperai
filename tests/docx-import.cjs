@@ -52,3 +52,9 @@ assert.deepEqual(Array.from(ctx.extractedMedia,a=>a.widthTwips),[1800,3200],'Eac
 assert(ctx.extractedMedia.every(a=>a.align==='right'));
 assert.notEqual(ctx.extractedMedia[0].id,ctx.extractedMedia[1].id);
 console.log('DOCX import regression: text boxes occur once in reading order; paragraph/section page breaks, tabs and line breaks survive.');
+
+ctx.Intl={};ctx.PaperAITextEngine=require('../frontend/node_modules/unicode-segmenter/grapheme');
+const letters=wrap('<w:tbl><w:tr>'+['क्‍ष','कि','गु','ते'].map(cell).join('')+'</w:tr></w:tbl>');
+assert(ctx.docxStructuredXml(letters).includes('[[GRID_ROW:'),'Script grids must import without native Intl.Segmenter');
+delete ctx.PaperAITextEngine;
+assert(ctx.docxStructuredXml(letters).includes('[[TABLE_ROW:'),'An old browser without either segmenter preserves the table instead of throwing');

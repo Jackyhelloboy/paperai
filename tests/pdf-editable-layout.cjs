@@ -1,11 +1,11 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const pdfjs=require('../frontend/node_modules/pdfjs-dist/legacy/build/pdf.js');
 const JSZip=require('../frontend/node_modules/jszip');
 const {DOMParser}=require('../frontend/node_modules/@xmldom/xmldom');
 const Edit=require('../frontend/vendor/pdf-editable-layout.js');
 const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB9sAAAAASUVORK5CYII=';
 (async()=>{
+    const pdfjs=await import('../frontend/node_modules/pdfjs-dist/legacy/build/pdf.mjs');
     const pdf=await pdfjs.getDocument({data:new Uint8Array(fs.readFileSync('training/fa-2 sci.pdf')),isEvalSupported:false,fontExtraProperties:true}).promise;
     const pages=[];
     try{for(let n=1;n<=pdf.numPages;n++)pages.push(await Edit.scene(await pdf.getPage(n),pdfjs));}finally{await pdf.destroy();}

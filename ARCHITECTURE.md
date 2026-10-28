@@ -1,175 +1,55 @@
-# PaperAI Production Architecture v9
+# PaperAI production architecture
 
-## Word export modes
+## Purpose and source fidelity
 
-- **Editable Word** exports OCR text and recognized tables in normal document flow. Unknown illustrations use labeled placeholders; this mode does not guarantee the source layout.
-- **Word matching PDF** renders the original PDF locally and embeds one inline image per Word page, retaining illustrations, tables, rules, alignment, rotation and page dimensions. Each page has a native Word section, so floating elements cannot stack across pages. The questions in this mode are page images and are not individually editable. Teach corrections apply only to Editable Word.
-- DOCX import respects paragraph page breaks, section breaks and individual text boxes. Text boxes are read once in vertical and horizontal order rather than concatenating all descendants of the anchor paragraph.
-- The layout export processes one bounded canvas at a time and releases PDF resources on success or failure. No document upload or additional AI call is required for this export.
+PaperAI turns teachers' rough question papers into editable Word documents. Preserve literal question wording, language/script, numbers, marks, options, answer positions and actual source illustrations. Do not solve questions, translate them automatically, fill empty grids, invent numbering or silently replace a source figure. Teacher-approved suggestions are reversible edits; they do not retrain the OCR foundation models.
 
-Run `npm ci --prefix frontend`, then `node tests/worksheet-layout.cjs`, `node tests/pdf-word-layout.cjs` and `node tests/docx-import.cjs` for import and export regression checks.
+The current implementation is Pages + Worker. Historical iterations remain in git history; `README.md` and the production code describe the active routing rather than the former prototype architectures.
 
-## Goals
+## Runtime boundaries
 
-PaperAI is a literal document transcription system. The primary invariant is **printer, not editor**: source spelling, dates, calculations, punctuation, handwriting, marks, symbols, blanks and visible corrections must not be silently rewritten.
+- `frontend/`: file selection, local document readers, image preparation, preview, Teach, checkpoints and Word export. The public build stages specific libraries and licensed assets; it never exposes `node_modules`.
+- `functions/api/[[path]].js`: same-origin public gateway. It restricts routes, checks upload size and returns sanitized public errors/metadata.
+- `worker/src/`: durable scan jobs, primary/backup image recognition, source-evidence checks, suggestions, layout classification and controlled picture retrieval. Credentials stay in Worker secrets.
+- `.github/`: verification, staging and production deployment. Alternative Python/Vercel implementations are not the production path.
 
-The production path is designed for Cloudflare Workers Free + Workers AI Free allocation and has no paid OCR fallback.
+## Reading and scheduling
 
-## Request flow
+1. Validate file extension and size. Read reliable embedded PDF text and supported Office/spreadsheet/plain-text formats locally.
+2. Use the pinned PDF.js compatibility reader and module worker to render scanned/illustrated pages. Both loading paths disable `isEvalSupported`. Character maps and standard-font data come from local assets. The worker URL carries the reader release query to reduce stale-version mismatch.
+3. Analyze page geometry and prepare bounded, high-resolution images. Keep structured geometry and drawings intact; reserve compact line mosaics for suitable simple text pages.
+4. Process PDF pages with a bounded, device-aware pool, rendering each bitmap only when a slot is free. Release completed bitmaps and PDF resources. Assembly always follows source-page order.
+5. Submit to the same-origin scan API using a random job ID. Short polling requests recover the existing job after a transport interruption instead of blindly creating another inference.
+6. The backend coordinates its primary reader and configured Gemini backup, using bounded deadlines and source-evidence checks. Provider capacity, quota and credentials remain separate concerns. No additional browser OCR model or GPU is required.
+7. Validate source scripts, question/section coverage, marks, response positions, illustration geometry and supported marker syntax. Recheck difficult/incomplete readings against source pixels. These checks cannot prove perfect handwriting recognition.
 
-1. Browser validates file type and size.
-2. Digital PDF, spreadsheet, modern Office and plain-text content is extracted locally when reliable text is already embedded.
-3. Photographed pages are first checked for a dominant light paper region. When reliable, PaperAI crops away background fabric/table/desk pixels before OCR.
-4. Images/scanned pages are analyzed locally for:
-   - contrast and sharpness
-   - page density
-   - text-line bands
-   - multiple separated text groups on the same row
-   - option/matching/two-column structure
-   - simple line layout versus structured layout
-5. Simple handwriting/text pages use a compact line-mosaic that preserves left-to-right content and top-to-bottom order while removing large blank vertical gaps.
-6. Structured forms, tables, grids, diagrams, matching questions and option-heavy rows stay full-page so spatial relationships are not destroyed.
-7. Gemma 4 vision performs literal OCR with temperature 0.
-8. A second literal verification pass is used for hard/structured pages or when the first result is suspicious. It re-checks Indic graphemes, bracketed options, columns, symbols and edit marks against the pixels.
-8. Deterministic post-processing only normalizes Unicode and wrapper artifacts. It never spell-corrects or fact-corrects source text.
-9. API returns:
-   - `full_text`: copy/download-safe literal text without PaperAI metadata labels
-   - `annotated_text`: same visible content plus internal edit metadata for UI rendering of strike-throughs, replacements, circles, underlines, etc.
-   - `raw_text`: raw model transcription for debugging/review
-10. The browser renders visual edit metadata but copies/downloads `full_text`, so synthetic labels are not inserted into exported text.
+Completed PDF pages receive best-effort browser checkpoints keyed by full-file SHA-256, language and extraction version. Checkpoints expire after 24 hours and share a 20 MB budget. Validate recovered pages independently: malformed data or missing illustration assets invalidates that page, while intact pages remain reusable. Reopening the same PDF is required after refresh. Storage failure must not stop ordinary scanning.
 
-## Anti-hallucination rules
+## Editing and Word
 
-PaperAI must not turn reverse-side show-through, embossing, shadows, ruled-paper texture, erased graphite ghosts, compression artifacts or background objects into text. Blank answer lines stay blank. Context is allowed only to break a tie between characters that are both visually plausible.
+`paper-text.js` maps visible teacher edits onto protected layout markers. jsdiff keeps distant changes distinct; Unicode segmentation preserves full grapheme clusters. Insertions around line/cell separators must stay with their intended question. Large or ambiguous edits may decline exact mapping and use the existing Teach fallback; never represent this as guaranteed arbitrary-paste layout preservation.
 
-If a portion is genuinely unreadable, PaperAI keeps `[unclear]` rather than inventing an answer.
+The default Word export uses normal paragraphs and tab stops for layout columns, picture rows, captions and marks. Actual exercise grids remain editable tables. Source-layout modes can retain measured source structures. Pictures are embedded bytes, not external Word relationships. A required missing source image rejects export with an actionable error. Each asynchronous export captures its media before awaiting header work so a subsequent document cannot replace its pictures. Ordinary paragraph arithmetic rows retain their answer rules.
 
-## Speed and reliability
+Word requests Tahoma, 11 pt regular body and 12 pt bold headings/marks on compact A4. Preview and Teach use locally hosted script-only Noto fallbacks when Tahoma cannot display the text; this does not alter the font requested in DOCX XML. Actual Word glyph rendering still depends on the receiving application's installed fonts. Two-/four-page budgets are design targets, not an implemented universal page fitter.
 
-- Clear/simple pages avoid reasoning mode and use compact line-mosaic preprocessing.
-- Complex pages keep enough resolution for handwriting and symbols.
-- Workers AI `rejectIfBusy` avoids waiting in long capacity queues.
-- AI timeouts return a specific code so the browser can automatically retry a lighter image.
-- The final browser timeout is only a network safety boundary, not the primary recovery mechanism.
-- Conditional verification avoids paying the latency/quota cost of a second inference for every page.
+Source PDF review releases readers when the source changes or data is cleared. A failed load resets its rejected promise, allowing Retry to open the PDF again. Restoring saved pictures renames control-marker IDs only, preserving literal question and caption text.
 
-## Live monitoring
+## Pictures and privacy
 
-- `/api/usage` exposes PaperAI's estimated daily Workers AI usage.
-- `/api/live` is a hibernatable Durable Object WebSocket used only to show the number of currently connected browser sessions.
-- The live count does not use IP addresses, fingerprinting or persistent user identifiers.
+Original source illustrations take precedence. Explicit missing-picture requests may use the finite reviewed local raster catalog with preserved provenance and licensing. Unreviewed online candidates require teacher choice. Never crop ordinary question text/ruling as a substitute picture or claim keyword matching is visual verification.
 
-## Production security
+Teach learns only explicit teacher-approved confusion pairs locally. No unreviewed OCR guess is treated as training truth. Public screens, errors and printable papers do not expose provider credentials, private diagnostics or internal operational text.
 
-Training/debug routes are admin-only. Without `ADMIN_TOKEN`, they return 404. Public production endpoints are limited to OCR, quota status, health and live presence.
+## Verification and limits
 
-## Model
+- `npm ci --prefix frontend --ignore-scripts`
+- `node --test tests/*.cjs`
+- `npm audit --prefix frontend --audit-level=high`
+- `node .github/scripts/build-pages.cjs`
+- `node frontend/node_modules/playwright/cli.js install --with-deps --only-shell chromium`
+- `node .github/scripts/browser-smoke.cjs`
 
-Primary model: `@cf/google/gemma-4-26b-a4b-it`.
+Browser smoke uses real mobile/desktop Chromium, PDF parsing/rendering, local licensed pictures, script fonts, Teach Undo/Redo and Word downloads. AI endpoints are stubbed in this suite, so it makes no OCR accuracy or provider-capacity claim. Production smoke verifies the deployed release, required assets, route protections and bounded synthetic request handling. Real-model checks must be reported separately.
 
-The pipeline improves model use through preprocessing, routing, literal prompting and conditional verification. It does not claim to fine-tune or modify Gemma model weights.
-
-## Accuracy boundary
-
-No OCR system can guarantee 100% recovery when the source pixels do not contain enough information. PaperAI's production rule is to prefer a visible `[unclear]` over a confident-looking invention.
-
-## v8 accuracy changes
-
-- Automatic paper/background separation for photographed worksheets.
-- Multi-column and option-row detection prevents destructive line-mosaic routing.
-- Hard and structured pages receive a literal verification pass.
-- Devanagari verification checks visible grapheme anatomy rather than choosing the most common word.
-- Verification results are rejected when they rewrite too much of an otherwise coherent first transcription.
-
-
-## v9 visual-learning changes
-
-- Results now include a private **Teach** workflow in the browser. A user can correct OCR text and PaperAI stores small wrong→right token pairs in that browser's localStorage.
-- Future scans send only the top local confusion pairs as visual hints. These hints are never automatic substitutions and never override the current image pixels.
-- No user identity, IP address or global correction profile is required for this learning loop.
-- The model weights are not fine-tuned; this is retrieval-style visual confusion memory layered on top of the existing OCR model.
-- Visual structure metadata now includes long horizontal/vertical rule counts, multi-column rows and likely branching layouts.
-- Structured OCR prompts receive those geometry hints so circles, arrows, branch diagrams, answer lines and two-column relationships are less likely to be flattened incorrectly.
-- Literal verification and anti-hallucination safeguards from v8 remain in force.
-
-
-## v11 layout and Teach fixes
-
-- Legacy OCR branch diagrams that were flattened into pipe rows are reconstructed into readable arrow relationships without changing recognized words.
-- The OCR prompt forbids fake "| |" connector rows and asks for actual arrows/circle metadata for visible branch diagrams.
-- Circled question numbers are rendered with CSS circles in the web UI; exported plain text uses universal numbering such as "1." instead of font-dependent circled Unicode.
-- Teach Hindi phonetic mode now turns on automatically when the extracted document contains Devanagari, even if OCR language was Auto.
-- Teach preview is live, and Copy/Download use the current unsaved Teach text while the editor is open.
-- Hindi verification explicitly rejects Roman transliteration when the image visibly contains Devanagari.
-
-
-## v12 branch-layout and transliteration fixes
-
-- Branch diagrams now use explicit OCR metadata: BRANCH_ROOT, BRANCH_ITEM and BRANCH_END.
-- The verified web view renders those blocks as SVG with the root centered and real connector arrows.
-- The central/root text is never concatenated into branch labels merely because the combined text forms a meaningful word.
-- Teach uses a vendored offline Indic phonetic transliteration engine with candidate suggestions and local high-confidence overrides for common spellings such as allah -> अल्लाह, jawad -> जवाद and rupayaa -> रुपया.
-- The Teach editor shows selectable transliteration candidates while typing and keeps all processing local to the browser.
-- The OCR/Teach font stack now includes Hind, Mukta, Noto Sans Devanagari, Noto Sans Telugu and Tiro Devanagari Hindi as script-appropriate fallbacks.
-
-
-## v14 automatic multilingual Teach
-
-- The Hindi phonetic on/off control is removed. Smart typing is always active inside Teach.
-- PaperAI chooses the target script from the selected document language or, in Auto mode, from the dominant script already present in the OCR result.
-- Offline phonetic suggestions support Devanagari (Hindi/Marathi), Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam, Urdu and Kashmiri.
-- English stays in Latin script and receives spelling/proper-name suggestions rather than transliteration.
-- Local transliteration runs first. After a short typing pause, difficult/ambiguous words can receive a same-model Workers AI suggestion pass.
-- AI word suggestions are cached and capped per Teach session so they do not waste the daily free AI allocation. If free AI is exhausted or unavailable, local suggestions continue working.
-- Suggestion AI usage is recorded in the same daily usage tracker; there is still no paid fallback.
-
-
-## v15 explicit language routing
-
-- Teach now shows a Google-IME-style From/To bar. Source typing is English/Roman and the user can explicitly choose the target language/script.
-- Auto mode is still available, but mixed school pages now prefer nearby Indian-script context instead of letting a large English header force English.
-- Changing the target language while a Roman word is being composed immediately re-renders that same word in the newly selected script.
-- Local phonetic candidates appear immediately; ambiguous words can add capped Workers AI candidates after a short pause.
-- Canonical known spellings such as jawad, allah and rupayaa are converted across supported scripts, not only Devanagari.
-
-
-## v16 smart translation
-
-- Teach now behaves like a smart language converter instead of a pure phonetic keyboard.
-- The user can choose both source and target language.
-- Single names/proper nouns are transliterated into the target script.
-- Multi-word phrases are translated by meaning after a short pause; PaperAI no longer converts a sentence word-by-word phonetically.
-- Roman text stays visible while typing so the system can understand the full phrase before replacing it.
-- Mixed-language pages remain editable because source and target routing are explicit.
-- The same free Workers AI model is used for phrase suggestions; there is no paid fallback.
-
-
-## v17 phonetic transliteration
-
-- Teach is transliteration-first, not semantic translation.
-- English/Roman phrases keep the same spoken words and are rewritten in the target script.
-- Example: English "i love you" -> Hindi "इ लोवे योउ"; the system must not replace it with a Hindi meaning translation.
-- Known names such as jawad still transliterate to जवाद.
-- Full Roman phrases are handled locally first with the bundled Indic transliteration library; difficult cases can receive AI phonetic alternatives.
-- AI suggestions are explicitly instructed to preserve pronunciation and never translate sentence meaning.
-
-
-## v18 pronunciation-based English transliteration
-
-- English-to-Indian-script Teach conversion now follows actual English pronunciation, not raw spelling.
-- Example: "i love you" -> Hindi "आई लव यू"; "love" -> "लव"; "you" -> "यू"; "I" -> "आई".
-- Known high-confidence Hindi pronunciation phrases can be applied locally.
-- Unknown English phrases use the AI fallback first for pronunciation-based transliteration.
-- Other Indian scripts avoid blindly converting a Hindi-script pronunciation; AI handles their pronunciation rendering directly.
-- Semantic translation remains disabled in Teach.
-
-
-
-## v19 learned suggestions and layout-preserving Teach
-
-- Previously saved browser-local wrong→right corrections are now surfaced directly in Teach suggestions when they match the current source or a local phonetic candidate.
-- Learned corrections are ranked ahead of generic local and AI candidates, but are never forced when they do not match the current spoken form.
-- The AI suggestion endpoint receives both local candidates and relevant user-corrected candidates, validates returned candidates against the requested target script, and ranks learned → AI → local fallbacks.
-- Teach preview/save now keeps the original OCR layout/annotation structure and applies word-level corrections onto that structure instead of replacing the extracted result with a flattened textarea.
-- Branch diagrams, OCR annotations, line breaks and other extracted structure therefore remain stable while corrected words update inside the preserved layout.
-- Teach save preserves surrounding whitespace; only the corrected wording is intended to change.
+No test suite establishes zero bugs, perfect OCR in every language or guaranteed two-/four-page fitting. Preserve uncertain source content for teacher review and report unverified behavior explicitly.

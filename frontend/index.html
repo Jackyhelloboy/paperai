@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#ffffff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&family=Mukta:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./vendor/worksheet-fonts.css">
     <script src="vendor/document-reader.js"></script>
     <script src="vendor/sheet-reader.js"></script>
     <script src="vendor/archive-reader.js"></script>
@@ -2157,13 +2158,26 @@ function setFile(f) {
 
 async function clearPaperData() {
     if (processingUpload) { clearFile(); return; }
-    await clearSavedScans();
+    const cleared=await clearSavedScans();
     clearFile();
+    if(!cleared)showErr('The current paper was cleared, but this browser could not clear saved pages. Please check browser storage permissions and retry Clear saves.');
 }
 
 function clearFile() {
     if(processingUpload){scanCancelled=true;activeScanController?.abort();setProg(18,'Stopping…');return;}
     lastResult=null;extractedMedia=[];
+    if(typeof releaseSourceReviewPdf==='function')releaseSourceReviewPdf(true);
+    if(typeof textOut!=='undefined')textOut.textContent='';
+    if(typeof teachPanel!=='undefined')teachPanel.classList.remove('show');
+    if(typeof teachEditor!=='undefined')teachEditor.value='';
+    if(typeof teachOriginalText!=='undefined')teachOriginalText='';
+    if(typeof teachOriginalLayoutText!=='undefined')teachOriginalLayoutText='';
+    if(typeof teachHistory!=='undefined')teachHistory=[];
+    if(typeof teachHistoryIndex!=='undefined')teachHistoryIndex=-1;
+    if(typeof smartComposition!=='undefined')smartComposition=null;
+    if(typeof aiSuggestionSequence==='number')aiSuggestionSequence++;
+    if(typeof aiSuggestionTimer!=='undefined'&&aiSuggestionTimer){clearTimeout(aiSuggestionTimer);aiSuggestionTimer=null;}
+    if(typeof updateTeachButtons==='function')updateTeachButtons();
     file=null;
     fileBatch=[];
     dropZone.style.display = '';
@@ -2175,7 +2189,9 @@ function clearFile() {
     $('pageReviewPanel').style.display='none';
     fileInput.value='';
     fileThumb.style.display='none';
+    fileThumb.src='';
     fileTypeIcon.style.display='none';
+    $('pageReviewList')?.replaceChildren?.();
 }
 
 dropZone.onclick = () => fileInput.click();
@@ -2286,9 +2302,9 @@ function reconstructPdfText(textContent, pageWidth) {
 }
 
 async function pdfToPages(pdfFile, signal, onProgress = message => setProg(10,message)) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/document-worker.js';
+    if(!pdfjsLib.GlobalWorkerOptions.workerSrc)pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/document-worker.js';
     let documentPromise=null;
-    const open=()=>documentPromise||=(async()=>pdfjsLib.getDocument({data:await pdfFile.arrayBuffer(),isEvalSupported:false,fontExtraProperties:true}).promise)();
+    const open=()=>documentPromise||=(async()=>pdfjsLib.getDocument({data:await pdfFile.arrayBuffer(),isEvalSupported:false,fontExtraProperties:true,cMapUrl:'/vendor/pdf-cmaps/',cMapPacked:true,standardFontDataUrl:'/vendor/pdf-fonts/'}).promise)();
     const close=async()=>{const pending=documentPromise;documentPromise=null;if(pending){try{await(await pending).destroy();}catch(_){}}};
     const checkCancelled=()=>{if(signal?.aborted)throw new DOMException('Scan cancelled.','AbortError');};
     checkCancelled();
@@ -2569,8 +2585,15 @@ function docxStructuredXml(xmlText, media = {}, numbering = {}) {
             rows.forEach(row=>results.push('[[MATCH_ROW: '+row.join(' || ')+']]'));continue;
         }
         const empty = rows.every(row=>row.every(cell=>!cell));
-        const isLetterGrid = cols >= 4 && rows.every(row =>
-            row.every(cell => !cell || Array.from(new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(cell)).length <= 2));
+        const localSegments=typeof PaperAITextEngine!=='undefined'?PaperAITextEngine.graphemeSegments:null;
+        const segmenter=!localSegments&&typeof Intl.Segmenter==='function'?new Intl.Segmenter(undefined,{granularity:'grapheme'}):null;
+        const shortCell=cell=>{
+            if(!cell)return true;
+            if(!localSegments&&!segmenter)return false; // Keep a regular table rather than guessing a letter count.
+            let count=0;for(const _ of localSegments?localSegments(cell):segmenter.segment(cell))if(++count>2)return false;
+            return true;
+        };
+        const isLetterGrid = cols >= 4 && rows.every(row =>row.every(shortCell));
         if (empty && cols <= 52 && rows.length <= 32 && cols*rows.length<=600) {
             results.push('[[GRID: ' + cols + 'x' + rows.length + ']]');
         } else if (isLetterGrid && cols <= 52 && cols*rows.length<=600) {
@@ -5227,9 +5250,10 @@ const scannedPageCache=new WeakMap();
 const scanCheckpointStore=typeof PaperAIScanCheckpoints!=='undefined'?PaperAIScanCheckpoints.create():null;
 async function clearSavedScans(button){
     if(processingUpload){showErr('Wait for the current scan to finish or cancel it before clearing saved pages.');return false;}
-    await scanCheckpointStore?.clear();
+    const cleared=await scanCheckpointStore?.clear();
     for(const selected of fileBatch)scannedPageCache.delete(selected);
     if(file)scannedPageCache.delete(file);
+    if(cleared===null){showErr('Saved pages could not be cleared. Check browser storage permissions and retry.');return false;}
     if(button)button.textContent='Cleared';
     return true;
 }
@@ -5247,11 +5271,16 @@ async function rescanSelectedPdf(button){
 }
 function restoreScannedPage(page) {
     let text=page.text;
-    for(const asset of page.media){
+    const ids=new Map();
+    for(const asset of page.media||[]){
         const id='resume-'+crypto.randomUUID();
         extractedMedia.push({...asset,id});
-        text=text.replaceAll(asset.id+'|',id+'|').replaceAll(asset.id+']]',id+']]');
+        ids.set(asset.id,id);
     }
+    // Rename marker IDs only. A visible question/caption can itself contain
+    // an asset-like word, and one ID can be a suffix of another.
+    text=text.replace(/\[\[SOURCE_(FIGURE(?:_ROW)?|BANNER):([\s\S]*?)\]\]/gi,(full,kind,body)=>
+        '[[SOURCE_'+kind+':'+body.split('||').map(cell=>cell.replace(/^(\s*)([^|]+?)(\s*)(?=\||$)/,(_,space,id,tail)=>space+(ids.get(id)||id)+tail)).join('||')+']]');
     return {...page,text};
 }
 async function extractOneFile(f, onProgress, label) {
@@ -5557,15 +5586,24 @@ function renderAllPageReviews(){
     });
 }
 async function getSourceReviewPdf(pdfFile){
-    if(sourceReviewPdfFile!==pdfFile){
+    if(sourceReviewPdfFile!==pdfFile||!sourceReviewPdfPromise){
+        releaseSourceReviewPdf();
         sourceReviewPdfFile=pdfFile;
-        sourceReviewPdfPromise=(async()=>{
+        const pending=(async()=>{
             if(typeof pdfjsLib==='undefined')throw new Error('PDF viewer is unavailable.');
             const buffer=await pdfFile.arrayBuffer();
-            return pdfjsLib.getDocument({data:new Uint8Array(buffer)}).promise;
+            return pdfjsLib.getDocument({data:new Uint8Array(buffer),isEvalSupported:false,cMapUrl:'/vendor/pdf-cmaps/',cMapPacked:true,standardFontDataUrl:'/vendor/pdf-fonts/'}).promise;
         })();
+        sourceReviewPdfPromise=pending;
+        pending.catch(()=>{if(sourceReviewPdfPromise===pending){sourceReviewPdfPromise=null;sourceReviewPdfFile=null;}});
     }
     return sourceReviewPdfPromise;
+}
+function releaseSourceReviewPdf(invalidate=false){
+    const previous=sourceReviewPdfPromise;
+    sourceReviewPdfPromise=null;sourceReviewPdfFile=null;
+    if(invalidate)pageReviewGeneration++;
+    if(previous)void previous.then(pdf=>pdf.destroy?.()).catch(()=>{});
 }
 
 function currentExportText(){
@@ -5785,7 +5823,14 @@ function docxTabbedRows(rows, widths, options = {}) {
             const xml=typeof value==='string'
                 ? value.split(/<br>/i).map(text=>docxRichParagraph(text,{after:0,bold:options.repeatHeader&&rowIndex===0,available:docxCellContentWidth(width,options)})).join('')
                 : String(value.xml||'');
-            return [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)].map(match=>match[1].replace(/<w:pPr>[\s\S]*?<\/w:pPr>/g,''));
+            return [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)].map(match=>{
+                const content=match[1].replace(/<w:pPr>[\s\S]*?<\/w:pPr>/g,'');
+                // A paragraph border cannot be carried into just one tabbed
+                // column. Preserve a blank arithmetic rule as editable text.
+                if(/<w:bottom\b[^>]*w:val="single"/.test(match[1])&&!/<w:drawing>/.test(content)&&!content.replace(/<[^>]*>/g,'').trim())
+                    return docxRun('_'.repeat(Math.max(3,Math.min(28,Math.floor(width/150)))));
+                return content;
+            });
         });
         const lineCount=Math.max(1,...columns.map(column=>column.length));
         return Array.from({length:lineCount},(_,line)=>
@@ -6175,11 +6220,10 @@ function docxStylesXml() {
 const DOCX_CONTENT_W = 11906 - 720 - 720;
 const DOCX_TOP_MARGIN = 720;
 const DOCX_HEADER_MAX_H = 1200; // Banner is in body flow, preserving narrow top margins.
-const DEFAULT_BANNER_URL = './default-banner.svg';
-let defaultBannerPngPromise = null;
 let extractedMedia = [];
 let docxMediaUsed = new Map();
-function sourceAsset(id) { return extractedMedia.find(item => item.id === id); }
+let docxAssetSnapshot = null;
+function sourceAsset(id) { return (docxAssetSnapshot||extractedMedia).find(item => item.id === id); }
 async function materializeDefaultPictureNotes(text) {
     // Only exact explicit requests may use the finite, visually reviewed
     // online-art catalog. Unreviewed search hits still require teacher choice.
@@ -6426,7 +6470,7 @@ function sourceFigureHtml(value) {
 }
 function docxSourceRun(id, available = DOCX_CONTENT_W, maxHeight = 4400, description='Original source illustration', movable=false, fitCell=false) {
     const asset=sourceAsset(id);
-    if(!asset) return docxRun('[source image needs review]',{size:18});
+    if(!asset) throw new Error('A source picture is missing. Reopen the original PDF and retry/resume, or add the picture before downloading Word.');
     if(asset.webSource)description=[asset.webSource.label,asset.webSource.creator,asset.webSource.license,asset.webSource.sourceUrl].filter(Boolean).join(' · ');
     if(!docxMediaUsed.has(id)) docxMediaUsed.set(id,{asset,rid:'rIdSource'+(docxMediaUsed.size+1)});
     // A row owns equal-width cells; fit each picture inside its cell without
@@ -6639,11 +6683,10 @@ function docxHeaderTextXml(title) {
     '</w:hdr>';
 }
 
-// Prefer a wide image the teacher uploaded (scanned header/banner); otherwise
-// fall back to the shipped banner asset, and finally to a generated banner.
-async function resolveHeaderBanner(structuredText) {
-    const title = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
-    for (const item of (extractedMedia || [])) {
+// A school identity must come from a source asset explicitly marked as a banner.
+async function resolveHeaderBanner(structuredText, media = extractedMedia) {
+    for (const item of (media || [])) {
+        if(!item||item.role!=='banner')continue;
         const src = item && typeof item === 'object' ? (item.dataUrl || item.src || item.url) : item;
         if (typeof src !== 'string' || !/^data:image\//.test(src)) continue;
         const dim = await imageDataUrlSize(src);
@@ -6684,13 +6727,14 @@ function createWordPlaceholderPngBase64() {
 
 async function makeExtractedDocx(structuredText) {
     if (typeof JSZip === 'undefined') throw new Error('Word export library failed to load. Refresh and try again.');
+    const exportMedia=extractedMedia.map(asset=>({...asset})),exportMode=activeDocxEditingMode;
     if(typeof PaperAIProfessionalPaper!=='undefined')structuredText=PaperAIProfessionalPaper.format(structuredText);
     structuredText=PaperAILayout.presentationRows(packSourceFigureRows(PaperAILayout.normalise(PaperAILayout.cleanExamContent(structuredText))),layoutTypeHints());
 
     const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
     const footerXml = paperLayoutOptions().pageNumbers||/\[\[FOOTER:/i.test(structuredText)?docxFooterXml(structuredText):'<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>';
 
-    const banner = await resolveHeaderBanner(structuredText);
+    const banner = await resolveHeaderBanner(structuredText,exportMedia);
     let headerXml = docxHeaderTextXml(footerTitle);
     let headerRelsXml = '';
     let headerBannerFile = null;
@@ -6723,11 +6767,13 @@ async function makeExtractedDocx(structuredText) {
     let exportText=String(structuredText || '');
     if (!/\[\[SOURCE_BANNER:/i.test(exportText) && banner) {
         const id='export-banner';
-        extractedMedia=extractedMedia.filter(x=>x.id!==id);
-        extractedMedia.push({id,dataUrl:banner.dataUrl,w:banner.w,h:banner.h,widthTwips:DOCX_CONTENT_W,role:'banner'});
+        exportMedia.push({id,dataUrl:banner.dataUrl,w:banner.w,h:banner.h,widthTwips:DOCX_CONTENT_W,role:'banner'});
         exportText='[[SOURCE_BANNER: '+id+']]\n'+exportText;
     }
-    const documentXml=docxDocumentXml(exportText);
+    let documentXml;
+    const previousSnapshot=docxAssetSnapshot,previousMode=activeDocxEditingMode;
+    try{docxAssetSnapshot=exportMedia;activeDocxEditingMode=exportMode;documentXml=docxDocumentXml(exportText);}
+    finally{docxAssetSnapshot=previousSnapshot;activeDocxEditingMode=previousMode;}
     if(/<w:t\b[^>]*>[^<]*\[\[/.test(documentXml))throw new Error('A layout annotation needs review. Use Correct text or Paper layout before exporting.');
     const zip = new JSZip();
     zip.file('[Content_Types].xml',
@@ -6761,7 +6807,7 @@ async function makeExtractedDocx(structuredText) {
         zip.folder('word').folder('_rels').file('header1.xml.rels', headerRelsXml);
         zip.folder('word').folder('media').file('header_banner.' + headerBannerFile.ext, headerBannerFile.base64, { base64: true });
     }
-    // Actual source crops are packaged above; missing illustrations are flagged as text.
+    // Actual source crops are embedded; missing required images reject export.
     zip.folder('word').folder('_rels').file('document.xml.rels',
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
@@ -6787,6 +6833,7 @@ async function downloadWord(btn) {
         : (lastResult.text || '');
 
     if (!structuredText.trim()) return;
+    const exportName=String(file?.name||'paperai');
 
     const selectedMode=(typeof $==='function' ? $('wordEditMode')?.value : null)||'easy';
     activeDocxEditingMode=['easy','move','background','source'].includes(selectedMode)?selectedMode:'easy';
@@ -6803,7 +6850,7 @@ async function downloadWord(btn) {
         const blob = keepWord ? await PaperAIWordReference.makeWord(await lastResult.native_docx_file.arrayBuffer()) : activeDocxEditingMode==='source'&&lastResult.native_pdf_pages&&structuredText===lastResult.native_pdf_text&&paperLayoutOptions().keepSourcePages
             ? await PaperAIPdfEditable.makeWord(lastResult.native_pdf_pages)
             : await makeExtractedDocx(structuredText);
-        const base = String(file?.name || 'paperai')
+        const base = exportName
             .replace(/\.[^.]+$/, '')
             .replace(/[^\p{L}\p{N}_-]+/gu, '-')
             .replace(/^-+|-+$/g, '') || 'paperai';

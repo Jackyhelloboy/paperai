@@ -25,5 +25,11 @@ const storage={get:async k=>copy(records.get(k)),all:async()=>[...records.values
  let warnings=0;const unavailable=api.create({storage:{get:async()=>{throw Error('quota');},all:async()=>{throw Error('disabled');}},onUnavailable:()=>warnings++});
  assert.equal(await unavailable.load(a,1),null);assert.equal(await unavailable.savePage(a,1,0,{text:'test'}),null);assert.equal(warnings,2);
  await cache.savePage(a,1,0,{text:'test'});await cache.clear();assert.equal(records.size,0);
+ const damaged=api.create({storage,now:()=>time});
+ records.set('damaged',{key:'damaged',pageCount:3,updatedAt:time,results:[{text:'first',media:[]},{text:'bad',media:'broken'},{text:'[[SOURCE_FIGURE: lost| |none]]',media:[]}]});
+ const recovered=await damaged.load('damaged',3);assert.equal(recovered[0].text,'first');assert.equal(recovered[1],undefined);assert.equal(recovered[2],undefined,'A page missing its source picture must be reread');
+ assert.equal(await damaged.savePage('x',1,0,{text:'[[SOURCE_FIGURE: lost| |none]]',media:[]}),false);
+ const callbackFailure=api.create({storage:{all:async()=>{throw Error('Storage blocked');}},onUnavailable:()=>{throw Error('UI callback failed');}});
+ assert.equal(await callbackFailure.load('a',1),null,'A warning callback must not turn optional storage into a scan failure');
  console.log('Durable scan checkpoints: full-file identity, language/version isolation, concurrent sparse writes, reopen, expiry, size cap and graceful storage failure pass.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

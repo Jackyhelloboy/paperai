@@ -1,7 +1,6 @@
 // Read every audited Word/PDF. This verifies parsers/layout, not OCR character accuracy.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
 const JSZip=require('../frontend/node_modules/jszip');
-const pdfjs=require('../frontend/node_modules/pdfjs-dist/legacy/build/pdf.js');
 const Edit=require('../frontend/vendor/pdf-editable-layout.js');
 const Layout=require('../frontend/vendor/paper-layout.js');
 const {DOMParser:Parser}=require('../frontend/node_modules/@xmldom/xmldom');
@@ -14,6 +13,7 @@ const files=inventory('training').sort(),known=new Map(corpus.records.map(record
 const sources=files.map(file=>known.get(file)||{file,kind:'generated-qa',visual_review:'generated-output-baseline-not-a-training-reference'});
 assert(corpus.records.every(record=>files.includes(record.file)),'An audited source file is missing');
 (async()=>{
+    const pdfjs=await import('../frontend/node_modules/pdfjs-dist/legacy/build/pdf.mjs');
     for(const source of sources){
         const bytes=fs.readFileSync('training/'+source.file);
         const record={file:source.file,kind:source.kind,visual_review:source.visual_review};

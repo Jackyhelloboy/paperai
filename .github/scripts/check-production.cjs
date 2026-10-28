@@ -61,6 +61,9 @@ async function runGroup(name,count,concurrency,operation){
   const textEngine=await read('/vendor/text-diff-engine.js');assert.equal(textEngine.status,200);assert(textEngine.body.includes('PaperAITextEngine'));
   assert(home.body.includes('vendor/text-diff-engine.js?v='+(process.env.GITHUB_SHA||'')));
   checks.push('Versioned multilingual text comparison and segmentation bundle loads');
+  const worksheetFonts=await read('/vendor/worksheet-fonts.css');assert.equal(worksheetFonts.status,200);assert(worksheetFonts.body.includes('Noto Sans Telugu')&&worksheetFonts.body.includes('Tahoma'));
+  assert(home.body.includes('vendor/worksheet-fonts.css?v='+(process.env.GITHUB_SHA||'')));
+  checks.push('Versioned local worksheet script fonts load');
   const pagePipeline=await read('/vendor/page-pipeline.js');assert.equal(pagePipeline.status,200);assert(pagePipeline.body.includes('PaperAIPagePipeline'));
   assert(home.body.includes('vendor/page-pipeline.js?v='+(process.env.GITHUB_SHA||'')));
   checks.push('Versioned parallel PDF page scheduler loads');
@@ -72,6 +75,9 @@ async function runGroup(name,count,concurrency,operation){
   assert.deepEqual(Object.keys(JSON.parse(usage.body)).sort(),['date_utc','provider_limit_reached','reset_at']);
   for(const path of ['/vendor/document-reader.js','/vendor/document-worker.js','/vendor/archive-reader.js','/vendor/sheet-reader.js']){
     const asset=await read(path);assert.equal(asset.status,200);assert(asset.body.length>10000);checks.push(path+' loads');
+  }
+  for(const path of ['/vendor/pdf-cmaps/Adobe-Japan1-UCS2.bcmap','/vendor/pdf-fonts/LiberationSans-Regular.ttf','/vendor/paper-fonts/noto-sans-devanagari-devanagari-400-normal.woff2','/vendor/paper-fonts/noto-sans-telugu-telugu-400-normal.woff2']){
+    const asset=await read(path);assert.equal(asset.status,200);checks.push(path+' loads');
   }
   for(const concurrency of [5,10,20])await runGroup('dashboard-'+concurrency,40,concurrency,async()=>{
     const res=await read('/');assert.equal(res.status,200);assert(res.body.includes('Extract text from anything'));return res.status;

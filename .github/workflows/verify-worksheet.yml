@@ -28,6 +28,10 @@ on:
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
       - 'tests/multilingual-text-engine.cjs'
+      - 'tests/export-stability.cjs'
+      - 'tests/scan-restore-stability.cjs'
+      - 'frontend/vendor/scan-checkpoints.js'
+      - 'tests/scan-checkpoints.cjs'
       - 'tests/exact-word-text.cjs'
       - 'tests/mixed-language-suggestions.cjs'
       - 'worker/src/paper-layout-rules.js'
@@ -47,6 +51,8 @@ jobs:
           node-version: '22'
       - name: Install frontend test dependencies
         run: npm ci --prefix frontend --ignore-scripts
+      - name: Check known dependency vulnerabilities
+        run: npm audit --prefix frontend --audit-level=high
       - name: Validate preview and Word XML
         run: |
           node tests/worksheet-layout.cjs
@@ -63,6 +69,9 @@ jobs:
           node tests/online-picture-word.cjs
           node tests/mixed-language-suggestions.cjs
           node tests/multilingual-text-engine.cjs
+          node tests/export-stability.cjs
+          node tests/scan-restore-stability.cjs
+          node tests/scan-checkpoints.cjs
           node tests/strict-section-layout.cjs
       - name: Check Worker JavaScript
         run: |

@@ -56,6 +56,8 @@ jobs:
           node tests/score-row-contract.cjs
           node tests/exact-word-text.cjs
           node tests/multilingual-text-engine.cjs
+          node tests/export-stability.cjs
+          node tests/scan-restore-stability.cjs
           node tests/mixed-language-suggestions.cjs
           node tests/clean-question-paper.cjs
           node tests/clean-exam-content.cjs
@@ -77,6 +79,12 @@ jobs:
 
       - name: Stage frontend document assets
         run: node .github/scripts/build-pages.cjs
+
+      - name: Install browser for mobile and desktop checks
+        run: node frontend/node_modules/playwright/cli.js install --with-deps --only-shell chromium
+
+      - name: Verify browser PDF reading, pictures, editing and Word download
+        run: node .github/scripts/browser-smoke.cjs
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

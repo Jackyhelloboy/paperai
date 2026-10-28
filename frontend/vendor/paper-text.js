@@ -140,8 +140,23 @@
                 while(from<b){let to=from+1;while(to<b&&spans[to].leaf===spans[from].leaf)to++;
                     patches.push({start:spans[from].start,end:spans[to-1].end,text:from===a?replacement:''});from=to;
                 }
-            }else if(a<spans.length){patches.push({start:spans[a].start,end:spans[a].start,text:replacement+' '});}
-            else if(spans.length){const end=spans[spans.length-1].end;patches.push({start:end,end,text:' '+replacement});}
+            }else if(a<spans.length){
+                const previous=a>0?spans[a-1]:null,next=spans[a];
+                const leftGap=c>0?edited.slice(newWords[c-1].end,newWords[c].start):'';
+                const rightGap=d<newWords.length?edited.slice(newWords[d-1].end,newWords[d].start):'';
+                const boundary=gap=>/[|\n\t]| {2,}/.test(gap);
+                // At a row/cell boundary, source token order alone is not
+                // enough: an insertion before the separator belongs to the
+                // PREVIOUS question, not the next token's question.
+                if(previous&&previous.leaf!==next.leaf){
+                    if(boundary(rightGap)&&!boundary(leftGap)){
+                        patches.push({start:previous.end,end:previous.end,text:edited.slice(newWords[c-1].end,newWords[d-1].end)});
+                    }else if(boundary(leftGap)&&!boundary(rightGap)){
+                        patches.push({start:next.start,end:next.start,text:edited.slice(newWords[c].start,newWords[d].start)});
+                    }else return null;
+                }else patches.push({start:next.start,end:next.start,text:replacement+' '});
+            }
+            else if(spans.length){const end=spans[spans.length-1].end;patches.push({start:end,end,text:edited.slice(c>0?newWords[c-1].end:0,newWords[d-1].end)});}
             else return null;
         }
         patches.sort((a,b)=>b.start-a.start);

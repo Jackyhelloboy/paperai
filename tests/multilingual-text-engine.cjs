@@ -12,6 +12,9 @@ const before=words.join(' '),after=before.replace('शब्द0 ','नया0 '
 const layout='[[MATCH_ROW: '+words.slice(0,800).join(' ')+' || '+words.slice(800).join(' ')+']]';
 const expected=layout.replace('शब्द0 ','नया0 ').replace('शब्द1599','नया1599');
 for(const engine of [Text,browser.PaperAIText]){
+ assert.equal(engine.applyEdits('[[MATCH_ROW: घर || घर]]','घर | घर','घर नया | घर'),'[[MATCH_ROW: घर नया || घर]]','An insertion before the cell separator stays in the previous cell');
+ assert.equal(engine.applyEdits('पहला\nदूसरा','पहला\nदूसरा','पहला नया\nदूसरा'),'पहला नया\nदूसरा','An end-of-line insertion stays on its own question');
+ assert.equal(engine.applyEdits('पहला','पहला','पहला\nनया प्रश्न'),'पहला\nनया प्रश्न','An appended new question keeps its line break');
  assert.equal(engine.applyEdits(layout,before,after),expected,'Distant corrections must not collapse the second matching cell');
  const cases=[['लड़की','लड़के'],['పిల్లి','పిల్లులు'],['தமிழ்','தமிழில்'],['ಕನ್ನಡ','ಕನ್ನಡದಲ್ಲಿ'],['മലയാളം','മലയാളത്തിൽ'],['বাংলা','বাংলায়'],['ગુજરાતી','ગુજરાતીમાં'],['ਪੰਜਾਬੀ','ਪੰਜਾਬੀ ਵਿੱਚ'],['ଓଡ଼ିଆ','ଓଡ଼ିଆରେ'],['اردو','اردو زبان'],['क्‍ष','क्ष'],['👩🏽‍🏫','👨🏽‍🏫'],['日本語','日本語です'],['ภาษาไทย','ภาษาไทยค่ะ']];
  for(const [oldWord,newWord] of cases){
