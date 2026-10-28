@@ -20,3 +20,10 @@ Recreate question papers from uploaded PDFs without changing printed text or hid
 - Page crops do not exceed source page bounds or turn black-and-white printed text unreadable.
 
 This document is engineering guidance. Features require implementation, automated tests and deployment verification before describing them as available.
+
+## Strict school paper typography and page targets
+- All new editable Word exports use Tahoma exclusively, with 12 pt bold section headings, titles, labels and marks; all ordinary question content is 11 pt non-bold. Never silently insert a substitute display font in the document XML.
+- Ordinary class tests, unit tests, weekly and monthly examinations target **at most 2 A4 pages**. Half-yearly and annual/final examinations target **at most 4 A4 pages**. Recognize English and common Indian-language exam names.
+- Compact repeated matching pairs, multiple-choice answer options, small pictures and compatible short questions into side-by-side rows only if meaning, sequence, response spaces, bilingual text and question numbers remain clear.
+- A page budget is a hard validation target, never permission to omit, shrink text below 11 pt, clip, overlap, or move source text behind a picture. Page count depends on the actual Word renderer, source length, image dimensions and tables; if it cannot be verified to fit, report the exception and preserve all contents.
+- Verify page count with an actual DOCX renderer/PDF conversion in CI when available; XML-only tests cannot prove the final visual page count.
