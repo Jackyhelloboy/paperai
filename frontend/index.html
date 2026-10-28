@@ -5636,13 +5636,12 @@ function docxVisibleText(value) {
 
 let automaticPaperLayout = null;
 function paperLayoutOptions() {
-    if(automaticPaperLayout)return {...automaticPaperLayout};
-    const p=PaperAILayout.referenceFormats.compact;
-    return {compact:true,keepSourcePages:false,fontSize:p.body,pageNumbers:false,font:p.font,headingFont:p.headingFont,heading:p.heading,line:p.line,after:p.after*20,indent:p.indent,gridHeight:454,format:'compact'};
+    const p=automaticPaperLayout||PaperAILayout.referenceFormats.compact;
+    return {...p,compact:true,keepSourcePages:false,fontSize:11,pageNumbers:false,font:'Tahoma',headingFont:'Tahoma',heading:12,line:1.0,after:35,indent:150,gridHeight:350,format:'school-standard'};
 }
 function configureAutomaticPaper(text,nativeSource=false) {
     const detected=PaperAILayout.automaticFormat(text,nativeSource),p=detected.format;
-    automaticPaperLayout={compact:!nativeSource,keepSourcePages:Boolean(nativeSource),fontSize:p.body,pageNumbers:false,font:p.font,headingFont:p.headingFont,heading:p.heading,line:p.line,after:p.after*20,indent:p.indent,gridHeight:454,format:detected.name};
+    automaticPaperLayout={compact:true,keepSourcePages:false,fontSize:11,pageNumbers:false,font:'Tahoma',headingFont:'Tahoma',heading:12,line:1.0,after:35,indent:150,gridHeight:350,format:detected.name};
 }
 function invalidateOriginalWord() {
     if(lastResult){lastResult.native_docx_file=null;lastResult.native_pdf_pages=null;lastResult.native_pdf_preview=null;}
@@ -5675,9 +5674,9 @@ function docxRun(text, options = {}) {
         const found=scripts.find(([pattern])=>pattern.test(text));
         if(found){scriptFont=found[1];language=found[2];}
     }
-    const family=xmlEscape(scriptFont||(options.monospace?'Courier New':options.font||paperLayoutOptions().font));
+    const family='Tahoma';
     const bold = options.bold ? '<w:b/><w:bCs/>' : '';
-    const size = Math.round(options.actualSize||Number(options.size || PaperAILayout.profile.bodySize)*paperLayoutOptions().fontSize/12);
+    const size = options.bold ? 24 : 22;
     const preserve = /^\s|\s$|\s{2,}/.test(String(text || '')) ? ' xml:space="preserve"' : '';
     return '<w:r><w:rPr>' +
         '<w:rFonts w:ascii="'+family+'" w:hAnsi="'+family+'" w:eastAsia="'+family+'" w:cs="'+family+'"/>' +
@@ -5799,7 +5798,7 @@ function docxSectionRow(title,marks,bold=true) {
     if(activeDocxEditingMode!=='source'){
         // A right-aligned tab replaces the invisible two-cell Word table. The
         // question wording and score are ordinary editable paragraph runs.
-        const size=bold?26:24,font=bold?paperLayoutOptions().headingFont:paperLayoutOptions().font;
+        const size=bold?24:22,font='Tahoma';
         return '<w:p><w:pPr><w:keepNext/><w:keepLines/><w:tabs><w:tab w:val="right" w:pos="10466"/></w:tabs>'+ 
             '<w:spacing w:before="120" w:after="80"/></w:pPr>'+docxRun(title,{bold,size,font})+
             '<w:r><w:tab/></w:r>'+docxRun(marks,{bold,size,font})+'</w:p>';
@@ -6130,7 +6129,7 @@ function buildDocxBody(structuredText) {
 }
 
 function docxStylesXml() {
-    const layout=paperLayoutOptions(),family=xmlEscape(layout.font),cs=layout.font==='Noto Sans Telugu'?'Noto Sans Telugu':'Noto Sans Devanagari';
+    const layout=paperLayoutOptions(),family='Tahoma',cs='Tahoma';
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
       '<w:docDefaults><w:rPrDefault><w:rPr>' +
