@@ -17,7 +17,6 @@ backend/*.log
 # Frontend
 frontend/node_modules/
 build/cloudflare-pages/
-build/unlimited-ocr-evaluation/
 
 # Misc
 *.log
