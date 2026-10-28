@@ -6,6 +6,8 @@ Live application: https://paperai-5up.pages.dev/
 
 ## Current architecture
 
+An optional [Unlimited OCR 2 evaluation workflow](docs/UNLIMITED_OCR_2_EVALUATION.md) can compare Baidu's whole-document cloud parser with repository test papers after its separate credentials are configured. It is evaluation-only; the production Cloudflare/Gemini engine is not replaced automatically.
+
 | Component | Location | Deployment |
 |---|---|---|
 | Dashboard, document readers, preview and Word export | `frontend/` | Cloudflare Pages |
