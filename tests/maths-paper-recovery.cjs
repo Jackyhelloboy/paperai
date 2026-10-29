@@ -4,6 +4,7 @@ vm.runInContext(fs.readFileSync('worker/src/paper-layout-rules.js','utf8').repla
 const bad='[[SOURCE_FIGURE_ROW: a|1.|none ||\n[[SOURCE_FIGURE: b|2.|none]]\n[[SECTION_ROW: IV. What comes after || 5x1=5]] 1. 2,3 ____\n[[SECTION_ROW: V. Arrange || 2x1=2]]\n1. 3,13,18,6 = ____';
 for(const normalize of [L.normalise,ctx.normaliseMarkerRows]){
  const fixed=normalize(bad);assert(fixed.includes('IV. What comes after'));assert(fixed.includes('V. Arrange'));assert.equal((fixed.match(/\[\[/g)||[]).length,(fixed.match(/\]\]/g)||[]).length);
+ assert(normalize('[[COUNT_OBJECTS: Stars, 6 | 1 | BOX | 10.2,20.1,100.4,50.3]]').includes('star,6|1.|box|10,20,101,51'));
  const grid=normalize('I. Write the numbers from 1-50\nII. Count and write');assert(grid.includes('[[GRID: 10x5]]'));assert.equal(normalize(grid),grid);
  const table=normalize('II. Express the numbers as tens and ones\nNumber || Tens || ones\n4 || ||\n12 || ||\n16 || ||');assert(table.includes('[[TABLE_ROW: 4 ||  || ]]'));
 }

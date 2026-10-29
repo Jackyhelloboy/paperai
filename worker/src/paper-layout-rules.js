@@ -318,6 +318,21 @@ export function cleanQuestionPaper(value, depth=0) {
     function frameLayoutMarkers(value) {
         const block='SOURCE_FIGURE_ROW|SOURCE_FIGURE|SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|SOURCE_BANNER|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE|COUNT_OBJECTS|ABACUS';
         let text=String(value||'').replace(new RegExp('(?<!\\[)\\[('+block+'):', 'gi'),'[[$1:');
+        text=text.replace(/\[\[(COUNT_OBJECTS|ABACUS):\s*([^\]\n]+)\]\]/gi,(original,kind,body)=>{
+            const parts=body.split('|').map(s=>s.trim());if(parts.length!==4)return original;
+            let data=parts[0].replace(/\s*([,=])\s*/g,'$1');
+            if(kind.toUpperCase()==='COUNT_OBJECTS'){
+                const m=data.match(/^([a-z]+),(\d{1,2})$/i);if(!m)return original;
+                const aliases={grape:'grapes',apples:'apple',stars:'star',faces:'smiley',face:'smiley',smileys:'smiley',lollipops:'lollipop',kites:'kite',circles:'circle'};
+                data=(aliases[m[1].toLowerCase()]||m[1].toLowerCase())+','+m[2];
+            }
+            const raw=parts[3].split(',').map(Number);
+            if(raw.length!==4||raw.some(n=>!Number.isFinite(n)))return original;
+            const [x,y,w,h]=raw,xx=Math.floor(x),yy=Math.floor(y);
+            const bounds=[xx,yy,Math.ceil(x+w)-xx,Math.ceil(y+h)-yy];
+            const label=/^\d+[.)]?$/.test(parts[1])?parts[1].replace(/[.)]?$/,'.'):parts[1];
+            return '[['+kind.toUpperCase()+': '+data+'|'+label+'|'+parts[2].toLowerCase()+'|'+bounds.join(',')+']]';
+        });
         // Flatten legacy wrappers only where every nested token is a source cell.
         text=text.replace(/\[\[SOURCE_FIGURE_ROW:\s*((?:\[\[SOURCE_FIGURE:[\s\S]*?\]\]\s*(?:\|\|\s*)?)+)\]\]/gi,(_,body)=>'[[SOURCE_FIGURE_ROW: '+[...body.matchAll(/\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]/gi)].map(m=>m[1].trim()).join(' || ')+']]');
         const start=new RegExp('^\\s*\\[\\[(?:'+block+'):', 'i');
