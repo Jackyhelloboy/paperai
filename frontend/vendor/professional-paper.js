@@ -29,6 +29,7 @@
  function type(h){
   const s=h.body||h.title;
   if(/जोड़ी|मिलान|జతపరచ|జత చేయ|పోల్చ|பொருத்து|இணை|ಹೊಂದಿಸಿ|ಜೋಡಿಸಿ|ചേർക്കുക|യോജിപ്പിക്കുക|মেলাও|মেলান|જોડો|ਮਿਲਾਓ|ملا[ؤو]/u.test(s))return 'matching';
+  if(/\b(?:true|false|yes|no)\b|\b(?:write|mark|choose)\s+[TFYN]\b|\b(?:write|mark|choose)\s+(?:t\s*(?:or|\/)\s*f|y\s*(?:or|\/)\s*n)\b|सही.*गलत|हाँ.*नहीं|हां.*नहीं|అవును.*కాదు|ஆம்.*இல்லை|ಹೌದು.*ಇಲ್ಲ|അതെ.*അല്ല|হ্যাঁ.*না|ਹਾਂ.*ਨਹੀਂ|ہاں.*نہیں/iu.test(s))return 'boolean';
   if(/प्रश्नों? के उत्तर|प्रश्न.*उत्तर.*लिख|ప్రశ్నల.*జవాబ|ప్రశ్నల.*సమాధాన|வினாக்கள.*விடை|ಪ್ರಶ್ನೆ.*ಉತ್ತರ|ചോദ്യ.*ഉത്തര|প্রশ্ন.*উত্তর|પ્રશ્ન.*જવાબ|سوال.*جواب/u.test(s))return 'answer';
   if(/खाली स्थान|रिक्त स्थान|वचन|विलोम|अर्थ लिख|ఖాళీ.*పూరించ|ఖాళీ.*నింప|கோடிட்ட இட|விடுபட்ட இட|ಖಾಲಿ.*ತುಂಬ|ഒഴിഞ്ഞ.*പൂരിപ്പ|শূন্যস্থান|ખાલી જગ્યા|خالی جگہ/u.test(s))return 'completion';
   if(/సరైన.*ఎంచుకో|సరైన.*గుర్తించ|சரியான.*தேர்ந்தெடு|ಸರಿಯಾದ.*ಆಯ್ಕೆ|ശരിയായ.*തിരഞ്ഞെടു|সঠিক.*নির্বাচন|صحیح.*منتخب/u.test(s))return 'choice';
@@ -41,7 +42,6 @@
   if(/^(?:Answer\b(?!.*\b(?:adding|brackets|action words)\b)|Write\s+any\b.*\banswers?\b)/i.test(s))return 'answer';
   if(/^Rewrite\b|^Join\b.*\bsentences\b|^Change\b.*\bsentences\b/i.test(s))return 'rewrite';
   if(/\b(?:box|blanks?|complete|missing|unscramble|unjumble|opposites?|plural|prefix|nouns?|verbs?|adverbs?)\b/i.test(s))return 'completion';
-  if(/\b(?:true|false|yes|no)\b|\b(?:write|mark|choose)\s+[TFYN]\b|\b(?:write|mark|choose)\s+(?:t\s*(?:or|\/)\s*f|y\s*(?:or|\/)\s*n)\b|सही.*गलत|हाँ.*नहीं|हां.*नहीं|అవును.*కాదు|ஆம்.*இல்லை|ಹೌದು.*ಇಲ್ಲ|അതെ.*അല്ല|হ্যাঁ.*না|ਹਾਂ.*ਨਹੀਂ|ہاں.*نہیں/iu.test(s))return 'boolean';
   return 'plain';
  }
  const emitHeading=h=>'[[SECTION_ROW: '+h.title.replace(/\bTick\s*\([vV]\)/g,'Tick (✓)')+' || '+h.marks+']]';
@@ -70,7 +70,10 @@
    if(h){mode=type(h);lastRule=false;out.push(emitHeading(h));continue;}
    if(/PAPER_BREAK|^Class:/i.test(raw)){mode='';lastRule=false;}
    if(['answer','rewrite','choice','completion','festival','odd'].includes(mode)&&/^\s*\[\[TABLE_(?:REGION|WIDTHS):/i.test(raw))continue;
-   const answer=mode==='answer'||mode==='rewrite';
+   const answer=mode==='answer';
+   // Full-width response rules belong only to written Q&A bits. Inline
+   // fill-in blanks, brackets and actual exercise grids remain untouched.
+   if(!answer&&/^(?:\s*(?:A(?:ns(?:wer)?)?\s*:?\s*)?\[\[ANSWER_LINES:\s*\d+\]\]\s*|\s*[_─━—-]{8,}\s*)$/i.test(raw))continue;
    if(answer&&/^\s*(?:A(?:ns(?:wer)?)?\s*:?\s*)?\[unclear\]\s*$/i.test(raw)){
     // Only a standalone, explicitly positioned response can become an empty rule.
     // Unreadable words inside a question remain visible for review.
@@ -127,7 +130,7 @@
   const finishAnswer=()=>{if(pending&&!hasRule)spaced.push('[[ANSWER_LINES: 1]]');pending=false;hasRule=false;};
   for(const line of out){
    const h=heading(line),boundary=/PAPER_BREAK|^Class:/i.test(line);
-   if(h||boundary){finishAnswer();written=h&&['answer','rewrite'].includes(type(h));}
+   if(h||boundary){finishAnswer();written=h&&type(h)==='answer';}
    else if(written&&/^\s*\p{Nd}+[.)]?\s+\S/u.test(line)){finishAnswer();pending=true;}
    if(pending&&/ANSWER_LINES:|_{3,}/.test(line))hasRule=true;
    spaced.push(line);

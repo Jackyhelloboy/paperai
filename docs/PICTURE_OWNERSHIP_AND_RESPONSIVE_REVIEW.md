@@ -16,3 +16,9 @@ The supplied Class 1 Hindi teacher reference establishes five picture/letter pro
 57 automated regression files pass. Real Chromium checks cover 320, 390, 768 and 1280px widths: five numbered pictures, their own Hindi prompts, live edits before Save, Undo/Redo, zoom/fit, internal scrolling, button bounds, Word download and all 12 reference PDF pages. AI responses are stubbed in browser checks. Production deployment separately runs existing configured Gemini and synthetic OCR checks.
 
 The teacher reference Word file was separately corrected and rendered as two A4 pages with 5/3/4 complete exercise illustrations and separately spaced number/option groups. This single sample does not establish universal two-page fitting. Different Word/document viewers may still substitute fonts; no claim of identical rendering in every viewer is made. OCR can still misread a crop or label; geometry cannot recover text/images that the reader failed to extract.
+
+## Compact answer lines and actions
+
+Full-width response rules are limited to written Q&A bits. Completion, opposites, gender changes, matching, sentence usage, rewrite and yes/no bits no longer retain these rules. Inline blanks, brackets, source words and visible exercise grids remain intact. Boolean instructions are classified before broad answer instructions so “Answer yes or no” cannot acquire descriptive response lines.
+
+The Find pictures action and its search/upload panel are removed from the teacher interface. Source pictures and automatic reviewed defaults remain supported. Download Word, Teach / Edit and Clear data use a single three-column row, checked at 320, 390, 768 and 1280px without label clipping or horizontal page overflow. Undo/Redo remain in Teach. The regression suite now has 58 passing files.

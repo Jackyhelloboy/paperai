@@ -1721,7 +1721,9 @@
 
         /* One responsive workspace: document geometry stays independent of UI. */
         label[for="wordEditMode"] {display:none!important;}
-        .results-actions {grid-template-columns:repeat(2,minmax(0,1fr));}
+        .results-actions {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+        .results-actions .action-btn {width:100%;min-width:0;font-size:clamp(.72rem,2.6vw,.875rem);padding:8px 5px;line-height:1.25;}
+        #picturePanel {display:none!important;}
         .preview-controls {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:.8rem;color:var(--text2);}
         .preview-controls button {min-height:44px;padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);font:inherit;color:var(--text);cursor:pointer;}
         .review-workspace {min-width:0;}
@@ -1868,7 +1870,6 @@
                     Download Word
                 </button>
                 <button class="action-btn" type="button" onclick="openTeachPanel()">Teach / Edit</button>
-                <button class="action-btn" type="button" onclick="openPicturePanel()">Find pictures</button>
                 <button class="action-btn" type="button" onclick="clearPaperData()" title="Clear the current paper and locally saved scan pages.">Clear data</button>
             </div>
 
@@ -1879,26 +1880,6 @@
                 <div class="teach-sub">AI checks text, section markers, marks and grid instructions. It cannot measure actual Word line wrapping or confirm missing scanned words. Compare every source page and use Word's Print Preview before printing.</div>
             </div>
             <div class="teach-sub simplified-hidden" id="aiLayoutStatus" role="status" aria-live="polite" style="display:none;padding:8px 10px">AI layout is ready to check this paper.</div>
-
-            <div class="teach-panel" id="picturePanel" aria-label="Question picture editor">
-                <div class="teach-title">Pictures in this question paper</div>
-                <div class="teach-sub">Search for a clear picture, review it, then insert it beside the right question. Choose an existing picture below to replace it. Pictures are embedded in Word so they work offline.</div>
-                <div id="paperPictureGallery" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0"></div>
-                <label for="pictureQuestion">Add after a line, or replace a picture</label>
-                <select id="pictureQuestion" style="display:block;width:100%;max-width:100%;margin:6px 0 12px;padding:10px"></select>
-                <label for="picturePrompt">What picture do you need?</label>
-                <textarea id="picturePrompt" rows="2" maxlength="80" style="display:block;width:100%;margin:6px 0 12px;padding:10px;resize:vertical" placeholder="Examples: duck, mango, water tap, सेब, मछली"></textarea>
-                <button class="action-btn" id="searchPicturesBtn" type="button" onclick="searchQuestionPictures()">Search online pictures</button>
-                <div class="teach-sub" style="margin-top:8px">Public-domain and CC0 pictures from Wikimedia Commons. Only the picture subject is sent to search. Check that the picture suits the question and the children.</div>
-                <div id="pictureSearchResults" class="picture-search-results" aria-label="Online picture choices"></div>
-                <input id="pictureUpload" type="file" accept="image/png,image/jpeg,image/webp" style="max-width:100%;margin-bottom:10px"/>
-                <div class="teach-actions">
-                    <button class="action-btn" type="button" onclick="addUploadedQuestionPicture()">Insert uploaded picture</button>
-                    <button class="action-btn teach-ai-btn simplified-hidden" id="generatePictureBtn" type="button" onclick="generateQuestionPicture()">✦ Generate AI picture</button>
-                    <button class="action-btn" type="button" onclick="closePicturePanel()">Done</button>
-                </div>
-                <div id="pictureStatus" role="status" aria-live="polite" style="margin-top:10px"></div>
-            </div>
 
             <div class="review-workspace">
             <div class="teach-panel" id="teachPanel">
@@ -6332,43 +6313,9 @@ async function materializeDefaultPictureNotes(text) {
     }));
     let i=0;return value.replace(/\[\[DEFAULT_PICTURE_ROW:\s*([^\]\n]+)\]\]/g,()=>rows[i++]);
 }
-function pictureStatus(message){$('pictureStatus').textContent=message;}
-function closePicturePanel(){$('picturePanel').classList.remove('show');}
-function openPicturePanel(){
-    if(!lastResult)return;
-    if($('teachPanel').classList.contains('show')){
-        pictureStatus('Save or cancel your text corrections before inserting a picture.');
-        showErr('Save or cancel text corrections before inserting a picture.');
-        return;
-    }
-    $('picturePanel').classList.add('show');
-    const lines=String(lastResult.text||'').split('\n');
-    const select=$('pictureQuestion');select.replaceChildren();
-    for(const asset of extractedMedia){
-        if(asset.role==='banner'||!String(lastResult.text).includes(asset.id+'|'))continue;
-        const option=document.createElement('option');option.value='asset:'+asset.id;
-        option.textContent='Replace picture: '+(asset.webSource?.label||asset.defaultIllustration||'picture '+(select.options.length+1));
-        select.appendChild(option);
-    }
-    lines.forEach((line,index)=>{
-        if(!line.trim()||/^\[\[(?:SOURCE_FIGURE|SOURCE_BANNER|PAGE_BREAK)/i.test(line.trim()))return;
-        const label=portableText(docxVisibleText(line)).replace(/<br\s*\/?>/gi,' · ').replace(/\s+/g,' ').trim();
-        if(!label)return;
-        const option=document.createElement('option');option.value=String(index);
-        option.textContent='Line '+(index+1)+': '+label.slice(0,95);
-        select.appendChild(option);
-    });
-    if(!select.options.length)pictureStatus('No question lines available yet.');
-    else pictureStatus('Choose where the picture belongs, then search or upload.');
-    const gallery=$('paperPictureGallery');gallery.replaceChildren();
-    for(const asset of extractedMedia){
-        if(!asset.dataUrl||asset.role==='banner'||!String(lastResult.text).includes(asset.id+'|'))continue;
-        const item=document.createElement('div');item.style.cssText='width:110px;font-size:11px;overflow-wrap:anywhere';
-        const img=document.createElement('img');img.src=asset.dataUrl;img.alt=asset.webSource?.label||(asset.generated?'AI-generated illustration':'Original PDF illustration');img.style.cssText='width:100%;height:85px;object-fit:contain;border:1px solid #ddd;border-radius:6px';
-        const label=document.createElement('div');label.textContent=asset.webSource?'Online · '+asset.webSource.license:asset.generated?'AI generated':'From source / uploaded';
-        item.append(img,label);gallery.append(item);
-    }
-}
+function pictureStatus(message){const status=$('pictureStatus');if(status)status.textContent=message;}
+function closePicturePanel() {}
+function openPicturePanel() { return; }
 async function prepareQuestionPicture(imageBlob,{generated=false,webSource=null,widthTwips=2600}={}){
     if(imageBlob.size>8*1024*1024)throw new Error('Pictures must be smaller than 8 MB.');
     const source=await decodeImageSource(imageBlob);

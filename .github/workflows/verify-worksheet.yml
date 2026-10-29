@@ -61,6 +61,7 @@ jobs:
           node tests/figure-text-crops.cjs
           node tests/image-grid-width.cjs
           node tests/picture-caption-ownership.cjs
+          node tests/answer-rule-scope.cjs
           node tests/image-crop-evidence.cjs
           node tests/simplified-results-ui.cjs
           node tests/picture-search.cjs

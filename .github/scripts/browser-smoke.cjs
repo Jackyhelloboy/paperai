@@ -30,6 +30,8 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
     return route.continue();
    });
    await page.goto(base,{waitUntil:'load'});
+   assert.equal(await page.getByRole('button',{name:'Find pictures',exact:true}).count(),0);
+
    assert(!(await page.locator('meta[name=viewport]').getAttribute('content')).includes('user-scalable=no'),'Teachers must be able to zoom a paper on phones');
    const fonts=await page.evaluate(async()=>{
     const samples=[['Noto Sans Devanagari','शब्द'],['Noto Sans Telugu','పిల్లి'],['Noto Sans Tamil','தமிழ்'],['Noto Sans Kannada','ಕನ್ನಡ'],['Noto Sans Malayalam','മലയാളം'],['Noto Sans Bengali','বাংলা'],['Noto Sans Gujarati','ગુજરાતી'],['Noto Sans Gurmukhi','ਪੰਜਾਬੀ'],['Noto Sans Oriya','ଓଡ଼ିଆ'],['Noto Naskh Arabic','اردو']];
@@ -72,6 +74,8 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
    const file=await(await download).path(),zip=await JSZip.loadAsync(fs.readFileSync(file));
    const xml=await zip.file('word/document.xml').async('text');
    assert(xml.includes('मेरा घर'));assert.equal((xml.match(/<wp:inline /g)||[]).length,5);assert(!xml.includes('<w:tbl>')&&!xml.includes('needs review'));
+   const actionRows=await page.locator('.results-actions button').evaluateAll(items=>items.map(item=>Math.round(item.getBoundingClientRect().top)));
+   assert.equal(new Set(actionRows).size,1,'Download, Teach and Clear must share one row');
    const clipped=await page.locator('button:visible').evaluateAll(buttons=>buttons.filter(button=>{const box=button.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(button);const text=range.getBoundingClientRect();return text.width>0&&(text.left<box.left-1||text.right>box.right+1||text.top<box.top-2||text.bottom>box.bottom+2);}).map(button=>button.textContent.trim()));
    assert.deepEqual(clipped,[],'Visible button labels must stay inside their buttons');
    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);assert(!overflow,'Mobile/desktop page must not overflow horizontally');
