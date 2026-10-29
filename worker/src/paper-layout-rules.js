@@ -23,6 +23,10 @@ REFERENCE QUESTION-PAPER LAYOUT RULES (version 9, reviewed against scanned multi
 - In counting exercises, all repeated drawings belonging to ONE numbered problem form ONE crop. Keep every object and its strokes inside that crop. Preserve the original vertical question rows; do not turn each repeated object into a new question or supply its count. Keep the separately written equals sign and blank answer rule as editable text outside the crop.
 - Keep internal diagram labels, abacus rods/beads and number-strip ticks inside their illustration crop. Do not transcribe those same labels again as external captions or crop only one fragment of the diagram.
 - Written requests such as 'tiger pic' with NO actual illustration still use PICTURE markers; these are unfulfilled author instructions, not original picture assets. The exporter flags them for review. Bundled training placeholder images are not verified original illustrations; do not substitute them for arbitrary animals/plants or invent default pictures. Only use an exact teacher-supplied asset when an explicit picture request identifies it unambiguously.
+- Counting exercises: one question's complete repeated-object group is ONE unit, never crop only one object or neighbouring notebook rows. Count separate grapes BUNCHES, apples, faces, lollipops, stars or kites from pixels; do not print the numerical answer. For an unambiguous group use [[COUNT_OBJECTS: grapes,5|1.|box|x,y,w,h]] (supported kinds grapes,apple,smiley,lollipop,star,kite,circle; 1..30 objects). The bounding box MUST include the COMPLETE group as a fallback. Source number and visible answer space belong to that group. Never infer counts from marks. These markers request clean Word illustrations while retaining the original mathematical quantity.
+- A simple observed abacus may use [[ABACUS: T=1,O=3|1.|box|x,y,w,h]] with every source rod in physical order (labels Th,H,T,O only; 0..9 beads each), complete original bounding box and its visible answer box. Do not calculate or print the represented number. If a rod label, bead count or object identity is uncertain, emit a complete FIGURE crop instead. An independent pixel reread must confirm quantities before replacing scanned drawings.
+- For empty numeric writing grids, preserve all visible cells. Write numbers from 1-50 requires fifty EMPTY spaces, never the solved number sequence. Preserve printed number strips including zero as GRID_ROW cells, and tens/ones tables with all empty cells intact.
+- Every block marker starts on its own line and must close before another section, image group or class header starts. Never wrap SOURCE_FIGURE markers inside SOURCE_FIGURE_ROW; runtime source IDs are reserved for the website. Return FIGURE coordinates from OCR.
 - Basic circle/square/rectangle/triangle/cube outlines are SHAPE_ROW and stay editable shapes. Specify the observed answer space per shape: [[SHAPE_ROW: circle|none || square|box || triangle|line]]. none means no answer space, box means a visible blank box, line means a visible answer rule. Do not add a box merely because the question asks to name the shape. Complex shapes, shaded fractional shapes, cones and labelled geometrical diagrams use FIGURE crops instead of guessed geometry.
 - When a table has a picture beside it, emit [[TABLE_REGION: x,y,width,height]] immediately before the table using the same normalized page coordinates as FIGURE. Emit the adjacent FIGURE immediately after the last TABLE_ROW, preserving its exact bounds. The exporter keeps this observed side-by-side composition; do not move the figure to a new row. Do not invent table bounds when uncertain.
 - Bordered tables use TABLE_ROW for every row, including empty first/last cells. Preserve multiline cell contents with the explicit <br> separator, NOT extra rows. Use TABLE_WIDTHS: percentages separated by commas on a preceding marker line ONLY if the visible column proportions are clear.
@@ -311,10 +315,61 @@ export function cleanQuestionPaper(value, depth=0) {
         return out.join('\n');
     }
 
+    function frameLayoutMarkers(value) {
+        const block='SOURCE_FIGURE_ROW|SOURCE_FIGURE|SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|SOURCE_BANNER|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE|COUNT_OBJECTS|ABACUS';
+        let text=String(value||'').replace(new RegExp('(?<!\\[)\\[('+block+'):', 'gi'),'[[$1:');
+        // Flatten legacy wrappers only where every nested token is a source cell.
+        text=text.replace(/\[\[SOURCE_FIGURE_ROW:\s*((?:\[\[SOURCE_FIGURE:[\s\S]*?\]\]\s*(?:\|\|\s*)?)+)\]\]/gi,(_,body)=>'[[SOURCE_FIGURE_ROW: '+[...body.matchAll(/\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]/gi)].map(m=>m[1].trim()).join(' || ')+']]');
+        const start=new RegExp('^\\s*\\[\\[(?:'+block+'):', 'i');
+        const out=[];let depth=0;
+        for(const line of text.split('\n')){
+            if(depth>0&&(start.test(line)||/^\s*(?:Class|Subject)\s*:/i.test(line))){out[out.length-1]=out[out.length-1].replace(/\s*\|\|\s*$/,'')+']]'.repeat(depth);depth=0;}
+            out.push(line);depth=Math.max(0,depth+(line.match(/\[\[/g)||[]).length-(line.match(/\]\]/g)||[]).length);
+        }
+        return out.join('\n');
+    }
+    function mathsWritingRows(value) {
+        const lines=String(value||'').split('\n'),out=[];let placeValue=false;
+        for(let i=0;i<lines.length;i++){
+            const line=lines[i];
+            if(/(?:SECTION_ROW:|^\s*[IVX]+[.)]?\s)/i.test(line))placeValue=/tens\s+and\s+ones/i.test(line);
+            if(placeValue&&!line.includes('[[')&&line.includes('||')){
+                const cells=line.split(/\s*\|\|\s*/);if(cells.length===3){out.push('[[TABLE_ROW: '+cells.join(' || ')+']]');continue;}
+            }
+            const strip=line.trim().split(/\s*\|{1,2}\s*/);
+            if(!line.includes('[[')&&strip.length>=5&&strip.length<=52&&strip.every(c=>/^\d{1,3}$/.test(c))){out.push('[[GRID_ROW: '+strip.join(' || ')+']]');continue;}
+            out.push(line);
+            const range=line.match(/\bwrite\s+(?:the\s+)?numbers?\s+from\s+(\d{1,3})\s*(?:-|–|to)\s*(\d{1,3})\b/i);
+            if(range&&!/\b(?:words?|names?)\b/i.test(line)){
+                const count=Number(range[2])-Number(range[1])+1;
+                let next=i+1;while(next<lines.length&&!/(?:SECTION_ROW:|^\s*[IVX]+[.)]?\s)/i.test(lines[next]))next++;
+                if(count>=1&&count<=100&&!/\[\[(?:GRID|TABLE_ROW|FIGURE)/i.test(lines.slice(i+1,next).join('\n'))){
+                    if(count%10===0)out.push('[[GRID: 10x'+count/10+']]');
+                    else if(count<=10)out.push('[[GRID: '+count+'x1]]');
+                }
+            }
+        }
+        return out.join('\n');
+    }
+    function mathsFigure(kind,body) {
+        const [data,label='',answer='none',bounds='']=String(body||'').split('|').map(s=>s.trim());
+        if(!/^(?:\d+[.)]?)?$/.test(label)||!['box','none'].includes(answer))return null;
+        const coords=bounds?bounds.split(',').map(Number):[];
+        const region=coords.length===4&&coords.every(Number.isInteger)&&coords[0]>=0&&coords[1]>=0&&coords[2]>0&&coords[3]>0&&coords[0]+coords[2]<=1000&&coords[1]+coords[3]<=1000?{x:coords[0],y:coords[1],w:coords[2],h:coords[3]}:null;
+        if(bounds&&!region)return null;
+        if(kind==='COUNT_OBJECTS'){
+            const m=data.match(/^(grapes|apple|smiley|lollipop|star|kite|circle),(\d{1,2})$/i);
+            return m&&Number(m[2])>=1&&Number(m[2])<=30?{kind,object:m[1].toLowerCase(),count:Number(m[2]),label,answer:answer==='box',region}:null;
+        }
+        const rods=data.split(',').map(token=>token.match(/^(Th|H|T|O)=(\d)$/));
+        if(!rods.length||rods.length>4||rods.some(r=>!r)||new Set(rods.map(r=>r[1])).size!==rods.length)return null;
+        return {kind,rods:rods.map(r=>({label:r[1],count:Number(r[2])})),label,answer:answer==='box',region};
+    }
+
 export function normaliseMarkerRows(text) {
-    text=alphabetWritingBoxes(nativePipeRows(pipeTableRows(cleanQuestionPaper(text))));
+    text=alphabetWritingBoxes(nativePipeRows(pipeTableRows(mathsWritingRows(cleanQuestionPaper(frameLayoutMarkers(text))))));
     text=text.replace(/\[\[GRID:\s*(\d{1,2})\s*[x×]\s*(\d{1,2})\s*(?:\|\s*(?:\|\s*)?(?:none|box))?\s*\]\](?:[ \t]+(?:none|box)(?=[ \t]*(?:\n|$)))?/gi,(_,columns,rows)=>'[[GRID: '+columns+'x'+rows+']]');
-    const names='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
+    const names='COUNT_OBJECTS|ABACUS|SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
     const bare=new RegExp('^\\s*('+names+'):\\s*(.*?)\\s*$','i');
     text=String(text||'').replace(/\[\[REPLACE:\s*([^\[\]]*?)\s*\|\|\s*([^\[\]]*?)\]\]/gi,(_,oldText,newText)=>'[[REPLACE: '+oldText.trim()+' -> '+newText.trim()+']]');
     const joined=[];let depth=0;

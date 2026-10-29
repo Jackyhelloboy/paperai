@@ -1756,6 +1756,9 @@
             .output-body {padding:12px;}
             .preview-controls {flex-wrap:wrap;}
         }
+        .maths-exercise {display:flex;align-items:center;gap:.8em;margin:.5em 0;break-inside:avoid;max-width:100%;}
+        .maths-count-items {display:flex;gap:.35em;flex-wrap:wrap;max-width:75%;}
+        .maths-answer-box {display:inline-block;width:2.2em;height:1.5em;border:1px solid currentColor;flex-shrink:0;}
     </style>
 </head>
 <body>
@@ -4774,6 +4777,7 @@ function portableText(value) {
     let out = PaperAILayout.unwrapEmphasis(value);
 
     out = out
+        .replace(/\[\[(?:COUNT_OBJECTS|ABACUS):[^\]\n]+\]\]/gi,'[illustration]')
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,32).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
         .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER|SOURCE_PAGE):[\s\S]*?\]\]/gi,'')
         .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
@@ -5093,6 +5097,8 @@ function worksheetRenderTable(rows, widths=null, header=false) {
 }
 function formatStructuredWorksheetLine(line, columnWidths=null, imageColumns=5) {
     const source = String(line || '').trim();
+    const maths=source.match(/^\[\[(COUNT_OBJECTS|ABACUS):\s*([\s\S]*?)\]\]$/i);
+    if(maths)return mathsFigureHtml(maths[1].toUpperCase(),maths[2]);
     const qa=source.match(/^\[\[QA_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
     if(qa)return '<div class="ocr-qa-row"><span>'+formatOutputLine(qa[1].trim())+'</span><span>'+formatOutputLine(qa[2].trim())+'</span></div>';
     const figure=source.match(/^\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]$/i);
@@ -5171,6 +5177,7 @@ function formatOutput(text) {
     if(lastResult?.native_pdf_preview&&text===lastResult.native_pdf_text&&paperLayoutOptions().keepSourcePages)return lastResult.native_pdf_preview;
 
     const visualText=PaperAILayout.presentationRows(packSourceFigureRows(PaperAILayout.normalise(repairLegacyBranchDiagram(String(text)))),layoutTypeHints());
+    if(PaperAILayout.brokenLayout(visualText))return '<div role="alert" class="paper-layout-warning">This page has incomplete formatting. Reopen the PDF and retry the affected page before printing.</div>';
     const lines = PaperAILayout.compactPages(visualText,paperLayoutOptions().keepSourcePages).split('\n');
     const firstNonEmptyIndex = lines.findIndex(line => line.trim().length > 0);
     let html = '';
@@ -5648,6 +5655,66 @@ function currentExportText(){
     return currentPlainText();
 }
 
+function mathsObjectAsset(kind) {return {apple:'apple',grapes:'grapes',kite:'kite'}[kind]||null;}
+function mathsDiagramPaths(info) {
+    const paths=[];
+    const line=(x,y,x2,y2)=>paths.push('M '+x+' '+y+' L '+x2+' '+y2);
+    const circle=(x,y,r)=>paths.push('M '+(x+r)+' '+y+' A '+r+' '+r+' 0 1 0 '+(x-r)+' '+y+' A '+r+' '+r+' 0 1 0 '+(x+r)+' '+y);
+    if(info.kind==='ABACUS'){
+        info.rods.forEach((rod,i)=>{const x=150+i*300;line(x,40,x,600);line(x-110,600,x+110,600);for(let n=0;n<rod.count;n++)circle(x,570-n*55,25);});
+        return {paths,width:info.rods.length*300,height:640};
+    }
+    line(500,460,500,950);circle(500,280,210);circle(500,280,120);
+    return {paths,width:1000,height:1000};
+}
+function mathsShapeSvg(kind) {
+    if(kind==='star')return '<polygon points="50,3 61,36 97,36 68,57 79,92 50,71 21,92 32,57 3,36 39,36"/>';
+    if(kind==='smiley')return '<circle cx="50" cy="50" r="43"/><circle cx="35" cy="38" r="3"/><circle cx="65" cy="38" r="3"/><path d="M27 59 Q50 86 73 59"/>';
+    if(kind==='circle')return '<circle cx="50" cy="50" r="43"/>';
+    return '<circle cx="50" cy="28" r="22"/><circle cx="50" cy="28" r="12"/><path d="M50 50V96"/>';
+}
+function mathsFigureHtml(kind,body) {
+    const info=PaperAILayout.mathsFigure(kind,body);if(!info)return '<div role="alert" class="paper-layout-warning">This maths diagram needs a fresh reading from the source PDF.</div>';
+    if(kind==='ABACUS'){
+        const diagram=mathsDiagramPaths(info);
+        return '<div class="maths-exercise"><span>'+esc(info.label)+'</span><div><svg role="img" aria-label="Source abacus diagram" viewBox="0 0 '+diagram.width+' '+diagram.height+'" style="width:'+info.rods.length*3.2+'em;height:7em;max-width:100%" fill="none" stroke="currentColor" stroke-width="10"><path d="'+diagram.paths.join(' ')+'"/></svg><div style="display:flex;justify-content:space-around">'+info.rods.map(r=>'<span>'+esc(r.label)+'</span>').join('')+'</div></div>'+(info.answer?'<span class="maths-answer-box"></span>':'')+'</div>';
+    }
+    const asset=mathsObjectAsset(info.object);
+    const object=asset?'<img src="/images/worksheet-reviewed/'+asset+'.png" alt="'+esc(info.object)+'" style="width:1.8em;height:1.8em;object-fit:contain">':'<svg role="img" aria-label="'+esc(info.object)+'" viewBox="0 0 100 100" style="width:1.8em;height:1.8em" fill="none" stroke="currentColor" stroke-width="3">'+mathsShapeSvg(info.object)+'</svg>';
+    return '<div class="maths-exercise"><span>'+esc(info.label)+'</span><span class="maths-count-items">'+object.repeat(info.count)+'</span><span>=</span><span class="maths-answer-box"></span></div>';
+}
+function docxMathShape(info,size=430) {
+    const id=++docxPictureCounter,isAbacus=info.kind==='ABACUS';
+    const diagram=(isAbacus||info.object==='lollipop')?mathsDiagramPaths(info):null;
+    const w=isAbacus?Math.min(2600,info.rods.length*700):info.object==='answer-box'?650:size,h=isAbacus?1700:info.object==='answer-box'?350:size,cx=w*635,cy=h*635;
+    let geometry;
+    if(diagram){
+        const commands=diagram.paths.map(path=>{
+            const tokens=path.split(' ');let out='';
+            for(let i=0;i<tokens.length;){const cmd=tokens[i++];
+                if(cmd==='M'||cmd==='L'){out+='<a:'+(cmd==='M'?'moveTo':'lnTo')+'><a:pt x="'+tokens[i++]+'" y="'+tokens[i++]+'"/></a:'+(cmd==='M'?'moveTo':'lnTo')+'>';}
+                else if(cmd==='A'){const r=tokens[i++];i+=4;const x=tokens[i++],y=tokens[i++];out+='<a:arcTo wR="'+r+'" hR="'+r+'" stAng="0" swAng="21600000"/>';i=tokens.length;}
+            }return out;
+        }).join('');
+        geometry='<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="'+diagram.width+'" h="'+diagram.height+'" fill="none">'+commands+'</a:path></a:pathLst></a:custGeom>';
+    }else geometry='<a:prstGeom prst="'+({star:'star5',smiley:'smileyFace',circle:'ellipse','answer-box':'rect'}[info.object]||'ellipse')+'"><a:avLst/></a:prstGeom>';
+    return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="'+cx+'" cy="'+cy+'"/><wp:docPr id="'+id+'" name="Editable maths diagram"/><a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:cNvSpPr/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm>'+geometry+'<a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="222222"/></a:solidFill></a:ln></wps:spPr><wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+}
+function docxMathsFigure(kind,body) {
+    const info=PaperAILayout.mathsFigure(kind,body);if(!info)throw new Error('A maths diagram is incomplete. Retry the source page.');
+    let runs=docxRun(info.label+'  ');
+    if(kind==='ABACUS')runs+=docxMathShape(info);
+    else for(let n=0;n<info.count;n++){
+        const asset=mathsObjectAsset(info.object);
+        runs+=(asset?docxSourceRun('maths-icon-'+asset,430,430,'Worksheet '+info.object+' illustration'):docxMathShape(info))+docxRun(' ');
+        if(n%10===9&&n+1<info.count)runs+='<w:r><w:br/></w:r>';
+    }
+    const paragraph='<w:p><w:pPr><w:keepNext/><w:spacing w:after="70"/></w:pPr>'+runs+(kind==='COUNT_OBJECTS'?docxRun(' = ')+(info.answer?docxMathShape({object:'answer-box'}):docxRun('______')):'')+'</w:p>';
+    if(kind==='ABACUS')return docxParagraph(info.label,{after:30,keepNext:true})+'<w:p><w:pPr><w:keepNext/></w:pPr>'+docxMathShape(info)+'</w:p>'+docxTabbedRows([info.rods.map(r=>r.label)],info.rods.map(()=>700),{center:true,keepNext:true})+(info.answer?docxTableCells([['']],[900],{bordered:true,minHeight:350,indent:0}):'');
+    return paragraph;
+}
+
+
 function xmlEscape(value) {
     return String(value ?? '')
         .replace(/&/g,'&amp;')
@@ -5668,6 +5735,7 @@ function docxVisibleText(value) {
     let out = PaperAILayout.unwrapEmphasis(value);
 
     out = out
+        .replace(/\[\[(?:COUNT_OBJECTS|ABACUS):[^\]\n]+\]\]/gi,'[illustration]')
         .replace(/\[\[SOURCE_FIGURE(?:_ROW)?:\s*([\s\S]*?)\]\]/gi,(_,body)=>worksheetCells(body,32).map(x=>PaperAILayout.source(x).caption || '[illustration]').join('    '))
         .replace(/\[\[(?:SOURCE_BANNER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|FOOTER|SOURCE_PAGE):[\s\S]*?\]\]/gi,'')
         .replace(/\[\[(?:SECTION_ROW|QUESTION_ROW):\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]/gi,
@@ -6129,6 +6197,8 @@ function buildDocxBody(structuredText) {
             body.push(docxSourceRow(cells,explicitRow?Math.max(cells.length,imageColumns):imageColumns));
             i++;continue;
         }
+        const maths=line.match(/^\[\[(COUNT_OBJECTS|ABACUS):\s*([\s\S]*?)\]\]$/i);
+        if(maths){body.push(docxMathsFigure(maths[1].toUpperCase(),maths[2]));i++;continue;}
         const sourceBanner=line.match(/^\[\[SOURCE_BANNER:\s*([^\]]+)\]\]$/i);
         if(sourceBanner){body.push('<w:p><w:pPr><w:jc w:val="'+(sourceAsset(sourceBanner[1].trim())?.align||'center')+'"/><w:keepNext/><w:spacing w:after="100"/></w:pPr>'+docxSourceRun(sourceBanner[1].trim(),DOCX_CONTENT_W,2200,'Original source banner')+'</w:p>');i++;continue;}
         if(/^\[\[FOOTER:/i.test(line)){i++;continue;}
@@ -6778,9 +6848,19 @@ async function makeExtractedDocx(structuredText) {
     if(typeof PaperAIProfessionalPaper!=='undefined')structuredText=PaperAIProfessionalPaper.format(structuredText);
     structuredText=PaperAILayout.presentationRows(packSourceFigureRows(PaperAILayout.normalise(PaperAILayout.cleanExamContent(structuredText))),layoutTypeHints());
 
+    if(PaperAILayout.brokenLayout(structuredText))throw new Error('This page has incomplete formatting. Reopen the PDF and retry before downloading Word.');
     const footerTitle = (String(structuredText || '').split('\n').map(s => s.trim()).find(Boolean) || 'QUESTION PAPER');
     const footerXml = paperLayoutOptions().pageNumbers||/\[\[FOOTER:/i.test(structuredText)?docxFooterXml(structuredText):'<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>';
 
+    const iconKinds=new Set([...structuredText.matchAll(/\[\[COUNT_OBJECTS:\s*(apple|grapes|kite),/gi)].map(m=>m[1].toLowerCase()));
+    for(const kind of iconKinds){
+        const response=await fetch('/images/worksheet-reviewed/'+kind+'.png');
+        if(!response.ok)throw new Error('A maths illustration could not load. Retry the download.');
+        const bytes=new Uint8Array(await response.arrayBuffer());
+        if(bytes.length<8||bytes[0]!==137||bytes[1]!==80||bytes[2]!==78||bytes[3]!==71)throw new Error('Invalid maths illustration.');
+        let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);
+        exportMedia.push({id:'maths-icon-'+kind,dataUrl:'data:image/png;base64,'+btoa(binary),w:640,h:640,webSource:{label:kind,creator:'OpenMoji contributors',license:'CC BY-SA 4.0',sourceUrl:'https://openmoji.org/'}});
+    }
     const banner = await resolveHeaderBanner(structuredText,exportMedia);
     let headerXml = docxHeaderTextXml(footerTitle);
     let headerRelsXml = '';

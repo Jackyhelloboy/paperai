@@ -29,6 +29,8 @@ jobs:
 
       - name: Verify quota handling before deploying the Worker
         run: |
+          node .github/scripts/worker-fingerprint.cjs --check
+          node tests/maths-paper-recovery.cjs
           node tests/strict-section-layout.cjs
           node tests/mixed-language-suggestions.cjs
           node tests/ai-quota.cjs
@@ -87,3 +89,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node .github/scripts/check-worker-scanning.cjs
 
+
+      - name: Verify exact quantities through production maths OCR
+        run: node .github/scripts/check-maths-scanning.cjs

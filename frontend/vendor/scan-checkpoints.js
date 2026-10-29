@@ -67,7 +67,7 @@
         // One damaged page must not poison the other completed pages. Missing
         // source images make that page eligible for a fresh read, never a
         // text-only restore that silently discards its illustrations.
-        return record.results.slice(0,pageCount).map(validPage);
+        return record.results.slice(0,pageCount).map(page=>page&&page.mathsRules!==1&&/abacus|count\s+and\s+write/i.test(page.text||'')?undefined:validPage(page));
       });
     }
     function savePage(key,pageCount,index,result){
@@ -76,7 +76,7 @@
       const operation=queue.then(()=>safe(async()=>{
         const prior=await storage.get(key);
         const results=prior?.pageCount===pageCount&&Array.isArray(prior.results)?prior.results.slice():[];
-        results[index]=result;
+        results[index]=/abacus|count\s+and\s+write/i.test(result.text)?{...result,mathsRules:1}:result;
         const record={key,pageCount,results,updatedAt:now()};
         // An oversized later page must not erase earlier recoverable work.
         if(bytes(record)>maxBytes)return false;

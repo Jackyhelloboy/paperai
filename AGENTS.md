@@ -34,3 +34,5 @@ Applies repository-wide. Consult `README.md`, `ARCHITECTURE.md`, and `docs/ONLIN
 - Avoid autonomously learning from unreviewed OCR guesses; do not introduce unbounded training data collection or expose student/teacher content.
 - Prefer fewer, clearly labeled mobile controls: paper preview, edit text, adjust layout, pictures, export Word. Advanced settings should remain optional.
 - Preserve source PDF figures and never replace them with unverified web-search image matches.
+
+After changing Worker source, wrangler.toml or the imported commons-pictures module, run `node .github/scripts/worker-fingerprint.cjs` and commit the updated release manifest. CI checks this fingerprint; a missing GitHub revision label may use an exact matching source fingerprint, while a mismatched nonempty revision still fails. Never include secrets in the manifest.

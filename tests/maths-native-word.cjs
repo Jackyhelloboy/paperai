@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const Layout=require('../frontend/vendor/paper-layout.js'),JSZip=require('../frontend/node_modules/jszip'),{DOMParser}=require('../frontend/node_modules/@xmldom/xmldom');
+const html=fs.readFileSync('frontend/index.html','utf8'),app=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].find(m=>m[1].includes('function buildDocxBody'))[1];
+const ctx=vm.createContext({PaperAILayout:Layout,JSZip,Blob,Uint8Array,btoa,setTimeout,clearTimeout,fetch:async url=>({ok:true,arrayBuffer:async()=>{const p=String(url).replace(/^\//,'frontend/');const bytes=fs.readFileSync(p);return bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);}}),worksheetCells:(s,n=32)=>String(s).split(/\s*\|\|\s*/).map(s=>s.trim()).slice(0,n),worksheetGridSize:s=>{const m=String(s).match(/^(\d+)x(\d+)$/);return m?{columns:+m[1],rows:+m[2]}:null;},repairLegacyBranchDiagram:String,isOutputHeadingLine:()=>false,circledNumberValue:()=>null,esc:String,formatOutputLine:String});
+vm.runInContext(app.slice(app.indexOf('function mathsObjectAsset('),app.indexOf('async function downloadWord(')),ctx);
+vm.runInContext('resolveHeaderBanner=async()=>null;extractedMedia=[];',ctx);
+const paper=['Class: UKG','Subject: Maths','[[SECTION_ROW: I. Write the numbers from 1-50 || 10M.]]','[[GRID: 10x5]]','[[SECTION_ROW: II. Count and write the correct number || 5x1=5]]','[[COUNT_OBJECTS: grapes,5|1.|box|120,365,400,58]]','[[COUNT_OBJECTS: apple,6|2.|box|125,415,330,35]]','[[COUNT_OBJECTS: smiley,7|3.|box|130,447,370,40]]','[[COUNT_OBJECTS: lollipop,4|4.|box|145,482,190,50]]','[[COUNT_OBJECTS: star,1|5.|box|220,535,75,35]]','[[SECTION_ROW: III. Write the number represented by the abacus || 3x1=3]]','[[ABACUS: T=1,O=3|1.|box|100,200,200,150]]'].join('\n');
+(async()=>{
+ const blob=await ctx.makeExtractedDocx(paper),bytes=Buffer.from(await blob.arrayBuffer()),zip=await JSZip.loadAsync(bytes),xml=await zip.file('word/document.xml').async('text');
+ assert.equal((xml.match(/prst="smileyFace"/g)||[]).length,7);assert.equal((xml.match(/prst="star5"/g)||[]).length,1);
+ assert.equal((xml.match(/<a:custGeom>/g)||[]).length,5,'Four lollipops and one abacus remain native editable geometry');
+ const media=Object.keys(zip.files).filter(p=>p.startsWith('word/media/')&&!zip.files[p].dir);assert.equal(media.length,2,'Five grape bunches and six apples reuse two embedded assets');
+ assert.equal((xml.match(/r:embed="rIdSource1"/g)||[]).length,5);
+ assert(!xml.includes('COUNT_OBJECTS:')&&!xml.includes('ABACUS:')&&!xml.includes('SOURCE_FIGURE:'));
+ const doc=new DOMParser().parseFromString(xml,'application/xml');assert.equal(doc.getElementsByTagName('parsererror').length,0);
+ const abacus=xml.slice(xml.indexOf('III. Write'));assert.equal((abacus.match(/<a:arcTo/g)||[]).length,4,'T=1,O=3 needs exactly four visible beads');
+ assert(!xml.includes('= 13'),'The represented number must not be solved');
+ if(process.env.PAPERAI_MATHS_QA_DOCX)fs.writeFileSync(process.env.PAPERAI_MATHS_QA_DOCX,bytes);
+ console.log('UKG Word: fifty blank cells, 5 grape bunches, 6 apples, 7 faces, 4 lollipops, 1 star, editable abacus with four beads, embedded assets and no solved answers pass.');
+})().catch(e=>{console.error(e);process.exitCode=1});

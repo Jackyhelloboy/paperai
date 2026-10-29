@@ -17,6 +17,10 @@ const storage={get:async k=>copy(records.get(k)),all:async()=>[...records.values
  assert.equal(await reopened.load(a,4),null);assert.equal(await reopened.load(b,3),null);
  time+=101;assert.equal(await reopened.load(a,3),null);assert.equal(records.size,0);
  await cache.savePage(a,1,0,{text:'test'});await cache.remove(a);assert.equal(records.size,0);
+ records.set(a,{key:a,pageCount:2,updatedAt:time,results:[{text:'Count and write the correct number'},{text:'English questions'}]});
+ const repaired=await cache.load(a,2);assert.equal(repaired[0],undefined);assert.equal(repaired[1].text,'English questions');
+ await cache.savePage(a,2,0,{text:'Count and write the correct number'});assert((await cache.load(a,2))[0],'New reviewed maths fallbacks remain resumable');
+ records.clear();
  const small=api.create({storage,maxBytes:150,now:()=>time});assert.equal(await small.savePage(a,1,0,{text:'x'.repeat(200)}),false);
  const bounded=api.create({storage,maxBytes:500,now:()=>time});
  await bounded.savePage(a,2,0,{text:'retained'});

@@ -5,7 +5,7 @@
     'use strict';
     // Keep a position for each editable word. Geometry, image IDs and protocol
     // delimiters never participate in a spelling replacement.
-    const hidden=new Set(['GRID','SHAPE_ROW','BANNER','SOURCE_BANNER','TABLE_REGION','TABLE_WIDTHS','TABLE_HEADER','SOURCE_PAGE','HEADER','FOOTER','ANSWER_LINES','CHECKBOX','PAGE_BREAK','PAPER_BREAK','BRANCH_END']);
+    const hidden=new Set(['COUNT_OBJECTS','ABACUS','GRID','SHAPE_ROW','BANNER','SOURCE_BANNER','TABLE_REGION','TABLE_WIDTHS','TABLE_HEADER','SOURCE_PAGE','HEADER','FOOTER','ANSWER_LINES','CHECKBOX','PAGE_BREAK','PAPER_BREAK','BRANCH_END']);
     const rows=new Set(['SECTION_ROW','QUESTION_ROW','MATCH_ROW','TABLE_ROW','GRID_ROW','CHOICE_ROW','OPTION_ROW','ARITHMETIC_ROW','BRANCH_ITEM']);
     const key=value=>value.normalize('NFC');
     function tokens(text,offset=0,leaf=0){

@@ -32,7 +32,7 @@ export function losesSourceScript(first, second) {
 export function invalidLayoutMarkers(text) {
     if(/\[\[(?:TABLE_ROW|GRID_ROW|MATCH_ROW|ARITHMETIC_ROW):[^\n]*\[\[(?:TABLE_ROW|GRID_ROW|FIGURE_ROW|MATCH_ROW|ARITHMETIC_ROW|GRID):/i.test(text))return true;
     if(/\[\[(?:QUESTION_ROW|SECTION_ROW):[^\]|]*\]\]/i.test(text))return true;
-    const allowed=/^(?:(?:SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|SOURCE_PAGE|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|BRANCH_ROOT|BRANCH_ITEM|DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION|PICTURE_ROW):|CHECKBOX$|BRANCH_END$)/i;
+    const allowed=/^(?:(?:COUNT_OBJECTS|ABACUS|SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|SOURCE_PAGE|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|BRANCH_ROOT|BRANCH_ITEM|DOUBLE-STRIKE|DOUBLE-UNDERLINE|STRIKE|INSERT|REPLACE|CIRCLED|UNDERLINE|BOXED|HIGHLIGHT|MARGIN|STAMP|SIGNATURE|PICTURE|PICTURE_OPTION|PICTURE_ROW):|CHECKBOX$|BRANCH_END$)/i;
     const value=String(text||'');
     if((value.match(/\[\[/g)||[]).length!==(value.match(/\]\]/g)||[]).length)return true;
     // Check every opening, including nested controls inside a valid table row.
@@ -48,6 +48,14 @@ export function invalidLayoutMarkers(text) {
             const [x,y,w,h]=values;
             if(x<0||y<0||w<=0||h<=0||x+w>1001||y+h>1001||w*h>600000)return true;
         }
+    }
+    for(const m of value.matchAll(/\[\[(COUNT_OBJECTS|ABACUS):\s*([^\]\n]+)\]\]/gi)){
+        const parts=m[2].split('|').map(s=>s.trim());
+        if(parts.length!==4||!/^\d+[.)]?$/.test(parts[1])||!['box','none'].includes(parts[2]))return true;
+        const valid=m[1].toUpperCase()==='COUNT_OBJECTS'?/^(?:grapes|apple|smiley|lollipop|star|kite|circle),(?:[1-9]|[12]\d|30)$/.test(parts[0]):/^(?:Th|H|T|O)=\d(?:,(?:Th|H|T|O)=\d){0,3}$/.test(parts[0]);
+        const bounds=parts[3].split(',').map(Number);
+        if(!valid||bounds.length!==4||bounds.some(n=>!Number.isInteger(n))||bounds[0]<0||bounds[1]<0||bounds[2]<=0||bounds[3]<=0||bounds[0]+bounds[2]>1000||bounds[1]+bounds[3]>1000)return true;
+        if(m[1].toUpperCase()==='ABACUS'&&new Set(parts[0].split(',').map(s=>s.split('=')[0])).size!==parts[0].split(',').length)return true;
     }
     for(const m of String(text||'').matchAll(/\[\[SOURCE_PAGE:\s*([^\]]*)\]\]/gi))if(!/^[1-9][0-9]{0,2}$/.test(m[1].trim()))return true;
     for(const m of String(text||'').matchAll(/\[\[GRID:\s*([^\]]*)\]\]/gi)){

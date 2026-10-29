@@ -832,10 +832,62 @@
         return out.join('\n');
     }
 
+    function brokenLayout(value){let depth=0;for(const m of String(value||'').matchAll(/\[\[|\]\]/g)){depth+=m[0]==='[['?1:-1;if(depth<0)return true;}return depth!==0;}
+    function frameLayoutMarkers(value) {
+        const block='SOURCE_FIGURE_ROW|SOURCE_FIGURE|SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|SOURCE_BANNER|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE|COUNT_OBJECTS|ABACUS';
+        let text=String(value||'').replace(new RegExp('(?<!\\[)\\[('+block+'):', 'gi'),'[[$1:');
+        // Flatten legacy wrappers only where every nested token is a source cell.
+        text=text.replace(/\[\[SOURCE_FIGURE_ROW:\s*((?:\[\[SOURCE_FIGURE:[\s\S]*?\]\]\s*(?:\|\|\s*)?)+)\]\]/gi,(_,body)=>'[[SOURCE_FIGURE_ROW: '+[...body.matchAll(/\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]/gi)].map(m=>m[1].trim()).join(' || ')+']]');
+        const start=new RegExp('^\\s*\\[\\[(?:'+block+'):', 'i');
+        const out=[];let depth=0;
+        for(const line of text.split('\n')){
+            if(depth>0&&(start.test(line)||/^\s*(?:Class|Subject)\s*:/i.test(line))){out[out.length-1]=out[out.length-1].replace(/\s*\|\|\s*$/,'')+']]'.repeat(depth);depth=0;}
+            out.push(line);depth=Math.max(0,depth+(line.match(/\[\[/g)||[]).length-(line.match(/\]\]/g)||[]).length);
+        }
+        return out.join('\n');
+    }
+    function mathsWritingRows(value) {
+        const lines=String(value||'').split('\n'),out=[];let placeValue=false;
+        for(let i=0;i<lines.length;i++){
+            const line=lines[i];
+            if(/(?:SECTION_ROW:|^\s*[IVX]+[.)]?\s)/i.test(line))placeValue=/tens\s+and\s+ones/i.test(line);
+            if(placeValue&&!line.includes('[[')&&line.includes('||')){
+                const cells=line.split(/\s*\|\|\s*/);if(cells.length===3){out.push('[[TABLE_ROW: '+cells.join(' || ')+']]');continue;}
+            }
+            const strip=line.trim().split(/\s*\|{1,2}\s*/);
+            if(!line.includes('[[')&&strip.length>=5&&strip.length<=52&&strip.every(c=>/^\d{1,3}$/.test(c))){out.push('[[GRID_ROW: '+strip.join(' || ')+']]');continue;}
+            out.push(line);
+            const range=line.match(/\bwrite\s+(?:the\s+)?numbers?\s+from\s+(\d{1,3})\s*(?:-|–|to)\s*(\d{1,3})\b/i);
+            if(range&&!/\b(?:words?|names?)\b/i.test(line)){
+                const count=Number(range[2])-Number(range[1])+1;
+                let next=i+1;while(next<lines.length&&!/(?:SECTION_ROW:|^\s*[IVX]+[.)]?\s)/i.test(lines[next]))next++;
+                if(count>=1&&count<=100&&!/\[\[(?:GRID|TABLE_ROW|FIGURE)/i.test(lines.slice(i+1,next).join('\n'))){
+                    if(count%10===0)out.push('[[GRID: 10x'+count/10+']]');
+                    else if(count<=10)out.push('[[GRID: '+count+'x1]]');
+                }
+            }
+        }
+        return out.join('\n');
+    }
+    function mathsFigure(kind,body) {
+        const [data,label='',answer='none',bounds='']=String(body||'').split('|').map(s=>s.trim());
+        if(!/^(?:\d+[.)]?)?$/.test(label)||!['box','none'].includes(answer))return null;
+        const coords=bounds?bounds.split(',').map(Number):[];
+        const region=coords.length===4&&coords.every(Number.isInteger)&&coords[0]>=0&&coords[1]>=0&&coords[2]>0&&coords[3]>0&&coords[0]+coords[2]<=1000&&coords[1]+coords[3]<=1000?{x:coords[0],y:coords[1],w:coords[2],h:coords[3]}:null;
+        if(bounds&&!region)return null;
+        if(kind==='COUNT_OBJECTS'){
+            const m=data.match(/^(grapes|apple|smiley|lollipop|star|kite|circle),(\d{1,2})$/i);
+            return m&&Number(m[2])>=1&&Number(m[2])<=30?{kind,object:m[1].toLowerCase(),count:Number(m[2]),label,answer:answer==='box',region}:null;
+        }
+        const rods=data.split(',').map(token=>token.match(/^(Th|H|T|O)=(\d)$/));
+        if(!rods.length||rods.length>4||rods.some(r=>!r)||new Set(rods.map(r=>r[1])).size!==rods.length)return null;
+        return {kind,rods:rods.map(r=>({label:r[1],count:Number(r[2])})),label,answer:answer==='box',region};
+    }
+
     function normalise(text) {
-        text=alphabetWritingBoxes(nativePipeRows(pipeTableRows(cleanQuestionPaper(text))));
+        text=alphabetWritingBoxes(nativePipeRows(pipeTableRows(mathsWritingRows(cleanQuestionPaper(frameLayoutMarkers(text))))));
         text=text.replace(/\[\[GRID:\s*(\d{1,2})\s*[x×]\s*(\d{1,2})\s*(?:\|\s*(?:\|\s*)?(?:none|box))?\s*\]\](?:[ \t]+(?:none|box)(?=[ \t]*(?:\n|$)))?/gi,(_,columns,rows)=>'[[GRID: '+columns+'x'+rows+']]');
-        const types='SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
+        const types='COUNT_OBJECTS|ABACUS|SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|FIGURE_ROW|FIGURE|SHAPE_ROW|GRID|ANSWER_LINES|CHOICE_ROW|OPTION_ROW|BANNER|FOOTER|TABLE_WIDTHS|TABLE_HEADER|TABLE_REGION|SOURCE_PAGE';
         const bare=new RegExp('^\\s*('+types+'):\\s*(.*?)\\s*$','i');
         text=String(text||'').replace(/\[\[TABLE_ROW:\s*(\[\[(?:FIGURE|SOURCE_FIGURE)_ROW:[\s\S]*?\]\])\s*((?:\|\|\s*_?\s*)*)\]\]/gi,'$1');
         text=text.replace(/\[\[REPLACE:\s*([^\[\]]*?)\s*\|\|\s*([^\[\]]*?)\]\]/gi,(_,oldText,newText)=>'[[REPLACE: '+oldText.trim()+' -> '+newText.trim()+']]');
@@ -852,7 +904,7 @@
             if(bareMarker)line='[['+bareMarker[1].toUpperCase()+': '+bareMarker[2].replace(/\]\]$/,'')+']]';
             const output=[];let prose='';
             for(const part of inlineParts(line)){
-                const marker=part.match(/^\[\[(SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|GRID|FIGURE_ROW|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER|SOURCE_PAGE):\s*([\s\S]*)\]\]$/i);
+                const marker=part.match(/^\[\[(SOURCE_FIGURE_ROW|SOURCE_FIGURE|SOURCE_BANNER|BANNER|COUNT_OBJECTS|ABACUS|SECTION_ROW|QUESTION_ROW|ARITHMETIC_ROW|MATCH_ROW|TABLE_ROW|GRID_ROW|GRID|FIGURE_ROW|TABLE_REGION|TABLE_WIDTHS|TABLE_HEADER|SOURCE_PAGE):\s*([\s\S]*)\]\]$/i);
                 if(!marker){prose+=part;continue;}
                 // A repeated prose title plus its structured row is one heading.
                 const title=/^(?:SECTION_ROW|QUESTION_ROW)$/i.test(marker[1])?marker[2].split('||')[0]:null;
@@ -1143,5 +1195,5 @@
         }
         return out.join('\n');
     }
-    return {profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,groupExplicitPictureNotes,groupThreePictureLabels,groupPictureChoiceLabels,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureTextInstead,sanitizeSourceFigureText,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
+    return {brokenLayout,mathsFigure,frameLayoutMarkers,mathsWritingRows,profile,referenceFormats,automaticFormat,paperIdentity,suppressContinuationHeaders,cleanExamContent,measuredGrid,tablePlacement,schoolBannerTable,figure,literalPictureCaption,groupExplicitPictureNotes,groupThreePictureLabels,groupPictureChoiceLabels,bannerRegion,bannerInkBounds,pixels,detailViewPlan,enhanceDetailPixels,source,fit,tableWidths,section,shape,pdfTextReliable,compactPages,orderPages,questionAnswer,emptyGrids,mergeGridEvidence,normalise,nativePipeRows,cleanQuestionPaper,inlineParts,unwrapEmphasis,deduplicateFigures,figureTextInstead,sanitizeSourceFigureText,figureRows,alignLeadingGridLabels,reconcileEmptyGrids,repairAntonymRows,presentationRows};
 });

@@ -41,6 +41,8 @@ jobs:
           node tests/picture-caption-ownership.cjs
           node tests/answer-rule-scope.cjs
           node tests/compact-question-labels.cjs
+          node tests/maths-paper-recovery.cjs
+          node tests/maths-native-word.cjs
           node tests/image-crop-evidence.cjs
           node tests/simplified-results-ui.cjs
           node tests/docx-import.cjs

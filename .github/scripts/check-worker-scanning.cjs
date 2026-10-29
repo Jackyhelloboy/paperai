@@ -52,7 +52,7 @@ async function verifyProduction(){
     let active=false,lastHealth={http:null,revisionPresent:false,networkCode:null};
     for(let attempt=0;attempt<20;attempt++){
       try{const response=await request('https://paperai-ocr.mdjawaadkhan57.workers.dev/health',{redirect:'error',signal:AbortSignal.timeout(5000)});
-        const body=await response.json();active=body.revision===expected;lastHealth={http:response.status,revisionPresent:Boolean(body.revision),networkCode:null};}catch(error){lastHealth.networkCode=['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH'].includes(error.code)?error.code:['AbortError','TimeoutError','SyntaxError'].includes(error.name)?error.name:'REQUEST_FAILED';}
+        const body=await response.json();active=body.revision===expected||(!body.revision&&body.source_fingerprint===require('./worker-fingerprint.cjs').expected());lastHealth={http:response.status,revisionPresent:Boolean(body.revision),networkCode:null};}catch(error){lastHealth.networkCode=['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH'].includes(error.code)?error.code:['AbortError','TimeoutError','SyntaxError'].includes(error.name)?error.name:'REQUEST_FAILED';}
       if(!active&&attempt===0&&lastHealth.http===200&&!lastHealth.revisionPresent&&/^[a-f0-9]{32}$/i.test(process.env.CLOUDFLARE_ACCOUNT_ID||'')&&process.env.CLOUDFLARE_API_TOKEN){
         try{const settings=await request('https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/paperai-ocr/settings',{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(10000)});
           active=settings.ok&&matchesSettings(await settings.json(),expected);
@@ -62,7 +62,7 @@ async function verifyProduction(){
       if(active)break;await sleep(3000);
     }
     if(!active){await deploymentDiagnostics();console.error(JSON.stringify({check:'backend-revision',...lastHealth,matched:false}));throw new Error('Production backend revision did not become active.');}
-    console.log('Production backend revision matches the deployment commit.');
+    console.log('Production backend matches the deployment revision or exact source fingerprint.');
   }
   const tail=spawn('npx',['--yes','wrangler@4','tail','paperai-ocr','--format=json'],
     {cwd:'worker',detached:true,stdio:['ignore','pipe','pipe']});

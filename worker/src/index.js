@@ -1,3 +1,4 @@
+import { WORKER_SOURCE_FINGERPRINT } from './release-manifest.js';
 import { PAPER_LAYOUT_RULES, normaliseMarkerRows } from './paper-layout-rules.js';
 import { DurableObject } from 'cloudflare:workers';
 import { DICTIONARY, getDictionaryWords, isInDictionary, CONFUSION_PAIRS, autoCorrect, verifyWord, getSuggestions } from './dictionary.js';
@@ -69,7 +70,7 @@ export default {
       return Response.json({service: 'PaperAI', status: 'running'}, {headers: corsHeaders});
     }
     if (url.pathname === '/health') {
-      return Response.json({status: 'healthy', revision: String(env.PAPERAI_RELEASE_SHA || '')}, {headers: {...corsHeaders, 'Cache-Control':'no-store'}});
+      return Response.json({status: 'healthy', revision: String(env.PAPERAI_RELEASE_SHA || ''), source_fingerprint: typeof WORKER_SOURCE_FINGERPRINT==='string'?WORKER_SOURCE_FINGERPRINT:''}, {headers: {...corsHeaders, 'Cache-Control':'no-store'}});
     }
 
     if (url.pathname === '/api/live') {
@@ -1842,6 +1843,9 @@ READING CONTRACT:
   let model = response.model || (providerState.provider === 'gemini' ? providerState.geminiModel : PRIMARY_MODEL);
   let usage = mergeAiUsage(response.usage || null, null);
   let rescued = false;
+  const mathsFirst=text;
+  let mathsSecond='';
+  const mathsPage=Boolean(mathsQuantities(text));
   let secondReadCompleted=false,verificationDisagreement=false;
 
   const missingStructure=missingResponsePositions(text)||missingOpeningSections(text,imageMeta);
@@ -1865,7 +1869,7 @@ READING CONTRACT:
     if(current&&previousSection&&current<previousSection)suspiciousSectionSequence=true;
     if(current)previousSection=current;
   }
-  if ((imageMeta?.deepVerify===true || hasUnclearSource || ((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPictureFigures || missingPaperIdentity || suspiciousSectionSequence) && (needsRepair || missingPictureFigures || missingPaperIdentity || suspiciousSectionSequence || shouldVerifyOcr(text, imageMeta))) &&
+  if ((mathsPage || imageMeta?.deepVerify===true || hasUnclearSource || ((providerState.provider !== 'gemini' && !providerState.slowPrimaryAccepted) || needsRepair || figurePage || missingPictureFigures || missingPaperIdentity || suspiciousSectionSequence) && (needsRepair || missingPictureFigures || missingPaperIdentity || suspiciousSectionSequence || shouldVerifyOcr(text, imageMeta))) &&
       providerState.deadline - Date.now() >= 5000 && !signal?.aborted) {
     const rescuePrompt = prompt + `
 
@@ -1930,6 +1934,7 @@ VERIFICATION RULES:
       }, verificationState, signal);
 
       const rescueText = normaliseMarkerRows(extractAiText(rescueResponse));
+      mathsSecond=rescueText;
       secondReadCompleted=Boolean(rescueText.trim())&&!degenerateOcr(rescueText)&&!invalidLayoutMarkers(rescueText);
       verificationDisagreement=secondReadCompleted&&(losesSourceSections(text,rescueText)||losesSourceQuestions(text,rescueText)||losesSourceMarks(text,rescueText)||losesSourceScript(text,rescueText));
       usage = mergeAiUsage(usage, rescueResponse.usage || null);
@@ -1962,6 +1967,11 @@ VERIFICATION RULES:
     }
   }
 
+  if(mathsPage){
+    const checked=reconcileMathsFigures(text,mathsFirst,mathsSecond,secondReadCompleted);
+    text=checked.text;verificationDisagreement=verificationDisagreement||checked.disagreement;
+  }
+
   // A first page that begins with later Roman bits while still containing
   // numbered questions is incomplete. Never report it as successfully scanned:
   // the browser retries this page once and keeps other completed PDF pages.
@@ -1973,6 +1983,18 @@ VERIFICATION RULES:
   }
   if(degenerateOcr(text)||invalidLayoutMarkers(text)){const error=new Error('Invalid OCR output or illustration bounds');error.code='OCR_OUTPUT_INVALID';throw error;}
   return { text, raw: text, model, usage, scanMode, rescued, secondReadCompleted, verificationDisagreement };
+}
+
+function mathsQuantities(text) {
+  return [...String(text||'').matchAll(/\[\[(COUNT_OBJECTS|ABACUS):\s*([^\]\n]+)\]\]/gi)].map(m=>m[1].toUpperCase()+':'+m[2].split('|').slice(0,3).map(s=>s.trim()).join('|')).join(';;');
+}
+function reconcileMathsFigures(text,first,second,completed) {
+  const agreed=completed&&mathsQuantities(first)===mathsQuantities(second);
+  if(agreed)return {text,disagreement:false};
+  return {text:String(text).replace(/\[\[(COUNT_OBJECTS|ABACUS):\s*([^\]\n]+)\]\]/gi,(_,kind,body)=>{
+    const [data,label,answer,bounds]=body.split('|').map(s=>s.trim());
+    return bounds?'[[FIGURE: '+bounds+'|'+label+'|'+answer+']]':'[unclear]';
+  }),disagreement:true};
 }
 
 function shouldVerifyOcr(text, imageMeta = {}) {

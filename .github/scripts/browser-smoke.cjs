@@ -80,6 +80,11 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
     return {text:node.textContent,xml:buildDocxBody(PaperAIProfessionalPaper.format(sample))};
    });
    for(const output of [compact.text,compact.xml]){assert(output.includes('1. पहला सवाल?')&&output.includes('2. दूसरा सवाल?'));assert(!output.includes('प्रश्न:')&&!output.includes('||'),'Question labels and layout separators must not print');}
+   const maths=await page.evaluate(()=>{
+    const node=document.createElement('div');node.innerHTML=formatOutput('Class: UKG\nSubject: Maths\nI. Write the numbers from 1-50\nII. Count and write\n[[COUNT_OBJECTS: smiley,7|3.|box|130,447,370,40]]\n[[ABACUS: T=1,O=3|1.|box|100,200,200,150]]');
+    return {text:node.textContent,cells:node.querySelectorAll('.ocr-grid-cell').length,faces:node.querySelectorAll('[aria-label=smiley]').length,abacus:node.querySelectorAll('[aria-label="Source abacus diagram"]').length};
+   });
+   assert.equal(maths.cells,50);assert.equal(maths.faces,7);assert.equal(maths.abacus,1);assert(!/COUNT_OBJECTS|ABACUS:|SOURCE_FIGURE/.test(maths.text));
    const actionRows=await page.locator('.results-actions button').evaluateAll(items=>items.map(item=>Math.round(item.getBoundingClientRect().top)));
    assert.equal(new Set(actionRows).size,1,'Download, Teach and Clear must share one row');
    const clipped=await page.locator('button:visible').evaluateAll(buttons=>buttons.filter(button=>{const box=button.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(button);const text=range.getBoundingClientRect();return text.width>0&&(text.left<box.left-1||text.right>box.right+1||text.top<box.top-2||text.bottom>box.bottom+2);}).map(button=>button.textContent.trim()));
