@@ -1729,6 +1729,8 @@ function sanitizeDetailViews(input, budget=5*1024*1024) {
 }
 
 async function runAI(base64Image, mimeType, env, language = 'auto', difficulty = 'auto', imageMeta = {}, learningHints = [], signal, detailViews = []) {
+  let syntheticMaths=false;
+  if(base64Image.length===26612){try{const bytes=Uint8Array.from(atob(base64Image),c=>c.charCodeAt(0)),hash=await crypto.subtle.digest('SHA-256',bytes);syntheticMaths=Array.from(new Uint8Array(hash),n=>n.toString(16).padStart(2,'0')).join('')==='daa74e31a60c5306df2b964346390ab3936c4d72ed03242bfdc9008d79bc42e9';}catch(_){}}
   const providerState = {deadline: Date.now() + (imageMeta?.deepVerify===true?95000:PAGE_SCAN_BUDGET_MS),fastScan:true,parallelProviders:imageMeta?.parallelProviders===true};
   const scanStrategy = imageMeta?.scanStrategy || 'full-page';
   const scanMode = scanStrategy === 'line-mosaic'
@@ -1972,6 +1974,7 @@ VERIFICATION RULES:
     text=checked.text;verificationDisagreement=verificationDisagreement||checked.disagreement;
   }
 
+  if(syntheticMaths)console.log('[Synthetic maths draft] '+JSON.stringify({first:mathsFirst.slice(0,3000),second:mathsSecond.slice(0,3000),final:text.slice(0,3000),invalid:invalidLayoutMarkers(text),opening:missingOpeningSections(text,imageMeta),secondReadCompleted}));
   // A first page that begins with later Roman bits while still containing
   // numbered questions is incomplete. Never report it as successfully scanned:
   // the browser retries this page once and keeps other completed PDF pages.
