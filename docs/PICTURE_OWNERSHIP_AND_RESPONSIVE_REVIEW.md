@@ -22,3 +22,7 @@ The teacher reference Word file was separately corrected and rendered as two A4 
 Full-width response rules are limited to written Q&A bits. Completion, opposites, gender changes, matching, sentence usage, rewrite and yes/no bits no longer retain these rules. Inline blanks, brackets, source words and visible exercise grids remain intact. Boolean instructions are classified before broad answer instructions so “Answer yes or no” cannot acquire descriptive response lines.
 
 The Find pictures action and its search/upload panel are removed from the teacher interface. Source pictures and automatic reviewed defaults remain supported. Download Word, Teach / Edit and Clear data use a single three-column row, checked at 320, 390, 768 and 1280px without label clipping or horizontal page overflow. Undo/Redo remain in Teach. The regression suite now has 58 passing files.
+
+## Compact question labels
+
+Within written Q&A bits, generic “प्रश्न:”, “Question:” and “Q:” item prefixes display as sequential numbers; existing explicit item numbers remain unchanged. In completion/meaning/opposite bits, a plain row containing two to four explicitly numbered questions separated by `||` becomes a layout row. The separators do not print in preview or Word, and literal operators outside that bounded pattern are preserved. The compact two-column arrangement is retained. Verified by 59 regression files plus browser preview/Word checks at four widths.

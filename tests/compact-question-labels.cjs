@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict'),P=require('../frontend/vendor/professional-paper.js');
+const input='I. प्रश्नों के उत्तर दीजिए।\nप्रश्न: लोग और पशु किस कारण मरने लगे ?\n[[ANSWER_LINES: 1]]\nप्रश्न: अंत में कुत्ते क्या समझ गये ?\nप्रश्न: बेहेलिए ने कैसी चिड़िया पकड़ी ?\nII. शब्दों का अर्थ अंग्रेजी में लिखिए।\n1. भूख = ________ || 2. कुत्ते = ________\n3. खाना = ________ || 4. दाने = ________\n5. सोना = ________\nIII. विलोम शब्द लिखो।\n1. दिन x ________ || 2. देश x ________';
+const formatted=P.format(input);
+for(const question of ['1. लोग और पशु किस कारण मरने लगे ?','2. अंत में कुत्ते क्या समझ गये ?','3. बेहेलिए ने कैसी चिड़िया पकड़ी ?'])assert(formatted.includes(question));
+assert(!formatted.includes('प्रश्न:'));assert(formatted.includes('[[MATCH_ROW: 1. भूख = ________ || 2. कुत्ते = ________]]'));
+assert(formatted.includes('[[MATCH_ROW: 1. दिन x ________ || 2. देश x ________]]'));
+assert.equal(P.format(formatted),formatted);
+const mixed=P.format('I. Answer the following questions.\n4. Existing question?\nQuestion: Next question?\nQ: 8. Explicit question?');
+assert(mixed.includes('4. Existing question?')&&mixed.includes('5. Next question?')&&mixed.includes('8. Explicit question?'));
+assert(P.format('II. Complete the expression.\n1. a || b').includes('1. a || b'),'A literal operator is not a two-question separator');
+console.log('Compact formatting preserves words and existing numbering, numbers generic Q&A labels, and converts only explicit numbered column separators into layout.');

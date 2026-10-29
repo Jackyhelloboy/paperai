@@ -31,7 +31,7 @@
   if(/जोड़ी|मिलान|జతపరచ|జత చేయ|పోల్చ|பொருத்து|இணை|ಹೊಂದಿಸಿ|ಜೋಡಿಸಿ|ചേർക്കുക|യോജിപ്പിക്കുക|মেলাও|মেলান|જોડો|ਮਿਲਾਓ|ملا[ؤو]/u.test(s))return 'matching';
   if(/\b(?:true|false|yes|no)\b|\b(?:write|mark|choose)\s+[TFYN]\b|\b(?:write|mark|choose)\s+(?:t\s*(?:or|\/)\s*f|y\s*(?:or|\/)\s*n)\b|सही.*गलत|हाँ.*नहीं|हां.*नहीं|అవును.*కాదు|ஆம்.*இல்லை|ಹೌದು.*ಇಲ್ಲ|അതെ.*അല്ല|হ্যাঁ.*না|ਹਾਂ.*ਨਹੀਂ|ہاں.*نہیں/iu.test(s))return 'boolean';
   if(/प्रश्नों? के उत्तर|प्रश्न.*उत्तर.*लिख|ప్రశ్నల.*జవాబ|ప్రశ్నల.*సమాధాన|வினாக்கள.*விடை|ಪ್ರಶ್ನೆ.*ಉತ್ತರ|ചോദ്യ.*ഉത്തര|প্রশ্ন.*উত্তর|પ્રશ્ન.*જવાબ|سوال.*جواب/u.test(s))return 'answer';
-  if(/खाली स्थान|रिक्त स्थान|वचन|विलोम|अर्थ लिख|ఖాళీ.*పూరించ|ఖాళీ.*నింప|கோடிட்ட இட|விடுபட்ட இட|ಖಾಲಿ.*ತುಂಬ|ഒഴിഞ്ഞ.*പൂരിപ്പ|শূন্যস্থান|ખાલી જગ્યા|خالی جگہ/u.test(s))return 'completion';
+  if(/खाली स्थान|रिक्त स्थान|वचन|विलोम|अर्थ.*लिख|ఖాళీ.*పూరించ|ఖాళీ.*నింప|கோடிட்ட இட|விடுபட்ட இட|ಖಾಲಿ.*ತುಂಬ|ഒഴിഞ്ഞ.*പൂരിപ്പ|শূন্যস্থান|ખાલી જગ્યા|خالی جگہ/u.test(s))return 'completion';
   if(/సరైన.*ఎంచుకో|సరైన.*గుర్తించ|சரியான.*தேர்ந்தெடு|ಸರಿಯಾದ.*ಆಯ್ಕೆ|ശരിയായ.*തിരഞ്ഞെടു|সঠিক.*নির্বাচন|صحیح.*منتخب/u.test(s))return 'choice';
   if(/\bmatch\b|\bcolumn\s+A\b.*\bcolumn\s+B\b/i.test(s))return 'matching';
   if(/\b(?:tick|choose|select)\b.*\b(?:correct|right|options?|answers?)\b/i.test(s))return 'choice';
@@ -41,7 +41,7 @@
   if(/\b(?:letter|paragraph|essay|story|card)\b/i.test(s))return 'composition';
   if(/^(?:Answer\b(?!.*\b(?:adding|brackets|action words)\b)|Write\s+any\b.*\banswers?\b)/i.test(s))return 'answer';
   if(/^Rewrite\b|^Join\b.*\bsentences\b|^Change\b.*\bsentences\b/i.test(s))return 'rewrite';
-  if(/\b(?:box|blanks?|complete|missing|unscramble|unjumble|opposites?|plural|prefix|nouns?|verbs?|adverbs?)\b/i.test(s))return 'completion';
+  if(/\b(?:box|blanks?|complete|missing|unscramble|unjumble|meanings?|opposites?|plural|prefix|nouns?|verbs?|adverbs?)\b/i.test(s))return 'completion';
   return 'plain';
  }
  const emitHeading=h=>'[[SECTION_ROW: '+h.title.replace(/\bTick\s*\([vV]\)/g,'Tick (✓)')+' || '+h.marks+']]';
@@ -64,13 +64,22 @@
   for(let i=0;i<lines.length;i++){const h=heading(lines[i]);if(h)heads.push({...h,index:i});}
   // Source labels and order are evidence. Uncertain labels are flagged, never invented.
   for(const h of heads)lines[h.index]=emitHeading(h);
-  const out=[];let mode='',lastRule=false;
+  const out=[];let mode='',lastRule=false,questionOrdinal=0;
   for(let i=0;i<lines.length;i++){
-   const raw=lines[i],h=heading(raw),row=rowOf(raw);
-   if(h){mode=type(h);lastRule=false;out.push(emitHeading(h));continue;}
+   let raw=lines[i];const h=heading(raw),row=rowOf(raw);
+   if(h){mode=type(h);lastRule=false;questionOrdinal=0;out.push(emitHeading(h));continue;}
    if(/PAPER_BREAK|^Class:/i.test(raw)){mode='';lastRule=false;}
    if(['answer','rewrite','choice','completion','festival','odd'].includes(mode)&&/^\s*\[\[TABLE_(?:REGION|WIDTHS):/i.test(raw))continue;
    const answer=mode==='answer';
+   if(answer){
+    const prefix=raw.match(/^\s*(?:प्रश्न|Question|Q)\s*[:：]\s*(\S[\s\S]*)$/iu);
+    if(prefix){const existing=prefix[1].match(/^(\d+)[.)]\s+/);raw=existing?prefix[1]:(++questionOrdinal)+'. '+prefix[1];}
+    const numbered=raw.match(/^\s*(\d+)[.)]\s+/);if(numbered)questionOrdinal=Math.max(questionOrdinal,Number(numbered[1]));
+   }
+   if(mode==='completion'&&!raw.includes('[[')&&raw.includes('||')){
+    const cells=raw.split(/\s*\|\|\s*/);
+    if(cells.length>=2&&cells.length<=4&&cells.every(cell=>/^\s*\p{Nd}+[.)]\s+\S/u.test(cell))){out.push('[[MATCH_ROW: '+cells.map(cell=>cell.trim()).join(' || ')+']]');continue;}
+   }
    // Full-width response rules belong only to written Q&A bits. Inline
    // fill-in blanks, brackets and actual exercise grids remain untouched.
    if(!answer&&/^(?:\s*(?:A(?:ns(?:wer)?)?\s*:?\s*)?\[\[ANSWER_LINES:\s*\d+\]\]\s*|\s*[_─━—-]{8,}\s*)$/i.test(raw))continue;

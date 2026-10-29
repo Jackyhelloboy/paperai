@@ -74,6 +74,12 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
    const file=await(await download).path(),zip=await JSZip.loadAsync(fs.readFileSync(file));
    const xml=await zip.file('word/document.xml').async('text');
    assert(xml.includes('मेरा घर'));assert.equal((xml.match(/<wp:inline /g)||[]).length,5);assert(!xml.includes('<w:tbl>')&&!xml.includes('needs review'));
+   const compact=await page.evaluate(()=>{
+    const sample='I. प्रश्नों के उत्तर दीजिए।\nप्रश्न: पहला सवाल?\nप्रश्न: दूसरा सवाल?\nII. शब्दों का अर्थ अंग्रेजी में लिखिए।\n1. भूख = ________ || 2. कुत्ते = ________';
+    const node=document.createElement('div');node.innerHTML=formatOutput(sample);
+    return {text:node.textContent,xml:buildDocxBody(PaperAIProfessionalPaper.format(sample))};
+   });
+   for(const output of [compact.text,compact.xml]){assert(output.includes('1. पहला सवाल?')&&output.includes('2. दूसरा सवाल?'));assert(!output.includes('प्रश्न:')&&!output.includes('||'),'Question labels and layout separators must not print');}
    const actionRows=await page.locator('.results-actions button').evaluateAll(items=>items.map(item=>Math.round(item.getBoundingClientRect().top)));
    assert.equal(new Set(actionRows).size,1,'Download, Teach and Clear must share one row');
    const clipped=await page.locator('button:visible').evaluateAll(buttons=>buttons.filter(button=>{const box=button.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(button);const text=range.getBoundingClientRect();return text.width>0&&(text.left<box.left-1||text.right>box.right+1||text.top<box.top-2||text.bottom>box.bottom+2);}).map(button=>button.textContent.trim()));
