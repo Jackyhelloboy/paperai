@@ -851,6 +851,9 @@
             const label=/^\d+[.)]?$/.test(parts[1])?parts[1].replace(/[.)]?$/,'.'):parts[1];
             return '[['+kind.toUpperCase()+': '+data+'|'+label+'|'+parts[2].toLowerCase()+'|'+bounds.join(',')+']]';
         });
+        // A maths cell owns its answer box; do not duplicate a reader's
+        // adjacent empty box as an invalid anonymous control token.
+        text=text.replace(/(\[\[(?:COUNT_OBJECTS|ABACUS):[^\]\n]+\]\])\s*=\s*\[\[\s*\]\]/gi,'$1').replace(/\[\[\s*\]\]/g,'[[CHECKBOX]]');
         // Flatten legacy wrappers only where every nested token is a source cell.
         text=text.replace(/\[\[SOURCE_FIGURE_ROW:\s*((?:\[\[SOURCE_FIGURE:[\s\S]*?\]\]\s*(?:\|\|\s*)?)+)\]\]/gi,(_,body)=>'[[SOURCE_FIGURE_ROW: '+[...body.matchAll(/\[\[SOURCE_FIGURE:\s*([\s\S]*?)\]\]/gi)].map(m=>m[1].trim()).join(' || ')+']]');
         const start=new RegExp('^\\s*\\[\\[(?:'+block+'):', 'i');

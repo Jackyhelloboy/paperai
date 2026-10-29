@@ -101,7 +101,6 @@ async function verifyProduction(){
   finally{
     try{process.kill(-tail.pid,'SIGTERM');}catch(_){}
     tail.stdout.destroy();tail.stderr.destroy();
-    for(const event of objects(logs))for(const entry of event.logs||[])for(const message of entry.message||[])if(typeof message==='string'&&message.startsWith('[Synthetic maths draft] '))console.log(message.slice(0,10000));
     console.log(JSON.stringify({tail_stdout_bytes:logs.length,tail_stderr_bytes:stderrBytes,tail_exit:tailExit}));
     for(const match of logs.matchAll(/\[Scan transport\] (gemini-(?:flash-latest|3\.5-flash-lite)) (http ([1-5]\d\d)|exception (TypeError|AbortError|TimeoutError|Error))/g))
       console.log(JSON.stringify({transport:match[1],http:match[3]?Number(match[3]):null,exception:match[4]||null}));

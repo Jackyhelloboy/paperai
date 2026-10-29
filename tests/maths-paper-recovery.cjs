@@ -5,6 +5,7 @@ const bad='[[SOURCE_FIGURE_ROW: a|1.|none ||\n[[SOURCE_FIGURE: b|2.|none]]\n[[SE
 for(const normalize of [L.normalise,ctx.normaliseMarkerRows]){
  const fixed=normalize(bad);assert(fixed.includes('IV. What comes after'));assert(fixed.includes('V. Arrange'));assert.equal((fixed.match(/\[\[/g)||[]).length,(fixed.match(/\]\]/g)||[]).length);
  assert(normalize('[[COUNT_OBJECTS: Stars, 6 | 1 | BOX | 10.2,20.1,100.4,50.3]]').includes('star,6|1.|box|10,20,101,51'));
+ const actual=normalize('[[COUNT_OBJECTS: star,6|1.|box|89,403,535,160]] = [[  ]]');assert.equal(actual,'[[COUNT_OBJECTS: star,6|1.|box|89,403,535,160]]');assert.equal(normalize('[[  ]]'),'[[CHECKBOX]]');
  const grid=normalize('I. Write the numbers from 1-50\nII. Count and write');assert(grid.includes('[[GRID: 10x5]]'));assert.equal(normalize(grid),grid);
  const table=normalize('II. Express the numbers as tens and ones\nNumber || Tens || ones\n4 || ||\n12 || ||\n16 || ||');assert(table.includes('[[TABLE_ROW: 4 ||  || ]]'));
 }
