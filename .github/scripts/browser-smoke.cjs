@@ -31,7 +31,8 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
    });
    await page.goto(base,{waitUntil:'load'});
    assert.equal(await page.getByRole('button',{name:'Find pictures',exact:true}).count(),0);
-   assert.equal(await page.locator('.home-paper').isVisible(),width>=1024);
+   assert.equal(await page.getByRole('link',{name:'Picture credits',exact:true}).count(),0);
+   assert.equal(await page.locator('.home-paper').isVisible(),width>=900);
    assert.equal(await page.locator('#restoreDraftBtn').isVisible(),false,'No resume button without a saved paper');
    if(process.env.PAPERAI_BROWSER_QA_DIR&&width===1280){fs.mkdirSync(process.env.PAPERAI_BROWSER_QA_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.PAPERAI_BROWSER_QA_DIR,'desktop-home.png'),fullPage:true});}
 
