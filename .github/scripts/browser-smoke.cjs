@@ -26,11 +26,15 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
    await page.route('**/*',route=>{
     const url=new URL(route.request().url());
     if(url.origin!==base)return route.abort();
-    if(url.pathname.startsWith('/api/'))return route.fulfill({json:url.pathname==='/api/usage'?{date_utc:'2026-10-28',provider_limit_reached:false,reset_at:'2026-10-29T00:00:00Z'}:{sections:[],ai_checked:false}});
+    if(url.pathname.startsWith('/api/'))return route.fulfill({json:url.pathname==='/api/usage'?{date_utc:'2026-10-28',provider_limit_reached:false,reset_at:'2026-10-29T00:00:00Z'}:url.pathname==='/api/suggest-word'?{suggestions:['मेरा घर','अपना घर','यह घर','वह घर','बड़ा घर','छोटा घर','नया घर','पुराना घर']}:{sections:[],ai_checked:false}});
     return route.continue();
    });
    await page.goto(base,{waitUntil:'load'});
    assert.equal(await page.getByRole('button',{name:'Find pictures',exact:true}).count(),0);
+   assert.equal(await page.locator('.home-paper').isVisible(),width>=1024);
+   assert.equal(await page.locator('#restoreDraftBtn').isVisible(),false,'No resume button without a saved paper');
+   if(process.env.PAPERAI_BROWSER_QA_DIR&&width===1280){fs.mkdirSync(process.env.PAPERAI_BROWSER_QA_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.PAPERAI_BROWSER_QA_DIR,'desktop-home.png'),fullPage:true});}
+
 
    assert(!(await page.locator('meta[name=viewport]').getAttribute('content')).includes('user-scalable=no'),'Teachers must be able to zoom a paper on phones');
    const fonts=await page.evaluate(async()=>{
@@ -64,12 +68,23 @@ const fixture='Class: I\nSubject: Hindi\nI. शब्द लिखो।\n1. घ
    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'Paper zoom must scroll inside the preview only');
    await page.locator('#previewZoomBtn').click();
    await page.evaluate(()=>openTeachPanel());
+   assert.equal(await page.locator('#translationTarget').inputValue(),'hi','Translation defaults to PDF language');
    const original=await page.locator('#teachEditor').inputValue();
    await page.locator('#teachEditor').fill(original.replace('1. घर','1. मेरा घर'));
    assert((await page.locator('#textOut').innerText()).includes('मेरा घर'),'Live preview must update before saving');
    await page.locator('#teachUndoBtn').click();assert.equal(await page.locator('#teachEditor').inputValue(),original);
    await page.locator('#teachRedoBtn').click();assert((await page.locator('#teachEditor').inputValue()).includes('मेरा घर'));
-   await page.getByRole('button',{name:'Save & apply',exact:true}).click();
+   await page.evaluate(()=>{teachEditor.focus();teachEditor.setSelectionRange(teachEditor.value.indexOf('मेरा घर'),teachEditor.value.indexOf('मेरा घर')+7);refreshSmartComposition();});
+   await page.waitForFunction(()=>document.querySelectorAll('#translitSuggestions button').length>=7);
+   assert((await page.evaluate(()=>lastResult.plain_text)).includes('मेरा घर'),'Typing commits without a save click');
+   await page.evaluate(()=>flushPaperDraft());
+   await page.reload({waitUntil:'load'});
+   await page.locator('#restoreDraftBtn:not([hidden])').waitFor();
+   await page.locator('#restoreDraftBtn').click();
+   await page.waitForFunction(()=>document.querySelector('#teachEditor').value.includes('मेरा घर'));
+   assert((await page.locator('#teachEditor').inputValue()).includes('मेरा घर'),'Saved text and five pictures survive reload');
+   assert.equal(await page.locator('#textOut .ocr-figure-cell img').count(),5);
+   await page.getByRole('button',{name:'Done',exact:true}).click();
    const download=page.waitForEvent('download');await page.locator('#downloadWordBtn').click();
    const file=await(await download).path(),zip=await JSZip.loadAsync(fs.readFileSync(file));
    const xml=await zip.file('word/document.xml').async('text');

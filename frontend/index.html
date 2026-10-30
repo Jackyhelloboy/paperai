@@ -1759,6 +1759,9 @@
         .maths-exercise {display:flex;align-items:center;gap:.8em;margin:.5em 0;break-inside:avoid;max-width:100%;}
         .maths-count-items {display:flex;gap:.35em;flex-wrap:wrap;max-width:75%;}
         .maths-answer-box {display:inline-block;width:2.2em;height:1.5em;border:1px solid currentColor;flex-shrink:0;}
+
+        #restoreDraftBtn[hidden]{display:none!important}.home-paper{display:none}.home-paper-sheet{background:white;padding:32px;color:#172033;border:1px solid var(--border);box-shadow:0 12px 40px #15284912;min-height:540px;font:14px/1.8 Tahoma,sans-serif}.home-paper-sheet h2{text-align:center;font-size:19px}.home-paper-sheet h3{font-size:14px;margin-top:25px}.home-paper-sheet h3 span{float:right;font-size:12px}.home-paper-label{font-size:13px;color:var(--text2);margin-bottom:12px}.home-paper>p{font-size:12px;color:var(--text2);margin-top:12px}.home-answer{border-bottom:1px solid #9ca3af;margin-top:35px}.preview-controls{flex-wrap:wrap;gap:8px}.teach-actions{flex-wrap:wrap}#draftSaveStatus{font-size:12px;color:var(--text2)}
+        @media(min-width:1024px){.home-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:start}.home-controls,.home-paper{min-width:0}.home-paper{display:block}.home-workspace .hero{text-align:left}.main:has(#resBox.show) .home-paper{display:none}.main:has(#resBox.show) .home-workspace{display:block}.main:has(#resBox.show) .home-controls{max-width:620px;margin:auto}}
     </style>
 </head>
 <body>
@@ -1774,6 +1777,7 @@
     </header>
 
     <main class="main">
+        <div class="home-workspace"><div class="home-controls">
         <div class="hero">
             <h1>Extract text from anything</h1>
             <p>Images, handwriting, PDFs, Word, PowerPoint, Excel and text — automatically formatted for Word</p>
@@ -1863,6 +1867,12 @@
             </div>
         </div>
 
+        </div><aside class="home-paper" aria-label="Example question paper preview">
+            <div class="home-paper-label">From rough paper to print · Example preview</div>
+            <div class="home-paper-sheet"><h2>QUESTION PAPER</h2><p>Class: II &nbsp; Subject: Maths</p><hr><h3>I. Write the numbers in words <span>3 marks</span></h3><p>1. 15 = __________ &nbsp; 2. 20 = __________</p><p>3. 18 = __________</p><h3>II. Match the following <span>3 marks</span></h3><p>1. Thirteen &nbsp; ( &nbsp; &nbsp; ) &nbsp; 20</p><p>2. Twenty &nbsp; ( &nbsp; &nbsp; ) &nbsp; 15</p><p>3. Fifteen &nbsp; ( &nbsp; &nbsp; ) &nbsp; 13</p><h3>III. Answer the question <span>2 marks</span></h3><p>1. What comes after 24?</p><div class="home-answer"></div></div>
+            <p>Review editable text and pictures before downloading Word.</p>
+        </aside></div>
+        <button type="button" class="action-btn" id="restoreDraftBtn" hidden onclick="restorePaperDraft()">Resume saved paper</button>
         <div class="results" id="resBox">
             <div class="results-header">
                 <span class="results-title">Question paper</span>
@@ -1889,7 +1899,7 @@
             <div class="review-workspace">
             <div class="teach-panel" id="teachPanel">
                 <div class="teach-title">Correct your question paper</div>
-                <div class="teach-sub">Edit the questions before exporting. Suggestions apply only when you select them. Save &amp; apply keeps your chosen wording.</div>
+                <div class="teach-sub">Edit the questions before exporting. Suggestions apply only when you select them. Edits save automatically in this browser and update the Word preview. Choose a suggestion to apply it.</div>
                 <div class="teach-language-bar">
                     <div class="teach-language-status" id="teachLanguageStatus">Language detected automatically</div>
                 </div>
@@ -1910,8 +1920,9 @@
                 <div class="translit-suggestions" id="translitSuggestions" aria-live="polite"></div>
                 <textarea class="teach-editor" id="teachEditor" spellcheck="false"></textarea>
                 <div class="teach-actions">
-                    <button class="action-btn" onclick="saveLearning()">Save & apply</button>
-                    <button class="action-btn" onclick="closeTeachPanel()">Cancel</button>
+                    <span id="draftSaveStatus" role="status">Autosave ready</span>
+                    <button class="action-btn" onclick="saveLearning()">Remember corrections</button>
+                    <button class="action-btn" onclick="closeTeachPanel()">Done</button>
                 </div>
             </div>
 
@@ -1920,7 +1931,7 @@
                     <button class="output-tab active" id="tabVerified" onclick="showTab('verified')">Paper preview</button>
                     <button class="output-tab" id="tabRaw" onclick="showTab('raw')">Extracted text</button>
                 </div>
-                <div class="preview-controls"><span id="previewStatus">Paper layout</span><button type="button" id="previewZoomBtn" aria-pressed="false" onclick="togglePaperZoom()">Zoom to read</button></div>
+                <div class="preview-controls"><span id="previewStatus">Word output preview</span><button type="button" onclick="copyText(this)">Copy text</button><button type="button" onmousedown="event.preventDefault()" onclick="editPreviewSelection()">Edit selection</button><button type="button" id="previewZoomBtn" aria-pressed="false" onclick="togglePaperZoom()">Zoom to read</button></div>
                 <div class="output-body" id="textOut" tabindex="0" aria-label="Live question paper preview"></div>
             </div>
 
@@ -2189,6 +2200,7 @@ async function clearPaperData() {
 
 function clearFile() {
     if(processingUpload){scanCancelled=true;activeScanController?.abort();setProg(18,'Stopping…');return;}
+    if(typeof discardPaperDraft==='function')discardPaperDraft();
     lastResult=null;extractedMedia=[];
     if(typeof releaseSourceReviewPdf==='function')releaseSourceReviewPdf(true);
     if(typeof textOut!=='undefined')textOut.textContent='';
@@ -4011,13 +4023,15 @@ function findInputSegmentAtCaret() {
     if (!match) return null;
 
     const source = match[1].replace(/[ \t]+/g, ' ').trim();
-    if (!source || source.length > 120) return null;
-
-    const start = caret - match[1].length;
+    if (!source) return null;
+    const rawSegment = source.length > 120 ? match[1].match(/[\p{L}\p{M}'’\-]+$/u)?.[0] : match[1];
+    if (!rawSegment) return null;
+    const activeSource = rawSegment.trim();
+    const start = caret - rawSegment.length;
     return {
         start,
         end: caret,
-        source,
+        source: activeSource,
         roman: /^[A-Za-z][A-Za-z'’\-]*(?:\s+[A-Za-z][A-Za-z'’\-]*)*$/.test(source) ? source : '',
         words: source.split(/\s+/).filter(Boolean).length
     };
@@ -4064,7 +4078,7 @@ async function fetchAiTextSuggestions(sourceText, sourceLanguage, targetLanguage
             throw new Error('AI suggestions are temporarily unavailable. Local suggestions still work.');
         }
 
-        const suggestions = uniqueStrings(Array.isArray(body?.suggestions) ? body.suggestions : []).slice(0, 5);
+        const suggestions = uniqueStrings(Array.isArray(body?.suggestions) ? body.suggestions : []).slice(0, 8);
         aiSuggestionCache.set(cacheKey, suggestions);
         if (aiSuggestionCache.size > 100) aiSuggestionCache.delete(aiSuggestionCache.keys().next().value);
         return suggestions;
@@ -4269,6 +4283,10 @@ function renderTeachPreview() {
     // current unsaved Teach corrections immediately.
     lastResult.preview_text = preview;
     lastResult.preview_layout_text = layoutPreview;
+    if(lastResult.text!==layoutPreview||lastResult.plain_text!==preview)invalidateOriginalWord();
+    lastResult.plain_text = preview;
+    lastResult.text = layoutPreview;
+    if(typeof schedulePaperDraft==='function')schedulePaperDraft();
 
     if (!showingRaw) {
         textOut.innerHTML = formatOutput(layoutPreview);
@@ -4360,6 +4378,8 @@ function openTeachPanel() {
     teachOriginalText = publicPlainTextFromStructured(lastResult.plain_text || lastResult.text || '');
     teachOriginalLayoutText = lastResult.text || teachOriginalText;
     teachEditor.value = teachOriginalText;
+    const target = typeof $==='function' ? $('translationTarget') : null;
+    if (target && !target.dataset.userChosen) target.value = detectTeachLanguage(teachOriginalText);
     teachHistory = [teachOriginalText];
     teachHistoryIndex = 0;
     smartComposition = null;
@@ -4367,7 +4387,7 @@ function openTeachPanel() {
     aiSuggestionSequence++;
 
     teachPanel.classList.add('show');
-    if(typeof $==='function'&&$('previewStatus'))$('previewStatus').textContent='Live preview · edits are not saved yet';
+    if(typeof $==='function'&&$('previewStatus'))$('previewStatus').textContent='Live Word preview · autosave on';
     updateTeachLanguageStatus();
     showSmartSuggestions();
     updateTeachButtons();
@@ -5545,6 +5565,7 @@ goBtn.onclick = async () => {
             native_docx_file:nativeWord?sourceFile:null,native_docx_text:allText,
             native_pdf_pages:nativePdfPages,native_pdf_text:allText,native_pdf_preview:nativePdfPages?PaperAIPdfEditable.preview(nativePdfPages):null,
             page_texts:documentPageTexts };
+        if(typeof schedulePaperDraft==='function')schedulePaperDraft();
         teachPanel.classList.remove('show');
     if(typeof $==='function'&&$('previewStatus'))$('previewStatus').textContent='Paper layout';
         showingRaw = false;
@@ -6006,7 +6027,7 @@ function docxSectionRow(title,marks,bold=true) {
         // A right-aligned tab replaces the invisible two-cell Word table. The
         // question wording and score are ordinary editable paragraph runs.
         const size=bold?24:22,font='Tahoma';
-        return '<w:p><w:pPr><w:keepNext/><w:keepLines/><w:tabs><w:tab w:val="right" w:pos="10466"/></w:tabs>'+ 
+        return '<w:p><w:pPr><w:keepNext/><w:keepLines/><w:tabs><w:tab w:val="right" w:pos="10466"/></w:tabs>'+
             '<w:spacing w:before="120" w:after="80"/></w:pPr>'+docxRun(title,{bold,size,font})+
             '<w:r><w:tab/></w:r>'+docxRun(marks,{bold,size,font})+'</w:p>';
     }
@@ -6176,7 +6197,7 @@ function buildDocxBody(structuredText) {
         const qa=line.match(/^\[\[QA_ROW:\s*([\s\S]*?)\s*\|\|\s*([\s\S]*?)\]\]$/i);
         if(qa){
             if(activeDocxEditingMode==='source')body.push(docxTableCells([[qa[1].trim(),qa[2].trim()]],[7900,2566],{bordered:false,keepTogether:true}));
-            else body.push('<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="7900"/></w:tabs>'+ 
+            else body.push('<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="7900"/></w:tabs>'+
                 '<w:spacing w:after="90"/></w:pPr>'+docxRun(qa[1].trim(),{size:24})+'<w:r><w:tab/></w:r>'+docxRun(qa[2].trim(),{size:24})+'</w:p>');
             i++;continue;
         }
@@ -7083,8 +7104,35 @@ function copyText(btn){
     navigator.clipboard.writeText(currentPlainText()).then(()=>{
         btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';
         setTimeout(()=>btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy',1500)
-    })
+    }).catch(()=>{showErr('Copy is unavailable. Open Extracted text and select the text to copy.');})
 }
+
+function editPreviewSelection(){
+    const selection=window.getSelection();
+    if(!selection?.rangeCount||!textOut.contains(selection.anchorNode)||!textOut.contains(selection.focusNode)){showErr('Select a word or sentence inside the preview first.');return;}
+    const selected=selection.toString().trim();
+    const plain=publicPlainTextFromStructured(lastResult?.plain_text||lastResult?.text||'');
+    const start=plain.indexOf(selected);
+    if(!selected||start<0||plain.indexOf(selected,start+selected.length)>=0){openTeachPanel();teachAiStatus.textContent='Select the exact occurrence in the editor to keep repeated words with the correct question.';return;}
+    openTeachPanel();teachEditor.setSelectionRange(start,start+selected.length);refreshSmartComposition();teachEditor.scrollIntoView({block:'nearest'});
+}
+let paperDraftTimer=null, paperDraftEpoch=0, paperDraftQueue=Promise.resolve();
+function paperDraftDb(){return new Promise((resolve,reject)=>{const request=indexedDB.open('paperai-editor-draft',1);request.onupgradeneeded=()=>request.result.createObjectStore('drafts');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+async function paperDraftStore(mode,operation){const db=await paperDraftDb();try{return await new Promise((resolve,reject)=>{const tx=db.transaction('drafts',mode);let result;const request=operation(tx.objectStore('drafts'));request.onsuccess=()=>{result=request.result;};tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}finally{db.close();}}
+function draftStatus(message){const label=$('draftSaveStatus');if(label)label.textContent=message;}
+function schedulePaperDraft(){clearTimeout(paperDraftTimer);draftStatus('Saving…');paperDraftTimer=setTimeout(flushPaperDraft,400);}
+function flushPaperDraft(){clearTimeout(paperDraftTimer);if(!lastResult)return paperDraftQueue;const epoch=paperDraftEpoch;
+    const snapshot=structuredClone({version:1,savedAt:Date.now(),result:lastResult,media:extractedMedia,language:languageSelect.value});
+    paperDraftQueue=paperDraftQueue.catch(()=>{}).then(async()=>{if(epoch!==paperDraftEpoch)return;try{await paperDraftStore('readwrite',store=>store.put(snapshot,'current'));if(epoch===paperDraftEpoch)draftStatus('Saved on this device');}catch(_){draftStatus('Not saved on device · keep this tab open');}});return paperDraftQueue;
+}
+function discardPaperDraft(){paperDraftEpoch++;clearTimeout(paperDraftTimer);$('restoreDraftBtn').hidden=true;paperDraftQueue=paperDraftQueue.catch(()=>{}).then(()=>paperDraftStore('readwrite',store=>store.delete('current'))).catch(()=>{});}
+async function restorePaperDraft(){try{await paperDraftQueue;const draft=await paperDraftStore('readonly',store=>store.get('current'));if(!draft||draft.version!==1||typeof draft.result?.text!=='string')return;
+    lastResult=draft.result;extractedMedia=draft.media||[];languageSelect.value=draft.language||'auto';file=lastResult.source_file||null;showingRaw=false;resBox.classList.add('show');$('restoreDraftBtn').hidden=true;$('statsBar').textContent='Saved paper';$('tabVerified').classList.add('active');$('tabRaw').classList.remove('active');configureAutomaticPaper(lastResult.text,!!lastResult.native_pdf_pages||!!lastResult.native_docx_file);updateResultActionsForTab();textOut.innerHTML=formatOutput(lastResult.text);textOut.className='output-body';applyPaperZoom();openTeachPanel();
+}catch(_){showErr('This browser could not reopen the saved paper. Reopen your PDF to resume its saved pages.');}}
+$('translationTarget').addEventListener('change',event=>{event.target.dataset.userChosen='true';});
+window.addEventListener('pagehide',()=>{if(lastResult)flushPaperDraft();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&lastResult)flushPaperDraft();});
+paperDraftStore('readonly',store=>store.get('current')).then(draft=>{if(draft?.version===1&&draft.result?.text&&!lastResult)$('restoreDraftBtn').hidden=false;}).catch(()=>{});
 </script>
 </body>
 </html>
