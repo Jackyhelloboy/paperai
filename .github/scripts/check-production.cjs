@@ -80,7 +80,7 @@ async function runGroup(name,count,concurrency,operation){
     const asset=await read(path);assert.equal(asset.status,200);checks.push(path+' loads');
   }
   for(const concurrency of [5,10,20])await runGroup('dashboard-'+concurrency,40,concurrency,async()=>{
-    const res=await read('/');assert.equal(res.status,200);assert(res.body.includes('Extract text from anything'));return res.status;
+    const res=await read('/');assert.equal(res.status,200);assert(res.body.includes('class="home-workspace"'));assert(res.body.includes('Ready for the classroom.'));return res.status;
   });
   await runGroup('usage',40,10,async()=>{const res=await read('/api/usage');assert.equal(res.status,200);assert.equal(typeof JSON.parse(res.body).provider_limit_reached,'boolean');return res.status;});
   await runGroup('text-upload',20,5,async i=>{
